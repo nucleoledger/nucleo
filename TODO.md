@@ -25,7 +25,7 @@
 - [ ] Validar workflow CI en los 3 SO — tocar: `.github/workflows/ci.yml` — verificar: badge verde tras el push
 
 ## Fase 0 — Prueba de concepto C2SP
-- [ ] Prueba de consistencia RFC 9162 §2.1.4 (`ConsistencyProof` + `VerifyConsistency`) — tocar: `internal/ledger/merkle.go` + test nuevo — verificar: test con árbol extendido (pasa) y árbol reescrito (falla)
+- [x] Prueba de consistencia RFC 9162 §2.1.4 (`ConsistencyProof` + `VerifyConsistency`) — tocar: `internal/ledger/merkle.go` + test nuevo — verificar: test con árbol extendido (pasa) y árbol reescrito (falla)
 - [ ] Formato de checkpoint (nota firmada: origin, size, root) con Ed25519 — tocar: `internal/checkpoint/` nuevo — verificar: golden test del formato exacto
 - [ ] Cosignature v1 simulada (testigo local: timestamp + firma sobre el checkpoint) — tocar: `internal/witness/` nuevo — verificar: test de rechazo ante checkpoint inconsistente (detecta reescritura)
 - [ ] Recibo estilo tlog-proof (checkpoint + índice + inclusion path) serializado — tocar: `internal/proof/` nuevo — verificar: verificación offline sin acceso al ledger + medir bytes

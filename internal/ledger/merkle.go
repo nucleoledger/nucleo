@@ -19,6 +19,7 @@ import (
 
 var (
 	ErrLeafIndex = errors.New("merkle: índice de hoja fuera de rango")
+	ErrTreeSize  = errors.New("merkle: tamaño de árbol inválido")
 	ErrBadProof  = errors.New("merkle: prueba de inclusión inválida")
 )
 
@@ -71,6 +72,18 @@ func InclusionProof(leaves [][]byte, m int) ([][]byte, error) {
 	return proofPath(leaves, m), nil
 }
 
+// ConsistencyProof devuelve PROOF(m, D[n]) de RFC 9162 §2.1.4 para demostrar
+// que el árbol de tamaño oldSize es prefijo del árbol actual sin reescritura.
+func ConsistencyProof(leaves [][]byte, oldSize int) ([][]byte, error) {
+	if oldSize <= 0 || oldSize > len(leaves) {
+		return nil, fmt.Errorf("%w: %d de %d", ErrTreeSize, oldSize, len(leaves))
+	}
+	if oldSize == len(leaves) {
+		return nil, nil
+	}
+	return consistencyPath(leaves, oldSize, true), nil
+}
+
 func proofPath(leaves [][]byte, m int) [][]byte {
 	n := len(leaves)
 	if n == 1 {
@@ -81,6 +94,22 @@ func proofPath(leaves [][]byte, m int) [][]byte {
 		return append(proofPath(leaves[:k], m), Root(leaves[k:]))
 	}
 	return append(proofPath(leaves[k:], m-k), Root(leaves[:k]))
+}
+
+func consistencyPath(leaves [][]byte, m int, complete bool) [][]byte {
+	n := len(leaves)
+	if m == n {
+		if complete {
+			return nil
+		}
+		return [][]byte{Root(leaves)}
+	}
+
+	k := largestPowerOfTwoBelow(n)
+	if m <= k {
+		return append(consistencyPath(leaves[:k], m, complete), Root(leaves[k:]))
+	}
+	return append(consistencyPath(leaves[k:], m-k, false), Root(leaves[:k]))
 }
 
 // VerifyInclusion reconstruye la raíz desde la hoja y el camino, siguiendo el
@@ -108,6 +137,62 @@ func VerifyInclusion(leafData []byte, m, n int, proof [][]byte, root []byte) err
 		sn >>= 1
 	}
 	if sn != 0 || !bytes.Equal(r, root) {
+		return ErrBadProof
+	}
+	return nil
+}
+
+// VerifyConsistency aplica RFC 9162 §2.1.4.2: reconstruye simultáneamente la
+// raíz vieja y la nueva desde la prueba, y acepta solo si ambas coinciden.
+func VerifyConsistency(oldSize, newSize int, oldRoot, newRoot []byte, proof [][]byte) error {
+	if oldSize <= 0 || newSize < oldSize {
+		return ErrTreeSize
+	}
+	if oldSize == newSize {
+		if len(proof) == 0 && bytes.Equal(oldRoot, newRoot) {
+			return nil
+		}
+		return ErrBadProof
+	}
+
+	fn, sn := oldSize-1, newSize-1
+	for fn&1 == 1 {
+		fn >>= 1
+		sn >>= 1
+	}
+
+	var fr, sr []byte
+	if fn == 0 {
+		fr = oldRoot
+		sr = oldRoot
+	} else {
+		if len(proof) == 0 {
+			return ErrBadProof
+		}
+		fr = proof[0]
+		sr = proof[0]
+		proof = proof[1:]
+	}
+
+	for _, p := range proof {
+		if sn == 0 {
+			return ErrBadProof
+		}
+		if fn&1 == 1 || fn == sn {
+			fr = nodeHash(p, fr)
+			sr = nodeHash(p, sr)
+			for fn&1 == 0 && fn != 0 {
+				fn >>= 1
+				sn >>= 1
+			}
+		} else {
+			sr = nodeHash(sr, p)
+		}
+		fn >>= 1
+		sn >>= 1
+	}
+
+	if sn != 0 || !bytes.Equal(fr, oldRoot) || !bytes.Equal(sr, newRoot) {
 		return ErrBadProof
 	}
 	return nil
