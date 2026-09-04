@@ -1,0 +1,5 @@
+session-*.md
+.obsidian/
+bin/
+*.test
+*.out

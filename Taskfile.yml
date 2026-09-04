@@ -1,0 +1,8 @@
+version: '3'
+tasks:
+  build: { cmds: ["go build ./..."] }
+  fmt:   { cmds: ["gofmt -l ."] }
+  vet:   { cmds: ["go vet ./..."] }
+  test:  { cmds: ["go test ./... -race"] }
+  demo:  { cmds: ["go run ./cmd/nucleo-demo"] }
+  check: { cmds: ["task: fmt", "task: vet", "task: test"] }
