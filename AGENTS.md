@@ -35,6 +35,7 @@ La IA **lee** en `docs/` y `internal/`; **escribe** en `internal/`, `cmd/` y tes
 - PROHIBIDO instalar dependencias nuevas sin aprobación explícita. Las únicas pre-aprobadas están listadas en `docs/CONCEPTO-v1.2-es.md` §10.
 - PROHIBIDO tocar .env, secretos, credenciales, configuración de releases.
 - **Regla criptográfica:** ningún código que firme, hashee o canonicalice se escribe sin su vector de prueba primero. Ningún cambio puede romper los vectores existentes: si un vector falla, el código está mal, no el vector.
+- **Regla anti-circularidad:** todo valor golden (hashes, key IDs, firmas, bytes canónicos) se calcula FUERA del código bajo prueba (sha256sum, cómputo manual, implementación independiente). Un test que verifica una función usando esa misma función no verifica nada.
 - **PROTOCOL.md manda:** si una tarea contradice el protocolo, DETENERSE y preguntar; el cambio de protocolo es decisión del dev vía ADR.
 - No borrar comentarios ni código existente salvo que la tarea lo pida.
 - REGLA DE CIERRE: tarea completa = `gofmt -l .` vacío + `go vet ./...` + `go test ./... -race` en verde. Tras cada tarea: 1 commit atómico descriptivo + marcar checkbox en TODO.md. Reversible con un solo `git revert`.
