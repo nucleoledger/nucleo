@@ -86,10 +86,14 @@ func Parse(text string) (Checkpoint, error) {
 	}
 	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 
-	// SPEC-CHECK: c2sp.org/tlog-checkpoint permite líneas adicionales tras la
-	// tercera (quedan dentro de lo firmado). Aquí se rechazan en vez de
-	// ignorarlas en silencio: descartar contenido firmado sería peor que fallar.
-	// Aceptarlas exige decidir cómo se representan y se vuelven a serializar.
+	// c2sp.org/tlog-checkpoint permite líneas adicionales tras la tercera —van
+	// dentro de lo firmado— pero las marca como NOT RECOMMENDED. Decisión de
+	// Núcleo: rechazarlas, fallo cerrado. Núcleo emite exactamente tres líneas
+	// de cuerpo y todavía no atestigua logs ajenos, así que aceptar extensiones
+	// solo añadiría superficie. Ignorarlas en silencio sería peor que fallar,
+	// porque descartaría contenido firmado. Admitirlas exige un parseo que
+	// preserve el cuerpo verbatim para poder reserializarlo byte a byte, y eso
+	// se difiere hasta que haga falta atestiguar logs de terceros.
 	if len(lines) != 3 {
 		return Checkpoint{}, fmt.Errorf("%w: se esperaban 3 líneas, hay %d", ErrFormat, len(lines))
 	}
