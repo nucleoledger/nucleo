@@ -153,6 +153,10 @@ func TestVerifyConsistencyErrorPaths(t *testing.T) {
 		{"prueba de otro par de tamaños", 3, 8, oldRoot3, newRoot, proof1, ErrBadProof},
 		{"prueba más larga de lo necesario", 1, 4, Root(leaves[:1]), Root(leaves[:4]),
 			append(append([][]byte{}, proof1...), make([]byte, 32), make([]byte, 32)), ErrBadProof},
+		{"raíces nulas con tamaños iguales", 8, 8, nil, nil, nil, ErrBadProof},
+		{"raíces vacías con tamaños iguales", 8, 8, []byte{}, []byte{}, nil, ErrBadProof},
+		{"raíz vieja truncada", 3, 8, oldRoot3[:31], newRoot, proof3, ErrBadProof},
+		{"raíz nueva sobredimensionada", 3, 8, oldRoot3, append(append([]byte{}, newRoot...), 0), proof3, ErrBadProof},
 	}
 	for _, c := range cases {
 		err := VerifyConsistency(c.oldSize, c.newSize, c.oldRoot, c.newRoot, c.proof)

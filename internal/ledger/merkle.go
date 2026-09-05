@@ -148,6 +148,12 @@ func VerifyConsistency(oldSize, newSize int, oldRoot, newRoot []byte, proof [][]
 	if oldSize <= 0 || newSize < oldSize {
 		return ErrTreeSize
 	}
+	// Fallo cerrado: sin esta guarda, dos raíces vacías o ausentes se
+	// comparan como iguales y un checkpoint mal parseado pasaría por
+	// consistente cuando oldSize == newSize.
+	if len(oldRoot) != sha256.Size || len(newRoot) != sha256.Size {
+		return ErrBadProof
+	}
 	if oldSize == newSize {
 		if len(proof) == 0 && bytes.Equal(oldRoot, newRoot) {
 			return nil
