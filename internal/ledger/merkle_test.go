@@ -272,3 +272,113 @@ func clonePath(proof [][]byte) [][]byte {
 	}
 	return out
 }
+
+// TestInclusionRoundTripAllSizes recorre todo árbol hasta 64 hojas y toda hoja,
+// que es lo que cubre por completo proofPath y el bucle de VerifyInclusion.
+func TestInclusionRoundTripAllSizes(t *testing.T) {
+	for n := 1; n <= 64; n++ {
+		leaves := merkleTestLeaves(n)
+		root := Root(leaves)
+		for m := 0; m < n; m++ {
+			proof, err := InclusionProof(leaves, m)
+			if err != nil {
+				t.Fatalf("InclusionProof(%d, %d): %v", m, n, err)
+			}
+			if err := VerifyInclusion(leaves[m], m, n, proof, root); err != nil {
+				t.Errorf("VerifyInclusion(%d, %d) rechaza prueba honesta: %v", m, n, err)
+			}
+		}
+	}
+}
+
+// TestInclusionIndexOutOfRange cubre el dominio de índices de ambas funciones.
+func TestInclusionIndexOutOfRange(t *testing.T) {
+	leaves := merkleTestLeaves(4)
+	root := Root(leaves)
+
+	for _, m := range []int{-1, 4, 100} {
+		if _, err := InclusionProof(leaves, m); !errors.Is(err, ErrLeafIndex) {
+			t.Errorf("InclusionProof(m=%d): err = %v, want %v", m, err, ErrLeafIndex)
+		}
+	}
+	if _, err := InclusionProof(nil, 0); !errors.Is(err, ErrLeafIndex) {
+		t.Errorf("InclusionProof(árbol vacío): err = %v, want %v", err, ErrLeafIndex)
+	}
+
+	proof, err := InclusionProof(leaves, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		m, n int
+	}{
+		{"índice negativo", -1, 4},
+		{"índice igual al tamaño", 4, 4},
+		{"índice mayor que el tamaño", 5, 4},
+		{"tamaño cero", 0, 0},
+		{"tamaño negativo", 0, -1},
+	}
+	for _, c := range cases {
+		if err := VerifyInclusion(leaves[1], c.m, c.n, proof, root); !errors.Is(err, ErrLeafIndex) {
+			t.Errorf("VerifyInclusion %s: err = %v, want %v", c.name, err, ErrLeafIndex)
+		}
+	}
+}
+
+// TestVerifyInclusionRejectsTamperedProof manipula el camino de auditoría, la
+// hoja y la raíz: ninguna variante debe colar.
+func TestVerifyInclusionRejectsTamperedProof(t *testing.T) {
+	for n := 2; n <= 24; n++ {
+		leaves := merkleTestLeaves(n)
+		root := Root(leaves)
+		for m := 0; m < n; m++ {
+			proof, err := InclusionProof(leaves, m)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for i := range proof {
+				mutated := clonePath(proof)
+				mutated[i][0] ^= 0xff
+				if err := VerifyInclusion(leaves[m], m, n, mutated, root); err == nil {
+					t.Errorf("(m=%d, n=%d) acepta prueba con el nodo %d mutado", m, n, i)
+				}
+
+				truncated := append(clonePath(proof[:i]), clonePath(proof[i+1:])...)
+				if err := VerifyInclusion(leaves[m], m, n, truncated, root); err == nil {
+					t.Errorf("(m=%d, n=%d) acepta prueba sin el nodo %d", m, n, i)
+				}
+			}
+
+			extended := append(clonePath(proof), make([]byte, 32))
+			if err := VerifyInclusion(leaves[m], m, n, extended, root); err == nil {
+				t.Errorf("(m=%d, n=%d) acepta prueba con un nodo de más", m, n)
+			}
+
+			if err := VerifyInclusion([]byte("hoja suplantada"), m, n, proof, root); err == nil {
+				t.Errorf("(m=%d, n=%d) acepta una hoja suplantada", m, n)
+			}
+
+			corrupted := append([]byte(nil), root...)
+			corrupted[0] ^= 0xff
+			if err := VerifyInclusion(leaves[m], m, n, proof, corrupted); err == nil {
+				t.Errorf("(m=%d, n=%d) acepta una raíz falsificada", m, n)
+			}
+
+			// El camino de otra hoja del mismo árbol tampoco debe servir.
+			for other := 0; other < n; other++ {
+				if other == m {
+					continue
+				}
+				otherProof, err := InclusionProof(leaves, other)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := VerifyInclusion(leaves[m], m, n, otherProof, root); err == nil {
+					t.Errorf("(m=%d, n=%d) acepta el camino de la hoja %d", m, n, other)
+				}
+			}
+		}
+	}
+}

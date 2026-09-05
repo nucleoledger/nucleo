@@ -115,3 +115,46 @@ func TestRFC6962ConsistencyVectors(t *testing.T) {
 		}
 	}
 }
+
+// TestRFC6962InclusionVectors comprueba PATH(m, D[n]) nodo por nodo y que el
+// verificador reconstruye la raíz canónica desde el camino del vector.
+func TestRFC6962InclusionVectors(t *testing.T) {
+	leaves := rfc6962Leaves(t)
+	var v struct {
+		Proofs []struct {
+			LeafIndex int      `json:"leaf_index"`
+			TreeSize  int      `json:"tree_size"`
+			ProofHex  []string `json:"proof_hex"`
+		} `json:"proofs"`
+	}
+	loadVector(t, "inclusion.json", &v)
+	if len(v.Proofs) == 0 {
+		t.Fatal("el vector no trae ningún camino de inclusión")
+	}
+
+	for _, p := range v.Proofs {
+		got, err := InclusionProof(leaves[:p.TreeSize], p.LeafIndex)
+		if err != nil {
+			t.Errorf("InclusionProof(%d, %d): %v", p.LeafIndex, p.TreeSize, err)
+			continue
+		}
+		if len(got) != len(p.ProofHex) {
+			t.Errorf("PATH(%d, D[%d]) tiene %d nodos, want %d", p.LeafIndex, p.TreeSize, len(got), len(p.ProofHex))
+			continue
+		}
+		for i, want := range p.ProofHex {
+			if h := hex.EncodeToString(got[i]); h != want {
+				t.Errorf("PATH(%d, D[%d])[%d] = %s, want %s", p.LeafIndex, p.TreeSize, i, h, want)
+			}
+		}
+
+		canonical := make([][]byte, len(p.ProofHex))
+		for i, s := range p.ProofHex {
+			canonical[i] = decodeHex(t, s)
+		}
+		root := Root(leaves[:p.TreeSize])
+		if err := VerifyInclusion(leaves[p.LeafIndex], p.LeafIndex, p.TreeSize, canonical, root); err != nil {
+			t.Errorf("VerifyInclusion(%d, %d) rechaza el vector canónico: %v", p.LeafIndex, p.TreeSize, err)
+		}
+	}
+}
