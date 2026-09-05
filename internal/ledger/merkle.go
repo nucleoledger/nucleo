@@ -171,6 +171,9 @@ func VerifyConsistency(oldSize, newSize int, oldRoot, newRoot []byte, proof [][]
 		sn >>= 1
 	}
 
+	// fn == 0 tras la normalización equivale a "oldSize es potencia exacta de 2",
+	// así que este caso es el "prepend hash_1" del paso 1 de RFC 9162 §2.1.4.2:
+	// en vez de anteponerlo a la prueba, se siembra fr y sr con oldRoot.
 	var fr, sr []byte
 	if fn == 0 {
 		fr = oldRoot
