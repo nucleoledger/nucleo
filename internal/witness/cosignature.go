@@ -19,6 +19,12 @@ import (
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 )
 
+// cosignatureKeyHash calcula el key ID de una clave de testigo, con el byte de
+// algoritmo 0x04 de c2sp.org/tlog-cosignature.
+func cosignatureKeyHash(name string, pub ed25519.PublicKey) uint32 {
+	return checkpoint.KeyHashAlg(name, pub, checkpoint.AlgEd25519Cosignature)
+}
+
 // TimestampedSignatureSize es el tamaño de la timestamped_signature de
 // c2sp.org/tlog-cosignature@v1: 8 bytes de timestamp más 64 de firma Ed25519.
 const TimestampedSignatureSize = 8 + ed25519.SignatureSize
@@ -42,12 +48,12 @@ func cosignedMessage(timestamp uint64, noteBody []byte) []byte {
 // x/mod/sumdb/note lo acepta sin modificaciones: la biblioteca aporta el
 // formato de nota y este tipo aporta el contenido de la firma.
 //
-// SPEC-CHECK: el key ID se calcula aquí con el identificador de algoritmo 0x01
-// (checkpoint.KeyHash), que es el único que fija PROTOCOL.md §3. El registro de
-// algoritmos de notas firmadas de C2SP podría asignar un identificador distinto
-// a las claves de cosignature/v1; de ser así cambiaría el key ID del testigo
-// —no los bytes de la firma— y habría que fijarlo antes de interoperar con
-// testigos de terceros.
+// El key ID se calcula con el identificador de algoritmo 0x04, que es el que
+// c2sp.org/tlog-cosignature asigna a las claves de cosignature v1. El 0x01 queda
+// reservado a la firma del log sobre el texto de la nota. La distinción importa:
+// el byte entra en el hash del key ID, así que una misma clave Ed25519 usada
+// como log y como testigo produce dos key IDs distintos y sus firmas nunca
+// pueden confundirse.
 type Signer struct {
 	name string
 	hash uint32
@@ -72,7 +78,7 @@ func NewSigner(name string, priv ed25519.PrivateKey, now func() time.Time) (*Sig
 	if now == nil {
 		now = time.Now
 	}
-	return &Signer{name: name, hash: checkpoint.KeyHash(name, pub), priv: priv, pub: pub, now: now}, nil
+	return &Signer{name: name, hash: cosignatureKeyHash(name, pub), priv: priv, pub: pub, now: now}, nil
 }
 
 // Name devuelve el nombre del testigo.
@@ -124,7 +130,7 @@ func NewVerifier(name string, pub ed25519.PublicKey) (*Verifier, error) {
 	if len(pub) != ed25519.PublicKeySize {
 		return nil, errors.New("witness: clave pública Ed25519 inválida")
 	}
-	return &Verifier{name: name, hash: checkpoint.KeyHash(name, pub), pub: pub}, nil
+	return &Verifier{name: name, hash: cosignatureKeyHash(name, pub), pub: pub}, nil
 }
 
 // Name devuelve el nombre del testigo.

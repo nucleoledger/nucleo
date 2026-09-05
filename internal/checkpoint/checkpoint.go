@@ -192,16 +192,34 @@ func NewVerifier(name string, pub ed25519.PublicKey) (note.Verifier, error) {
 	return v, nil
 }
 
-// algEd25519 es el identificador de algoritmo 0x01 que exige PROTOCOL.md §3.
-const algEd25519 = 1
+// Identificadores de algoritmo del registro de notas firmadas de C2SP. El byte
+// entra en el cálculo del key ID, así que una misma clave Ed25519 tiene un key
+// ID distinto según para qué se use: eso es lo que impide que la firma de un log
+// y la cosignature de un testigo se confundan aunque compartieran clave.
+const (
+	// AlgEd25519 identifica la firma Ed25519 del log sobre el texto de la nota.
+	AlgEd25519 = 0x01
+	// AlgEd25519Cosignature identifica una clave de c2sp.org/tlog-cosignature@v1.
+	AlgEd25519Cosignature = 0x04
+)
 
-// KeyHash calcula el key ID de C2SP: los primeros 4 bytes, en big-endian, de
-// SHA-256(name ‖ "\n" ‖ 0x01 ‖ pubkey).
+// algEd25519 se conserva para la codificación de clave privada de
+// x/mod/sumdb/note, que solo entiende el 0x01.
+const algEd25519 = AlgEd25519
+
+// KeyHash calcula el key ID de la firma del log: los primeros 4 bytes, en
+// big-endian, de SHA-256(name ‖ "\n" ‖ 0x01 ‖ pubkey).
 func KeyHash(name string, pub ed25519.PublicKey) uint32 {
+	return KeyHashAlg(name, pub, AlgEd25519)
+}
+
+// KeyHashAlg calcula el key ID para un identificador de algoritmo concreto:
+// SHA-256(name ‖ "\n" ‖ alg ‖ pubkey), truncado a 4 bytes big-endian.
+func KeyHashAlg(name string, pub ed25519.PublicKey, alg byte) uint32 {
 	h := sha256.New()
 	h.Write([]byte(name))
 	h.Write([]byte("\n"))
-	h.Write([]byte{algEd25519})
+	h.Write([]byte{alg})
 	h.Write(pub)
 	return binary.BigEndian.Uint32(h.Sum(nil))
 }
