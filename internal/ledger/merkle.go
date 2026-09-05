@@ -21,6 +21,10 @@ var (
 	ErrLeafIndex = errors.New("merkle: índice de hoja fuera de rango")
 	ErrTreeSize  = errors.New("merkle: tamaño de árbol inválido")
 	ErrBadProof  = errors.New("merkle: prueba de inclusión inválida")
+	// ErrBadConsistency distingue el rechazo de una prueba de consistencia del
+	// de una de inclusión: en forense de un ledger importa cuál de las dos
+	// falló al rechazar un checkpoint.
+	ErrBadConsistency = errors.New("merkle: prueba de consistencia inválida")
 )
 
 // LeafHash = SHA-256(0x00 || data).
@@ -152,13 +156,13 @@ func VerifyConsistency(oldSize, newSize int, oldRoot, newRoot []byte, proof [][]
 	// comparan como iguales y un checkpoint mal parseado pasaría por
 	// consistente cuando oldSize == newSize.
 	if len(oldRoot) != sha256.Size || len(newRoot) != sha256.Size {
-		return ErrBadProof
+		return ErrBadConsistency
 	}
 	if oldSize == newSize {
 		if len(proof) == 0 && bytes.Equal(oldRoot, newRoot) {
 			return nil
 		}
-		return ErrBadProof
+		return ErrBadConsistency
 	}
 
 	fn, sn := oldSize-1, newSize-1
@@ -173,7 +177,7 @@ func VerifyConsistency(oldSize, newSize int, oldRoot, newRoot []byte, proof [][]
 		sr = oldRoot
 	} else {
 		if len(proof) == 0 {
-			return ErrBadProof
+			return ErrBadConsistency
 		}
 		fr = proof[0]
 		sr = proof[0]
@@ -182,7 +186,7 @@ func VerifyConsistency(oldSize, newSize int, oldRoot, newRoot []byte, proof [][]
 
 	for _, p := range proof {
 		if sn == 0 {
-			return ErrBadProof
+			return ErrBadConsistency
 		}
 		if fn&1 == 1 || fn == sn {
 			fr = nodeHash(p, fr)
@@ -199,7 +203,7 @@ func VerifyConsistency(oldSize, newSize int, oldRoot, newRoot []byte, proof [][]
 	}
 
 	if sn != 0 || !bytes.Equal(fr, oldRoot) || !bytes.Equal(sr, newRoot) {
-		return ErrBadProof
+		return ErrBadConsistency
 	}
 	return nil
 }
