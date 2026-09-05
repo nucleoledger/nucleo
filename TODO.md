@@ -28,7 +28,7 @@
 - [x] Prueba de consistencia RFC 9162 §2.1.4 (`ConsistencyProof` + `VerifyConsistency`) — tocar: `internal/ledger/merkle.go` + test nuevo — verificar: test con árbol extendido (pasa) y árbol reescrito (falla)
 - [x] Formato de checkpoint (nota firmada: origin, size, root) con Ed25519 — tocar: `internal/checkpoint/` nuevo — verificar: golden test del formato exacto
 - [x] Cosignature v1 simulada (testigo local: timestamp + firma sobre el checkpoint) — tocar: `internal/witness/` nuevo — verificar: test de rechazo ante checkpoint inconsistente (detecta reescritura)
-- [ ] Recibo estilo tlog-proof (checkpoint + índice + inclusion path) serializado — tocar: `internal/proof/` nuevo — verificar: verificación offline sin acceso al ledger + medir bytes
+- [x] Recibo estilo tlog-proof (checkpoint + índice + inclusion path) serializado — tocar: `internal/proof/` nuevo — verificar: verificación offline sin acceso al ledger + medir bytes
 - [ ] Benchmark de sellado y tamaño de recibo — tocar: `internal/ledger/bench_test.go` — verificar: `go test -bench` reporta cifras; anotarlas en README
 - [x] Evaluar spike `golang.org/x/mod/sumdb/note` vs formato manual (decisión → ADR-008) — verificar: ADR escrito con conclusión
 
