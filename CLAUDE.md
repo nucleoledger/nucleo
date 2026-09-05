@@ -51,3 +51,5 @@ go run ./cmd/nucleo-demo       # demo end-to-end (cadena + Merkle + 3 ataques)
 go test -bench=. ./...         # benchmarks (cuando existan)
 ```
 No hay logs de servicio: la salida de la CLI y de los tests es el log.
+
+Nota: AGENTS.md y CLAUDE.md son copias espejo; todo cambio se aplica en ambos.
