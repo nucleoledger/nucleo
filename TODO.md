@@ -33,6 +33,6 @@
 - [x] Evaluar spike `golang.org/x/mod/sumdb/note` vs formato manual (decisión → ADR-008) — verificar: ADR escrito con conclusión
 
 ## Después (Sprint 2 — no empezar sin cerrar lo anterior)
-- [ ] `internal/store`: SQLite append-only (4 tablas + triggers + caché de subárboles)
+- [x] `internal/store`: SQLite append-only (4 tablas + triggers; caché de subárboles DIFERIDA — ADR-009; el benchmark dispara la condición pero el cuello no es la raíz: ver reporte)
 - [ ] `internal/vault`: KEK/DEK + XChaCha20-Poly1305 con AAD + SLIP-0039
 - [ ] Recibos con destinatario (`issueReceipt`)

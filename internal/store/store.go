@@ -73,6 +73,12 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	// Abrir es el momento de descubrir que alguien tocó el fichero: después ya
+	// se estaría sellando encima de una historia alterada.
+	if err := s.VerifyIntegrity(); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return s, nil
 }
 
