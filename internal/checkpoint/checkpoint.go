@@ -10,6 +10,7 @@
 package checkpoint
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -124,6 +125,19 @@ func Parse(text string) (Checkpoint, error) {
 	}
 
 	return Checkpoint{Origin: origin, Size: size, RootHash: root}, nil
+}
+
+// ParseNote extrae el checkpoint del cuerpo de una nota firmada SIN comprobar
+// ninguna firma. Existe para quien necesita el tamaño o la raíz antes de tener
+// las claves a mano —el almacén, al indexar un checkpoint por su tree_size—, y
+// nunca debe usarse para decidir si un checkpoint es de fiar: para eso está
+// Verify, que sí exige firmas válidas.
+func ParseNote(msg []byte) (Checkpoint, error) {
+	i := bytes.LastIndex(msg, []byte("\n\n"))
+	if i < 0 {
+		return Checkpoint{}, fmt.Errorf("%w: la nota no separa cuerpo y firmas", ErrFormat)
+	}
+	return Parse(string(msg[:i+1]))
 }
 
 // Sign firma el checkpoint como nota. Ed25519 es determinista, así que los bytes
