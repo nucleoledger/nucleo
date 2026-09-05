@@ -25,7 +25,7 @@ A **block** is `{header, hash, signature}`. The **header** is the signed part:
 
 ## 2. Merkle tree (implemented)
 
-RFC 6962 with SHA-256: leaf hash = `SHA-256(0x00 ‖ data)`, node = `SHA-256(0x01 ‖ l ‖ r)`. Leaves are block hashes (raw 32 bytes). Inclusion proofs verified per RFC 9162 §2.1.3.2. Consistency proofs (RFC 9162 §2.1.4) are REQUIRED before v1.0 (pending implementation).
+RFC 6962 with SHA-256: leaf hash = `SHA-256(0x00 ‖ data)`, node = `SHA-256(0x01 ‖ l ‖ r)`. Leaves are block hashes (raw 32 bytes). Inclusion proofs verified per RFC 9162 §2.1.3.2. Consistency proofs (RFC 9162 §2.1.4) are implemented. Domain extension: for oldSize == newSize the proof MUST be empty and verification additionally requires byte-equality of the two 32-byte roots; the RFC defines proofs only for 0 < m < n, so any cross-language implementation MUST adopt this same convention to stay interoperable. Proof nodes have no bespoke wire format: they serialize as one base64 (RFC 4648 §4) hash per line, exactly as consumed by c2sp.org/tlog-proof; the in-memory [][]byte representation is not a wire format. Both roots MUST be exactly 32 bytes; verification fails closed otherwise.
 
 ## 3. C2SP artifacts (normative, pending implementation)
 
