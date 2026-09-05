@@ -1,0 +1,14 @@
+{
+  "source": "RFC 6962 reference test data (the eight canonical leaf inputs).",
+  "note": "Leaf hash = SHA-256(0x00 || data). Values are hex; the first leaf is the empty string.",
+  "leaves_hex": [
+    "",
+    "00",
+    "10",
+    "2021",
+    "3031",
+    "40414243",
+    "5051525354555657",
+    "606162636465666768696a6b6c6d6e6f"
+  ]
+}
