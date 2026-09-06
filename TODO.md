@@ -48,5 +48,5 @@
 
 ## Sprint 3
 - [x] Testigo HTTP real (`c2sp.org/tlog-witness`): servidor, cliente y estado persistente en su propio SQLite — ADR-011 fija la versión del spec
-- [ ] Detección de rollback por memoria del testigo (hallazgo ALTO de auditoría GPT) — al sincronizar, consultar al testigo su último checkpoint cosignado de nuestro origin y comparar con el estado local
+- [x] Detección de rollback por memoria del testigo (hallazgo ALTO de auditoría GPT) — `logsync.SyncWithWitness` consulta al testigo antes de firmar y devuelve `RollbackError` con ambos tamaños
 
