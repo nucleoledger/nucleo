@@ -30,6 +30,9 @@ var (
 	ErrKeySize = errors.New("vault: tamaño de clave incorrecto")
 	// ErrNoVault indica que la base no contiene un vault.
 	ErrNoVault = errors.New("vault: la base no contiene un vault")
+	// ErrAAD indica un tenant o un payload_hash que no pueden formar un AAD
+	// no ambiguo. Ver blobAAD.
+	ErrAAD = errors.New("vault: AAD inválido")
 )
 
 // seal cifra con XChaCha20-Poly1305 y un nonce aleatorio de 24 bytes.
