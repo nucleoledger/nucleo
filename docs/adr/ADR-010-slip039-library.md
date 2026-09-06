@@ -127,10 +127,16 @@ Queda anotado porque es exactamente el tipo de laxitud que importa si algún dí
 se usan varios grupos, y porque es un argumento más para mantener el
 aislamiento: cambiar de biblioteca sigue siendo tocar un fichero.
 
-### Condición del ADR todavía sin implementar
+### Condición 1: CERRADA el 2026-09-06
 
-La condición 1 de este ADR —round-trip obligatorio dentro de `BackupKEK` antes
-de enseñar las tarjetas— **no está implementada**. `BackupKEK` devuelve los
-shares sin recombinarlos para comprobarlos. Los tests hacen ese round-trip, pero
-un test no protege al usuario en producción. Pendiente de decisión del dev.
+La condición 1 de este ADR —round-trip obligatorio antes de enseñar las
+tarjetas— **está implementada**. `BackupKEK` recombina los shares recién
+generados y los compara con la KEK original antes de devolverlos; si difieren,
+devuelve error y no entrega nada.
+
+Se prueban **n ventanas circulares de k shares**, no una sola, de modo que cada
+share participa en al menos una reconstrucción. Verificar un único subconjunto
+dejaría fuera a los shares no incluidos, y un share corrupto entre ellos pasaría
+el control para reaparecer años después: justo el fallo que la condición existe
+para impedir.
 

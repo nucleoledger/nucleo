@@ -296,3 +296,47 @@ func TestRestoreKEKProvesConsistencyNotOwnership(t *testing.T) {
 		t.Errorf("la DEK se desenvolvió bajo otro identificador de vault: %v", err)
 	}
 }
+
+// TestBackupVerifiesRoundTripBeforeReturning cierra la condición 1 de ADR-010.
+//
+// Estos mnemónicos se imprimen en tarjetas, se reparten entre personas y se
+// guardan en cajones durante años. El día que hagan falta, el vault ya no se
+// abre por otros medios. Un fallo detectado dentro de BackupKEK es un error en
+// pantalla; el mismo fallo detectado el día de la recuperación es la KEK
+// perdida para siempre. Por eso no se entregan tarjetas sin verificar.
+func TestBackupVerifiesRoundTripBeforeReturning(t *testing.T) {
+	kek := testKEK(t, "passphrase del round-trip")
+
+	// Camino feliz: BackupKEK solo devuelve shares que ya recombinó.
+	shares, err := BackupKEK(kek, 5, 3)
+	if err != nil {
+		t.Fatalf("el round-trip interno falló sobre shares recién generados: %v", err)
+	}
+	if err := verifyRoundTrip(kek, shares, 3); err != nil {
+		t.Errorf("los shares devueltos no pasan la verificación: %v", err)
+	}
+
+	// El camino de fallo se prueba sobre el verificador, que es donde vive la
+	// decisión. Forzarlo a través de BackupKEK exigiría romper la biblioteca.
+	other, err := BackupKEK(testKEK(t, "otra passphrase"), 5, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyRoundTrip(kek, other, 3); !errors.Is(err, ErrBackup) {
+		t.Errorf("shares de otra KEK: err = %v, want %v", err, ErrBackup)
+	}
+
+	// Una sola tarjeta mal impresa entre cinco: el control tiene que verla
+	// aunque no esté en el primer subconjunto que se pruebe. Esta es la razón
+	// de que se recorran n ventanas y no una.
+	for bad := range shares {
+		corrupted := append([]string{}, shares...)
+		words := strings.Fields(corrupted[bad])
+		words[len(words)-2] = otherWord(wordsOf(shares), words[len(words)-2])
+		corrupted[bad] = strings.Join(words, " ")
+
+		if err := verifyRoundTrip(kek, corrupted, 3); !errors.Is(err, ErrBackup) {
+			t.Errorf("share %d corrupto: err = %v, want %v", bad, err, ErrBackup)
+		}
+	}
+}

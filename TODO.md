@@ -43,6 +43,7 @@
 - [x] AAD no ambiguo: `payload_hash` de longitud fija validado en cifrado y descifrado (hallazgo MEDIO de la auditoría GPT-5.5)
 - [x] `Open` expone el estado atestiguado (`OpenResult`); el rollback local con borrado de checkpoints queda SEÑALADO (hallazgo ALTO de la auditoría GPT-5.5)
 - [x] Contrato de restauración documentado y probado: `RestoreKEK` + `UnwrapDEK` (hallazgo BAJO de la auditoría GPT-5.5)
+- [x] `BackupKEK` verifica el round-trip antes de entregar shares (condición 1 de ADR-010, CERRADA)
 - [ ] Recibos con destinatario (`issueReceipt`)
 
 ## Sprint 3

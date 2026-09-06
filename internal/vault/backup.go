@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"crypto/subtle"
 	"errors"
 	"fmt"
 
@@ -67,7 +68,49 @@ func BackupKEK(kek []byte, n, k int) ([]string, error) {
 		return nil, fmt.Errorf("%w: se pidieron %d shares en 1 grupo y salieron %d grupos",
 			ErrBackup, n, len(groups))
 	}
+
+	// Condición 1 de ADR-010: no se entregan tarjetas sin verificar.
+	if err := verifyRoundTrip(kek, groups[0], k); err != nil {
+		return nil, err
+	}
 	return groups[0], nil
+}
+
+// verifyRoundTrip recombina los shares recién generados y comprueba que
+// devuelven la KEK original, ANTES de que nadie los vea.
+//
+// El motivo no es desconfiar de la aritmética de Shamir, es el orden de los
+// acontecimientos: estos mnemónicos se imprimen en tarjetas, se reparten entre
+// personas y se guardan en cajones durante años. El día que hagan falta, el
+// vault ya no se abre por otros medios. Un fallo detectado aquí es un error en
+// pantalla; el mismo fallo detectado el día de la recuperación es la KEK
+// perdida para siempre. El respaldo se hace una vez por tenant, así que el
+// coste de comprobarlo es irrelevante frente a lo que evita.
+//
+// Se prueban n ventanas de k shares consecutivas y circulares, de modo que
+// CADA share participa en al menos una reconstrucción. Verificar un solo
+// subconjunto dejaría fuera a los shares que no estuvieran en él: un share
+// corrupto entre los no probados pasaría el control y reaparecería años
+// después, que es exactamente el fallo que esto existe para impedir.
+func verifyRoundTrip(kek []byte, shares []string, k int) error {
+	for start := range shares {
+		subset := make([]string, 0, k)
+		for j := 0; j < k; j++ {
+			subset = append(subset, shares[(start+j)%len(shares)])
+		}
+		got, err := slip39.Combine(subset, nil)
+		if err != nil {
+			return fmt.Errorf("%w: los shares %d..%d no recombinan: %v",
+				ErrBackup, start, start+k-1, err)
+		}
+		ok := subtle.ConstantTimeCompare(got, kek) == 1
+		slip39.ZeroBytes(got)
+		if !ok {
+			return fmt.Errorf("%w: los shares %d..%d recombinan en OTRA clave",
+				ErrBackup, start, start+k-1)
+		}
+	}
+	return nil
 }
 
 // RestoreKEK reconstruye la KEK desde k mnemónicos del mismo respaldo.
