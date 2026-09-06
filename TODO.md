@@ -39,4 +39,5 @@
 - [x] Apertura O(árbol) respaldada por checkpoint cosignado + `VerifyFull()` para auditorías — 10^5 bloques en 412 ms (antes 8,66 s)
 - [x] Respaldo de la KEK con SLIP-0039 (`shurlinet/go-slip39` v0.1.0 fijada, aislada tras `BackupKEK`/`RestoreKEK` en `internal/vault/backup.go`)
 - [x] 45 vectores oficiales SLIP-0039 en nuestra suite (`testdata/vectors/slip39/`, descargados del repo canónico de Trezor)
+- [x] El respaldo corrupto falla ruidosamente: palabra mutada, shares de respaldos distintos y k-1 shares (RS1024)
 - [ ] Recibos con destinatario (`issueReceipt`)
