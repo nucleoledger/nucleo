@@ -33,6 +33,7 @@ import (
 	"github.com/nucleoledger/nucleo/internal/logsync"
 	"github.com/nucleoledger/nucleo/internal/proof"
 	"github.com/nucleoledger/nucleo/internal/receipt"
+	"github.com/nucleoledger/nucleo/internal/reconcile"
 	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/witness"
 	_ "modernc.org/sqlite"
@@ -150,6 +151,12 @@ func run() error {
 	// ---- Un recibo entregable ---------------------------------------------
 	fmt.Println("\n== Recibo del bloque 3, con los dos relojes ==")
 	if err := printReceipt(s2, logPriv.Public().(ed25519.PublicKey), witnessPriv.Public().(ed25519.PublicKey)); err != nil {
+		return err
+	}
+
+	// ---- La reconciliación: el vigilante ----------------------------------
+	fmt.Println("\n== Reconciliación: lo que el sistema vivo dice HOY ==")
+	if err := reconcileDemo(s2); err != nil {
 		return err
 	}
 
@@ -344,5 +351,57 @@ func printReceipt(s *store.Store, logPub, witnessPub ed25519.PublicKey) error {
 	fmt.Println("    El tiempo DECLARADO lo puso el emisor y podría mentir.")
 	fmt.Println("    El tiempo DEMOSTRABLE lo firmó un tercero que vio ese árbol.")
 	fmt.Println("    El recibo enseña los dos y no los confunde nunca.")
+	return nil
+}
+
+// reconcileDemo cuenta la historia que da sentido al proyecto.
+func reconcileDemo(s *store.Store) error {
+	blocks, err := s.Blocks(0, 12)
+	if err != nil {
+		return err
+	}
+
+	// El sistema vivo devuelve hoy lo mismo que se selló... salvo la factura 4,
+	// a la que alguien le cambió el importe con un UPDATE.
+	const alterada = `{"factura":4,"importe":"1000.00"}`
+	records := make([]reconcile.Record, 0, len(blocks))
+	for i := range blocks {
+		payload := fmt.Sprintf(`{"factura":%d}`, i)
+		if i == 4 {
+			payload = alterada
+		}
+		records = append(records, reconcile.Record{Index: uint64(i), Payload: []byte(payload)})
+	}
+
+	fmt.Println("  El ledger selló 12 registros. La base operativa devuelve 12.")
+	fmt.Println("  A simple vista, todo cuadra.")
+
+	rep, err := reconcile.Reconcile(s, reconcile.FromSlice(records), reconcile.Options{
+		IncludeFullVerify: true,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n  comparados : %d\n", rep.Checked)
+	fmt.Printf("  coinciden  : %d\n", rep.Verified)
+	fmt.Printf("  discrepan  : %d\n", len(rep.Altered()))
+	if rep.FullVerify != nil {
+		fmt.Printf("  verificación exhaustiva del ledger: %v\n", rep.FullVerify.OK)
+	}
+
+	for _, f := range rep.Altered() {
+		fmt.Println("\n  ✘ REGISTRO ALTERADO DESPUÉS DE SELLARSE")
+		fmt.Printf("      bloque              : %d\n", f.Index)
+		fmt.Printf("      emisor (tenant)     : %s\n", f.Tenant)
+		fmt.Printf("      sellado el          : %s  (tiempo declarado)\n", f.SealedAt)
+		fmt.Printf("      hash sellado        : %s\n", f.SealedHash)
+		fmt.Printf("      hash actual         : %s\n", f.CurrentHash)
+		fmt.Printf("      el sistema vivo dice: %s\n", alterada)
+	}
+
+	fmt.Println("\n  Núcleo NO impidió el UPDATE: nadie puede, la base operativa no es suya.")
+	fmt.Println("  Lo que hizo fue recordar exactamente qué decía ese registro cuando se")
+	fmt.Println("  selló, y desde cuándo. La alteración deja de ser invisible, que es lo")
+	fmt.Println("  único que se puede prometer de verdad — y es suficiente.")
 	return nil
 }

@@ -49,5 +49,6 @@
 
 ## Sprint 3
 - [x] Testigo HTTP real (`c2sp.org/tlog-witness`): servidor, cliente y estado persistente en su propio SQLite — ADR-011 fija la versión del spec
+- [x] `internal/reconcile`: cotejo del sistema vivo contra lo sellado, con `IncludeFullVerify` (la ejecución programada que promete la enmienda de ADR-009)
 - [x] Detección de rollback por memoria del testigo (hallazgo ALTO de auditoría GPT) — `logsync.SyncWithWitness` consulta al testigo antes de firmar y devuelve `RollbackError` con ambos tamaños
 
