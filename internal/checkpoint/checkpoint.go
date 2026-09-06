@@ -14,7 +14,6 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
@@ -234,12 +233,7 @@ func KeyHash(name string, pub ed25519.PublicKey) uint32 {
 // KeyHashAlg calcula el key ID para un identificador de algoritmo concreto:
 // SHA-256(name ‖ "\n" ‖ alg ‖ pubkey), truncado a 4 bytes big-endian.
 func KeyHashAlg(name string, pub ed25519.PublicKey, alg byte) uint32 {
-	h := sha256.New()
-	h.Write([]byte(name))
-	h.Write([]byte("\n"))
-	h.Write([]byte{alg})
-	h.Write(pub)
-	return binary.BigEndian.Uint32(h.Sum(nil))
+	return keyHashBytes(name, pub, alg)
 }
 
 // sigSizeCosignature es el tamaño del blob de una tlog-cosignature@v1: 8 bytes
