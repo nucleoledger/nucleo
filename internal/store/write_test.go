@@ -325,7 +325,7 @@ func TestMetaRoundTrip(t *testing.T) {
 
 // TestClosedStore comprueba que usar un Store cerrado no entre en pánico.
 func TestClosedStore(t *testing.T) {
-	s, err := Open(t.TempDir() + "/nucleo.db")
+	s, _, err := Open(t.TempDir() + "/nucleo.db")
 	if err != nil {
 		t.Fatal(err)
 	}

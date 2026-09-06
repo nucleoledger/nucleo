@@ -100,7 +100,7 @@ func TestDurableCycleAcrossRestart(t *testing.T) {
 	}
 
 	// ---- Sesión 1 ----------------------------------------------------------
-	s, err := store.Open(dbPath)
+	s, _, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,11 +159,14 @@ func TestDurableCycleAcrossRestart(t *testing.T) {
 	}
 
 	// ---- Sesión 2: reapertura en frío --------------------------------------
-	s2, err := store.Open(dbPath)
+	s2, openState, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatalf("la base no superó la verificación al reabrir: %v", err)
 	}
 	defer s2.Close()
+	if !openState.Attested || openState.AttestedSize != 5 || openState.TreeSize != 5 {
+		t.Fatalf("estado al reabrir = %+v, want atestiguada hasta 5 de 5", openState)
+	}
 
 	all, err := s2.AllBlocks()
 	if err != nil {
@@ -311,7 +314,7 @@ func TestReopenDetectsTamperingBetweenSessions(t *testing.T) {
 	tenantPriv := ed25519.NewKeyFromSeed(seed(0))
 	tenantPub := tenantPriv.Public().(ed25519.PublicKey)
 
-	s, err := store.Open(dbPath)
+	s, _, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +347,7 @@ func TestReopenDetectsTamperingBetweenSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reopened, err := store.Open(dbPath)
+	reopened, _, err := store.Open(dbPath)
 	if err == nil {
 		reopened.Close()
 		t.Fatal("Open aceptó una base manipulada entre sesiones")

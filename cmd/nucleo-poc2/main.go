@@ -95,10 +95,11 @@ func run() error {
 
 	// ---- SESIÓN 1 ---------------------------------------------------------
 	fmt.Println("\n== Sesión 1: crear vault y sellar 5 bloques ==")
-	s, err := store.Open(dbPath)
+	s, openState0, err := store.Open(dbPath)
 	if err != nil {
 		return err
 	}
+	printAttestation(openState0)
 	v, err := vault.Create(s, vaultID, []byte(passphrase))
 	if err != nil {
 		return err
@@ -167,13 +168,14 @@ func run() error {
 
 	// ---- SESIÓN 2 ---------------------------------------------------------
 	fmt.Println("\n== Sesión 2: reabrir en frío ==")
-	s2, err := store.Open(dbPath)
+	s2, openState, err := store.Open(dbPath)
 	if err != nil {
 		return fmt.Errorf("la base no superó la verificación al reabrir: %w", err)
 	}
 	defer s2.Close()
-	fmt.Println("✔ Open verificó la integridad completa: encadenamiento, firmas y")
-	fmt.Println("  raíz reconstruida contra el checkpoint guardado")
+	fmt.Println("✔ Open verificó la integridad: encadenamiento, firmas y raíz")
+	fmt.Println("  reconstruida contra el checkpoint guardado")
+	printAttestation(openState)
 
 	all, err := s2.AllBlocks()
 	if err != nil {
@@ -324,3 +326,25 @@ type stepClock struct{ t time.Time }
 
 func (c *stepClock) now() time.Time          { return c.t }
 func (c *stepClock) advance(d time.Duration) { c.t = c.t.Add(d) }
+
+// printAttestation dice en voz alta qué respalda la historia recién abierta.
+//
+// La distinción importa: una base puede abrir sin un solo error y ser un
+// PREFIJO de la historia real. Quien controle el fichero puede borrar los
+// disparadores, vaciar la tabla de checkpoints y truncar los bloques a un
+// prefijo que encadena y verifica perfectamente; nada dentro del fichero lo
+// desmiente, porque el fichero entero es suyo. Lo que lo desmiente es la
+// memoria del testigo que ya cosignó una raíz mayor.
+func printAttestation(r store.OpenResult) {
+	switch {
+	case r.TreeSize == 0:
+		fmt.Println("· ESTADO: base nueva, todavía sin historia que atestiguar")
+		return
+	case r.Attested:
+		fmt.Printf("✔ ESTADO: historia atestiguada hasta %d de %d bloques\n", r.AttestedSize, r.TreeSize)
+		return
+	}
+	fmt.Printf("⚠ ESTADO: SIN ATESTIGUAR (%d bloques) — la cadena es localmente válida,\n", r.TreeSize)
+	fmt.Println("  pero que esté COMPLETA no está garantizado: sin un checkpoint cosignado,")
+	fmt.Println("  un prefijo truncado es indistinguible de la historia entera.")
+}

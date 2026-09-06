@@ -43,16 +43,26 @@ type Store struct {
 	// SQLite en WAL admite un escritor a la vez de todos modos, así que
 	// serializar aquí convierte un error de datos en una espera.
 	writeMu sync.Mutex
+
+	// opened guarda el estado con el que se verificó la base al abrirla.
+	opened OpenResult
 }
 
-// Open abre la base, creándola si no existe, y verifica su integridad.
+// Open abre la base, creándola si no existe, verifica su integridad y devuelve
+// QUÉ respalda la historia que acaba de verificar.
+//
+// El OpenResult no es decoración: una base puede abrir perfectamente y ser un
+// prefijo truncado de la historia real (ver el comentario de OpenResult). Quien
+// abre necesita poder distinguir "atestiguada hasta N" de "localmente válida y
+// nada más", y por eso el estado viaja en el valor de retorno en lugar de
+// quedarse implícito en la ausencia de error.
 //
 // La verificación reconstruye el árbol completo y solo recomputa las firmas
 // Ed25519 posteriores al último checkpoint cosignado (enmienda de ADR-009).
 // Para la verificación exhaustiva está VerifyFull.
-func Open(path string) (*Store, error) {
+func Open(path string) (*Store, OpenResult, error) {
 	if path == "" {
-		return nil, errors.New("store: ruta vacía")
+		return nil, OpenResult{}, errors.New("store: ruta vacía")
 	}
 	// Los PRAGMA se pasan en el DSN para que los reciba CADA conexión del pool:
 	// journal_mode es persistente en el fichero, pero synchronous y
@@ -65,26 +75,35 @@ func Open(path string) (*Store, error) {
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("store: apertura de %q: %w", path, err)
+		return nil, OpenResult{}, fmt.Errorf("store: apertura de %q: %w", path, err)
 	}
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store: apertura de %q: %w", path, err)
+		return nil, OpenResult{}, fmt.Errorf("store: apertura de %q: %w", path, err)
 	}
 
 	s := &Store{db: db, path: path}
 	if err := s.migrate(); err != nil {
 		db.Close()
-		return nil, err
+		return nil, OpenResult{}, err
 	}
 	// Abrir es el momento de descubrir que alguien tocó el fichero: después ya
 	// se estaría sellando encima de una historia alterada.
-	if err := s.VerifyIntegrity(); err != nil {
+	res, err := s.VerifyIntegrity()
+	if err != nil {
 		db.Close()
-		return nil, err
+		return nil, OpenResult{}, err
 	}
-	return s, nil
+	s.opened = res
+	return s, res, nil
 }
+
+// Attestation devuelve el estado con el que se abrió la base, para quien recibe
+// el *Store sin haber visto el resultado de Open.
+//
+// Es una foto del momento de la apertura: los bloques añadidos después no están
+// atestiguados hasta que un testigo cosigne una raíz que los cubra.
+func (s *Store) Attestation() OpenResult { return s.opened }
 
 // Close cierra la base.
 func (s *Store) Close() error {

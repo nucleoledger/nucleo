@@ -43,7 +43,7 @@ func dropTriggers(t *testing.T, db *sql.DB) {
 func seedLedger(t *testing.T, n int, withCheckpoint bool) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "nucleo.db")
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,12 +82,12 @@ func seedLedger(t *testing.T, n int, withCheckpoint bool) string {
 // pasarían aunque Open rechazara siempre.
 func TestOpenAcceptsHealthyLedger(t *testing.T) {
 	path := seedLedger(t, 5, true)
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatalf("Open rechaza una base sana: %v", err)
 	}
 	defer s.Close()
-	if err := s.VerifyIntegrity(); err != nil {
+	if _, err := s.VerifyIntegrity(); err != nil {
 		t.Errorf("VerifyIntegrity sobre base sana: %v", err)
 	}
 	n, _ := s.Count()
@@ -166,7 +166,7 @@ func TestOpenDetectsTampering(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			s, err := Open(path)
+			s, _, err := Open(path)
 			if err == nil {
 				s.Close()
 				t.Fatal("Open aceptó una base manipulada")
@@ -194,7 +194,7 @@ func TestOpenDetectsCheckpointMismatch(t *testing.T) {
 	path := seedLedger(t, 5, false)
 
 	// Un checkpoint firmado sobre una raíz que no es la de esta base.
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestOpenDetectsCheckpointMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reopened, err := Open(path)
+	reopened, _, err := Open(path)
 	if err == nil {
 		reopened.Close()
 		t.Fatal("Open aceptó una base cuya raíz no coincide con su checkpoint")

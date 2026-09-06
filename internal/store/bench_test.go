@@ -17,7 +17,7 @@ import (
 // la enmienda de ADR-009.
 func bulkSeed(b *testing.B, path string, blocks []*ledger.Block, cosigned bool) {
 	b.Helper()
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func benchOpen(b *testing.B, cosigned bool) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				s, err := Open(path)
+				s, _, err := Open(path)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -115,7 +115,7 @@ func benchOpen(b *testing.B, cosigned bool) {
 // memoria— es la que manda para dimensionar un caso real.
 func BenchmarkAppendBlock(b *testing.B) {
 	blocks := benchChain(b, b.N+1)
-	s, err := Open(filepath.Join(b.TempDir(), "nucleo.db"))
+	s, _, err := Open(filepath.Join(b.TempDir(), "nucleo.db"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func BenchmarkRootReconstruction(b *testing.B) {
 		b.Run(sizeName(n), func(b *testing.B) {
 			path := filepath.Join(b.TempDir(), "nucleo.db")
 			bulkSeed(b, path, blocks, false)
-			s, err := Open(path)
+			s, _, err := Open(path)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -176,7 +176,7 @@ func BenchmarkVerifyFull(b *testing.B) {
 		b.Run(sizeName(n), func(b *testing.B) {
 			path := filepath.Join(b.TempDir(), "nucleo.db")
 			bulkSeed(b, path, blocks, true)
-			s, err := Open(path)
+			s, _, err := Open(path)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -184,7 +184,7 @@ func BenchmarkVerifyFull(b *testing.B) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if err := s.VerifyFull(); err != nil {
+				if _, err := s.VerifyFull(); err != nil {
 					b.Fatal(err)
 				}
 			}

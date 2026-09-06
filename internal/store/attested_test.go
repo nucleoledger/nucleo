@@ -52,7 +52,7 @@ func cosign(t testing.TB, size uint64, root []byte, logPriv ed25519.PrivateKey) 
 func seedAttested(t *testing.T, n, cpSize int) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "nucleo.db")
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func seedAttested(t *testing.T, n, cpSize int) string {
 // atajo de firmas se active sin testigo.
 func TestLastCosignedCheckpointIgnoresLogOnlyNotes(t *testing.T) {
 	path := seedLedger(t, 5, true) // checkpoint firmado solo por el log
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestLastCosignedCheckpointIgnoresLogOnlyNotes(t *testing.T) {
 	}
 
 	path = seedAttested(t, 5, 5)
-	s2, err := Open(path)
+	s2, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,13 +137,13 @@ func TestAttestedOpenSkipsSignaturesUnderCheckpoint(t *testing.T) {
 	path := seedAttested(t, 5, 5)
 	corruptSignature(t, path, 1)
 
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatalf("Open debía aceptar: la firma corrompida está bajo la raíz cosignada: %v", err)
 	}
 	defer s.Close()
 
-	err = s.VerifyFull()
+	_, err = s.VerifyFull()
 	if err == nil {
 		t.Fatal("VerifyFull aceptó un bloque con la firma corrompida")
 	}
@@ -169,7 +169,7 @@ func TestOpenWithoutCosignatureVerifiesEverything(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			path := c.path()
 			corruptSignature(t, path, 1)
-			s, err := Open(path)
+			s, _, err := Open(path)
 			if err == nil {
 				s.Close()
 				t.Fatal("Open aceptó una firma corrompida sin checkpoint cosignado que la respalde")
@@ -258,7 +258,7 @@ func TestAttestedOpenVerifiesBlocksAfterCheckpoint(t *testing.T) {
 // esperados.
 func assertIntegrityFailure(t *testing.T, path, stage string, index int64) {
 	t.Helper()
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err == nil {
 		s.Close()
 		t.Fatal("Open aceptó una base manipulada")
@@ -280,7 +280,7 @@ func TestAttestedOpenDetectsRootMismatchOfCosignedCheckpoint(t *testing.T) {
 
 	// Se añade un checkpoint (solo del log) sobre los 5 bloques reales: ese
 	// cuadra. Después se corrompe la raíz del cosignado de tamaño 3.
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +318,7 @@ func TestAttestedOpenDetectsRootMismatchOfCosignedCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s2, err := Open(path)
+	s2, _, err := Open(path)
 	if err == nil {
 		s2.Close()
 		t.Fatal("Open aceptó un checkpoint cosignado cuya raíz no es la del ledger")
@@ -335,12 +335,12 @@ func TestAttestedOpenDetectsRootMismatchOfCosignedCheckpoint(t *testing.T) {
 // TestVerifyFullOnHealthyLedger es el control negativo de VerifyFull.
 func TestVerifyFullOnHealthyLedger(t *testing.T) {
 	path := seedAttested(t, 7, 4)
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if err := s.VerifyFull(); err != nil {
+	if _, err := s.VerifyFull(); err != nil {
 		t.Errorf("VerifyFull sobre base sana: %v", err)
 	}
 }
@@ -390,4 +390,101 @@ func TestOpenRejectsNonCanonicalHeaderJSON(t *testing.T) {
 	}
 
 	assertIntegrityFailure(t, path, "bloque", 2)
+}
+
+// TestRollbackWithCheckpointDeletionOpensUnattested reproduce EXACTAMENTE el
+// escenario de la auditoría externa, que es el límite honesto de lo que un
+// fichero puede probar sobre sí mismo.
+//
+// El atacante controla el fichero: borra los disparadores, vacía la tabla de
+// checkpoints y trunca los bloques a un prefijo. Lo que queda es una cadena
+// perfectamente válida —encadena, las firmas verifican, no hay checkpoint que
+// contradiga nada— pero es la historia de AYER. Ninguna comprobación interna
+// puede detectarlo, y no por un defecto de implementación: el fichero entero es
+// suyo, así que cualquier prueba que viviera dentro también sería suya.
+//
+// Open acepta, porque negarse sería negarse a abrir cualquier ledger sin
+// testigo, incluido uno recién creado. Lo que NO hace es callarse: Attested
+// queda en false y el estado viaja en el resultado.
+//
+// La detección definitiva está fuera del fichero y es tarea del Sprint 3: al
+// sincronizar, preguntar al testigo cuál fue el último checkpoint que cosignó
+// de nuestro origin. El testigo recuerda un árbol de 5 y aquí solo hay 3; ahí
+// se acaba el disimulo. Ese es el motivo de que exista internal/witness.
+func TestRollbackWithCheckpointDeletionOpensUnattested(t *testing.T) {
+	path := seedAttested(t, 5, 5)
+
+	// Control: antes del ataque, la historia está atestiguada.
+	s, res, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Attested || res.AttestedSize != 5 || res.TreeSize != 5 {
+		t.Fatalf("estado inicial = %+v, want atestiguada hasta 5 de 5", res)
+	}
+	if got := s.Attestation(); got != res {
+		t.Errorf("Attestation() = %+v, want %+v", got, res)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// El ataque, por SQL directo: sin disparadores, sin checkpoints y con la
+	// historia recortada a los tres primeros bloques.
+	db := rawDB(t, path)
+	dropTriggers(t, db)
+	if _, err := db.Exec(`DELETE FROM checkpoints`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DELETE FROM blocks WHERE idx >= 3`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s2, res2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open rechazó un prefijo íntegro: %v", err)
+	}
+	defer s2.Close()
+
+	if res2.Attested {
+		t.Error("la historia truncada se declaró atestiguada")
+	}
+	if res2.AttestedSize != 0 {
+		t.Errorf("AttestedSize = %d, want 0", res2.AttestedSize)
+	}
+	if res2.TreeSize != 3 {
+		t.Errorf("TreeSize = %d, want 3", res2.TreeSize)
+	}
+	if !strings.Contains(res2.String(), "SIN ATESTIGUAR") {
+		t.Errorf("el estado no se anuncia como no atestiguado: %q", res2.String())
+	}
+
+	// Y la verificación exhaustiva tampoco lo detecta, porque no hay nada que
+	// detectar dentro del fichero: el prefijo es íntegro.
+	if _, err := s2.VerifyFull(); err != nil {
+		t.Errorf("VerifyFull sobre un prefijo íntegro: %v", err)
+	}
+}
+
+// TestOpenResultReportsPartialAttestation cubre el caso intermedio: hay testigo,
+// pero cubre menos bloques de los que hay. Es el estado normal entre un
+// checkpoint y el siguiente, y el resultado tiene que distinguirlo de los otros
+// dos en vez de reducirlo a "atestiguada, sí o no".
+func TestOpenResultReportsPartialAttestation(t *testing.T) {
+	path := seedAttested(t, 7, 4)
+	s, res, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if !res.Attested || res.AttestedSize != 4 || res.TreeSize != 7 {
+		t.Fatalf("estado = %+v, want atestiguada hasta 4 de 7", res)
+	}
+	if !strings.Contains(res.String(), "hasta 4 de 7") {
+		t.Errorf("el estado no dice hasta dónde llega el testigo: %q", res.String())
+	}
 }

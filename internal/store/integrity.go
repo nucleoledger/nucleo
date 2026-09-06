@@ -51,6 +51,38 @@ const (
 	modeFull
 )
 
+// OpenResult describe qué respalda la historia que se acaba de verificar.
+//
+// Existe porque "la base abrió bien" son dos afirmaciones muy distintas según
+// haya o no un testigo detrás, y confundirlas es peligroso. Una cadena
+// localmente válida puede ser un PREFIJO de la historia real: quien controle el
+// fichero puede borrar los disparadores, borrar la tabla de checkpoints y
+// truncar los bloques a un prefijo que encadena y verifica perfectamente. Nada
+// dentro del fichero puede desmentirlo, porque el fichero entero es suyo. Lo
+// único que lo desmiente es la memoria de un testigo que cosignó una raíz más
+// grande.
+//
+// Por eso Attested viaja en el resultado de Open en vez de quedarse implícito:
+// una apertura NO atestiguada es legítima —un ledger recién creado lo es— pero
+// quien la reciba tiene que poder decirlo en voz alta.
+type OpenResult struct {
+	// TreeSize es el número de bloques persistidos.
+	TreeSize uint64
+	// Attested indica que existe un checkpoint cosignado persistido Y que la
+	// raíz reconstruida cuadra con él.
+	Attested bool
+	// AttestedSize es el tamaño de árbol que ese checkpoint atestigua, o 0.
+	AttestedSize uint64
+}
+
+// String describe el estado en una línea, para logs y CLI.
+func (r OpenResult) String() string {
+	if r.Attested {
+		return fmt.Sprintf("historia atestiguada hasta %d de %d bloques", r.AttestedSize, r.TreeSize)
+	}
+	return fmt.Sprintf("SIN ATESTIGUAR: %d bloques, cadena localmente válida, historia completa no garantizada", r.TreeSize)
+}
+
 // VerifyIntegrity recorre la base y comprueba que sigue contando la misma
 // historia. Es lo que ejecuta Open.
 //
@@ -69,42 +101,52 @@ const (
 // que cada bloque esté firmado por la clave que él mismo declara y que la cadena
 // sea consistente; contrastar esa clave contra la identidad esperada del tenant
 // es trabajo de quien abre el ledger, con ledger.VerifyChain.
-func (s *Store) VerifyIntegrity() error { return s.verify(modeAttested) }
+func (s *Store) VerifyIntegrity() (OpenResult, error) { return s.verify(modeAttested) }
 
 // VerifyFull recomputa TODAS las firmas Ed25519 de la base, sin apoyarse en
 // ningún checkpoint. Es la operación de auditoría, y la que hay que llamar ante
 // una sospecha: cuesta lo que la apertura costaba antes de la enmienda de
 // ADR-009 y a cambio no concede nada.
-func (s *Store) VerifyFull() error { return s.verify(modeFull) }
+func (s *Store) VerifyFull() (OpenResult, error) { return s.verify(modeFull) }
 
-func (s *Store) verify(mode verifyMode) error {
+func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 	if s.db == nil {
-		return &IntegrityError{Stage: "lectura", Index: -1, Err: ErrClosed}
+		return OpenResult{}, &IntegrityError{Stage: "lectura", Index: -1, Err: ErrClosed}
 	}
 	n, err := s.Count()
 	if err != nil {
-		return &IntegrityError{Stage: "lectura", Index: -1, Err: err}
+		return OpenResult{}, &IntegrityError{Stage: "lectura", Index: -1, Err: err}
 	}
 
-	// attested es el checkpoint cosignado que respalda el atajo, si lo hay.
-	// signedFrom es el primer bloque cuya firma sí se recomputa.
-	var attested *checkpoint.Checkpoint
+	// attested es el checkpoint cosignado que respalda la historia. En modo
+	// completo también se busca, aunque no se use para saltarse firmas: el
+	// estado atestiguado es un hecho de la base, no del modo de verificación.
+	// signedFrom es el primer bloque cuya firma se recomputa.
+	attested, err := s.attestedCheckpoint(n)
+	if err != nil {
+		return OpenResult{}, err
+	}
 	var signedFrom uint64
-	if mode == modeAttested {
-		c, err := s.attestedCheckpoint(n)
-		if err != nil {
-			return err
-		}
-		if c != nil {
-			attested, signedFrom = c, c.Size
-		}
+	if mode == modeAttested && attested != nil {
+		signedFrom = attested.Size
 	}
 
 	leaves, err := s.walk(signedFrom)
 	if err != nil {
-		return err
+		return OpenResult{}, err
 	}
-	return s.verifyAgainstCheckpoints(leaves, attested)
+	if err := s.verifyAgainstCheckpoints(leaves, attested); err != nil {
+		return OpenResult{}, err
+	}
+
+	res := OpenResult{TreeSize: uint64(len(leaves))}
+	if attested != nil {
+		// Llegar aquí significa que verifyAgainstCheckpoints contrastó la raíz
+		// de este checkpoint contra el árbol reconstruido y cuadró.
+		res.Attested = true
+		res.AttestedSize = attested.Size
+	}
+	return res, nil
 }
 
 // walk recorre la tabla de bloques UNA vez y devuelve las hojas del árbol.

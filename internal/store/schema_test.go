@@ -9,7 +9,7 @@ import (
 // openTemp abre un Store nuevo en un directorio temporal del test.
 func openTemp(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(filepath.Join(t.TempDir(), "nucleo.db"))
+	s, _, err := Open(filepath.Join(t.TempDir(), "nucleo.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestPragmas(t *testing.T) {
 // abrir la misma base no falla ni duplica nada.
 func TestSchemaTablesAndIdempotence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nucleo.db")
-	s, err := Open(path)
+	s, _, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestSchemaTablesAndIdempotence(t *testing.T) {
 	}
 
 	// Reabrir debe ser inocuo.
-	s2, err := Open(path)
+	s2, _, err := Open(path)
 	if err != nil {
 		t.Fatalf("reabrir falla: %v", err)
 	}

@@ -41,4 +41,5 @@
 - [x] 45 vectores oficiales SLIP-0039 en nuestra suite (`testdata/vectors/slip39/`, descargados del repo canónico de Trezor)
 - [x] El respaldo corrupto falla ruidosamente: palabra mutada, shares de respaldos distintos y k-1 shares (RS1024)
 - [x] AAD no ambiguo: `payload_hash` de longitud fija validado en cifrado y descifrado (hallazgo MEDIO de la auditoría GPT-5.5)
+- [x] `Open` expone el estado atestiguado (`OpenResult`); el rollback local con borrado de checkpoints queda SEÑALADO (hallazgo ALTO de la auditoría GPT-5.5)
 - [ ] Recibos con destinatario (`issueReceipt`)
