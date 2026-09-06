@@ -44,13 +44,17 @@ func (a *StoreLog) ConsistencyProof(old, size uint64) ([][]byte, error) {
 	return ledger.ConsistencyProof(leaves[:size], int(old))
 }
 
-// SignCheckpoint emite el checkpoint del tamaño dado y lo persiste.
+// SignCheckpoint emite el checkpoint del tamaño dado, sin persistirlo.
 //
-// Se guarda ANTES de enviarlo al testigo, no después: si el proceso muere entre
-// firmar y recibir la cosignature, lo que no puede pasar es que el log haya
-// firmado un checkpoint del que no queda rastro local. checkpoint.Log ya impide
-// firmar dos checkpoints incompatibles, y persistirlo aquí extiende esa promesa
-// más allá del proceso.
+// Lo que se guarda es la nota YA cosignada, en RecordCosigned: la tabla de
+// checkpoints es append-only y solo admite una nota por tamaño, así que entre
+// la firmada y la cosignada hay que elegir, y la que vale es la avalada.
+//
+// Queda un hueco conocido: si el proceso muere entre firmar y recibir la
+// cosignature, el log habrá emitido un checkpoint del que no queda rastro
+// local. Hoy no es peor que el estado previo —el cerrojo anti-retroceso de
+// checkpoint.Log vive en memoria y también se pierde al reiniciar— pero se
+// cerrará cuando ese cerrojo se haga duradero.
 func (a *StoreLog) SignCheckpoint(size uint64) ([]byte, error) {
 	leaves, err := a.Store.LeafHashes()
 	if err != nil {
@@ -65,8 +69,8 @@ func (a *StoreLog) SignCheckpoint(size uint64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := a.Store.PutCheckpoint(msg); err != nil {
-		return nil, err
-	}
 	return msg, nil
 }
+
+// RecordCosigned guarda la nota cosignada en el ledger.
+func (a *StoreLog) RecordCosigned(note []byte) error { return a.Store.PutCheckpoint(note) }

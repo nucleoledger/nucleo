@@ -54,6 +54,13 @@ type LocalLog interface {
 	ConsistencyProof(old, size uint64) ([][]byte, error)
 	// SignCheckpoint emite un checkpoint firmado del tamaño dado.
 	SignCheckpoint(size uint64) ([]byte, error)
+	// RecordCosigned guarda la nota YA cosignada.
+	//
+	// Se persiste la cosignada y no la recién firmada porque la tabla de
+	// checkpoints es append-only y solo admite una nota por tamaño: entre las
+	// dos, la que vale es la que lleva el aval del testigo. Una sin cosignature
+	// solo prueba que el log dijo algo.
+	RecordCosigned(note []byte) error
 }
 
 // Result cuenta qué pasó en la sincronización.
@@ -123,7 +130,11 @@ func SyncWithWitness(ctx context.Context, log LocalLog, c *witness.Client) (*Res
 	if err != nil {
 		return nil, err
 	}
-	res.Cosigned = append(append([]byte{}, msg...), lines...)
+	cosigned := append(append([]byte{}, msg...), lines...)
+	if err := log.RecordCosigned(cosigned); err != nil {
+		return nil, err
+	}
+	res.Cosigned = cosigned
 	return res, nil
 }
 

@@ -44,6 +44,7 @@
 - [x] `Open` expone el estado atestiguado (`OpenResult`); el rollback local con borrado de checkpoints queda SEÑALADO (hallazgo ALTO de la auditoría GPT-5.5)
 - [x] Contrato de restauración documentado y probado: `RestoreKEK` + `UnwrapDEK` (hallazgo BAJO de la auditoría GPT-5.5)
 - [x] `BackupKEK` verifica el round-trip antes de entregar shares (condición 1 de ADR-010, CERRADA)
+- [x] `cmd/nucleo-poc3`: testigo HTTP en su propia base, reinicio del log, rollback simulado y detectado
 - [ ] Recibos con destinatario (`issueReceipt`)
 
 ## Sprint 3
