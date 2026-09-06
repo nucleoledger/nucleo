@@ -39,6 +39,9 @@ type harness struct {
 	witness *Witness
 	clk     *clock
 	leaves  [][]byte
+	// altered son las mismas hojas con una cambiada: sirven para construir un
+	// árbol del mismo tamaño y distinta raíz, que es una reescritura.
+	altered [][]byte
 }
 
 func newHarness(t *testing.T) *harness {
@@ -66,7 +69,9 @@ func newHarness(t *testing.T) *harness {
 	for i := range leaves {
 		leaves[i] = []byte(fmt.Sprintf("bloque-%d", i))
 	}
-	return &harness{t: t, log: l, witness: w, clk: clk, leaves: leaves}
+	altered := append([][]byte{}, leaves...)
+	altered[1] = []byte("bloque-1-suplantado")
+	return &harness{t: t, log: l, witness: w, clk: clk, leaves: leaves, altered: altered}
 }
 
 // signAt emite un checkpoint del árbol formado por las primeras n hojas.
@@ -307,24 +312,30 @@ func TestWitnessRejectsBadProofs(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// El testigo clasifica los rechazos como los clasifica el protocolo, porque
+	// el servidor HTTP tiene que traducirlos a códigos distintos: una prueba que
+	// no demuestra la extensión es un conflicto (409), pero un tamaño anterior
+	// mayor que el del checkpoint es una petición mal formada (400). Meterlo
+	// todo en el mismo error obligaría al servidor a adivinar.
 	cases := []struct {
 		name  string
 		size  int
 		proof [][]byte
+		want  error
 	}{
-		{"sin prueba", 9, nil},
-		{"prueba vacía", 9, [][]byte{}},
-		{"prueba de otro tramo", 12, h.proof(5, 9)},
-		{"prueba manipulada", 9, tamper(h.proof(5, 9))},
-		{"retroceso de tamaño", 3, nil},
+		{"sin prueba", 9, nil, ErrConflict},
+		{"prueba vacía", 9, [][]byte{}, ErrConflict},
+		{"prueba de otro tramo", 12, h.proof(5, 9), ErrConflict},
+		{"prueba manipulada", 9, tamper(h.proof(5, 9)), ErrConflict},
+		{"retroceso de tamaño", 3, nil, ErrOldSize},
 	}
 	for _, c := range cases {
 		h.clk.advance(10)
 		// Se firma saltándose el cerrojo del log: lo que se prueba aquí es la
 		// defensa del testigo, no la del emisor.
 		msg := h.signBypassingLog(c.size, h.leaves)
-		if _, err := h.witness.Cosign(msg, c.proof); !errors.Is(err, ErrConflict) {
-			t.Errorf("%s: err = %v, want %v", c.name, err, ErrConflict)
+		if _, err := h.witness.Cosign(msg, c.proof); !errors.Is(err, c.want) {
+			t.Errorf("%s: err = %v, want %v", c.name, err, c.want)
 		}
 		if last, _ := h.witness.Last(logOrigin); last.Size != 5 {
 			t.Fatalf("%s: el rechazo alteró el estado del testigo", c.name)

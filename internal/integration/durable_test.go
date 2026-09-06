@@ -261,7 +261,10 @@ func TestDurableCycleAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	clk.advance(time.Minute)
-	if _, err := wit.Cosign(evilNote, evilProof); !errors.Is(err, witness.ErrConflict) {
+	// El testigo ya cosignó un árbol de 8 con OTRA raíz, así que este no es un
+	// conflicto de extensión sino un checkpoint imposible de procesar: mismo
+	// tamaño, raíz distinta. c2sp.org/tlog-witness lo clasifica como 422.
+	if _, err := wit.Cosign(evilNote, evilProof); !errors.Is(err, witness.ErrUnprocessable) {
 		t.Fatalf("el testigo aceptó una historia reescrita: %v", err)
 	}
 
