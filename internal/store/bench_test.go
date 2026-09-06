@@ -11,7 +11,11 @@ import (
 // una sola transacción. Es legítimo aquí porque lo que se mide es Open, no la
 // escritura: con synchronous=FULL cada AppendBlock es un fsync y montar 10^5
 // bloques uno a uno tardaría minutos sin aportar nada a la cifra buscada.
-func bulkSeed(b *testing.B, path string, blocks []*ledger.Block) {
+//
+// Con cosigned, además guarda un checkpoint cosignado sobre TODOS los bloques:
+// es el estado en régimen de un ledger con testigo, y el que activa el atajo de
+// la enmienda de ADR-009.
+func bulkSeed(b *testing.B, path string, blocks []*ledger.Block, cosigned bool) {
 	b.Helper()
 	s, err := Open(path)
 	if err != nil {
@@ -42,26 +46,53 @@ func bulkSeed(b *testing.B, path string, blocks []*ledger.Block) {
 	if err := tx.Commit(); err != nil {
 		b.Fatal(err)
 	}
+	if !cosigned {
+		return
+	}
+
+	leaves := make([][]byte, 0, len(blocks))
+	for _, blk := range blocks {
+		hb, err := blk.HashBytes()
+		if err != nil {
+			b.Fatal(err)
+		}
+		leaves = append(leaves, hb)
+	}
+	_, logPriv := testKeys(b, 7)
+	if err := s.PutCheckpoint(cosign(b, uint64(len(blocks)), ledger.Root(leaves), logPriv)); err != nil {
+		b.Fatal(err)
+	}
 }
 
 // benchChain sella n bloques encadenados.
 func benchChain(b *testing.B, n int) []*ledger.Block {
 	b.Helper()
-	t := &testing.T{}
-	return chain(t, n, 0)
+	return chain(b, n, 0)
 }
 
-// BenchmarkOpen mide la apertura completa, incluida la verificación de
-// integridad de todos los bloques y la reconstrucción de la raíz de Merkle.
+// BenchmarkOpen mide la apertura de un ledger con testigo: árbol completo
+// reconstruido y firmas Ed25519 solo por encima del último checkpoint cosignado,
+// que aquí cubre todos los bloques. Es la apertura del caso normal.
 //
-// Es la cifra que decide si hace falta la caché de subárboles diferida en
-// ADR-009: el umbral escrito es 5 s en hardware objetivo.
+// La cifra que motivó la enmienda de ADR-009 es la del mismo escenario SIN
+// checkpoint cosignado, que mide BenchmarkOpenUnattested.
 func BenchmarkOpen(b *testing.B) {
+	benchOpen(b, true)
+}
+
+// BenchmarkOpenUnattested mide la apertura sin testigo, que verifica todas las
+// firmas. Es el camino anterior a la enmienda, y sigue siendo el que se recorre
+// mientras nadie haya cosignado.
+func BenchmarkOpenUnattested(b *testing.B) {
+	benchOpen(b, false)
+}
+
+func benchOpen(b *testing.B, cosigned bool) {
 	for _, n := range []int{1_000, 10_000, 100_000} {
 		blocks := benchChain(b, n)
 		b.Run(sizeName(n), func(b *testing.B) {
 			path := filepath.Join(b.TempDir(), "nucleo.db")
-			bulkSeed(b, path, blocks)
+			bulkSeed(b, path, blocks, cosigned)
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -107,7 +138,7 @@ func BenchmarkRootReconstruction(b *testing.B) {
 		blocks := benchChain(b, n)
 		b.Run(sizeName(n), func(b *testing.B) {
 			path := filepath.Join(b.TempDir(), "nucleo.db")
-			bulkSeed(b, path, blocks)
+			bulkSeed(b, path, blocks, false)
 			s, err := Open(path)
 			if err != nil {
 				b.Fatal(err)
@@ -134,4 +165,29 @@ func sizeName(n int) string {
 		return "bloques=1e5"
 	}
 	return "bloques"
+}
+
+// BenchmarkVerifyFull mide la auditoría exhaustiva sobre una base ya abierta:
+// es el precio de no aceptar el atajo, y la referencia contra la que se lee la
+// mejora de BenchmarkOpen.
+func BenchmarkVerifyFull(b *testing.B) {
+	for _, n := range []int{1_000, 100_000} {
+		blocks := benchChain(b, n)
+		b.Run(sizeName(n), func(b *testing.B) {
+			path := filepath.Join(b.TempDir(), "nucleo.db")
+			bulkSeed(b, path, blocks, true)
+			s, err := Open(path)
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer s.Close()
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := s.VerifyFull(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }

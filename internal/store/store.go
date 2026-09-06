@@ -46,6 +46,10 @@ type Store struct {
 }
 
 // Open abre la base, creándola si no existe, y verifica su integridad.
+//
+// La verificación reconstruye el árbol completo y solo recomputa las firmas
+// Ed25519 posteriores al último checkpoint cosignado (enmienda de ADR-009).
+// Para la verificación exhaustiva está VerifyFull.
 func Open(path string) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("store: ruta vacía")

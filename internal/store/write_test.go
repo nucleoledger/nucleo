@@ -18,7 +18,7 @@ const testTenant = "1790012345001"
 
 var testBase = time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 
-func testKeys(t *testing.T, b byte) (ed25519.PublicKey, ed25519.PrivateKey) {
+func testKeys(t testing.TB, b byte) (ed25519.PublicKey, ed25519.PrivateKey) {
 	t.Helper()
 	s := make([]byte, ed25519.SeedSize)
 	for i := range s {
@@ -29,7 +29,7 @@ func testKeys(t *testing.T, b byte) (ed25519.PublicKey, ed25519.PrivateKey) {
 }
 
 // chain sella n bloques encadenados con la clave indicada.
-func chain(t *testing.T, n int, keyByte byte) []*ledger.Block {
+func chain(t testing.TB, n int, keyByte byte) []*ledger.Block {
 	t.Helper()
 	pub, priv := testKeys(t, keyByte)
 	out := make([]*ledger.Block, 0, n)

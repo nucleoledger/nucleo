@@ -241,3 +241,41 @@ func KeyHashAlg(name string, pub ed25519.PublicKey, alg byte) uint32 {
 	h.Write(pub)
 	return binary.BigEndian.Uint32(h.Sum(nil))
 }
+
+// sigSizeCosignature es el tamaño del blob de una tlog-cosignature@v1: 8 bytes
+// de timestamp big-endian más los 64 de la firma Ed25519. Una firma de nota
+// corriente mide 64. Esa diferencia de longitud es lo único que distingue a un
+// cosignatario sin conocer su clave.
+const sigSizeCosignature = 8 + ed25519.SignatureSize
+
+// keyHashSize es el prefijo de key ID que note antepone a cada blob de firma.
+const keyHashSize = 4
+
+// IsCosigned dice si la nota lleva al menos una firma con la FORMA de una
+// tlog-cosignature@v1, sin verificar ninguna firma ni conocer clave alguna.
+//
+// Existe para que el almacén pueda distinguir un checkpoint atestiguado de uno
+// que solo lleva la firma del log, ya que no conoce las claves de los testigos.
+// Es un indicio de forma, no una prueba: quien controle los bytes puede escribir
+// una línea de firma con la longitud correcta. Quien necesite saber que un
+// testigo concreto cosignó de verdad usa witness.Verifier con Verify.
+func IsCosigned(msg []byte) bool {
+	i := bytes.LastIndex(msg, []byte("\n\n"))
+	if i < 0 {
+		return false
+	}
+	for _, line := range strings.Split(string(msg[i+2:]), "\n") {
+		if !strings.HasPrefix(line, "— ") {
+			continue
+		}
+		j := strings.LastIndex(line, " ")
+		blob, err := base64.StdEncoding.DecodeString(line[j+1:])
+		if err != nil {
+			continue
+		}
+		if len(blob) == keyHashSize+sigSizeCosignature {
+			return true
+		}
+	}
+	return false
+}

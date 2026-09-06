@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -180,9 +179,5 @@ func scanBlock(sc scanner) (*ledger.Block, error) {
 	if err := sc.Scan(&idx, &hash, &headerJSON, &signature); err != nil {
 		return nil, err
 	}
-	var h ledger.Header
-	if err := json.Unmarshal([]byte(headerJSON), &h); err != nil {
-		return nil, fmt.Errorf("store: header del bloque %d ilegible: %w", idx, err)
-	}
-	return &ledger.Block{Header: h, Hash: hash, Signature: signature}, nil
+	return decodeBlock(idx, hash, headerJSON, signature)
 }

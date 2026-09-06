@@ -35,4 +35,6 @@
 ## Después (Sprint 2 — no empezar sin cerrar lo anterior)
 - [x] `internal/store`: SQLite append-only (4 tablas + triggers; caché de subárboles DIFERIDA — ADR-009; el benchmark dispara la condición pero el cuello no es la raíz: ver reporte)
 - [x] `internal/vault`: KEK/DEK + XChaCha20-Poly1305 con AAD (SLIP-0039 evaluado en ADR-010, dependencia NO añadida)
+- [x] Enmienda ADR-009: la apertura verifica desde el último checkpoint cosignado (la condición de >5 s se cumplió, pero el cuello no era el árbol)
+- [x] Apertura O(árbol) respaldada por checkpoint cosignado + `VerifyFull()` para auditorías — 10^5 bloques en 412 ms (antes 8,66 s)
 - [ ] Recibos con destinatario (`issueReceipt`)

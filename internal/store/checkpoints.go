@@ -88,3 +88,34 @@ func decodeHash(s string) ([]byte, error) {
 	}
 	return raw, nil
 }
+
+// LastCosignedCheckpoint devuelve la nota del checkpoint COSIGNADO de mayor
+// tamaño, o ErrNotFound si ninguno lo está.
+//
+// "Cosignado" se decide por la forma del blob de firma (checkpoint.IsCosigned),
+// no verificando claves de testigos: el almacén no las conoce. Ver la enmienda
+// de ADR-009 para lo que eso concede y lo que no.
+func (s *Store) LastCosignedCheckpoint() ([]byte, error) {
+	if s.db == nil {
+		return nil, ErrClosed
+	}
+	rows, err := s.db.Query(`SELECT note FROM checkpoints ORDER BY tree_size DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("store: lectura de checkpoints: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var note string
+		if err := rows.Scan(&note); err != nil {
+			return nil, err
+		}
+		if checkpoint.IsCosigned([]byte(note)) {
+			return []byte(note), nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: lectura de checkpoints: %w", err)
+	}
+	return nil, ErrNotFound
+}

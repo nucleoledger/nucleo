@@ -2,6 +2,7 @@ package checkpoint
 
 import (
 	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"strings"
@@ -296,5 +297,41 @@ func TestLogStoresCopyOfRoot(t *testing.T) {
 	root[0] ^= 0xff // el llamante muta su copia
 	if _, err := l.Sign(Checkpoint{Origin: testOrigin, Size: 5, RootHash: root}); !errors.Is(err, ErrRollback) {
 		t.Errorf("el log guardó un alias de la raíz: err = %v, want %v", err, ErrRollback)
+	}
+}
+
+// appendSigLine añade a una nota una línea de firma fabricada con un blob del
+// tamaño pedido. Se construye a mano, sin pasar por internal/witness: si el test
+// usara el mismo código que produce las cosignatures, no probaría que IsCosigned
+// reconoce la FORMA del blob, solo que dos funciones coinciden.
+func appendSigLine(msg []byte, name string, blobLen int) []byte {
+	blob := make([]byte, blobLen)
+	for i := range blob {
+		blob[i] = byte(i)
+	}
+	return append(append([]byte{}, msg...),
+		[]byte("— "+name+" "+base64.StdEncoding.EncodeToString(blob)+"\n")...)
+}
+
+// TestIsCosignedDistinguishesBySignatureLength fija el criterio: 4 bytes de key
+// ID más 64 de firma es el log; 4 más 72 es una cosignature v1.
+func TestIsCosignedDistinguishesBySignatureLength(t *testing.T) {
+	signer, _, _ := testKeys(t, "nucleoledger.com/poc", 1)
+	msg, err := Sign(Checkpoint{Origin: "nucleoledger.com/poc", Size: 5, RootHash: rfc6962Root5(t)}, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if IsCosigned(msg) {
+		t.Error("una nota firmada solo por el log no está cosignada")
+	}
+	if IsCosigned(appendSigLine(msg, "otro.example/log", 4+64)) {
+		t.Error("un blob de 68 bytes es otra firma de nota, no una cosignature")
+	}
+	if !IsCosigned(appendSigLine(msg, "witness.example/w", 4+72)) {
+		t.Error("un blob de 76 bytes es una tlog-cosignature@v1")
+	}
+	if IsCosigned([]byte("sin cuerpo ni firmas")) {
+		t.Error("un mensaje que no separa cuerpo y firmas no está cosignado")
 	}
 }
