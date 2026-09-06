@@ -84,3 +84,64 @@ vez de en una reescritura silenciosa.
   es lo que permite releases estáticos multiplataforma sin toolchain de C.
 - Cambiar el esquema exige ADR nuevo y migración: a partir de aquí hay bases de
   datos reales que abrir.
+
+## Enmienda 2026-09-05 — la apertura verifica desde el último checkpoint cosignado
+
+La condición escrita en la decisión 4 **se cumplió**: `BenchmarkOpen` da 73 ms
+con 10^3 bloques, 715 ms con 10^4 y **7,12 s con 10^5**, por encima del umbral
+de 5 s. La condición se mantiene tal como se redactó; lo que esta enmienda
+corrige es el remedio, porque la medición desmiente el supuesto que lo eligió.
+
+`BenchmarkRootReconstruction` aísla el coste del árbol: **119 ms de los 7.120**.
+Cachear subárboles arreglaría el **1,7 %** del problema. El coste real son 10^5
+verificaciones Ed25519 a ~70 µs cada una, unos 7 s. La condición se escribió
+suponiendo que la reconstrucción del árbol dominaba la apertura, y no domina.
+La caché de subárboles queda **descartada** como remedio de la apertura: si algún
+día vuelve, será por otra razón y con otra medición.
+
+### Regla nueva
+
+Al abrir:
+
+1. Se reconstruye el árbol de Merkle **completo**, sobre todos los bloques.
+2. La raíz reconstruida **DEBE** igualar la del último checkpoint **cosignado**
+   persistido. Una discrepancia es un fallo de integridad, como hasta ahora.
+3. Las firmas Ed25519 de los bloques se verifican **solo** para los bloques
+   posteriores a ese checkpoint.
+4. Si **no** hay ningún checkpoint cosignado persistido, la apertura verifica
+   todas las firmas, como hasta ahora: sin testigo no hay atajo.
+5. La verificación completa queda disponible como operación explícita
+   (`VerifyFull`), para auditorías y para el arranque tras una sospecha.
+
+**Fundamento.** Los bytes cubiertos por una raíz cosignada son los atestiguados:
+un tercero independiente firmó esa raíz y conserva su propia copia, así que
+reescribirlos ya no es un problema local. Y sus firmas Ed25519 ya se verificaron
+al sellar —`AppendBlock` rechaza el bloque que no verifica— y al comprobarlas de
+nuevo no se aprende nada que la raíz no diga ya.
+
+### Lo que la regla nueva NO cubre, dicho sin adornos
+
+**La firma de un bloque no está dentro de su hoja.** La hoja de Merkle es
+SHA-256(JCS(header)), y la firma vive fuera del header. La raíz cosignada fija
+cada byte de cada header —y con ellos el `prev_hash`, o sea el encadenamiento
+entero—, pero **no** fija la columna `signature`. Quien tenga el fichero puede
+corromper la firma de un bloque histórico y la apertura rápida no lo verá; lo
+verá `VerifyFull`, y lo verá cualquiera que verifique un recibo de ese bloque.
+Es corrupción detectable de un dato ya atestiguado, no reescritura de la historia.
+
+Por eso el camino rápido **sí** recomputa SHA-256(JCS(header)) de cada bloque y
+lo contrasta con la columna `hash`: sin esa comprobación, el árbol se
+reconstruiría desde hashes que nadie ató a su contenido y el `header_json` sería
+sustituible a voluntad. Es un SHA-256 por bloque, no una verificación Ed25519.
+
+**El marcador de "cosignado" no se verifica al abrir.** El almacén no conoce las
+claves de los testigos —no es su trabajo—, así que distingue una cosignature por
+su forma: el blob de una firma de nota Ed25519 mide 64 bytes y el de una
+`tlog-cosignature@v1` mide 72 (u64 de timestamp más 64 de firma). Quien controle
+el fichero puede fabricar una línea de firma con la longitud correcta y activar
+el camino rápido. Lo que gana con ello es exactamente lo del párrafo anterior: la
+posibilidad de corromper firmas históricas sin que la apertura chille. No gana
+reescribir historia, porque la raíz sigue teniendo que cuadrar.
+
+Ambas cosas son el precio consciente de abrir en menos de un segundo. Quien no
+quiera pagarlo llama a `VerifyFull`.
