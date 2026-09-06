@@ -24,12 +24,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/keys"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/logsync"
+	"github.com/nucleoledger/nucleo/internal/proof"
+	"github.com/nucleoledger/nucleo/internal/receipt"
 	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/witness"
 	_ "modernc.org/sqlite"
@@ -143,6 +146,13 @@ func run() error {
 		return err
 	}
 	fmt.Printf("✔ extensión de %d a %d aceptada, con prueba de consistencia\n", res2.WitnessSize, res2.LocalSize)
+
+	// ---- Un recibo entregable ---------------------------------------------
+	fmt.Println("\n== Recibo del bloque 3, con los dos relojes ==")
+	if err := printReceipt(s2, logPriv.Public().(ed25519.PublicKey), witnessPriv.Public().(ed25519.PublicKey)); err != nil {
+		return err
+	}
+
 	if err := s2.Close(); err != nil {
 		return err
 	}
@@ -299,4 +309,40 @@ func printState(r store.OpenResult) {
 		fmt.Printf("⚠ ESTADO: SIN ATESTIGUAR (%d bloques) — localmente válida,\n", r.TreeSize)
 		fmt.Println("  pero que esté COMPLETA no está garantizado")
 	}
+}
+
+// printReceipt emite un recibo y lo enseña como lo vería quien lo recibe.
+func printReceipt(s *store.Store, logPub, witnessPub ed25519.PublicKey) error {
+	r, err := receipt.Issue(s, "María Pérez (cédula 1712345678)", 3)
+	if err != nil {
+		return err
+	}
+	data, err := receipt.Format(r)
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(receipt.Text(data), "\n") {
+		fmt.Println("  " + line)
+	}
+
+	// El destinatario verifica con SU política, sin pedirle nada al emisor.
+	policy := proof.Policy{
+		Origin: origin, LogKey: logPub,
+		Witnesses: map[string]ed25519.PublicKey{witnessName: witnessPub},
+		Quorum:    1,
+	}
+	parsed, err := receipt.Parse(data)
+	if err != nil {
+		return err
+	}
+	res, err := parsed.Verify(policy)
+	if err != nil {
+		return err
+	}
+	fmt.Println()
+	fmt.Printf("  ✔ verificado sin acceso al ledger (%d bytes, %d cosignatario)\n", len(data), len(res.Cosigners))
+	fmt.Println("    El tiempo DECLARADO lo puso el emisor y podría mentir.")
+	fmt.Println("    El tiempo DEMOSTRABLE lo firmó un tercero que vio ese árbol.")
+	fmt.Println("    El recibo enseña los dos y no los confunde nunca.")
+	return nil
 }
