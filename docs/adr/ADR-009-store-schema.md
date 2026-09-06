@@ -176,3 +176,46 @@ problema, porque el problema es corrupción detectable de un dato ya atestiguado
 que verifique un recibo de ese bloque, y `VerifyFull`. La mitigación es que
 `VerifyFull` deje de depender de que alguien sospeche: la reconciliación del
 Sprint 3 lo ejecutará de forma programada, sin cambio de hoja ni de protocolo.
+
+## Auditoría externa 2026-09-06
+
+Revisión independiente de GPT-5.5 sobre SLIP-0039, vault y apertura. El frente
+de las pruebas Merkle y de consistencia salió limpio. Tres hallazgos; este ADR
+registra el que toca al almacén y deja constancia de dónde fueron los otros dos.
+
+### ALTO — rollback local con borrado de checkpoints
+
+**El hallazgo.** Quien controle el fichero puede borrar los disparadores, vaciar
+la tabla `checkpoints` y truncar `blocks` a un prefijo. Lo que queda encadena,
+sus firmas verifican y no hay checkpoint que lo contradiga: es una historia
+válida, la de ayer. `Open` la acepta y hasta ahora no decía nada al respecto.
+
+**Por qué no se arregla dentro del fichero.** No es un defecto de
+implementación. Cualquier prueba que viviera en la base también sería del
+atacante, así que la base no puede testificar sobre su propia integridad
+histórica. Es el límite de lo que un fichero puede probar sobre sí mismo, y la
+razón de que exista `internal/witness`.
+
+**Decisión: se señala, no se bloquea.** `Open` devuelve
+`OpenResult{TreeSize, Attested, AttestedSize}`. `Attested` es true solo si hay
+un checkpoint cosignado persistido **y** la raíz reconstruida cuadra con él. Sin
+checkpoints la apertura funciona —negarse sería negarse a abrir cualquier ledger
+recién creado, que es un caso legítimo— pero queda marcada NO ATESTIGUADA, y el
+estado viaja en el valor de retorno para que ningún llamante lo omita por
+descuido. `cmd/nucleo-poc2` lo imprime.
+
+**Mitigación, tarea del Sprint 3.** La detección definitiva está fuera del
+fichero: al sincronizar, preguntar al testigo cuál fue el último checkpoint que
+cosignó de nuestro origin y compararlo con lo que hay en disco. El testigo
+recuerda un árbol de 5 y en la base hay 3: ahí se acaba el disimulo. Anotado en
+TODO.md.
+
+### Los otros dos hallazgos
+
+- **MEDIO, AAD ambiguo** (`internal/vault`, PROTOCOL §5): el AAD es
+  `tenant ‖ payload_hash` sin separador, y sin validación el par ("A", "B…")
+  produce los mismos bytes que ("AB", "…"). Corregido exigiendo un
+  `payload_hash` de 64 caracteres hex en minúscula: con el sufijo de longitud
+  fija la lectura es única. El formato de PROTOCOL §5 no cambia.
+- **BAJO, contrato de `RestoreKEK`**: registrado en el addendum de ADR-010.
+

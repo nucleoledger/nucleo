@@ -84,3 +84,53 @@ la lección de la semilla silenciosa.
 
 No se añade ninguna dependencia. `go.mod` queda intacto hasta que apruebes esta
 propuesta o elijas la alternativa.
+
+## Addendum 2026-09-06 — auditoría externa y una corrección de dato
+
+La dependencia se aprobó con la condición de aislamiento: `shurlinet/go-slip39`
+v0.1.0 fijada, importada solo en `internal/vault/backup.go`, con
+`TestSlip39StaysBehindTheVault` haciéndolo cumplir. Los 45 vectores oficiales
+están en `testdata/vectors/slip39/` y se ejecutan en nuestra suite.
+
+### Corrección de dato: la personalización de RS1024
+
+La cadena de personalización canónica del checksum RS1024 es **`"shamir"`**, y
+**`"shamir_extendable"`** para los mnemónicos con el bit de backup extensible.
+Donde este ADR o mis notas dijeran otra cosa, manda esto. No cambia ninguna
+decisión —la biblioteca elegida pasa los 45 vectores oficiales, incluidos los
+cuatro extensibles— pero un dato equivocado en un ADR se propaga a quien lo lea
+después, así que queda corregido aquí.
+
+### BAJO — el contrato de `RestoreKEK`
+
+`RestoreKEK` prueba la consistencia interna del conjunto de shares, **no** su
+pertenencia a este vault. Un respaldo válido de otra KEK se restaura sin un solo
+error, y debe hacerlo: matemáticamente es un secreto correcto y SLIP-0039 no
+tiene forma de saber de qué vault salió. Quien pare ahí cifrará bajo una clave
+equivocada.
+
+La identidad la prueba el segundo paso, que no es opcional: `UnwrapDEK` contra
+la DEK envuelta de este vault, cuyo envoltorio es autenticado y cuyo AAD lleva
+el identificador del vault. Documentado en el doc-comment y probado en las dos
+direcciones.
+
+### Laxitud conocida: `groupIndex` en go-slip39
+
+La biblioteca no valida el `groupIndex` con el rigor que el spec permitiría.
+**No se le ha encontrado ruta de explotación** en el uso que hace Núcleo, que es
+el más simple posible: un solo grupo, umbral k de n, y toda la superficie
+encapsulada tras `BackupKEK`/`RestoreKEK`. Un `groupIndex` inconsistente entre
+shares acaba en un secreto que no reconstruye, y ahí espera `UnwrapDEK`, que
+falla ruidosamente.
+
+Queda anotado porque es exactamente el tipo de laxitud que importa si algún día
+se usan varios grupos, y porque es un argumento más para mantener el
+aislamiento: cambiar de biblioteca sigue siendo tocar un fichero.
+
+### Condición del ADR todavía sin implementar
+
+La condición 1 de este ADR —round-trip obligatorio dentro de `BackupKEK` antes
+de enseñar las tarjetas— **no está implementada**. `BackupKEK` devuelve los
+shares sin recombinarlos para comprobarlos. Los tests hacen ese round-trip, pero
+un test no protege al usuario en producción. Pendiente de decisión del dev.
+

@@ -44,3 +44,7 @@
 - [x] `Open` expone el estado atestiguado (`OpenResult`); el rollback local con borrado de checkpoints queda SEÑALADO (hallazgo ALTO de la auditoría GPT-5.5)
 - [x] Contrato de restauración documentado y probado: `RestoreKEK` + `UnwrapDEK` (hallazgo BAJO de la auditoría GPT-5.5)
 - [ ] Recibos con destinatario (`issueReceipt`)
+
+## Sprint 3
+- [ ] Detección de rollback por memoria del testigo (hallazgo ALTO de auditoría GPT) — al sincronizar, consultar al testigo su último checkpoint cosignado de nuestro origin y comparar con el estado local
+
