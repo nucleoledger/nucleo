@@ -42,4 +42,5 @@
 - [x] El respaldo corrupto falla ruidosamente: palabra mutada, shares de respaldos distintos y k-1 shares (RS1024)
 - [x] AAD no ambiguo: `payload_hash` de longitud fija validado en cifrado y descifrado (hallazgo MEDIO de la auditoría GPT-5.5)
 - [x] `Open` expone el estado atestiguado (`OpenResult`); el rollback local con borrado de checkpoints queda SEÑALADO (hallazgo ALTO de la auditoría GPT-5.5)
+- [x] Contrato de restauración documentado y probado: `RestoreKEK` + `UnwrapDEK` (hallazgo BAJO de la auditoría GPT-5.5)
 - [ ] Recibos con destinatario (`issueReceipt`)

@@ -72,6 +72,17 @@ func BackupKEK(kek []byte, n, k int) ([]string, error) {
 
 // RestoreKEK reconstruye la KEK desde k mnemónicos del mismo respaldo.
 //
+// CONTRATO: RestoreKEK prueba la consistencia INTERNA del conjunto de shares,
+// no su pertenencia a este vault. La identidad se prueba desenvolviendo la DEK.
+//
+// Un conjunto válido de shares de OTRA KEK se restaura sin un solo error, y
+// debe hacerlo: matemáticamente es un secreto correcto, y SLIP-0039 no tiene
+// forma de saber a qué vault pertenecía. Quien confunda "restauró" con
+// "restauró la mía" acabará cifrando bajo una clave equivocada. La restauración
+// completa son dos pasos y el segundo no es opcional: RestoreKEK y después
+// UnwrapDEK contra la DEK envuelta de este vault, que sí falla ruidosamente
+// porque el envoltorio es autenticado y su AAD lleva el identificador del vault.
+//
 // Falla ruidosamente ante cualquier desviación —una palabra cambiada, shares de
 // respaldos distintos, menos de k— porque SLIP-0039 lleva checksum RS1024 en
 // cada mnemónico y un digest sobre el secreto reconstruido. Es la misma lección

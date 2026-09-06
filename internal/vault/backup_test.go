@@ -230,3 +230,69 @@ func subsets(n, k int) [][]int {
 func sharesName(n, k int) string {
 	return string(rune('0'+k)) + "-de-" + string(rune('0'+n))
 }
+
+// TestRestoreKEKProvesConsistencyNotOwnership documenta el contrato completo de
+// la restauración, que es el hallazgo BAJO de la auditoría externa.
+//
+// RestoreKEK prueba la consistencia interna del conjunto de shares, no su
+// pertenencia a este vault: un respaldo válido de OTRA KEK se restaura sin un
+// solo error, y debe hacerlo, porque matemáticamente es un secreto correcto y
+// SLIP-0039 no sabe a qué vault pertenecía. Quien pare ahí y confunda
+// "restauró" con "restauró la mía" cifrará bajo una clave equivocada.
+//
+// El segundo paso es el que prueba la identidad, y falla ruidosamente: el
+// envoltorio de la DEK es autenticado y su AAD lleva el identificador del vault.
+func TestRestoreKEKProvesConsistencyNotOwnership(t *testing.T) {
+	const vaultID = "vault-del-cliente"
+	mine := testKEK(t, "la passphrase de este vault")
+	other := testKEK(t, "la passphrase de otro vault distinto")
+	if bytes.Equal(mine, other) {
+		t.Fatal("las dos KEK salieron iguales: el test no probaría nada")
+	}
+
+	dek := bytes.Repeat([]byte{0x77}, DEKLen)
+	wrapped, err := WrapDEK(mine, dek, vaultID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Paso 1 con los shares EQUIVOCADOS: restaura sin error, como debe.
+	foreign, err := BackupKEK(other, 3, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoredForeign, err := RestoreKEK(foreign[:2])
+	if err != nil {
+		t.Fatalf("un respaldo válido de otra KEK debe restaurarse sin error: %v", err)
+	}
+	if !bytes.Equal(restoredForeign, other) {
+		t.Fatal("la KEK restaurada no es la que se respaldó")
+	}
+
+	// Paso 2: aquí se acaba la ambigüedad.
+	if _, err := UnwrapDEK(restoredForeign, wrapped, vaultID); !errors.Is(err, ErrUnwrap) {
+		t.Fatalf("la KEK de otro vault desenvolvió la DEK: err = %v, want %v", err, ErrUnwrap)
+	}
+
+	// Y el control positivo: los shares correctos superan los dos pasos.
+	ours, err := BackupKEK(mine, 3, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := RestoreKEK(ours[:2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := UnwrapDEK(restored, wrapped, vaultID)
+	if err != nil {
+		t.Fatalf("los shares correctos no desenvolvieron la DEK: %v", err)
+	}
+	if !bytes.Equal(got, dek) {
+		t.Errorf("DEK = %x, want %x", got, dek)
+	}
+
+	// La misma KEK tampoco vale para OTRO vault: el AAD lleva el identificador.
+	if _, err := UnwrapDEK(restored, wrapped, "otro-vault"); !errors.Is(err, ErrUnwrap) {
+		t.Errorf("la DEK se desenvolvió bajo otro identificador de vault: %v", err)
+	}
+}
