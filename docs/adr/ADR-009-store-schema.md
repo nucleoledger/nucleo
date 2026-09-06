@@ -129,10 +129,11 @@ corromper la firma de un bloque histórico y la apertura rápida no lo verá; lo
 verá `VerifyFull`, y lo verá cualquiera que verifique un recibo de ese bloque.
 Es corrupción detectable de un dato ya atestiguado, no reescritura de la historia.
 
-Por eso el camino rápido **sí** recomputa SHA-256(JCS(header)) de cada bloque y
-lo contrasta con la columna `hash`: sin esa comprobación, el árbol se
-reconstruiría desde hashes que nadie ató a su contenido y el `header_json` sería
-sustituible a voluntad. Es un SHA-256 por bloque, no una verificación Ed25519.
+Por eso el camino rápido **sí** comprueba la atadura entre cada header y su
+hash: sin ella, el árbol se reconstruiría desde hashes que nadie ató a su
+contenido y el `header_json` sería sustituible a voluntad. Es un SHA-256 por
+bloque, no una verificación Ed25519. Se hace sobre los bytes almacenados, por
+la razón que dice la decisión 1 de abajo.
 
 **El marcador de "cosignado" no se verifica al abrir.** El almacén no conoce las
 claves de los testigos —no es su trabajo—, así que distingue una cosignature por
@@ -145,3 +146,33 @@ reescribir historia, porque la raíz sigue teniendo que cuadrar.
 
 Ambas cosas son el precio consciente de abrir en menos de un segundo. Quien no
 quiera pagarlo llama a `VerifyFull`.
+
+### Decisiones del dev, 2026-09-06
+
+**1. Los bytes almacenados son la forma autoritativa, y rechazar equivalentes es
+lo correcto.** La comprobación de la atadura header↔hash se hace sobre el
+`header_json` tal como está guardado —`SHA-256(bytes) == hash`— y no
+recanonicalizando el header antes de hashearlo. Las dos detectan un header
+alterado; se diferencian en qué hacen con un JSON de contenido idéntico y bytes
+distintos, por ejemplo con los campos en otro orden. Recanonicalizar lo aceptaría
+sin una queja, porque su forma canónica sí cuadra con el hash. Sobre los bytes
+almacenados se rechaza, y ese rechazo es la conducta correcta: lo que el tenant
+firmó no fue "un header con este contenido", fue **esta secuencia de bytes**, la
+misma que `checkpoints.note` guarda verbatim y por el mismo motivo. Un
+`header_json` que deje de ser la forma canónica JCS significa que la base ya no
+contiene lo que se firmó, y eso tiene que verse aunque el contenido coincida:
+normalizarlo por lo bajo convertiría en invisible una diferencia que un
+verificador de otro lenguaje —el SDK de TypeScript, mañana— sí notaría. De paso
+es lo que hace barato el camino rápido: 412 ms con 10⁵ bloques en lugar de 2,32 s.
+
+**2. La firma fuera de la hoja es un límite ACEPTADO, con mitigación.** La hoja
+de Merkle es SHA-256(JCS(header)) y la firma vive fuera del header, así que una
+raíz cosignada no fija la columna `signature` y la apertura rápida no detecta su
+corrupción. Meter la firma dentro de la hoja lo resolvería y **no se va a
+hacer**: cambiaría la hoja, y con ella el formato del árbol, las pruebas de
+inclusión ya emitidas y PROTOCOL.md §2. El precio de arreglarlo es mayor que el
+problema, porque el problema es corrupción detectable de un dato ya atestiguado
+—no reescritura de historia— y ya tiene dos maneras de salir a la luz: cualquiera
+que verifique un recibo de ese bloque, y `VerifyFull`. La mitigación es que
+`VerifyFull` deje de depender de que alguien sospeche: la reconciliación del
+Sprint 3 lo ejecutará de forma programada, sin cambio de hoja ni de protocolo.

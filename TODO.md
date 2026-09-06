@@ -12,17 +12,17 @@
 - [x] Documentos fundacionales: README, PROTOCOL.md, ADRs, CLAUDE/AGENTS/PLAN/TODO
 
 ## Tareas del dev (fuera del código, hacer YA)
-- [ ] Crear organización `nucleoledger` en GitHub (plan Free) — verificar: la URL github.com/nucleoledger existe y es tuya
+- [x] Crear organización `nucleoledger` en GitHub (plan Free) — verificar: la URL github.com/nucleoledger existe y es tuya
 - [ ] Crear organización `@nucleoledger` en npm (reserva el scope) — verificar: aparece en tu perfil npm
 - [ ] Verificar dominio `nucleoledger.com` (y opcional `nucleo.ec` en nic.ec) — verificar: whois/registrador
-- [ ] Subir este esqueleto como primer commit y push — verificar: CI corre en Actions
+- [x] Subir este esqueleto como primer commit y push — verificar: CI corre en Actions
 - [ ] Añadir LICENSE AGPL-3.0 desde el selector de licencias de GitHub (texto canónico) — verificar: archivo LICENSE con texto completo oficial
 
 ## Fase D — Laboratorio
 - [x] Externalizar vectores JCS a `testdata/vectors/jcs/` y hacer que los tests los lean de ahí — tocar: `internal/jcs/jcs_test.go` — verificar: tests en verde leyendo archivos
 - [x] Fuzz test de JCS (round-trip y no-pánico) — tocar: `internal/jcs/jcs_fuzz_test.go` — verificar: `go test -fuzz=FuzzJCS -fuzztime=30s ./internal/jcs`
 - [ ] Añadir golangci-lint config mínima — tocar: `.golangci.yml` — verificar: `golangci-lint run` limpio (requiere aprobación de instalación de la herramienta)
-- [ ] Validar workflow CI en los 3 SO — tocar: `.github/workflows/ci.yml` — verificar: badge verde tras el push
+- [x] Validar workflow CI en los 3 SO — tocar: `.github/workflows/ci.yml` — verificar: badge verde tras el push
 
 ## Fase 0 — Prueba de concepto C2SP
 - [x] Prueba de consistencia RFC 9162 §2.1.4 (`ConsistencyProof` + `VerifyConsistency`) — tocar: `internal/ledger/merkle.go` + test nuevo — verificar: test con árbol extendido (pasa) y árbol reescrito (falla)
