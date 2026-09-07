@@ -2,60 +2,157 @@
 
 **A cryptographic integrity layer for software.** Núcleo lets any application seal its important records at the moment they happen — hashed, chained, signed, and encrypted — so that no later rewrite of the past is possible without leaving detectable, provable evidence.
 
-Núcleo is **not** a blockchain, not a new database, and not a cloud service. It is a local, C2SP-compatible transparency log (`nucleod`, written in Go) plus thin client SDKs that sit **beside** the system you already have. It reconciles live data against sealed data, and issues signed receipts to interested parties that survive even if the original system is destroyed.
+Núcleo is **not** a blockchain, not a new database, and not a cloud service. It is a local, C2SP-compatible transparency log plus thin client SDKs that sit **beside** the system you already have. It reconciles live data against sealed data, and issues signed receipts to interested parties that survive even if the original system is destroyed.
 
 > *To anyone who tampers with a record, one question remains unanswerable: explain why the seal does not match.*
 
 ## Status
 
-**Pre-alpha — protocol design frozen, core primitives implemented and tested.**
+**v0.1.0-alpha — the success criterion runs end to end.**
 
-Working today:
-- RFC 8785 (JCS) canonicalization, native implementation, official RFC test vectors passing
-- Signed block headers (Ed25519 over SHA-256 digest), chain verification with expected-signer enforcement
-- RFC 6962 Merkle tree with inclusion **and consistency** proofs (RFC 9162 §2.1.3 / §2.1.4), official vectors in `testdata/vectors/merkle/`
-- Signed checkpoints (`c2sp.org/tlog-checkpoint`) over `x/mod/sumdb/note`
-- Local witness with `c2sp.org/tlog-cosignature@v1`, refusing to cosign a rewritten history
-- Offline-verifiable receipts (`c2sp.org/tlog-proof`) — no ledger access needed
+The project defines its own bar in [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) §18: *a developer who knows no cryptography integrates Núcleo in under an hour, seals records, deliberately alters one, and reconciliation catches it and explains it.* That demo is automated and it passes:
 
 ```bash
-go run ./cmd/nucleo-demo   # core: chain + Merkle + 3 tampering attacks
-go run ./cmd/nucleo-poc    # C2SP end-to-end: checkpoint + witness + receipt + rewrite attack
+./scripts/demo-criterio-exito.sh
 ```
 
-## Benchmarks (PoC)
+Seven steps, thirty assertions, exit 0 or it fails loudly. It includes the cross-language check: a receipt produced by the Go implementation verifying byte-for-byte in the TypeScript verifier.
 
-Measured 2026-09-04 on Go 1.27.1, linux/amd64, AMD Ryzen 7 5700U (16 threads).
-Reproduce with `go test ./internal/ledger -bench=. -benchmem -run=XXX`.
+## Quick start
+
+```bash
+go build -o nucleo ./cmd/nucleo
+
+./nucleo --dir ./my-company init --origin example.com/my-company
+./nucleo --dir ./my-company seal --tenant 1790012345001 \
+         --type invoice.v1 --payload ./invoice.xml
+./nucleo --dir ./my-company status
+```
+
+The full walkthrough — including the witness, receipts and reconciliation — is [`docs/TUTORIAL-es.md`](docs/TUTORIAL-es.md) (Spanish; every command in it was executed and its output pasted verbatim).
+
+## The CLI
+
+One binary, no daemon, no external database. It runs per invocation so it works on the shared hosting where most of the target market lives.
+
+| command | what it does |
+|---|---|
+| `init` | creates vault and ledger, prints SLIP-0039 backup cards, requires typed confirmation |
+| `seal` | seals a record; `--profile` interprets the document and commits sensitive fields |
+| `status` | tree size, root, and **whether the history is attested** |
+| `verify` | integrity check; `--full` recomputes every signature |
+| `receipt` | issues an offline-verifiable receipt for a recipient |
+| `reconcile` | compares the live system against what was sealed |
+| `sync` | obtains attestation from a witness |
+| `witness serve` · `witness key` | runs a witness; prints its public key |
+| `backup` · `restore` | re-issues the SLIP-0039 cards; rebuilds the KEK from them |
+
+**Exit codes are contract** — scripts read them, so they will not change silently:
+
+| code | meaning |
+|---:|---|
+| 0 | success |
+| 1 | usage or input error |
+| 2 | **verification failed** — an alteration or a discrepancy |
+| 3 | **witness sync failed** — an operational incident if it repeats |
+
+`--json` on any command produces machine output with no prose mixed in.
+
+## What works today
+
+**Core.** RFC 8785 (JCS) canonicalization with official vectors · signed block headers (Ed25519 over SHA-256) with chain verification · RFC 6962 Merkle tree with inclusion and consistency proofs (RFC 9162 §2.1.3/§2.1.4), official vectors · SQLite append-only store with integrity verification on open.
+
+**C2SP.** Signed checkpoints (`tlog-checkpoint`) · witness cosignatures (`tlog-cosignature@v1`) · **the full HTTP witness protocol** (`tlog-witness`: `add-checkpoint` and the monitoring endpoint, with the spec version pinned in [ADR-011](docs/adr/ADR-011-witness-http.md)) · offline-verifiable receipts (`tlog-proof`).
+
+**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob satisfies data-deletion rights while the chain and its receipts stay valid · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 as a second log signature** ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)), backward-compatible by construction.
+
+**Ecuador profile.** `sri.factura.v1` with módulo-11 access-key validation, and `sas.acta.v1`. Each type declares which fields are guessable and must travel as HMAC commitments rather than bare hashes.
+
+**Verification anywhere.** [`@nucleoledger/verify`](sdk/ts) — a TypeScript verifier with **zero runtime dependencies** (Ed25519 and SHA-256 from WebCrypto) · [`web/verify/`](web/verify) — a single static HTML page that uses no network and verifies a receipt offline.
+
+## Two clocks, never confused
+
+A receipt shows both and labels them apart, because they are not the same thing:
+
+- **Declared time** comes from the issuer's own clock. It can lie. It is shown because it is useful, not because it proves anything.
+- **Provable time** is the earliest timestamp among witness cosignatures that verify under *your* policy. A third party stated it saw that tree at that moment.
+
+With no accepted witness, the receipt says `SIN TIEMPO DEMOSTRABLE` in full. Staying silent and showing only the declared time would present it as proof.
+
+## Benchmarks
+
+Measured on Go 1.27.1, linux/amd64, AMD Ryzen 7 5700U (16 threads).
+Reproduce with `go test ./internal/... -bench=. -run=XXX`.
 
 | Measurement | Result |
 |---|---|
-| Block sealing (JCS + SHA-256 + Ed25519) | **20,983 blocks/s** — 47.7 µs/op, 5.6 KB, 92 allocs |
-| Merkle root, 10³ leaves | 2.12 ms |
-| Merkle root, 10⁵ leaves | 183 ms |
-| **Receipt size**, 5-entry log | **485 bytes** (3 proof nodes) |
-| **Receipt size**, 10³-entry log | **805 bytes** (10 proof nodes) |
-| **Receipt size**, 10⁵-entry log | **1,124 bytes** (17 proof nodes) |
+| Block sealing (JCS + SHA-256 + Ed25519), in memory | **20,983 blocks/s** — 47.7 µs/op |
+| Durable append (`synchronous=FULL`, one fsync each) | **826 blocks/s** |
+| Open a 10⁵-block ledger, witness-attested | **412 ms** |
+| Open a 10⁵-block ledger, no witness (verifies every signature) | 8.04 s |
+| Merkle root, 10⁵ leaves | 195 ms |
+| **Receipt size**, 5-entry log | **485 bytes** |
+| **Receipt size**, 10⁵-entry log | **1,124 bytes** |
 
-The receipt is what matters commercially: it grows logarithmically, so a log with
-a hundred thousand entries still issues a self-contained, offline-verifiable
-receipt of roughly one kilobyte — small enough for an email footer or a PDF
-attachment. Root computation is not yet incremental; it recomputes the whole
-tree, which is why 10⁵ leaves cost 183 ms. Caching subtree hashes is Sprint 2 work.
+The receipt is what matters commercially: it grows logarithmically, so a log with a hundred thousand entries still issues a self-contained, offline-verifiable receipt of roughly one kilobyte — small enough for an email footer or a PDF attachment.
+
+The durable rate, not the in-memory one, is what sizes a real deployment. Opening an attested ledger is 20× faster than opening an unattested one because signatures below a cosigned checkpoint are already attested; the trade-off is written down in the [ADR-009 amendment](docs/adr/ADR-009-store-schema.md).
+
+## Trust model, in one paragraph
+
+A locally sealed chain detects edits. Signed receipts held by counterparties survive destruction of the system. Witnesses cosign tree heads, which is what makes a full-history rewrite detectable — **a file cannot testify about its own completeness**, because whoever controls it controls any proof living inside it. Local timestamps are declared time; witness cosignature timestamps establish provable time. The ledger holds only commitments, never bare hashes of guessable values; sensitive payloads live in erasable encrypted blobs.
+
+## Security & audits
+
+This is a security product, so the process that built it is part of what you are trusting.
+
+**Three independent models reviewed each other's work.** Each sprint's output was audited adversarially by a different model than the one that wrote it, with the reviewer given the primary specifications rather than the implementation's own claims. Every finding was resolved with a decision recorded in an ADR, never with a silent patch.
+
+**Findings that were found and closed**, with the reasoning preserved:
+
+| finding | severity | where it is recorded |
+|---|---|---|
+| Cosignature key ID used the wrong algorithm byte (0x01 instead of 0x04) | high | [PROTOCOL §3](docs/PROTOCOL.md), goldens computed with `sha256sum` |
+| A file cannot detect its own truncation; `Open` reported success regardless | high | [ADR-009](docs/adr/ADR-009-store-schema.md) — `OpenResult.Attested` |
+| The witness client accepted any well-formed cosignature, including from unknown keys | high | [ADR-011](docs/adr/ADR-011-witness-http.md) |
+| A replayed but genuine old checkpoint silenced rollback detection | high | [ADR-011](docs/adr/ADR-011-witness-http.md) |
+| AAD `tenant ‖ payload_hash` was ambiguous without a fixed-length suffix | medium | fixed-length `payload_hash` enforced |
+| Provable time was computed from signature *shape*, not verified signatures | medium | verification now requires a policy |
+| 422/409 status codes did not match `tlog-witness` | medium | [ADR-011](docs/adr/ADR-011-witness-http.md) |
+
+**Anti-circularity is a project rule.** Every golden value — hashes, key IDs, signatures, canonical bytes — is computed *outside* the code under test: `sha256sum`, `openssl`, an independent Python implementation, a C program linked against the reference Argon2 library. A test that verifies a function using that same function verifies nothing, and this project learned that the hard way.
+
+**Limits we document rather than hide:**
+
+- A block's signature is not inside its Merkle leaf, so a cosigned root does not pin the `signature` column. `verify --full` catches corruption there; the fast path does not. ([ADR-009](docs/adr/ADR-009-store-schema.md))
+- A receipt's recipient is not covered by any signature — it is chosen at issue time. The name is an address, not proof.
+- A network adversary can prevent detection (availability, and it is noisy) but cannot forge attestation (integrity). ([ADR-011](docs/adr/ADR-011-witness-http.md))
+- VRF commitments give third-party verifiability, **not** privacy: publishing a proof makes a low-entropy field brute-forceable. The ledger commitment is and stays HMAC. ([ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md), [ADR-012](docs/adr/ADR-012-vrf-library.md))
+
+**No external security audit has been performed.** The reviews above were model-driven and thorough, but they are not a substitute for a professional audit, and this software has not been used in production by anyone. Treat it accordingly.
+
+To report a vulnerability privately, see [`SECURITY.md`](SECURITY.md).
 
 ## Design
 
-The full protocol and every design decision (with sources) live in:
-- [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — normative protocol specification
-- [`docs/adr/`](docs/adr/) — architecture decision records
+The protocol and every design decision, with sources:
+
+- [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — normative specification
+- [`docs/adr/`](docs/adr/) — architecture decision records, including the amendments where a measurement contradicted an earlier assumption
+- [`docs/TUTORIAL-es.md`](docs/TUTORIAL-es.md) — integration guide (Spanish)
+- [`docs/RELEASING.md`](docs/RELEASING.md) — how releases are built, signed and verified
 - [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) — concept document (Spanish)
 
-Key foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof, tlog-tiles), RFC 6962/9162, RFC 8785, Ed25519 + ML-DSA-44, XChaCha20-Poly1305, Argon2id, SLIP-0039.
+Foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof), RFC 6962/9162, RFC 8785, RFC 9381, Ed25519 + ML-DSA-44 (FIPS 204), XChaCha20-Poly1305, Argon2id, SLIP-0039.
 
-## Trust model (in one paragraph)
+## Language
 
-A locally sealed chain detects edits. Signed receipts (tlog-proof) held by counterparties survive destruction of the system. Mutual witnesses (any C2SP witness, including other Núcleo instances) cosign tree heads, making full-history rewrites detectable. Local timestamps are *declared time*; witness cosignature timestamps establish *provable time*. The ledger holds only non-guessable commitments; sensitive payloads live in erasable encrypted blobs (LOPDP/GDPR-friendly by construction).
+Core, protocol and technical documentation in **English**. Profiles, guides, receipts and user-facing output in **Spanish**, Ecuador first. That split is deliberate: the people who read a receipt are not the people who read a spec.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Short version: issues are more useful than pull requests right now, `go test ./... -race` must stay green, and shared test vectors are ground truth — if a vector fails, the code is wrong, not the vector.
 
 ## License
 
-AGPL-3.0 for the core (see `LICENSE`). Commercial licenses are available for embedding Núcleo in proprietary software.
+AGPL-3.0-or-later for the core (see [`LICENSE`](LICENSE)). Commercial licenses are available for embedding Núcleo in proprietary software.
