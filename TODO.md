@@ -64,4 +64,5 @@
 - [x] Vectores de recibo golden en `testdata/vectors/receipt/`, generados desde un test Go
 - [x] `sdk/ts` — `@nucleoledger/verify`: verificador offline con CERO dependencias de runtime (WebCrypto)
 - [x] Job de CI para Node que corre los tests del SDK contra los vectores compartidos
+- [x] `web/verify/index.html`: verificador estático sin red ni frameworks, con el bundle del SDK y test anti-teatro
 

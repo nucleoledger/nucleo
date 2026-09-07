@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verificar un recibo de Núcleo</title>
+<!--
+  Verificador estático de recibos.
+
+  No pide nada a la red: ni fuentes, ni analítica, ni el recibo que pegues. Todo
+  ocurre en esta pestaña. Puedes guardar esta página junto a nucleo-verify.js y
+  abrirla sin conexión dentro de diez años; mientras el fichero exista, el
+  recibo se podrá comprobar.
+
+  El código de verificación NO está escrito aquí: es el bundle del paquete
+  @nucleoledger/verify, el mismo que corre en la suite de tests contra los
+  vectores compartidos con Go. Una copia distinta en esta página sería una
+  segunda implementación sin probar, que es como no tener ninguna.
+-->
+<style>
+  :root {
+    --tinta: #1a1c1e; --papel: #fbfbf9; --borde: #d9d6cf;
+    --ok: #1c6b3c; --mal: #a3232b; --tenue: #5c6169; --aviso: #8a6d12;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem; background: var(--papel); color: var(--tinta);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  .sub { color: var(--tenue); margin: 0 0 1.6rem; }
+  .cols { display: grid; gap: 1.2rem; grid-template-columns: 1fr; }
+  @media (min-width: 62rem) { .cols { grid-template-columns: 1fr 1fr; } }
+  label { display: block; font-weight: 600; margin: 0 0 .35rem; }
+  .hint { font-weight: 400; color: var(--tenue); font-size: .875rem; }
+  textarea {
+    width: 100%; min-height: 15rem; padding: .7rem; border: 1px solid var(--borde);
+    border-radius: 6px; background: #fff; color: inherit; resize: vertical;
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  textarea.drop { outline: 2px dashed var(--ok); outline-offset: 2px; }
+  .acciones { margin: 1.1rem 0; display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+  button {
+    font: inherit; font-weight: 600; padding: .55rem 1.1rem; border-radius: 6px;
+    border: 1px solid var(--tinta); background: var(--tinta); color: #fff; cursor: pointer;
+  }
+  button.sec { background: transparent; color: var(--tinta); }
+  #salida { margin-top: 1.2rem; }
+  .tarjeta { border: 1px solid var(--borde); border-radius: 8px; padding: 1.1rem 1.2rem; background: #fff; }
+  .veredicto { font-size: 1.2rem; font-weight: 700; margin: 0 0 .8rem; }
+  .veredicto.ok { color: var(--ok); }
+  .veredicto.mal { color: var(--mal); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: .35rem .9rem; margin: 0; }
+  dt { color: var(--tenue); }
+  dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9rem; word-break: break-all; }
+  .relojes { margin: 1rem 0 0; padding: .85rem 1rem; border-left: 3px solid var(--borde); background: #f6f5f1; }
+  .relojes p { margin: .2rem 0; }
+  .etiqueta { font-weight: 700; }
+  .nota { color: var(--tenue); font-size: .9rem; margin-top: .5rem; }
+  ul.razones { margin: .6rem 0 0; padding-left: 1.2rem; }
+  ul.razones li { margin: .25rem 0; color: var(--mal); }
+  footer { margin-top: 2.5rem; color: var(--tenue); font-size: .85rem; }
+  code { background: #f0efe9; padding: .05rem .3rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Verificar un recibo de Núcleo</h1>
+  <p class="sub">
+    Comprueba que un registro estaba en el log y desde cuándo. Todo ocurre en tu
+    navegador: esta página no envía el recibo a ningún sitio.
+  </p>
+
+  <div class="cols">
+    <div>
+      <label for="recibo">Recibo
+        <span class="hint">— pégalo o arrastra el fichero aquí</span>
+      </label>
+      <textarea id="recibo" spellcheck="false" placeholder="nucleo.org/receipt@v1&#10;destinatario      : ..."></textarea>
+    </div>
+    <div>
+      <label for="politica">Política
+        <span class="hint">— qué log y qué testigos aceptas</span>
+      </label>
+      <textarea id="politica" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="acciones">
+    <button id="verificar">Verificar</button>
+    <button id="ejemplo" class="sec">Cargar el ejemplo</button>
+    <button id="limpiar" class="sec">Limpiar</button>
+  </div>
+
+  <div id="salida"></div>
+
+  <footer>
+    <p>
+      Esta página no usa la red. El verificador es
+      <code>@nucleoledger/verify</code>, el mismo código que se prueba contra los
+      vectores compartidos con la implementación de Go.
+    </p>
+    <p>
+      Necesita un navegador con Ed25519 en WebCrypto (Chrome&nbsp;137+,
+      Safari&nbsp;17+, Firefox&nbsp;130+) y, si la abres desde un servidor, que
+      sea <code>https</code>.
+    </p>
+  </footer>
+</main>
+
+<script src="nucleo-verify.js"></script>
+<script src="ejemplo.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const recibo = $("recibo"), politica = $("politica"), salida = $("salida");
+
+  // Arrastrar y soltar sobre cualquiera de los dos campos.
+  for (const el of [recibo, politica]) {
+    el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("drop"); });
+    el.addEventListener("dragleave", () => el.classList.remove("drop"));
+    el.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      el.classList.remove("drop");
+      const f = e.dataTransfer?.files?.[0];
+      if (f) el.value = await f.text();
+    });
+  }
+
+  function escapa(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+
+  function render(r) {
+    const ok = r.valid;
+    const filas = [
+      ["bloque", r.blockIndex ?? "—"],
+      ["destinatario", r.recipient ?? "—"],
+      ["log", r.checkpoint?.origin ?? "—"],
+      ["testigos que verifican", r.cosigners.length ? r.cosigners.join(", ") : "ninguno"],
+    ];
+    if (r.ignoredSignatures.length) {
+      filas.push(["firmas ignoradas", r.ignoredSignatures.join(", ") + " (claves que no conoces)"]);
+    }
+
+    salida.innerHTML = `
+      <div class="tarjeta">
+        <p class="veredicto ${ok ? "ok" : "mal"}">${ok ? "✔ Recibo válido" : "✘ Recibo NO válido"}</p>
+        <dl>${filas.map(([k, v]) => `<dt>${escapa(k)}</dt><dd>${escapa(v)}</dd>`).join("")}</dl>
+        <div class="relojes">
+          <p><span class="etiqueta">Tiempo declarado:</span> ${escapa(r.declaredTime ?? "—")}
+             <span class="hint">— lo puso quien emitió el registro. Puede mentir.</span></p>
+          <p><span class="etiqueta">Tiempo demostrable:</span> ${
+            r.provableTime
+              ? escapa(r.provableTime) + ' <span class="hint">— lo firmó un testigo que vio el log en ese momento.</span>'
+              : '<strong>SIN TIEMPO DEMOSTRABLE</strong> <span class="hint">— ningún testigo que aceptes respalda una fecha.</span>'
+          }</p>
+        </div>
+        ${
+          ok
+            ? '<p class="nota">Este recibo demuestra que el contenido con ese hash estaba en el log. No demuestra que el contenido diga la verdad: eso es otra cosa.</p>'
+            : `<ul class="razones">${r.reasons.map((x) => `<li>${escapa(x)}</li>`).join("")}</ul>`
+        }
+      </div>`;
+  }
+
+  $("verificar").addEventListener("click", async () => {
+    salida.innerHTML = '<div class="tarjeta">Verificando…</div>';
+    let pol;
+    try {
+      pol = JSON.parse(politica.value);
+    } catch (e) {
+      salida.innerHTML = `<div class="tarjeta"><p class="veredicto mal">✘ La política no es JSON válido</p><p>${escapa(e.message)}</p></div>`;
+      return;
+    }
+    try {
+      render(await NucleoVerify.verifyReceipt(recibo.value, pol));
+    } catch (e) {
+      salida.innerHTML = `<div class="tarjeta"><p class="veredicto mal">✘ Error inesperado</p><p>${escapa(e.message)}</p></div>`;
+    }
+  });
+
+  $("limpiar").addEventListener("click", () => {
+    recibo.value = ""; politica.value = ""; salida.innerHTML = "";
+  });
+
+  $("ejemplo").addEventListener("click", () => {
+    recibo.value = EJEMPLO.receipt;
+    politica.value = JSON.stringify(EJEMPLO.policy, null, 2);
+    salida.innerHTML = "";
+  });
+
+  // Política de ejemplo con las claves del PoC, para que la página se pueda
+  // probar sin tener un despliegue delante.
+  const EJEMPLO = window.NUCLEO_EJEMPLO ?? { receipt: "", policy: {} };
+  if (!EJEMPLO.receipt) $("ejemplo").disabled = true;
+  politica.value = JSON.stringify(
+    { origin: "nucleoledger.com/mi-empresa", logKey: "", witnesses: {}, quorum: 1 },
+    null, 2);
+})();
+</script>
+</body>
+</html>

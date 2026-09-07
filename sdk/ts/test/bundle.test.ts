@@ -1,0 +1,99 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
+import { describe, expect, it } from "vitest";
+import { listVectors, readJSON } from "./vectors.js";
+
+// Verificación ANTI-TEATRO.
+//
+// La página web sirve un bundle de esta biblioteca. Si nadie lo prueba, nada
+// impide que el fichero empaquetado se quede viejo, o que alguien lo edite a
+// mano, y la página acabaría enseñando un ✔ producido por código que ninguna
+// suite mira. Este test carga EXACTAMENTE el fichero que carga el HTML y le
+// pasa los mismos vectores golden.
+
+const here = dirname(fileURLToPath(import.meta.url));
+const bundlePath = join(here, "..", "..", "..", "web", "verify", "nucleo-verify.js");
+const htmlPath = join(here, "..", "..", "..", "web", "verify", "index.html");
+const ejemploPath = join(here, "..", "..", "..", "web", "verify", "ejemplo.js");
+
+interface Vector {
+  name: string;
+  receipt: string;
+  policy: { origin: string; log_key: string; witnesses: Record<string, string>; quorum: number };
+  valid: boolean;
+  provable_time?: string;
+  block_index: number;
+}
+
+/** loadBundle evalúa el bundle en un contexto limpio, como haría el navegador. */
+function loadBundle(): Record<string, unknown> {
+  const code = readFileSync(bundlePath, "utf8");
+  const sandbox: Record<string, unknown> = { crypto: globalThis.crypto, console, TextEncoder, TextDecoder, atob, btoa };
+  sandbox["globalThis"] = sandbox;
+  runInNewContext(code, sandbox, { filename: "nucleo-verify.js" });
+  const api = sandbox["NucleoVerify"];
+  if (!api) throw new Error("el bundle no expone NucleoVerify");
+  return api as Record<string, unknown>;
+}
+
+describe("el bundle que sirve la página web", () => {
+  it("existe y expone verifyReceipt", () => {
+    const api = loadBundle();
+    expect(typeof api["verifyReceipt"]).toBe("function");
+  });
+
+  it("el HTML carga ese mismo fichero, y ninguna otra copia", () => {
+    const html = readFileSync(htmlPath, "utf8");
+    expect(html).toContain('<script src="nucleo-verify.js">');
+    // La página no debe traer su propia criptografía. Se buscan LLAMADAS, no
+    // la palabra: el pie menciona Ed25519 para decir qué navegadores hacen
+    // falta, y eso es prosa. Un test que confunda mencionar con implementar
+    // obliga a reescribir el texto para que pase, que es exactamente al revés.
+    for (const señal of ["crypto.subtle", "importKey(", "digest(", "function sha256"]) {
+      expect(html, `el HTML parece implementar criptografía: ${señal}`).not.toContain(señal);
+    }
+  });
+
+  it("el ejemplo embebido se carga ANTES del script que lo usa", () => {
+    const html = readFileSync(htmlPath, "utf8");
+    const ejemplo = html.indexOf('src="ejemplo.js"');
+    const usa = html.indexOf("window.NUCLEO_EJEMPLO");
+    expect(ejemplo).toBeGreaterThan(-1);
+    expect(usa).toBeGreaterThan(ejemplo);
+  });
+
+  for (const file of listVectors("receipt")) {
+    const v = readJSON<Vector>("receipt", file);
+    it(`${v.name}: el bundle da el mismo veredicto que la biblioteca`, async () => {
+      const api = loadBundle();
+      const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{ valid: boolean; provableTime: string | null; blockIndex: number | null }>;
+      const result = await verify(v.receipt, {
+        origin: v.policy.origin,
+        logKey: v.policy.log_key,
+        witnesses: v.policy.witnesses,
+        quorum: v.policy.quorum,
+      });
+      expect(result.valid).toBe(v.valid);
+      if (v.valid) {
+        expect(result.provableTime).toBe(v.provable_time ?? null);
+        expect(result.blockIndex).toBe(v.block_index);
+      }
+    });
+  }
+
+  it("el recibo de ejemplo de la página verifica con su política", async () => {
+    const api = loadBundle();
+    const sandbox: Record<string, unknown> = { window: {} };
+    sandbox["globalThis"] = sandbox;
+    runInNewContext(readFileSync(ejemploPath, "utf8"), sandbox, { filename: "ejemplo.js" });
+    const ej = (sandbox["window"] as Record<string, unknown>)["NUCLEO_EJEMPLO"] as {
+      receipt: string;
+      policy: unknown;
+    };
+    const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{ valid: boolean }>;
+    const result = await verify(ej.receipt, ej.policy);
+    expect(result.valid, "el ejemplo que ofrece la página debe verificar").toBe(true);
+  });
+});

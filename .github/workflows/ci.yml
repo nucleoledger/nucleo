@@ -38,6 +38,13 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      # El bundle que sirve web/verify/ se regenera y se prueba en el mismo
+      # job: si se quedara viejo, la página enseñaría veredictos producidos por
+      # código que ninguna suite mira.
+      - name: Bundle
+        run: npm run bundle
       - name: Test
         run: npm test
+      - name: El bundle publicado está al día
+        run: git diff --exit-code ../../web/verify/nucleo-verify.js
 
