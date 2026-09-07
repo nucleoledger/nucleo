@@ -219,3 +219,55 @@ TODO.md.
   fija la lectura es única. El formato de PROTOCOL §5 no cambia.
 - **BAJO, contrato de `RestoreKEK`**: registrado en el addendum de ADR-010.
 
+## Enmienda 2026-09-06 — la tabla `log_state`
+
+El esquema gana una tabla. Se registra aquí porque la decisión 5 de este ADR dice
+que cambiarlo exige un ADR nuevo, y dejarlo sin recoger convertiría esa regla en
+papel mojado a la primera de cambio.
+
+```sql
+log_state(k TEXT PRIMARY KEY, v TEXT NOT NULL)
+```
+
+### Qué guarda y por qué no cabía en `checkpoints`
+
+El log firma un checkpoint y acto seguido sale a pedir la cosignature al testigo.
+Si el proceso muere en ese intervalo, sin memoria duradera el checkpoint firmado
+no deja rastro local: al arrancar, el log estaría dispuesto a firmar un árbol más
+pequeño sin saber que ya se comprometió con uno mayor. Un log que se desdice es
+lo que PROTOCOL.md §3 prohíbe, y que el testigo lo detecte después no arregla que
+el log lo haya hecho.
+
+`log_state` guarda ese compromiso —bajo la clave `log/last-signed/v1`— **antes**
+de que la nota salga del proceso, y `checkpoint.Log` se rehidrata de ahí al
+abrir.
+
+No cabía en `checkpoints` por dos razones que se refuerzan:
+
+1. **`checkpoints` admite una nota por tamaño.** Guardar primero la firmada y
+   luego la cosignada del mismo tamaño choca con esa restricción, y con razón:
+   son dos notas distintas para la misma promesa.
+2. **`checkpoints` es append-only y este estado avanza.** El cerrojo se mueve
+   hacia delante con cada firma; esa es su función. Meterlo bajo unos
+   disparadores que abortan todo UPDATE habría obligado a relajarlos, que es
+   exactamente lo que no se quiere tocar.
+
+Por eso `log_state` **no lleva disparadores**: es mutable por diseño, y decirlo
+en el esquema es preferible a tener una tabla que parece protegida y no lo está.
+
+### Alcance del cambio
+
+Es una **adición pura**. `CREATE TABLE IF NOT EXISTS`, sin tocar ninguna tabla ni
+ningún disparador existente, sin migración de datos y sin cambiar el significado
+de nada de lo ya guardado. Una base creada antes de esta enmienda gana la tabla
+vacía al abrirse, y un log sin nada guardado en ella se comporta como siempre: el
+cerrojo empieza en blanco, que es lo correcto para un ledger nuevo.
+
+### Lo que esta tabla NO es
+
+No es una frontera de seguridad. Quien controle el fichero puede vaciarla, igual
+que puede borrar los disparadores. Lo que hace es cerrar un hueco **operativo**:
+que un reinicio desafortunado, sin ningún atacante de por medio, deje al log
+dispuesto a contradecirse. Contra el adversario que controla el disco sigue
+valiendo lo de siempre: la memoria del testigo, que está en otra máquina.
+
