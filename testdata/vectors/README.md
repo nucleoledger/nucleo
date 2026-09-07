@@ -13,3 +13,10 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              NO del testdata de la biblioteca que se evalúa; adición autorizada por
              el dev (ADR-010). sha256(vectors.json) =
              13ebecebdd869dd2bc2cdf69e7ce3a158cf106cac76c39d17682b1c6cdabbdc4
+- receipt/   3 recibos golden generados por internal/receipt (TestExportReceiptVectors):
+             valido-1-cosignature, alterado-encabezado, cosignature-no-confiable.
+             Cada fichero lleva el recibo completo, la política de verificación
+             (claves en hex), el entry_hash esperado y los dos tiempos. Son LA VARA
+             del verificador de TypeScript: si Go y TS no coinciden byte a byte,
+             uno de los dos está mal. Se regeneran ejecutando ese test.
+
