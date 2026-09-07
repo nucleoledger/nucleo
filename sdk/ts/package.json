@@ -1,24 +1,49 @@
 {
   "name": "@nucleoledger/verify",
-  "version": "0.1.0",
-  "description": "Verificador offline de recibos de Núcleo. Sin dependencias de runtime.",
+  "version": "0.1.0-alpha.0",
+  "description": "Offline verifier for Núcleo receipts. Zero runtime dependencies.",
+  "keywords": [
+    "transparency-log",
+    "c2sp",
+    "merkle",
+    "ed25519",
+    "verification",
+    "receipt",
+    "tlog-proof"
+  ],
   "license": "AGPL-3.0-or-later",
+  "author": "Núcleo",
+  "homepage": "https://github.com/nucleoledger/nucleo/tree/main/sdk/ts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nucleoledger/nucleo.git",
+    "directory": "sdk/ts"
+  },
+  "bugs": {
+    "url": "https://github.com/nucleoledger/nucleo/issues"
+  },
   "type": "module",
-  "private": true,
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "bundle": "esbuild src/index.ts --bundle --format=iife --global-name=NucleoVerify --outfile=../../web/verify/nucleo-verify.js",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run typecheck && npm run build"
   },
   "devDependencies": {
     "esbuild": "0.25.0",
@@ -26,6 +51,10 @@
     "vitest": "3.0.5"
   },
   "engines": {
-    "node": ">=18.4"
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

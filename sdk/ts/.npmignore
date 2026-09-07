@@ -1,0 +1,8 @@
+# Lo que se publica lo decide "files" en package.json, que es una lista blanca.
+# Este fichero solo existe para que un error en esa lista no acabe publicando
+# los tests, la configuración o el código fuente sin compilar.
+src/
+test/
+tsconfig.json
+vitest.config.ts
+.nvmrc
