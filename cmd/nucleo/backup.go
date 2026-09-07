@@ -18,8 +18,6 @@ func cmdBackup(e *env, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	warnTestHooks(e)
-
 	s, _, err := e.openStore()
 	if err != nil {
 		return err
@@ -65,8 +63,6 @@ func cmdRestore(e *env, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	warnTestHooks(e)
-
 	s, _, err := e.openStore()
 	if err != nil {
 		return err

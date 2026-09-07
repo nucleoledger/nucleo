@@ -34,8 +34,6 @@ func cmdSeal(e *env, args []string) error {
 	case *payload == "":
 		return usageErr("seal necesita --payload <archivo>")
 	}
-	warnTestHooks(e)
-
 	data, err := os.ReadFile(*payload)
 	if err != nil {
 		return usageErr("no se pudo leer %q: %v", *payload, err)

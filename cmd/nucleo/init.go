@@ -34,8 +34,6 @@ func cmdInit(e *env, args []string) error {
 	if *origin == "" {
 		return usageErr("init necesita --origin")
 	}
-	warnTestHooks(e)
-
 	if err := os.MkdirAll(e.dir, 0o700); err != nil {
 		return usageErr("no se pudo crear %q: %v", e.dir, err)
 	}

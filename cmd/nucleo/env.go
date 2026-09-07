@@ -78,6 +78,10 @@ func dispatch(e *env, args []string) error {
 	if !ok {
 		return usageErr("subcomando desconocido %q\n\n%s", name, usageText())
 	}
+	// El aviso va aquí y no en cada subcomando: si depende de que alguien se
+	// acuerde de llamarlo, tarde o temprano habrá un subcomando que no avise, y
+	// será justo el que alguien ejecute en producción con la semilla puesta.
+	warnTestHooks(e)
 	return cmd(e, rest[1:])
 }
 
@@ -212,3 +216,9 @@ func now() time.Time { return testClock() }
 
 // unmarshalJSON evita repetir el import de encoding/json en cada subcomando.
 func unmarshalJSON(raw []byte, v any) error { return json.Unmarshal(raw, v) }
+
+// openStoreAt abre el ledger de un directorio sin pasar por env. Lo usan los
+// tests para leer material que la CLI no imprime.
+func openStoreAt(dir string) (*store.Store, store.OpenResult, error) {
+	return store.Open(filepath.Join(dir, "nucleo.db"))
+}

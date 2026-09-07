@@ -37,8 +37,6 @@ func cmdSync(e *env, args []string) error {
 	case *key == "":
 		return usageErr("sync necesita --witness-key HEX")
 	}
-	warnTestHooks(e)
-
 	pub, err := hexKey(*key)
 	if err != nil {
 		return err
@@ -140,8 +138,6 @@ func cmdWitness(e *env, args []string) error {
 	case *logOrigin == "" || *logKey == "":
 		return usageErr("witness serve necesita --log-origin y --log-key")
 	}
-	warnTestHooks(e)
-
 	pub, err := hexKey(*logKey)
 	if err != nil {
 		return err
