@@ -18,3 +18,26 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test ./... -race
+
+  # El verificador de TypeScript corre contra los MISMOS ficheros de
+  # testdata/vectors/ que la suite de Go. Es lo que impide que las dos
+  # implementaciones diverjan sin que nadie se entere.
+  sdk-ts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Ed25519 en WebCrypto necesita Node >= 18.4; se fija 22 para no
+          # depender de una API que allí todavía es experimental.
+          node-version: '22'
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+

@@ -61,4 +61,7 @@
 - [x] `cmd/nucleo`: binario único con subcomandos, salida en español, `--json`, y códigos de salida documentados (0/1/2/3)
 - [x] `init`/`backup`/`restore` con passphrase sin eco, tarjetas SLIP-0039 y confirmación tecleada (ADR-004)
 - [x] `seal`/`status`/`verify [--full]`/`receipt`/`reconcile`/`sync`/`witness serve`
+- [x] Vectores de recibo golden en `testdata/vectors/receipt/`, generados desde un test Go
+- [x] `sdk/ts` — `@nucleoledger/verify`: verificador offline con CERO dependencias de runtime (WebCrypto)
+- [x] Job de CI para Node que corre los tests del SDK contra los vectores compartidos
 

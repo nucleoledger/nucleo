@@ -1,0 +1,31 @@
+{
+  "name": "@nucleoledger/verify",
+  "version": "0.1.0",
+  "description": "Verificador offline de recibos de Núcleo. Sin dependencias de runtime.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "bundle": "esbuild src/index.ts --bundle --format=iife --global-name=NucleoVerify --outfile=../../web/verify/nucleo-verify.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.5"
+  },
+  "engines": {
+    "node": ">=18.4"
+  }
+}
