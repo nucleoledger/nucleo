@@ -107,9 +107,13 @@ func newScene(t *testing.T, blocks int) *scene {
 	if err != nil {
 		t.Fatal(err)
 	}
+	client, err := witness.NewClient(srv.URL, "witness.example/w1", keyFrom(90).Public().(ed25519.PublicKey))
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &scene{
 		t: t, dbPath: dbPath, store: s, adapter: adapter,
-		client: witness.NewClient(srv.URL), witness: w, tenant: tenantPriv,
+		client: client, witness: w, tenant: tenantPriv,
 	}
 }
 

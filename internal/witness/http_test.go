@@ -50,18 +50,18 @@ func newHTTPHarness(t *testing.T) *httpHarness {
 
 	srv := httptest.NewServer(NewServer(w).Handler())
 	t.Cleanup(srv.Close)
-	return &httpHarness{harness: h, server: srv, client: NewClient(srv.URL)}
+	client, err := NewClient(srv.URL, witnessName, ed25519.NewKeyFromSeed(seed(100)).Public().(ed25519.PublicKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &httpHarness{harness: h, server: srv, client: client}
 }
 
 // add envía un checkpoint por HTTP y devuelve la nota con las cosignatures ya
 // incorporadas, que es lo que haría un log real con la respuesta.
 func (h *httpHarness) add(t *testing.T, old uint64, proof [][]byte, msg []byte) ([]byte, error) {
 	t.Helper()
-	lines, err := h.client.AddCheckpoint(context.Background(), old, proof, msg)
-	if err != nil {
-		return nil, err
-	}
-	return append(append([]byte{}, msg...), lines...), nil
+	return h.client.AddCheckpoint(context.Background(), old, proof, msg)
 }
 
 // TestHTTPWitnessFullDialogue recorre el diálogo completo del protocolo: primer

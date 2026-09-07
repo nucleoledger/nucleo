@@ -53,3 +53,4 @@
 - [x] Detección de rollback por memoria del testigo (hallazgo ALTO de auditoría GPT) — `logsync.SyncWithWitness` consulta al testigo antes de firmar y devuelve `RollbackError` con ambos tamaños
 - [x] Segunda firma ML-DSA-44 en checkpoints reales (ADR-007), vía la extensión 0xff de signed-note con identificador `nucleoledger.com/sig/ml-dsa-44@v1`; key ID con golden calculado en python
 - [x] Cerrojo anti-retroceso del log DURADERO: se persiste el checkpoint firmado antes de contactar al testigo y el log se rehidrata al reabrir (tabla `log_state`)
+- [x] El cliente del testigo verifica las cosignatures antes de aceptar nada (hallazgo ALTO/MUST de la 2.ª auditoría GPT-5.5)

@@ -126,11 +126,10 @@ func SyncWithWitness(ctx context.Context, log LocalLog, c *witness.Client) (*Res
 			return nil, err
 		}
 	}
-	lines, err := c.AddCheckpoint(ctx, witnessSize, proof, msg)
+	cosigned, err := c.AddCheckpoint(ctx, witnessSize, proof, msg)
 	if err != nil {
 		return nil, err
 	}
-	cosigned := append(append([]byte{}, msg...), lines...)
 	if err := log.RecordCosigned(cosigned); err != nil {
 		return nil, err
 	}

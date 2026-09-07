@@ -103,7 +103,12 @@ func run() error {
 	fmt.Println("  siguiendo c2sp.org/tlog-witness. Esa separación es el punto:")
 	fmt.Println("  quien controle el fichero del log no puede tocar la del testigo.")
 
-	client := witness.NewClient(url)
+	// El cliente va atado a la identidad del testigo: sin su clave no podría
+	// distinguir una cosignature de una cadena de bytes con la forma correcta.
+	client, err := witness.NewClient(url, witnessName, witnessPriv.Public().(ed25519.PublicKey))
+	if err != nil {
+		return err
+	}
 	ctx := context.Background()
 
 	// ---- Sesión 1: sellar y cosignar por HTTP -----------------------------
