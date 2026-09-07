@@ -13,10 +13,11 @@
 
 ## Tareas del dev (fuera del código, hacer YA)
 - [x] Crear organización `nucleoledger` en GitHub (plan Free) — verificar: la URL github.com/nucleoledger existe y es tuya
-- [ ] Crear organización `@nucleoledger` en npm (reserva el scope) — verificar: aparece en tu perfil npm
-- [ ] Verificar dominio `nucleoledger.com` (y opcional `nucleo.ec` en nic.ec) — verificar: whois/registrador
+- [x] Crear organización `@nucleoledger` en npm (reserva el scope) — verificar: aparece en tu perfil npm
+- [x] Verificar dominio `nucleoledger.com` (y opcional `nucleo.ec` en nic.ec) — verificar: whois/registrador
 - [x] Subir este esqueleto como primer commit y push — verificar: CI corre en Actions
-- [ ] Añadir LICENSE AGPL-3.0 desde el selector de licencias de GitHub (texto canónico) — verificar: archivo LICENSE con texto completo oficial
+- [x] Añadir LICENSE AGPL-3.0 desde el selector de licencias de GitHub (texto canónico) — verificar: archivo LICENSE con texto completo oficial
+- [x] Activar 2FA en GitHub y en npm — verificar: ambos perfiles muestran la segunda factor activa
 
 ## Fase D — Laboratorio
 - [x] Externalizar vectores JCS a `testdata/vectors/jcs/` y hacer que los tests los lean de ahí — tocar: `internal/jcs/jcs_test.go` — verificar: tests en verde leyendo archivos
