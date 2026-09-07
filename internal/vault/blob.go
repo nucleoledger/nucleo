@@ -86,3 +86,45 @@ func (v *Vault) EncryptBlob(tenant, payloadHash string, plaintext []byte) (ciphe
 func (v *Vault) DecryptBlob(tenant, payloadHash string, ciphertext, nonce []byte) ([]byte, error) {
 	return DecryptBlob(v.dek, tenant, payloadHash, ciphertext, nonce)
 }
+
+// secretAADPrefix separa el dominio del material interno del vault del de los
+// payloads de bloque. Sin esa separación, un secreto interno podría descifrarse
+// como si fuera un payload, o al revés.
+const secretAADPrefix = "nucleo/secret/v1"
+
+// EncryptSecret cifra material interno del vault —claves de firma, por ejemplo—
+// bajo la DEK, en un dominio propio identificado por domain.
+//
+// No se reutiliza EncryptBlob para esto: su AAD es tenant ‖ payload_hash y está
+// pensado para atar un texto cifrado a un compromiso del ledger. Un secreto
+// interno no tiene compromiso al que atarse, y forzarlo a fingir uno
+// convertiría el AAD en un adorno.
+func (v *Vault) EncryptSecret(domain string, plaintext []byte) (ciphertext, nonce []byte, err error) {
+	if domain == "" {
+		return nil, nil, fmt.Errorf("%w: dominio vacío", ErrAAD)
+	}
+	return seal(v.dek, secretAAD(v.id, domain), plaintext)
+}
+
+// DecryptSecret descifra material interno del vault.
+func (v *Vault) DecryptSecret(domain string, ciphertext, nonce []byte) ([]byte, error) {
+	if domain == "" {
+		return nil, fmt.Errorf("%w: dominio vacío", ErrAAD)
+	}
+	pt, err := open(v.dek, secretAAD(v.id, domain), ciphertext, nonce)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrDecrypt, err)
+	}
+	return pt, nil
+}
+
+// secretAAD ata el secreto a este vault y a su dominio.
+func secretAAD(vaultID, domain string) []byte {
+	aad := make([]byte, 0, len(secretAADPrefix)+len(vaultID)+len(domain)+2)
+	aad = append(aad, secretAADPrefix...)
+	aad = append(aad, 0x00)
+	aad = append(aad, vaultID...)
+	aad = append(aad, 0x00)
+	aad = append(aad, domain...)
+	return aad
+}

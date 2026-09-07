@@ -56,3 +56,9 @@
 - [x] El cliente del testigo verifica las cosignatures antes de aceptar nada (hallazgo ALTO/MUST de la 2.ª auditoría GPT-5.5)
 - [x] `SyncWithWitness` solo devuelve éxito con atestación verificada del estado actual; el replay de una nota vieja genuina ya no lo silencia (ALTO de la 2.ª auditoría)
 - [x] El tiempo demostrable del recibo se calcula solo con cosignatures verificadas bajo política (MEDIO de la 2.ª auditoría)
+
+## Sprint 4 — la CLI es el producto
+- [x] `cmd/nucleo`: binario único con subcomandos, salida en español, `--json`, y códigos de salida documentados (0/1/2/3)
+- [x] `init`/`backup`/`restore` con passphrase sin eco, tarjetas SLIP-0039 y confirmación tecleada (ADR-004)
+- [x] `seal`/`status`/`verify [--full]`/`receipt`/`reconcile`/`sync`/`witness serve`
+
