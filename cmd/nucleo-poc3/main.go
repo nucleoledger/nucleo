@@ -389,7 +389,15 @@ func printReceipt(s *store.Store, logPub, witnessPub ed25519.PublicKey) error {
 	if err != nil {
 		return err
 	}
-	data, err := receipt.Format(r)
+	// La política del EMISOR: con ella se calcula el tiempo demostrable que va
+	// impreso. Un tiempo demostrable sin política sería una fecha con aspecto de
+	// demostrada.
+	policy := proof.Policy{
+		Origin: origin, LogKey: logPub,
+		Witnesses: map[string]ed25519.PublicKey{witnessName: witnessPub},
+		Quorum:    1,
+	}
+	data, err := receipt.Format(r, policy)
 	if err != nil {
 		return err
 	}
@@ -397,13 +405,10 @@ func printReceipt(s *store.Store, logPub, witnessPub ed25519.PublicKey) error {
 		fmt.Println("  " + line)
 	}
 
-	// El destinatario verifica con SU política, sin pedirle nada al emisor.
-	policy := proof.Policy{
-		Origin: origin, LogKey: logPub,
-		Witnesses: map[string]ed25519.PublicKey{witnessName: witnessPub},
-		Quorum:    1,
-	}
-	parsed, err := receipt.Parse(data)
+	// El destinatario lo relee con SU política, sin pedirle nada al emisor. Si
+	// no confiara en este testigo, el recibo no le cuadraría, y eso es lo
+	// correcto: no se le puede enseñar una fecha que él no puede verificar.
+	parsed, err := receipt.Parse(data, policy)
 	if err != nil {
 		return err
 	}

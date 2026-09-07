@@ -17,17 +17,13 @@
 package receipt
 
 import (
-	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
-	"github.com/nucleoledger/nucleo/internal/witness"
 )
 
 // Magic identifica el formato y su versión.
@@ -132,45 +128,38 @@ func (r *Receipt) EntryHash() ([]byte, error) { return r.Header.Digest() }
 // DeclaredTime devuelve el timestamp que el emisor puso en el bloque.
 func (r *Receipt) DeclaredTime() (time.Time, error) { return r.Header.Time() }
 
-// ProvableTime devuelve el menor de los timestamps de las cosignatures
-// PRESENTES en la nota, y si hay alguna.
+// ProvableTime devuelve el tiempo demostrable del recibo BAJO UNA POLÍTICA: el
+// menor de los timestamps de las cosignatures que verifican con las claves de
+// testigo que esa política acepta.
 //
-// No verifica firmas: dice qué afirma el documento. Que esas cosignatures sean
-// de testigos en los que confías lo decide Verify con tu política, y si no
-// coinciden, Verify falla.
-func (r *Receipt) ProvableTime() (time.Time, bool) {
-	var earliest time.Time
-	var found bool
-	for _, sig := range cosignatureBlobs(r.Proof.CheckpointNote) {
-		ts, err := witness.Timestamp(sig)
-		if err != nil {
-			continue
-		}
-		if !found || ts.Before(earliest) {
-			earliest, found = ts, true
-		}
+// Exige la política porque sin ella la pregunta no tiene respuesta. Antes se
+// calculaba por la FORMA del blob de firma —72 bytes con pinta de
+// tlog-cosignature@v1— y eso convertía en tiempo demostrable cualquier cosa que
+// alguien hubiera pegado al final de la nota. Un recibo es un documento que se
+// enseña: la fecha que muestra tiene que estar respaldada por una firma que
+// verifique, o no mostrarse.
+//
+// No se conserva ninguna variante "por forma", ni siquiera para depurar. Una
+// función que devuelve una fecha con aspecto de demostrada sin haberla
+// verificado es un arma cargada esperando a que alguien la imprima.
+func (r *Receipt) ProvableTime(p proof.Policy) (time.Time, bool, error) {
+	res, err := r.verify(p)
+	if err != nil {
+		return time.Time{}, false, err
 	}
-	return earliest, found
+	if len(res.Cosigners) == 0 {
+		return time.Time{}, false, nil
+	}
+	return res.ProvableTime, true, nil
 }
 
-// cosignatureBlobs devuelve los blobs de firma de la nota que tienen la FORMA de
-// una tlog-cosignature@v1: 4 bytes de key ID más 72 de firma con timestamp.
-func cosignatureBlobs(msg []byte) [][]byte {
-	i := bytes.LastIndex(msg, []byte("\n\n"))
-	if i < 0 {
-		return nil
+// verify es la verificación completa, compartida por el renderizado y por
+// Verify. Que el encabezado se derive de lo MISMO que verifica el destinatario
+// es lo que impide que el texto y la prueba lleguen a contradecirse.
+func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
+	entryHash, err := r.EntryHash()
+	if err != nil {
+		return proof.Result{}, err
 	}
-	var out [][]byte
-	for _, line := range strings.Split(string(msg[i+2:]), "\n") {
-		if !strings.HasPrefix(line, "— ") {
-			continue
-		}
-		j := strings.LastIndex(line, " ")
-		blob, err := base64.StdEncoding.DecodeString(line[j+1:])
-		if err != nil || len(blob) != 4+72 {
-			continue
-		}
-		out = append(out, blob[4:])
-	}
-	return out
+	return r.Proof.Verify(entryHash, p)
 }

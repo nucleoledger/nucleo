@@ -137,7 +137,10 @@ func TestReceiptShowsBothClocks(t *testing.T) {
 	}
 
 	// El demostrable es el MÍNIMO de los tres, no el primero ni el último.
-	provable, ok := r.ProvableTime()
+	provable, ok, err := r.ProvableTime(sc.policy())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !ok {
 		t.Fatal("no hay tiempo demostrable con tres cosignatures")
 	}
@@ -148,7 +151,7 @@ func TestReceiptShowsBothClocks(t *testing.T) {
 		t.Error("los dos relojes coinciden: el test no distingue nada")
 	}
 
-	data, err := Format(r)
+	data, err := Format(r, sc.policy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,10 +188,10 @@ func TestReceiptWithoutCosignatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := r.ProvableTime(); ok {
-		t.Fatal("hay tiempo demostrable sin ninguna cosignature")
+	if _, ok, err := r.ProvableTime(sc.policy()); err != nil || ok {
+		t.Fatalf("hay tiempo demostrable sin ninguna cosignature: %v %v", ok, err)
 	}
-	data, err := Format(r)
+	data, err := Format(r, sc.policy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,15 +215,15 @@ func TestParseRejectsDoctoredText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := Format(r)
+	data, err := Format(r, sc.policy())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Parse(data); err != nil {
+	if _, err := Parse(data, sc.policy()); err != nil {
 		t.Fatalf("el recibo recién emitido no parsea: %v", err)
 	}
 
-	provable, _ := r.ProvableTime()
+	provable, _, _ := r.ProvableTime(sc.policy())
 	for _, c := range []struct{ name, from, to string }{
 		{"tenant cambiado", testTenant, "9999999999001"},
 		{"tipo cambiado", "sri.factura.v1", "sri.nota-credito.v1"},
@@ -232,38 +235,71 @@ func TestParseRejectsDoctoredText(t *testing.T) {
 			if doctored == string(data) {
 				t.Fatalf("la sustitución %q no se aplicó: el test no prueba nada", c.from)
 			}
-			if _, err := Parse([]byte(doctored)); !errors.Is(err, ErrTextMismatch) && !errors.Is(err, ErrFormat) {
+			if _, err := Parse([]byte(doctored), sc.policy()); !errors.Is(err, ErrTextMismatch) && !errors.Is(err, ErrFormat) {
 				t.Errorf("err = %v, want que el texto retocado se rechace", err)
 			}
 		})
 	}
 }
 
-// TestVerifyRejectsUntrustedProvableTime cubre el caso sutil: la prueba es
-// correcta, pero el tiempo demostrable que el recibo enseña se apoya en un
-// testigo que quien verifica no acepta. El recibo no puede seguir mostrando esa
-// fecha como atestiguada.
-func TestVerifyRejectsUntrustedProvableTime(t *testing.T) {
+// TestUntrustedCosignatureGivesNoProvableTime es el hallazgo MEDIO de la
+// auditoría: una cosignature de una clave que la política NO acepta no aporta
+// tiempo demostrable, y no lo aporta ya al calcularlo, no solo al verificar.
+//
+// Antes el tiempo se sacaba de la FORMA del blob de firma, así que cualquier
+// cosa de 72 bytes pegada al final de la nota se convertía en una fecha con
+// aspecto de atestiguada. El recibo la imprimía, y solo Verify —si alguien lo
+// llamaba— desmentía el papel.
+func TestUntrustedCosignatureGivesNoProvableTime(t *testing.T) {
 	sc := newScene(t, 2)
 	r, err := Issue(sc.store, "Contraparte S.A.", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Política que solo acepta al testigo MÁS TARDÍO: el mínimo cambia.
-	p := sc.policy()
-	p.Witnesses = map[string]ed25519.PublicKey{"witness.example/w1": sc.wits["witness.example/w1"]}
-	p.Quorum = 1
-	if _, err := r.Verify(p); !errors.Is(err, ErrTextMismatch) {
-		t.Fatalf("err = %v, want %v", err, ErrTextMismatch)
+	// Política sin ningún testigo aceptado: la nota TRAE dos cosignatures, pero
+	// ninguna cuenta.
+	none := sc.policy()
+	none.Witnesses = nil
+	none.Quorum = 0
+
+	if _, ok, err := r.ProvableTime(none); err != nil || ok {
+		t.Fatalf("cosignatures no confiables aportaron tiempo: ok=%v err=%v", ok, err)
+	}
+	data, err := Format(r, none)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(Text(data), "TIEMPO DEMOSTRABLE: "+NoProvableTime) {
+		t.Errorf("se imprimió una fecha sin testigo que la respalde:\n%s", Text(data))
 	}
 
-	// Política sin ningún testigo: el recibo declara un tiempo que nadie
-	// aceptado respalda.
-	p.Witnesses = nil
-	p.Quorum = 0
-	if _, err := r.Verify(p); !errors.Is(err, ErrTextMismatch) {
-		t.Errorf("sin testigos aceptados: err = %v, want %v", err, ErrTextMismatch)
+	// Política que solo acepta al testigo MÁS TARDÍO: el mínimo cambia, y el
+	// encabezado cambia con él.
+	narrow := sc.policy()
+	narrow.Witnesses = map[string]ed25519.PublicKey{"witness.example/w1": sc.wits["witness.example/w1"]}
+	narrow.Quorum = 1
+	narrowed, ok, err := r.ProvableTime(narrow)
+	if err != nil || !ok {
+		t.Fatalf("el testigo aceptado no aportó tiempo: %v %v", ok, err)
+	}
+	full, _, err := r.ProvableTime(sc.policy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !narrowed.After(full) {
+		t.Errorf("con menos testigos el tiempo demostrable debería ser MAYOR: %v vs %v", narrowed, full)
+	}
+
+	// Y un recibo emitido con la política ancha no se acepta al releerlo con la
+	// estrecha: enseñar una fecha que quien mira no puede verificar sería peor
+	// que rechazar el documento.
+	wide, err := Format(r, sc.policy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Parse(wide, narrow); !errors.Is(err, ErrTextMismatch) {
+		t.Errorf("err = %v, want %v", err, ErrTextMismatch)
 	}
 }
 
@@ -297,7 +333,7 @@ func TestRecipientIsNotCoveredBySignatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := Format(r)
+	data, err := Format(r, sc.policy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +342,7 @@ func TestRecipientIsNotCoveredBySignatures(t *testing.T) {
 	if redirected == string(data) {
 		t.Fatal("la sustitución no se aplicó")
 	}
-	other, err := Parse([]byte(redirected))
+	other, err := Parse([]byte(redirected), sc.policy())
 	if err != nil {
 		t.Fatalf("cambiar el destinatario NO invalida el recibo, y el test existe para dejarlo escrito: %v", err)
 	}
@@ -334,7 +370,7 @@ func TestGoldenHeaderFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := Format(r)
+	data, err := Format(r, sc.policy())
 	if err != nil {
 		t.Fatal(err)
 	}

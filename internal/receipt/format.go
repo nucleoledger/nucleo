@@ -22,8 +22,8 @@ const timeLayout = "2006-01-02T15:04:05Z07:00"
 // prueba, y Parse lo vuelve a comprobar. Un recibo es un documento que alguien
 // va a leer y creer: que su texto visible pueda contradecir sus bytes
 // verificables sería el peor defecto posible de este paquete.
-func Format(r *Receipt) ([]byte, error) {
-	text, err := renderText(r)
+func Format(r *Receipt, p proof.Policy) ([]byte, error) {
+	text, err := renderText(r, p)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +45,14 @@ func Format(r *Receipt) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// renderText compone el encabezado legible.
-func renderText(r *Receipt) ([]byte, error) {
+// renderText compone el encabezado legible bajo la política dada.
+//
+// La política entra aquí porque el tiempo demostrable no existe en abstracto:
+// existe respecto a un conjunto de testigos en los que se confía. El emisor
+// renderiza con la suya; quien recibe el recibo lo vuelve a renderizar con la
+// suya al parsearlo, y si no coinciden, el recibo no se acepta. Es incómodo a
+// propósito: enseñar una fecha que quien mira no puede verificar sería peor.
+func renderText(r *Receipt, p proof.Policy) ([]byte, error) {
 	declared, err := r.DeclaredTime()
 	if err != nil {
 		return nil, err
@@ -61,7 +67,11 @@ func renderText(r *Receipt) ([]byte, error) {
 	b.WriteString("\n")
 	fmt.Fprintf(&b, "TIEMPO DECLARADO  : %s  (declarado por el sistema emisor)\n",
 		declared.UTC().Format(timeLayout))
-	if provable, ok := r.ProvableTime(); ok {
+	provable, ok, err := r.ProvableTime(p)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
 		fmt.Fprintf(&b, "TIEMPO DEMOSTRABLE: %s  (atestiguado por testigos)\n",
 			provable.UTC().Format(timeLayout))
 	} else {
@@ -79,7 +89,7 @@ func renderText(r *Receipt) ([]byte, error) {
 // otra fecha, otro importe o otro destinatario, contando con que nadie lea los
 // bytes. El recibo es un documento para personas: el texto tiene que valer
 // tanto como la firma.
-func Parse(data []byte) (*Receipt, error) {
+func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 	i := bytes.Index(data, []byte(separator+"\n"))
 	if i < 0 {
 		return nil, fmt.Errorf("%w: falta el separador %q", ErrFormat, separator)
@@ -110,13 +120,13 @@ func Parse(data []byte) (*Receipt, error) {
 		return nil, fmt.Errorf("%w: el header no está en forma canónica JCS", ErrFormat)
 	}
 
-	p, err := proof.Parse(machine[nl+1:])
+	tlogProof, err := proof.Parse(machine[nl+1:])
 	if err != nil {
 		return nil, err
 	}
-	r := &Receipt{Recipient: recipient, Header: h, Proof: p}
+	r := &Receipt{Recipient: recipient, Header: h, Proof: tlogProof}
 
-	want, err := renderText(r)
+	want, err := renderText(r, p)
 	if err != nil {
 		return nil, err
 	}
@@ -136,39 +146,14 @@ func textField(text []byte, prefix string) (string, error) {
 	return "", fmt.Errorf("%w: falta la línea %q", ErrFormat, strings.TrimSpace(prefix))
 }
 
-// Verify comprueba la prueba con la política dada y, además, que el tiempo
-// demostrable impreso esté respaldado por testigos que la política acepta.
+// Verify comprueba la prueba con la política dada y devuelve lo que el
+// destinatario puede afirmar.
 //
-// Lo segundo importa tanto como lo primero. Un recibo puede traer una
-// cosignature de un testigo cualquiera y presentarla como tiempo demostrable; si
-// quien verifica no confía en ese testigo, el recibo NO puede seguir mostrando
-// esa fecha como atestiguada. Que la prueba de inclusión sea correcta no
-// convierte en cierto lo que dice el encabezado.
-func (r *Receipt) Verify(p proof.Policy) (proof.Result, error) {
-	entryHash, err := r.EntryHash()
-	if err != nil {
-		return proof.Result{}, err
-	}
-	res, err := r.Proof.Verify(entryHash, p)
-	if err != nil {
-		return proof.Result{}, err
-	}
-	printed, hasPrinted := r.ProvableTime()
-	switch {
-	case !hasPrinted && len(res.Cosigners) == 0:
-		return res, nil
-	case !hasPrinted:
-		return proof.Result{}, fmt.Errorf("%w: el recibo no declara tiempo demostrable y la prueba trae %d cosignatures",
-			ErrTextMismatch, len(res.Cosigners))
-	case len(res.Cosigners) == 0:
-		return proof.Result{}, fmt.Errorf("%w: el recibo declara tiempo demostrable %s y ningún testigo de la política lo respalda",
-			ErrTextMismatch, printed.UTC().Format(timeLayout))
-	case !res.ProvableTime.Equal(printed):
-		return proof.Result{}, fmt.Errorf("%w: el recibo declara %s y los testigos de la política atestiguan %s",
-			ErrTextMismatch, printed.UTC().Format(timeLayout), res.ProvableTime.UTC().Format(timeLayout))
-	}
-	return res, nil
-}
+// Ya no hace falta contrastar el encabezado con la prueba, como antes: el
+// encabezado se DERIVA de esta misma verificación, en renderText, y Parse lo
+// vuelve a derivar y exige igualdad byte a byte. Lo que antes eran dos fuentes
+// que había que reconciliar es ahora una sola.
+func (r *Receipt) Verify(p proof.Policy) (proof.Result, error) { return r.verify(p) }
 
 // Text devuelve solo el encabezado legible, para imprimirlo.
 func Text(data []byte) string {
