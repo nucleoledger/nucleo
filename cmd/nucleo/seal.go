@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
@@ -21,22 +22,51 @@ func cmdSeal(e *env, args []string) error {
 	tenant := fs.String("tenant", "", "identificador del emisor, p. ej. el RUC")
 	typ := fs.String("type", "", "tipo de registro, p. ej. sri.factura.v1")
 	payload := fs.String("payload", "", "fichero con el contenido a sellar")
+	profile := fs.String("profile", "", "perfil que interpreta el documento, p. ej. ecuador.sri.factura")
+	xmlFile := fs.String("xml", "", "fichero XML del comprobante (equivale a --payload con un perfil)")
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	clear := fs.Bool("no-encrypt", false, "no guarda el contenido cifrado; solo sella su hash")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
+	if *xmlFile != "" {
+		if *payload != "" {
+			return usageErr("--xml y --payload son la misma cosa; usa uno")
+		}
+		*payload = *xmlFile
+	}
+	if *profile != "" && *typ == "" {
+		*typ = strings.TrimPrefix(*profile, "ecuador.")
+		*typ = "ecuador." + *typ + ".v1"
+	}
 	switch {
-	case *tenant == "":
-		return usageErr("seal necesita --tenant")
 	case *typ == "":
-		return usageErr("seal necesita --type")
+		return usageErr("seal necesita --type (o --profile)")
 	case *payload == "":
-		return usageErr("seal necesita --payload <archivo>")
+		return usageErr("seal necesita --payload <archivo> (o --xml)")
 	}
 	data, err := os.ReadFile(*payload)
 	if err != nil {
 		return usageErr("no se pudo leer %q: %v", *payload, err)
+	}
+
+	// El perfil interpreta el documento ANTES de sellar nada. Si la clave de
+	// acceso no cuadra, más vale saberlo ahora que dejar en el ledger, para
+	// siempre, un comprobante que el SRI no reconoce.
+	var prof *profileResult
+	if *profile != "" {
+		prof, err = applyProfile(*profile, data)
+		if err != nil {
+			return usageErr("%v", err)
+		}
+		if *tenant == "" {
+			*tenant = prof.tenant
+		} else if *tenant != prof.tenant {
+			return usageErr("--tenant dice %q y el documento dice %q", *tenant, prof.tenant)
+		}
+	}
+	if *tenant == "" {
+		return usageErr("seal necesita --tenant")
 	}
 
 	s, _, err := e.openStore()
@@ -91,18 +121,37 @@ func cmdSeal(e *env, args []string) error {
 		return err
 	}
 
-	e.out(map[string]any{
+	// Los compromisos se guardan DESPUÉS del bloque y referidos a su
+	// payload_hash: son metadatos del registro, no parte de lo firmado.
+	var commitments map[string]string
+	if prof != nil {
+		commitments, err = storeCommitments(s, v, *tenant, payloadHash, prof)
+		if err != nil {
+			return err
+		}
+	}
+
+	salida := map[string]any{
 		"index":        b.Header.Index,
 		"hash":         b.Hash,
 		"payload_hash": payloadHash,
 		"encrypted":    !*clear,
-	}, func() {
+	}
+	if prof != nil {
+		salida["profile"] = prof.name
+		salida["metadata"] = prof.plain
+		salida["commitments"] = commitments
+	}
+	e.out(salida, func() {
 		e.printf("✔ registro sellado\n")
 		e.printf("  bloque       : %d\n", b.Header.Index)
 		e.printf("  hash bloque  : %s\n", b.Hash)
 		e.printf("  hash contenido: %s\n", payloadHash)
 		if *clear {
 			e.printf("  el contenido NO se guardó: solo queda su hash en el ledger\n")
+		}
+		if prof != nil {
+			printProfile(e, prof, commitments)
 		}
 		e.printf("\n  El bloque aún no está atestiguado. Ejecuta `nucleo sync` para que\n")
 		e.printf("  un testigo lo vea; hasta entonces solo lo respalda esta máquina.\n")

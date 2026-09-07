@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/nucleoledger/nucleo/internal/commit"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -213,4 +214,18 @@ func Unlock(ms MetaStore, passphrase []byte) (*Vault, error) {
 func (v *Vault) Close() {
 	zero(v.dek)
 	v.dek = nil
+}
+
+// CommitKey deriva la clave de compromisos de un tenant a partir de la DEK.
+//
+// El vault NO expone la DEK, ni siquiera a otros paquetes de este repositorio.
+// Una clave que se puede pedir acaba copiada en algún sitio; una que solo se
+// puede USAR a través de métodos como este, no. Lo que sale de aquí es una
+// subclave para un uso concreto, derivada con HKDF, e inservible para descifrar
+// blobs.
+func (v *Vault) CommitKey(tenant string) ([]byte, error) {
+	if len(v.dek) == 0 {
+		return nil, errors.New("vault: el vault está cerrado")
+	}
+	return commit.DeriveKey(v.dek, tenant)
 }

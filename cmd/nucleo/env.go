@@ -222,3 +222,6 @@ func unmarshalJSON(raw []byte, v any) error { return json.Unmarshal(raw, v) }
 func openStoreAt(dir string) (*store.Store, store.OpenResult, error) {
 	return store.Open(filepath.Join(dir, "nucleo.db"))
 }
+
+// marshalJSON serializa de forma estable.
+func marshalJSON(v any) ([]byte, error) { return json.Marshal(v) }

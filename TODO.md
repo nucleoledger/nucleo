@@ -67,3 +67,8 @@
 - [x] Job de CI para Node que corre los tests del SDK contra los vectores compartidos
 - [x] `web/verify/index.html`: verificador estático sin red ni frameworks, con el bundle del SDK y test anti-teatro
 
+## Sprint 5 — perfil Ecuador
+- [x] `internal/commit`: compromisos HMAC-SHA-256 con subclave por tenant derivada de la DEK vía HKDF (ADR-003, vía interna)
+- [x] `profiles/ecuador`: `sri.factura.v1` y `sas.acta.v1`, con validación del dígito verificador módulo 11 y clasificación de campos sensibles
+- [x] `nucleo seal --profile ecuador.sri.factura --xml`: valida, extrae metadatos, sella el XML byte a byte y registra compromisos
+
