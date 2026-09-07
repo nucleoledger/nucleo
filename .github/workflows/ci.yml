@@ -31,9 +31,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          # Ed25519 en WebCrypto necesita Node >= 18.4; se fija 22 para no
-          # depender de una API que allí todavía es experimental.
-          node-version: '22'
+          # La versión la fija sdk/ts/.nvmrc, para que CI y la máquina de quien
+          # desarrolla usen exactamente la misma. Es 22 porque en 18 el Ed25519
+          # de WebCrypto es experimental y emite un warning en cada ejecución.
+          node-version-file: sdk/ts/.nvmrc
+          cache: npm
+          cache-dependency-path: sdk/ts/package-lock.json
       - name: Install
         run: npm ci
       - name: Typecheck
