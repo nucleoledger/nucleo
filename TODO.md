@@ -22,7 +22,7 @@
 ## Fase D — Laboratorio
 - [x] Externalizar vectores JCS a `testdata/vectors/jcs/` y hacer que los tests los lean de ahí — tocar: `internal/jcs/jcs_test.go` — verificar: tests en verde leyendo archivos
 - [x] Fuzz test de JCS (round-trip y no-pánico) — tocar: `internal/jcs/jcs_fuzz_test.go` — verificar: `go test -fuzz=FuzzJCS -fuzztime=30s ./internal/jcs`
-- [ ] Añadir golangci-lint config mínima — tocar: `.golangci.yml` — verificar: `golangci-lint run` limpio (requiere aprobación de instalación de la herramienta)
+- [x] Añadir golangci-lint config mínima — tocar: `.golangci.yml` — verificar: `golangci-lint run` limpio (v2.13.2, job de lint en CI)
 - [x] Validar workflow CI en los 3 SO — tocar: `.github/workflows/ci.yml` — verificar: badge verde tras el push
 
 ## Fase 0 — Prueba de concepto C2SP

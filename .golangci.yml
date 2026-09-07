@@ -1,0 +1,78 @@
+# Configuración de golangci-lint para Núcleo.
+#
+# El criterio: solo linters que señalen PROBLEMAS REALES —bugs, recursos sin
+# cerrar, errores ignorados—. Nada de reglas de estilo que peleen con el código
+# que ya existe: un lint que obliga a reescribir prosa correcta se acaba
+# desactivando entero, y entonces se pierden también los que sí valían.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    # Los cuatro de serie de `go vet` y compañía.
+    - errcheck      # errores devueltos y no comprobados
+    - govet         # el vet de siempre
+    - ineffassign   # asignaciones que nadie lee
+    - staticcheck   # el analizador de verdad: bugs, no estilo
+    - unused        # código muerto
+    # Los específicos que sí aportan en un proyecto criptográfico.
+    - bodyclose     # respuestas HTTP sin cerrar: fuga de conexiones
+    - rowserrcheck  # rows.Err() sin comprobar: filas perdidas en silencio
+    - errorlint     # comparaciones de error que se rompen al envolver
+    - copyloopvar   # capturas de variable de bucle
+    - durationcheck # multiplicaciones de duraciones sin sentido
+
+  settings:
+    errcheck:
+      # Estas exclusiones NO son pereza: son el idioma de Go, y comprobarlas
+      # añadiría ruido sin ganar seguridad.
+      #
+      #   · Close/Rollback DIFERIDOS liberan recursos en el camino de salida.
+      #     Si fallan, ya no hay nada que hacer y el error que importa es el
+      #     que provocó la salida. Envolverlos taparía ese error con otro peor.
+      #   · Los Close sobre el camino de ERROR de una apertura son lo mismo:
+      #     se está devolviendo ya un fallo.
+      #   · Write sobre un http.ResponseWriter falla cuando el cliente se fue.
+      #     No hay a quién avisar del fallo de avisar.
+      #   · Los Fprintf a stdout/stderr son diagnóstico; si la salida está
+      #     rota, comprobarlo no la arregla.
+      #
+      # Lo que SÍ se comprueba y se ve en el código: cada Close de una base
+      # sobre la que se escribió en el camino feliz, porque ahí un error
+      # perdido sería un fichero a medias.
+      exclude-functions:
+        - (*os.File).Close
+        - (io.Closer).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Tx).Rollback
+        - (*github.com/nucleoledger/nucleo/internal/store.Store).Close
+        - (*github.com/nucleoledger/nucleo/internal/witness.PersistentState).Close
+        - (*net/http.Server).Close
+        - (*net/http.Server).Serve
+        - (net.Listener).Close
+        - (net/http.ResponseWriter).Write
+        - os.RemoveAll
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+
+  exclusions:
+    rules:
+      # En los tests, un Close o un Write sin comprobar no oculta un fallo de
+      # producción: si algo va mal, el test falla por otro lado.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt

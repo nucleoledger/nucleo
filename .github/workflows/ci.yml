@@ -51,3 +51,16 @@ jobs:
       - name: El bundle publicado está al día
         run: git diff --exit-code ../../web/verify/nucleo-verify.js
 
+  # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
+  # La configuración y el porqué de cada exclusión están en .golangci.yml.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.13.2
+
