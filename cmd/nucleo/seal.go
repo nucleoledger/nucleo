@@ -275,3 +275,7 @@ func issuerPolicy(s *store.Store, witnessName, witnessKey string) (proof.Policy,
 // abrir el vault. Es pública: no hay nada que proteger y sí mucho que ganar en
 // que un verificador no necesite la passphrase.
 const metaLogPubKey = "log/pubkey/v1"
+
+// metaOriginKey guarda el origin del log, también en claro y por lo mismo:
+// configurar un testigo o una política no debería exigir abrir el vault.
+const metaOriginKey = "log/origin/v1"

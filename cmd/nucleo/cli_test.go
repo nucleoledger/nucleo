@@ -375,3 +375,57 @@ func startTestWitness(t *testing.T, logPubHex string) (url, name, keyHex string)
 	return "http://" + ln.Addr().String(), name,
 		hex.EncodeToString(priv.Public().(ed25519.PublicKey))
 }
+
+// TestStatusPublishesLogIdentity cubre la fricción que encontró la demo del
+// criterio de éxito: para configurar un testigo o una política de verificación
+// hacen falta el origin y la clave pública del log, y antes solo se podían
+// sacar consultando la base con SQL. Un producto que empuja a hurgar en el
+// fichero que él mismo protege está mal terminado.
+func TestStatusPublishesLogIdentity(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+
+	out := c.mustRun("--json", "status")
+	var v struct {
+		Origin string `json:"origin"`
+		LogKey string `json:"log_pubkey"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Origin != testOrigin {
+		t.Errorf("origin = %q, want %q", v.Origin, testOrigin)
+	}
+	if len(v.LogKey) != 64 {
+		t.Errorf("clave del log = %q, se esperaban 64 caracteres hex", v.LogKey)
+	}
+	// Y también en la salida para personas.
+	human := c.mustRun("status")
+	if !strings.Contains(human, "origin    : "+testOrigin) ||
+		!strings.Contains(human, "clave log : "+v.LogKey) {
+		t.Errorf("status no publica la identidad del log:\n%s", human)
+	}
+}
+
+// TestWitnessKeyIsReadable: la clave del testigo se puede pedir, no solo leer
+// del mensaje de arranque. Un dato que la otra parte necesita para verificar no
+// puede vivir únicamente en un log de consola.
+func TestWitnessKeyIsReadable(t *testing.T) {
+	c := newCLI(t)
+	db := filepath.Join(c.dir, "testigo.db")
+
+	first := strings.TrimSpace(c.mustRun("witness", "key", "--db", db))
+	if len(first) != 64 {
+		t.Fatalf("clave = %q, se esperaban 64 caracteres hex", first)
+	}
+	// Pedirla dos veces da la MISMA clave: se crea una vez y se conserva. Si
+	// cambiara, las cosignatures ya emitidas dejarían de verificar.
+	second := strings.TrimSpace(c.mustRun("witness", "key", "--db", db))
+	if second != first {
+		t.Errorf("la clave del testigo cambió entre llamadas: %q vs %q", first, second)
+	}
+
+	if _, _, code := c.run("witness", "key"); code != exitUsage {
+		t.Errorf("sin --db: código = %d, want %d", code, exitUsage)
+	}
+}

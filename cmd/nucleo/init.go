@@ -74,6 +74,9 @@ func cmdInit(e *env, args []string) error {
 	if err := s.PutMeta(metaLogPubKey, id.LogPublic()); err != nil {
 		return err
 	}
+	if err := s.PutMeta(metaOriginKey, []byte(id.Origin)); err != nil {
+		return err
+	}
 
 	kek, err := deriveKEKFor(s, pass)
 	if err != nil {

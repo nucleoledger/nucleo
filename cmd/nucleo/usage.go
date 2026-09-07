@@ -16,7 +16,7 @@ SUBCOMANDOS
   receipt     emite el recibo de un bloque para un destinatario
   reconcile   coteja el sistema vivo contra lo sellado
   sync        pide atestación a un testigo
-  witness     witness serve — levanta un testigo
+  witness     witness serve — levanta un testigo · witness key — su clave pública
   backup      vuelve a emitir las tarjetas SLIP-0039 de la KEK
   restore     reconstruye la KEK desde las tarjetas
 

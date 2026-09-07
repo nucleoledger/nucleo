@@ -24,8 +24,15 @@ func cmdStatus(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	// El origin y la clave pública del log salen aquí porque son lo primero que
+	// hace falta para configurar un testigo o una política de verificación, y
+	// obligar a sacarlos de la base con SQL sería empujar a la gente a hurgar
+	// en el fichero que este programa existe para proteger.
+	origin, logPub := logIdentity(s)
 	data := map[string]any{
 		"dir":           e.dir,
+		"origin":        origin,
+		"log_pubkey":    logPub,
 		"tree_size":     res.TreeSize,
 		"attested":      res.Attested,
 		"attested_size": res.AttestedSize,
@@ -33,11 +40,32 @@ func cmdStatus(e *env, args []string) error {
 	}
 	e.out(data, func() {
 		e.printf("ledger    : %s\n", e.dbPath())
+		if origin != "" {
+			e.printf("origin    : %s\n", origin)
+			e.printf("clave log : %s\n", logPub)
+		}
 		e.printf("bloques   : %d\n", res.TreeSize)
 		e.printf("raíz      : %s\n", hex.EncodeToString(root))
 		printAttestation(e, res)
 	})
 	return nil
+}
+
+// logIdentity lee el origin y la clave pública del log, que se guardan en claro
+// justamente para poder leerlos sin la passphrase.
+func logIdentity(s *store.Store) (origin, pubHex string) {
+	if raw, err := s.GetMeta(metaLogPubKey); err == nil {
+		pubHex = hex.EncodeToString(raw)
+	}
+	if note, err := s.LastCheckpoint(); err == nil {
+		if c, err := checkpointOf(note); err == nil {
+			return c.Origin, pubHex
+		}
+	}
+	if raw, err := s.GetMeta(metaOriginKey); err == nil {
+		return string(raw), pubHex
+	}
+	return "", pubHex
 }
 
 func cmdVerify(e *env, args []string) error {

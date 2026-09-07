@@ -71,4 +71,6 @@
 - [x] `internal/commit`: compromisos HMAC-SHA-256 con subclave por tenant derivada de la DEK vía HKDF (ADR-003, vía interna)
 - [x] `profiles/ecuador`: `sri.factura.v1` y `sas.acta.v1`, con validación del dígito verificador módulo 11 y clasificación de campos sensibles
 - [x] `nucleo seal --profile ecuador.sri.factura --xml`: valida, extrae metadatos, sella el XML byte a byte y registra compromisos
+- [x] `scripts/demo-criterio-exito.sh`: el criterio de éxito de CONCEPTO §18 como test ejecutable
+- [x] Fricción de producto corregida: `status` publica origin y clave del log, y `witness key` devuelve la del testigo (antes hacía falta SQL)
 

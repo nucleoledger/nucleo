@@ -117,8 +117,13 @@ func cmdSync(e *env, args []string) error {
 }
 
 func cmdWitness(e *env, args []string) error {
+	if len(args) > 0 && args[0] == "key" {
+		return cmdWitnessKey(e, args[1:])
+	}
 	if len(args) == 0 || args[0] != "serve" {
-		return usageErr("uso: nucleo witness serve --addr :8080 --db testigo.db")
+		return usageErr("uso:\n" +
+			"  nucleo witness serve --addr :8080 --db testigo.db --name w --log-origin O --log-key HEX\n" +
+			"  nucleo witness key --db testigo.db")
 	}
 	fs := flag.NewFlagSet("witness serve", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
@@ -217,4 +222,31 @@ func witnessKey(path string) (ed25519.PrivateKey, bool, error) {
 		return nil, false, err
 	}
 	return ed25519.NewKeyFromSeed(seed), true, nil
+}
+
+// cmdWitnessKey imprime la clave pública del testigo.
+//
+// Existe porque la alternativa era leerla del stdout de `witness serve` con
+// awk, y un dato que hace falta para configurar a la otra parte no puede vivir
+// solo en un mensaje de arranque. Un testigo que no puede publicar su clave de
+// forma legible no sirve de nada: sin ella, nadie puede verificar lo que firma.
+func cmdWitnessKey(e *env, args []string) error {
+	fs := flag.NewFlagSet("witness key", flag.ContinueOnError)
+	fs.SetOutput(e.stderr)
+	db := fs.String("db", "", "base de datos del testigo")
+	if err := fs.Parse(args); err != nil {
+		return usageErr("%v", err)
+	}
+	if *db == "" {
+		return usageErr("witness key necesita --db")
+	}
+	priv, created, err := witnessKey(*db + ".key")
+	if err != nil {
+		return err
+	}
+	pub := hexOf(priv.Public().(ed25519.PublicKey))
+	e.out(map[string]any{"public_key": pub, "created": created}, func() {
+		e.printf("%s\n", pub)
+	})
+	return nil
 }
