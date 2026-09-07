@@ -103,8 +103,12 @@ func newScene(t *testing.T, blocks int) *scene {
 	srv := httptest.NewServer(witness.NewServer(w).Handler())
 	t.Cleanup(srv.Close)
 
+	adapter, err := NewStoreLog(s, lg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &scene{
-		t: t, dbPath: dbPath, store: s, adapter: NewStoreLog(s, lg),
+		t: t, dbPath: dbPath, store: s, adapter: adapter,
 		client: witness.NewClient(srv.URL), witness: w, tenant: tenantPriv,
 	}
 }

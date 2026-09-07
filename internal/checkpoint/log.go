@@ -24,6 +24,20 @@ type Log struct {
 	// Van en la MISMA nota que la Ed25519: quien no las entienda las ignora.
 	extra []note.Signer
 	last  *Checkpoint
+	// state hace duradero el cerrojo. Sin él, el log olvida lo que firmó en
+	// cuanto muere el proceso.
+	state LogState
+}
+
+// LogState es la memoria duradera del cerrojo anti-retroceso.
+//
+// Se declara aquí y no se importa internal/store para que el paquete se pueda
+// probar sin base de datos, igual que hace vault con MetaStore. LastSigned
+// devuelve nil sin error cuando no hay nada guardado: un log recién creado no
+// es un error.
+type LogState interface {
+	LastSigned() ([]byte, error)
+	PutLastSigned(note []byte) error
 }
 
 // NewLog crea un log firmante para el origin dado.
@@ -64,6 +78,46 @@ func (l *Log) signers() []note.Signer {
 	return append([]note.Signer{l.signer}, l.extra...)
 }
 
+// Bind ata el log a su memoria duradera y lo rehidrata con lo que encuentre.
+//
+// Esto cierra un hueco real: el log firma un checkpoint y acto seguido sale a
+// pedir la cosignature al testigo. Si el proceso muere en ese intervalo, sin
+// memoria duradera el checkpoint firmado no deja rastro local, y al reiniciar
+// el log estaría dispuesto a firmar un árbol más pequeño sin saber que ya se
+// comprometió con uno mayor. Un log que se desdice es exactamente lo que
+// PROTOCOL.md §3 prohíbe, y que el testigo lo detectara después no arregla que
+// el log lo haya hecho.
+//
+// Después de Bind, cada firma se persiste ANTES de devolverse a quien la pidió.
+func (l *Log) Bind(st LogState) error {
+	if st == nil {
+		return fmt.Errorf("checkpoint: memoria nula para %q", l.origin)
+	}
+	raw, err := st.LastSigned()
+	if err != nil {
+		return err
+	}
+	if raw != nil {
+		c, err := ParseNote(raw)
+		if err != nil {
+			return fmt.Errorf("checkpoint: el último checkpoint firmado de %q es ilegible: %w", l.origin, err)
+		}
+		if c.Origin != l.origin {
+			return fmt.Errorf("%w: la memoria guarda un checkpoint de %q y el log es %q",
+				ErrOrigin, c.Origin, l.origin)
+		}
+		// Si ya había estado en memoria, se queda el MAYOR de los dos: rehidratar
+		// nunca puede aflojar el cerrojo.
+		if l.last == nil || c.Size > l.last.Size {
+			stored := c
+			stored.RootHash = bytes.Clone(c.RootHash)
+			l.last = &stored
+		}
+	}
+	l.state = st
+	return nil
+}
+
 // Origin devuelve el identificador del log.
 func (l *Log) Origin() string { return l.origin }
 
@@ -87,6 +141,15 @@ func (l *Log) Sign(c Checkpoint) ([]byte, error) {
 	msg, err := Sign(c, l.signers()...)
 	if err != nil {
 		return nil, err
+	}
+	// Persistir ANTES de devolver la nota. Quien la reciba va a enseñarla por
+	// ahí; a partir de ese instante el log está comprometido, así que el
+	// compromiso tiene que estar en disco antes. Si la escritura falla, se
+	// devuelve el error y el cerrojo no avanza: la nota no salió de aquí.
+	if l.state != nil {
+		if err := l.state.PutLastSigned(msg); err != nil {
+			return nil, err
+		}
 	}
 	stored := c
 	stored.RootHash = bytes.Clone(c.RootHash)

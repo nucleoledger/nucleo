@@ -27,6 +27,16 @@ CREATE TABLE IF NOT EXISTS vault_meta (
     v BLOB NOT NULL
 );
 
+-- Estado propio del log emisor. A diferencia de blocks y checkpoints, esta
+-- tabla es MUTABLE por diseño: guarda el último checkpoint que el log firmó,
+-- y ese valor avanza. Es el cerrojo anti-retroceso de PROTOCOL.md §3 hecho
+-- duradero, para que sobreviva a que el proceso muera entre firmar y obtener
+-- la cosignature. No lleva disparadores de append-only justamente por eso.
+CREATE TABLE IF NOT EXISTS log_state (
+    k TEXT PRIMARY KEY,
+    v TEXT NOT NULL
+);
+
 -- El ledger es append-only. Estos disparadores son una barandilla contra el
 -- error y el atacante perezoso; la frontera de seguridad son los testigos.
 CREATE TRIGGER IF NOT EXISTS blocks_no_update

@@ -119,3 +119,50 @@ func (s *Store) LastCosignedCheckpoint() ([]byte, error) {
 	}
 	return nil, ErrNotFound
 }
+
+// LastSignedKey es la clave bajo la que se guarda el último checkpoint que el
+// log FIRMÓ, esté cosignado o no.
+const LastSignedKey = "log/last-signed/v1"
+
+// PutLastSigned guarda la nota del último checkpoint firmado por el log.
+//
+// Va en log_state y no en checkpoints porque son dos cosas distintas: la tabla
+// checkpoints es append-only y guarda las promesas ya avaladas, una por tamaño;
+// esto es el cerrojo del emisor, que avanza. Mezclarlas obligaría a escribir dos
+// notas para el mismo tamaño —la firmada y la cosignada— y la tabla append-only
+// rechaza la segunda, con razón.
+func (s *Store) PutLastSigned(note []byte) error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	if _, err := checkpoint.ParseNote(note); err != nil {
+		return err
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(
+		`INSERT INTO log_state (k, v) VALUES (?, ?)
+		 ON CONFLICT(k) DO UPDATE SET v = excluded.v`,
+		LastSignedKey, string(note))
+	if err != nil {
+		return fmt.Errorf("store: escritura del último checkpoint firmado: %w", err)
+	}
+	return nil
+}
+
+// LastSigned devuelve la nota del último checkpoint firmado por el log, o nil
+// si no hay ninguno. Un ledger sin checkpoints firmados no es un error.
+func (s *Store) LastSigned() ([]byte, error) {
+	if s.db == nil {
+		return nil, ErrClosed
+	}
+	var v string
+	err := s.db.QueryRow(`SELECT v FROM log_state WHERE k = ?`, LastSignedKey).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: lectura del último checkpoint firmado: %w", err)
+	}
+	return []byte(v), nil
+}

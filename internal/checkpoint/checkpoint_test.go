@@ -335,3 +335,139 @@ func TestIsCosignedDistinguishesBySignatureLength(t *testing.T) {
 		t.Error("un mensaje que no separa cuerpo y firmas no está cosignado")
 	}
 }
+
+// memLogState es una memoria de cerrojo en RAM, para probar Log.Bind sin base
+// de datos: es justo lo que permite declarar LogState en este paquete.
+type memLogState struct {
+	note []byte
+	err  error
+	puts int
+}
+
+func (m *memLogState) LastSigned() ([]byte, error) { return m.note, m.err }
+func (m *memLogState) PutLastSigned(n []byte) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.puts++
+	m.note = append([]byte(nil), n...)
+	return nil
+}
+
+// TestLogBindRehydratesTheLock comprueba que el cerrojo se reconstruye desde la
+// memoria duradera, que es lo que lo hace sobrevivir a un reinicio.
+func TestLogBindRehydratesTheLock(t *testing.T) {
+	const origin = "nucleoledger.com/durable"
+	signer, _, _ := testKeys(t, origin, 11)
+
+	// Un log firma un árbol de 5 y persiste.
+	first, err := NewLog(origin, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := &memLogState{}
+	if err := first.Bind(st); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Sign(Checkpoint{Origin: origin, Size: 5, RootHash: rfc6962Root5(t)}); err != nil {
+		t.Fatal(err)
+	}
+	if st.puts != 1 {
+		t.Fatalf("se persistieron %d firmas, want 1", st.puts)
+	}
+
+	// Otro log, recién creado, se ata a la misma memoria.
+	second, err := NewLog(origin, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := second.Last(); ok {
+		t.Fatal("un Log recién creado ya recordaba algo")
+	}
+	if err := second.Bind(st); err != nil {
+		t.Fatal(err)
+	}
+	last, ok := second.Last()
+	if !ok || last.Size != 5 {
+		t.Fatalf("tras Bind recuerda %+v (ok=%v), want tamaño 5", last, ok)
+	}
+	if _, err := second.Sign(Checkpoint{Origin: origin, Size: 3, RootHash: rfc6962Root5(t)}); !errors.Is(err, ErrRollback) {
+		t.Errorf("el cerrojo rehidratado no frenó un retroceso: %v", err)
+	}
+}
+
+// TestLogBindNeverLoosensTheLock: si el log ya recordaba algo en memoria, atarlo
+// a una memoria con MENOS historia no puede aflojar el cerrojo. Rehidratar es
+// recuperar lo olvidado, nunca olvidar lo recordado.
+func TestLogBindNeverLoosensTheLock(t *testing.T) {
+	const origin = "nucleoledger.com/durable"
+	signer, _, _ := testKeys(t, origin, 11)
+	l, err := NewLog(origin, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Sign(Checkpoint{Origin: origin, Size: 5, RootHash: rfc6962Root5(t)}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Una memoria que solo conoce un árbol de 1.
+	small, err := Sign(Checkpoint{Origin: origin, Size: 1, RootHash: rfc6962Root5(t)}, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Bind(&memLogState{note: small}); err != nil {
+		t.Fatal(err)
+	}
+	if last, _ := l.Last(); last.Size != 5 {
+		t.Errorf("tras Bind recuerda %d, want 5: el cerrojo se aflojó", last.Size)
+	}
+}
+
+// TestLogBindRejectsBadState cubre las memorias que no se pueden usar.
+func TestLogBindRejectsBadState(t *testing.T) {
+	const origin = "nucleoledger.com/durable"
+	signer, _, _ := testKeys(t, origin, 11)
+	l, err := NewLog(origin, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.Bind(nil); err == nil {
+		t.Error("se aceptó una memoria nula")
+	}
+	if err := l.Bind(&memLogState{note: []byte("esto no es una nota")}); err == nil {
+		t.Error("se aceptó una nota ilegible")
+	}
+	foreignSigner, _, _ := testKeys(t, "otro.example/log", 12)
+	foreign, err := Sign(Checkpoint{Origin: "otro.example/log", Size: 2, RootHash: rfc6962Root5(t)}, foreignSigner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Bind(&memLogState{note: foreign}); !errors.Is(err, ErrOrigin) {
+		t.Errorf("memoria de otro log: err = %v, want %v", err, ErrOrigin)
+	}
+	boom := errors.New("disco ilegible")
+	if err := l.Bind(&memLogState{err: boom}); !errors.Is(err, boom) {
+		t.Errorf("err = %v, want %v", err, boom)
+	}
+}
+
+// TestSignFailsIfTheLockCannotBePersisted: si el compromiso no se puede guardar,
+// la nota NO sale. Devolverla y no haberla persistido dejaría abierta justo la
+// ventana que el cerrojo duradero existe para cerrar.
+func TestSignFailsIfTheLockCannotBePersisted(t *testing.T) {
+	const origin = "nucleoledger.com/durable"
+	signer, _, _ := testKeys(t, origin, 11)
+	l, err := NewLog(origin, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.state = &memLogState{err: errors.New("disco lleno")}
+
+	if _, err := l.Sign(Checkpoint{Origin: origin, Size: 5, RootHash: rfc6962Root5(t)}); err == nil {
+		t.Fatal("devolvió la nota sin poder persistir el compromiso")
+	}
+	if _, ok := l.Last(); ok {
+		t.Error("el cerrojo avanzó pese a que la escritura falló")
+	}
+}

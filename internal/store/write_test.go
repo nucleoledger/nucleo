@@ -400,3 +400,74 @@ func TestConcurrentAppendsSerialize(t *testing.T) {
 		t.Errorf("bloques persistidos = %d, want 2", n)
 	}
 }
+
+// TestLastSignedRoundTrip cubre el estado duradero del cerrojo del log.
+//
+// A diferencia de blocks y checkpoints, log_state es MUTABLE por diseño: guarda
+// el último checkpoint firmado y ese valor avanza. Por eso no lleva
+// disparadores de append-only, y por eso conviene un test que lo diga.
+func TestLastSignedRoundTrip(t *testing.T) {
+	s := openTemp(t)
+
+	raw, err := s.LastSigned()
+	if err != nil || raw != nil {
+		t.Fatalf("base nueva: LastSigned = %v, %v, want nil, nil", raw, err)
+	}
+
+	_, priv := testKeys(t, 7)
+	signer, err := checkpoint.NewSigner("nucleoledger.com/poc", priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sign := func(size uint64) []byte {
+		root := make([]byte, 32)
+		root[0] = byte(size)
+		msg, err := checkpoint.Sign(checkpoint.Checkpoint{
+			Origin: "nucleoledger.com/poc", Size: size, RootHash: root,
+		}, signer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return msg
+	}
+
+	first := sign(5)
+	if err := s.PutLastSigned(first); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LastSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, first) {
+		t.Error("no se recuperaron los bytes exactos que se guardaron")
+	}
+
+	// Avanza: sobrescribe, y eso es correcto aquí.
+	second := sign(9)
+	if err := s.PutLastSigned(second); err != nil {
+		t.Fatalf("el cerrojo no pudo avanzar: %v", err)
+	}
+	got, err = s.LastSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, second) {
+		t.Error("el cerrojo no avanzó al segundo checkpoint")
+	}
+
+	// Lo que no se admite es guardar algo que no sea una nota de checkpoint.
+	if err := s.PutLastSigned([]byte("esto no es una nota")); err == nil {
+		t.Error("se guardó una nota ilegible como último checkpoint firmado")
+	}
+
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.LastSigned(); !errors.Is(err, ErrClosed) {
+		t.Errorf("base cerrada: err = %v, want %v", err, ErrClosed)
+	}
+	if err := s.PutLastSigned(first); !errors.Is(err, ErrClosed) {
+		t.Errorf("base cerrada: err = %v, want %v", err, ErrClosed)
+	}
+}

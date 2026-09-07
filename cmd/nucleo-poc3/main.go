@@ -271,7 +271,7 @@ func newAdapter(s *store.Store, logPriv ed25519.PrivateKey) (*logsync.StoreLog, 
 	if err := lg.AddSigner(pq); err != nil {
 		return nil, err
 	}
-	return logsync.NewStoreLog(s, lg), nil
+	return logsync.NewStoreLog(s, lg)
 }
 
 // logPQSigner construye el firmante post-cuántico del log.
