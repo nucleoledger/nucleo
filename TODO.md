@@ -73,4 +73,5 @@
 - [x] `nucleo seal --profile ecuador.sri.factura --xml`: valida, extrae metadatos, sella el XML byte a byte y registra compromisos
 - [x] `scripts/demo-criterio-exito.sh`: el criterio de éxito de CONCEPTO §18 como test ejecutable
 - [x] Fricción de producto corregida: `status` publica origin y clave del log, y `witness key` devuelve la del testigo (antes hacía falta SQL)
+- [x] `docs/TUTORIAL-es.md`: "Integra Núcleo en tu sistema en una hora", con todas las salidas ejecutadas de verdad
 
