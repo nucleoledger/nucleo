@@ -72,7 +72,7 @@ func DecryptBlob(dek []byte, tenant, payloadHash string, ciphertext, nonce []byt
 	}
 	pt, err := open(dek, blobAAD(tenant, payloadHash), ciphertext, nonce)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrDecrypt, err)
+		return nil, fmt.Errorf("%w: %w", ErrDecrypt, err)
 	}
 	return pt, nil
 }
@@ -113,7 +113,7 @@ func (v *Vault) DecryptSecret(domain string, ciphertext, nonce []byte) ([]byte, 
 	}
 	pt, err := open(v.dek, secretAAD(v.id, domain), ciphertext, nonce)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrDecrypt, err)
+		return nil, fmt.Errorf("%w: %w", ErrDecrypt, err)
 	}
 	return pt, nil
 }

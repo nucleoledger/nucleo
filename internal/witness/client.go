@@ -70,7 +70,7 @@ func (c *Client) WitnessName() string { return c.verifier.Name() }
 func (c *Client) verifyCosigned(msg []byte) error {
 	n, err := note.Open(msg, note.VerifierList(c.verifier))
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrNoCosignature, err)
+		return fmt.Errorf("%w: %w", ErrNoCosignature, err)
 	}
 	for _, sig := range n.Sigs {
 		if sig.Name == c.verifier.Name() && sig.Hash == c.verifier.KeyHash() {

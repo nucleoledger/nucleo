@@ -71,7 +71,6 @@ func TestSlip39OfficialVectors(t *testing.T) {
 
 	var valid, invalid int
 	for _, v := range vectors {
-		v := v
 		t.Run(v.Description, func(t *testing.T) {
 			got, err := slip39.Combine(v.Mnemonics, []byte(vectorsPassphrase))
 

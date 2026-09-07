@@ -13,6 +13,7 @@ package main
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -290,7 +291,7 @@ func sealAll(s *store.Store, v *vault.Vault, pub ed25519.PublicKey, priv ed25519
 	payloads [][]byte, base time.Time) error {
 	for i, p := range payloads {
 		last, err := s.LastBlock()
-		if err != nil && err != store.ErrNotFound {
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
 		h, err := ledger.NewHeader(last, tenant, "sri.factura.v1", p,

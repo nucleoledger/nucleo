@@ -70,7 +70,7 @@ func NewMLDSASigner(name string, seed []byte) (*MLDSASigner, error) {
 	}
 	sk, err := mldsa.NewPrivateKey(mldsa.MLDSA44(), seed)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrMLDSAKey, err)
+		return nil, fmt.Errorf("%w: %w", ErrMLDSAKey, err)
 	}
 	return &MLDSASigner{
 		name: name,
@@ -116,7 +116,7 @@ func NewMLDSAVerifier(name string, pub []byte) (*MLDSAVerifier, error) {
 	}
 	pk, err := mldsa.NewPublicKey(mldsa.MLDSA44(), pub)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrMLDSAKey, err)
+		return nil, fmt.Errorf("%w: %w", ErrMLDSAKey, err)
 	}
 	return &MLDSAVerifier{name: name, hash: MLDSAKeyHash(name, pub), key: pk}, nil
 }

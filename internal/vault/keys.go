@@ -107,7 +107,7 @@ func UnwrapDEK(kek, wrapped []byte, vaultID string) ([]byte, error) {
 	}
 	dek, err := open(kek, dekAAD(vaultID), wrapped[nonceLen:], wrapped[:nonceLen])
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnwrap, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnwrap, err)
 	}
 	if len(dek) != DEKLen {
 		return nil, fmt.Errorf("%w: DEK de %d bytes", ErrUnwrap, len(dek))
@@ -181,19 +181,19 @@ func Create(ms MetaStore, vaultID string, passphrase []byte) (*Vault, error) {
 func Unlock(ms MetaStore, passphrase []byte) (*Vault, error) {
 	encoded, err := ms.GetMeta(MetaParamsKey)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNoVault, err)
+		return nil, fmt.Errorf("%w: %w", ErrNoVault, err)
 	}
 	var params Params
 	if err := json.Unmarshal(encoded, &params); err != nil {
-		return nil, fmt.Errorf("%w: parámetros ilegibles: %v", ErrNoVault, err)
+		return nil, fmt.Errorf("%w: parámetros ilegibles: %w", ErrNoVault, err)
 	}
 	rawID, err := ms.GetMeta(MetaIDKey)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNoVault, err)
+		return nil, fmt.Errorf("%w: %w", ErrNoVault, err)
 	}
 	wrapped, err := ms.GetMeta(MetaDEKKey)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNoVault, err)
+		return nil, fmt.Errorf("%w: %w", ErrNoVault, err)
 	}
 
 	kek, err := DeriveKEK(passphrase, params)

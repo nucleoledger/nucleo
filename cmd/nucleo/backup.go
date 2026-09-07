@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -122,7 +123,7 @@ func readShares(e *env, file string) ([]string, error) {
 		defer f.Close()
 		src = f
 	} else {
-		e.stderr.WriteString("Escribe un mnemónico por línea y termina con una línea vacía:\n")
+		fmt.Fprintln(e.stderr, "Escribe un mnemónico por línea y termina con una línea vacía:")
 		src = os.Stdin
 	}
 

@@ -97,7 +97,7 @@ func UnmarshalAddCheckpoint(body []byte) (AddCheckpointRequest, error) {
 	for _, l := range proofLines {
 		node, err := base64.StdEncoding.DecodeString(string(l))
 		if err != nil {
-			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba en base64 inválido: %v", ErrMalformedRequest, err)
+			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba en base64 inválido: %w", ErrMalformedRequest, err)
 		}
 		proof = append(proof, node)
 	}
@@ -121,7 +121,7 @@ func parseDecimal(s string) (uint64, error) {
 	}
 	n, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%w: tamaño %q: %v", ErrMalformedRequest, s, err)
+		return 0, fmt.Errorf("%w: tamaño %q: %w", ErrMalformedRequest, s, err)
 	}
 	return n, nil
 }

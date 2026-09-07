@@ -128,7 +128,7 @@ func (h Header) Time() (time.Time, error) {
 	}
 	t, err := time.Parse(time.RFC3339Nano, h.Timestamp)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%w: timestamp: %v", ErrInvalidHeader, err)
+		return time.Time{}, fmt.Errorf("%w: timestamp: %w", ErrInvalidHeader, err)
 	}
 	return t, nil
 }

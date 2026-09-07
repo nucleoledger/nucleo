@@ -62,7 +62,7 @@ func BackupKEK(kek []byte, n, k int) ([]string, error) {
 		slip39.WithGroups([]slip39.Group{{Threshold: k, Count: n}}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrBackup, err)
+		return nil, fmt.Errorf("%w: %w", ErrBackup, err)
 	}
 	if len(groups) != 1 || len(groups[0]) != n {
 		return nil, fmt.Errorf("%w: se pidieron %d shares en 1 grupo y salieron %d grupos",
@@ -100,7 +100,7 @@ func verifyRoundTrip(kek []byte, shares []string, k int) error {
 		}
 		got, err := slip39.Combine(subset, nil)
 		if err != nil {
-			return fmt.Errorf("%w: los shares %d..%d no recombinan: %v",
+			return fmt.Errorf("%w: los shares %d..%d no recombinan: %w",
 				ErrBackup, start, start+k-1, err)
 		}
 		ok := subtle.ConstantTimeCompare(got, kek) == 1
@@ -137,7 +137,7 @@ func RestoreKEK(mnemonics []string) ([]byte, error) {
 	}
 	kek, err := slip39.Combine(mnemonics, nil)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrRestore, err)
+		return nil, fmt.Errorf("%w: %w", ErrRestore, err)
 	}
 	if len(kek) != int(KeyLen) {
 		slip39.ZeroBytes(kek)

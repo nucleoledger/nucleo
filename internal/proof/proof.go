@@ -123,7 +123,7 @@ func Parse(data []byte) (Receipt, error) {
 	}
 	index, err := strconv.ParseUint(indexLine, 10, 64)
 	if err != nil {
-		return Receipt{}, fmt.Errorf("%w: índice %q: %v", ErrFormat, indexLine, err)
+		return Receipt{}, fmt.Errorf("%w: índice %q: %w", ErrFormat, indexLine, err)
 	}
 
 	var nodes [][]byte
@@ -138,7 +138,7 @@ func Parse(data []byte) (Receipt, error) {
 		}
 		node, err := base64.StdEncoding.Strict().DecodeString(line)
 		if err != nil {
-			return Receipt{}, fmt.Errorf("%w: nodo %q: %v", ErrFormat, line, err)
+			return Receipt{}, fmt.Errorf("%w: nodo %q: %w", ErrFormat, line, err)
 		}
 		if len(node) != checkpoint.RootSize {
 			return Receipt{}, fmt.Errorf("%w: nodo de %d bytes, se esperaban %d", ErrFormat, len(node), checkpoint.RootSize)
@@ -180,7 +180,7 @@ func (r Receipt) Verify(entryHash []byte, p Policy) (Result, error) {
 	for name, pub := range p.Witnesses {
 		v, err := witness.NewVerifier(name, pub)
 		if err != nil {
-			return Result{}, fmt.Errorf("%w: testigo %q: %v", ErrPolicy, name, err)
+			return Result{}, fmt.Errorf("%w: testigo %q: %w", ErrPolicy, name, err)
 		}
 		verifiers = append(verifiers, v)
 		witnessNames[v.KeyHash()] = name
@@ -208,7 +208,7 @@ func (r Receipt) Verify(entryHash []byte, p Policy) (Result, error) {
 		}
 		ts, err := cosignatureTime(sig.Base64)
 		if err != nil {
-			return Result{}, fmt.Errorf("%w: testigo %q: %v", ErrFormat, sig.Name, err)
+			return Result{}, fmt.Errorf("%w: testigo %q: %w", ErrFormat, sig.Name, err)
 		}
 		res.Cosigners = append(res.Cosigners, sig.Name)
 		if earliest.IsZero() || ts.Before(earliest) {
@@ -236,7 +236,7 @@ func (r Receipt) Verify(entryHash []byte, p Policy) (Result, error) {
 	}
 	if err := ledger.VerifyInclusion(entryHash, int(r.Index), int(c.Size),
 		r.InclusionProof, c.RootHash); err != nil {
-		return Result{}, fmt.Errorf("%w: %v", ErrInclusion, err)
+		return Result{}, fmt.Errorf("%w: %w", ErrInclusion, err)
 	}
 	return res, nil
 }

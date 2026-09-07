@@ -108,7 +108,7 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 	}
 	var h ledger.Header
 	if err := json.Unmarshal(machine[:nl], &h); err != nil {
-		return nil, fmt.Errorf("%w: header ilegible: %v", ErrFormat, err)
+		return nil, fmt.Errorf("%w: header ilegible: %w", ErrFormat, err)
 	}
 	// Los bytes del header tienen que ser la forma canónica JCS, que es lo que
 	// se firmó. Recanonicalizar por lo bajo escondería una diferencia real.

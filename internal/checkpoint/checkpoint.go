@@ -109,12 +109,12 @@ func Parse(text string) (Checkpoint, error) {
 	}
 	size, err := strconv.ParseUint(sizeText, 10, 64)
 	if err != nil {
-		return Checkpoint{}, fmt.Errorf("%w: tamaño %q: %v", ErrFormat, sizeText, err)
+		return Checkpoint{}, fmt.Errorf("%w: tamaño %q: %w", ErrFormat, sizeText, err)
 	}
 
 	root, err := base64.StdEncoding.Strict().DecodeString(lines[2])
 	if err != nil {
-		return Checkpoint{}, fmt.Errorf("%w: raíz %q: %v", ErrFormat, lines[2], err)
+		return Checkpoint{}, fmt.Errorf("%w: raíz %q: %w", ErrFormat, lines[2], err)
 	}
 	if len(root) != RootSize {
 		return Checkpoint{}, fmt.Errorf("%w: %d", ErrRootSize, len(root))

@@ -194,7 +194,7 @@ func (w *Witness) cosign(declaredOld *uint64, msg []byte, consistencyProof [][]b
 	// 2. Verificar la firma del log con ESA clave, y solo con ella.
 	c, n, err := checkpoint.Verify(msg, logVerifier)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrBadSignature, err)
+		return nil, fmt.Errorf("%w: %w", ErrBadSignature, err)
 	}
 	if !signedBy(n, logVerifier) || c.Origin != declared.Origin {
 		return nil, fmt.Errorf("%w: la nota de %q no está firmada por su clave", ErrBadSignature, declared.Origin)
@@ -298,20 +298,10 @@ func checkExtension(old uint64, seen bool, last, c checkpoint.Checkpoint, proof 
 	// justamente lo que aquí no hay que devolver: el cliente declaró el tamaño
 	// correcto, lo que falla es su prueba.
 	if err := ledger.VerifyConsistency(int(old), int(c.Size), last.RootHash, c.RootHash, proof); err != nil {
-		return fmt.Errorf("%w: la prueba de consistencia de %d a %d no verifica: %v",
+		return fmt.Errorf("%w: la prueba de consistencia de %d a %d no verifica: %w",
 			ErrUnprocessable, old, c.Size, err)
 	}
 	return nil
-}
-
-// knownVerifiers devuelve las claves de log registradas. Se llama con el candado
-// tomado.
-func (w *Witness) knownVerifiers() []note.Verifier {
-	out := make([]note.Verifier, 0, len(w.logs))
-	for _, v := range w.logs {
-		out = append(out, v)
-	}
-	return out
 }
 
 // signedBy indica si la nota trae una firma verificada de ese verificador.

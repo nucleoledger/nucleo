@@ -210,7 +210,7 @@ func run() error {
 	_, err = logsync.SyncWithWitness(ctx, adapter3, client)
 	var rb *logsync.RollbackError
 	if !errors.As(err, &rb) {
-		return fmt.Errorf("la sincronización NO detectó el truncamiento: %v", err)
+		return fmt.Errorf("la sincronización NO detectó el truncamiento: %w", err)
 	}
 	fmt.Println("✘ ROLLBACK LOCAL DETECTADO")
 	fmt.Printf("    en disco          : %d bloques\n", rb.LocalSize)

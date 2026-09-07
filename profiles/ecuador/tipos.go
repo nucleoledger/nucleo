@@ -100,7 +100,7 @@ type facturaXML struct {
 func ParseFactura(raw []byte) (Record, ClaveAcceso, error) {
 	var doc facturaXML
 	if err := xml.Unmarshal(raw, &doc); err != nil {
-		return Record{}, ClaveAcceso{}, fmt.Errorf("%w: no es un XML de factura: %v", ErrDocumento, err)
+		return Record{}, ClaveAcceso{}, fmt.Errorf("%w: no es un XML de factura: %w", ErrDocumento, err)
 	}
 	clave, err := ParseClaveAcceso(strings.TrimSpace(doc.InfoTrib.ClaveAcceso))
 	if err != nil {

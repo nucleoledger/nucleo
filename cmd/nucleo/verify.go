@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"flag"
 
-	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/store"
 )
 
@@ -127,6 +126,3 @@ func printAttestation(e *env, r store.OpenResult) {
 		e.printf("            Ejecuta `nucleo sync` contra un testigo.\n")
 	}
 }
-
-// leafHashOf devuelve la hoja de Merkle de un bloque.
-func leafHashOf(b *ledger.Block) ([]byte, error) { return b.HashBytes() }

@@ -17,7 +17,6 @@ func TestVectors(t *testing.T) {
 	}
 
 	for _, dir := range vectorDirs {
-		dir := dir
 		t.Run(filepath.Base(dir), func(t *testing.T) {
 			src, err := os.ReadFile(filepath.Join(dir, "input.json"))
 			if err != nil {

@@ -142,7 +142,7 @@ func (i *Identity) Save(v *vault.Vault, ms vault.MetaStore) error {
 func Load(v *vault.Vault, ms vault.MetaStore) (*Identity, error) {
 	blob, err := ms.GetMeta(MetaKey)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNoIdentity, err)
+		return nil, fmt.Errorf("%w: %w", ErrNoIdentity, err)
 	}
 	const nonceLen = 24
 	if len(blob) <= nonceLen {

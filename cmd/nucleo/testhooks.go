@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"os"
 	"time"
 )
@@ -51,7 +52,7 @@ func testSeed() ([]byte, bool) {
 func warnTestHooks(e *env) {
 	for _, k := range []string{envSeed, envClock, envPassphrase} {
 		if os.Getenv(k) != "" {
-			e.stderr.WriteString("AVISO: " + k + " está definida. Es un gancho de PRUEBAS y no debe usarse en producción.\n")
+			fmt.Fprintf(e.stderr, "AVISO: %s está definida. Es un gancho de PRUEBAS y no debe usarse en producción.\n", k)
 		}
 	}
 }
