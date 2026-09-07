@@ -5,7 +5,7 @@
 - **Módulo:** `github.com/nucleoledger/nucleo`
 - **Producto:** binario CLI `nucleo` + daemon opcional `nucleod` (aún no implementados) + SDK TypeScript futuro en `sdk/`
 - **Sin Docker, sin base de datos externa, sin migraciones**: SQLite embebido (pure-Go, `modernc.org/sqlite`) llegará en el Sprint 2. Hoy no hay persistencia.
-- **Sin despliegue**: esto es un producto de software (releases firmados con goreleaser, `<PENDIENTE: configurar goreleaser>`). Nunca hay servidores que tocar.
+- **Sin despliegue**: esto es un producto de software (releases firmados con goreleaser + cosign keyless; ver `.goreleaser.yaml` y `docs/RELEASING.md`). Nunca hay servidores que tocar.
 - **Criptografía fijada por `docs/PROTOCOL.md`** (normativo): JCS RFC 8785, Ed25519 sobre digest SHA-256, Merkle RFC 6962/9162, C2SP (checkpoint/cosignature/witness/proof/tiles), XChaCha20-Poly1305 + Argon2id, SLIP-0039, VRF vrf-r255.
 
 # 📁 PROJECT STRUCTURE MAP
