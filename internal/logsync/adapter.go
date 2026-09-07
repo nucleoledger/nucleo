@@ -1,6 +1,7 @@
 package logsync
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
@@ -39,6 +40,18 @@ func (a *StoreLog) TreeSize() (uint64, error) {
 		return 0, err
 	}
 	return uint64(n), nil
+}
+
+// Root devuelve la raíz de Merkle de los primeros size bloques.
+func (a *StoreLog) Root(size uint64) ([]byte, error) {
+	leaves, err := a.Store.LeafHashes()
+	if err != nil {
+		return nil, err
+	}
+	if size > uint64(len(leaves)) {
+		return nil, fmt.Errorf("logsync: se pidió la raíz de %d bloques y hay %d", size, len(leaves))
+	}
+	return ledger.Root(leaves[:size]), nil
 }
 
 // ConsistencyProof arma PROOF(old, D[size]) desde las hojas del ledger.
@@ -80,5 +93,25 @@ func (a *StoreLog) SignCheckpoint(size uint64) ([]byte, error) {
 	return msg, nil
 }
 
-// RecordCosigned guarda la nota cosignada en el ledger.
-func (a *StoreLog) RecordCosigned(note []byte) error { return a.Store.PutCheckpoint(note) }
+// RecordCosigned guarda la nota cosignada en el ledger, si no había ya una para
+// ese tamaño.
+//
+// Cada sincronización pide una cosignature del estado actual, así que un log
+// parado recibe cosignatures nuevas del mismo tamaño una y otra vez, con
+// timestamps distintos. La tabla es append-only y admite una nota por tamaño, y
+// conservar la PRIMERA es además lo correcto: el tiempo demostrable es el mínimo
+// de los timestamps, así que la más antigua es la mejor prueba.
+func (a *StoreLog) RecordCosigned(note []byte) error {
+	c, err := checkpoint.ParseNote(note)
+	if err != nil {
+		return err
+	}
+	switch _, err := a.Store.Checkpoint(c.Size); {
+	case err == nil:
+		return nil // ya hay atestación para ese tamaño; la primera se queda
+	case errors.Is(err, store.ErrNotFound):
+		return a.Store.PutCheckpoint(note)
+	default:
+		return err
+	}
+}

@@ -42,7 +42,29 @@ type scene struct {
 	adapter *StoreLog
 	client  *witness.Client
 	witness *witness.Witness
+	server  *httptest.Server
 	tenant  ed25519.PrivateKey
+}
+
+// rebind vuelve a montar el adaptador sobre otra apertura de la misma base, con
+// un Log NUEVO: es lo que hace un proceso al arrancar.
+func (sc *scene) rebind(t *testing.T, s *store.Store) *StoreLog {
+	t.Helper()
+	signer, err := checkpoint.NewSigner(testOrigin, keyFrom(50))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lg, err := checkpoint.NewLog(testOrigin, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := NewStoreLog(s, lg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc.store = s
+	sc.adapter = adapter
+	return adapter
 }
 
 func newScene(t *testing.T, blocks int) *scene {
@@ -113,7 +135,7 @@ func newScene(t *testing.T, blocks int) *scene {
 	}
 	return &scene{
 		t: t, dbPath: dbPath, store: s, adapter: adapter,
-		client: client, witness: w, tenant: tenantPriv,
+		client: client, witness: w, server: srv, tenant: tenantPriv,
 	}
 }
 

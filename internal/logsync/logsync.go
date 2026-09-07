@@ -14,6 +14,7 @@
 package logsync
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -52,6 +53,8 @@ type LocalLog interface {
 	TreeSize() (uint64, error)
 	// ConsistencyProof devuelve PROOF(old, D[size]) sobre el árbol local.
 	ConsistencyProof(old, size uint64) ([][]byte, error)
+	// Root devuelve la raíz de Merkle de los primeros size bloques.
+	Root(size uint64) ([]byte, error)
 	// SignCheckpoint emite un checkpoint firmado del tamaño dado.
 	SignCheckpoint(size uint64) ([]byte, error)
 	// RecordCosigned guarda la nota YA cosignada.
@@ -75,77 +78,131 @@ type Result struct {
 	Cosigned []byte
 	// Fresh indica que el testigo no había cosignado nunca para este origin.
 	Fresh bool
+	// Attested es true solo si Cosigned es una cosignature verificada que cubre
+	// el tamaño y la raíz locales del momento de la llamada.
+	Attested bool
 }
 
-// SyncWithWitness pregunta primero y firma después.
+// SyncWithWitness devuelve éxito ÚNICAMENTE cuando posee una cosignature
+// verificada que cubre el tamaño y la raíz locales ACTUALES.
 //
-// El orden importa: si pidiéramos la cosignature sin consultar antes, un ledger
-// truncado recibiría un 409 con el tamaño verdadero —el protocolo lo obliga— y
-// eso ya sería una señal. Pero consultar primero convierte una señal indirecta,
-// que hay que saber leer, en un error tipado que nombra el problema: faltan
-// bloques en disco. Un operador no debería tener que deducir un rollback a
-// partir de un código HTTP.
+// No hay atajos, y la ausencia de atajos es el arreglo. Antes, si el testigo
+// parecía estar al día se daba por bueno y se devolvía la nota que él sirviera.
+// Eso convertía una nota VIEJA Y GENUINA en un éxito: basta con reproducir la
+// que el testigo cosignó cuando el árbol era más pequeño para que un ledger
+// truncado cuadre consigo mismo. La nota es auténtica, su firma verifica, y aun
+// así no dice nada sobre el estado de HOY.
+//
+// Lo único que distingue "el testigo avala mi estado actual" de "el testigo
+// avaló algo alguna vez" es pedirle una cosignature ahora, sobre el árbol de
+// ahora. Por eso cada sincronización pasa por add-checkpoint, incluso cuando
+// parece que no hay nada nuevo que atestiguar.
 func SyncWithWitness(ctx context.Context, log LocalLog, c *witness.Client) (*Result, error) {
 	origin := log.Origin()
 	localSize, err := log.TreeSize()
 	if err != nil {
 		return nil, err
 	}
+	localRoot, err := log.Root(localSize)
+	if err != nil {
+		return nil, err
+	}
 
-	// 1. Qué recuerda el testigo.
+	// 1. Qué recuerda el testigo, según una nota que el cliente ya verificó
+	// contra su clave. Si no verificara, esto no sería información: sería lo
+	// que quisiera contarnos el camino.
 	witnessSize, fresh, err := remoteSize(ctx, c, origin)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. La comparación que delata el truncamiento.
+	// 2. Primera vía de detección: evidencia VERIFICADA de que el testigo va por
+	// delante. Una nota firmada por él con más historia de la que hay en disco
+	// no admite otra lectura.
 	if witnessSize > localSize {
 		return nil, &RollbackError{Origin: origin, LocalSize: localSize, WitnessSize: witnessSize}
 	}
 
 	res := &Result{Origin: origin, LocalSize: localSize, WitnessSize: witnessSize, Fresh: fresh}
 
-	// 3. Nada nuevo que atestiguar: el testigo ya está al día.
-	if witnessSize == localSize && !fresh {
-		note, err := c.Checkpoint(ctx, origin)
-		if err != nil {
-			return nil, err
-		}
-		res.Cosigned = note
-		return res, nil
-	}
-
-	// 4. Pedir la cosignature del estado actual.
+	// 3. Pedir atestación del estado actual, SIEMPRE.
 	msg, err := log.SignCheckpoint(localSize)
 	if err != nil {
 		return nil, err
 	}
 	var proof [][]byte
-	if witnessSize > 0 {
+	if witnessSize > 0 && witnessSize < localSize {
 		if proof, err = log.ConsistencyProof(witnessSize, localSize); err != nil {
 			return nil, err
 		}
 	}
 	cosigned, err := c.AddCheckpoint(ctx, witnessSize, proof, msg)
 	if err != nil {
+		// 4. Segunda vía de detección: el testigo rechaza extender desde donde
+		// creíamos estar y dice recordar MÁS de lo que hay en disco. Es la vía
+		// que caza el replay: la nota vieja nos hizo creer que el testigo estaba
+		// en 6, y al intentar extender desde 6 el testigo real contesta 12.
+		//
+		// El tamaño del 409 no está autenticado, así que por sí solo no probaría
+		// nada; lo que lo corrobora es que nuestro intento de extender contra el
+		// estado real haya fallado. Un adversario de red puede provocar esta
+		// alarma sin motivo, y eso es ruido revisable; lo que no puede es
+		// fabricar la cosignature que haría falta para lo contrario.
+		var conflict *witness.ConflictError
+		if errors.As(err, &conflict) && conflict.LastSize > localSize {
+			return nil, &RollbackError{Origin: origin, LocalSize: localSize, WitnessSize: conflict.LastSize}
+		}
+		return nil, err
+	}
+
+	// 5. Y comprobar que lo que volvió cubre de verdad el estado actual. El
+	// cliente ya verificó la firma; esto verifica el CONTENIDO. Una cosignature
+	// impecable sobre otro árbol seguiría sin atestiguar el nuestro.
+	if err := coversLocalState(cosigned, origin, localSize, localRoot); err != nil {
 		return nil, err
 	}
 	if err := log.RecordCosigned(cosigned); err != nil {
 		return nil, err
 	}
 	res.Cosigned = cosigned
+	res.Attested = true
 	return res, nil
+}
+
+// ErrNotAttested indica que la sincronización terminó sin una cosignature
+// verificada que cubra el estado local actual.
+var ErrNotAttested = errors.New("logsync: la cosignature obtenida no cubre el estado local actual")
+
+// coversLocalState exige que la nota cosignada hable de ESTE log, de ESTE tamaño
+// y de ESTA raíz.
+func coversLocalState(cosigned []byte, origin string, size uint64, root []byte) error {
+	c, err := checkpoint.ParseNote(cosigned)
+	if err != nil {
+		return err
+	}
+	switch {
+	case c.Origin != origin:
+		return fmt.Errorf("%w: la cosignature es de %q", ErrNotAttested, c.Origin)
+	case c.Size != size:
+		return fmt.Errorf("%w: cubre %d bloques y en disco hay %d", ErrNotAttested, c.Size, size)
+	case !bytes.Equal(c.RootHash, root):
+		return fmt.Errorf("%w: cubre la raíz %x y la local es %x", ErrNotAttested, c.RootHash, root)
+	}
+	return nil
 }
 
 // remoteSize consulta el último checkpoint cosignado por el testigo.
 //
-// La nota que devuelve no se verifica aquí a propósito: lo único que se lee de
-// ella es el TAMAÑO, y se usa para levantar una sospecha, no para creerse nada.
-// Un testigo que mintiera inflando la cifra provocaría una alarma falsa, que es
-// ruidoso y revisable; jamás puede conseguir que un rollback real pase
-// inadvertido, porque para eso tendría que declarar MENOS de lo que cosignó y
-// el log ya tiene su propia copia de esa cosignature. Quien necesite confiar en
-// el contenido usa checkpoint.Verify con la clave del testigo.
+// La nota viene ya VERIFICADA: witness.Client no devuelve una nota de
+// monitorización sin una cosignature válida de la clave del testigo, y no se
+// puede construir sin esa clave. Aquí se comprueba además que hable del origin
+// que se pidió.
+//
+// Que esté verificada no la hace actual. El spec permite delegar el prefijo de
+// monitorización a una CDN y admite retrasos de hasta una hora, así que una nota
+// vieja y genuina es un resultado legítimo de esta llamada. Por eso su tamaño
+// solo se usa para levantar una sospecha y para elegir el punto de partida de la
+// extensión: quien decide si hay atestación del estado actual es add-checkpoint.
 func remoteSize(ctx context.Context, c *witness.Client, origin string) (size uint64, fresh bool, err error) {
 	note, err := c.Checkpoint(ctx, origin)
 	if errors.Is(err, witness.ErrNoWitnessCheckpoint) {
