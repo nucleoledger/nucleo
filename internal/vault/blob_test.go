@@ -236,3 +236,73 @@ func TestAADRejectsMalformedPayloadHash(t *testing.T) {
 		t.Errorf("un payload_hash correcto se rechazó: %v", err)
 	}
 }
+
+// TestSecretDomainSeparation comprueba que el material interno del vault viva
+// en un dominio propio, incompatible con el de los payloads de bloque.
+//
+// Sin esa separación, un secreto interno podría descifrarse como si fuera un
+// payload —o al revés— y dos cosas con significados distintos compartirían
+// clave y AAD. Es el mismo razonamiento que separa 0x01 de 0x04 en los key ID.
+func TestSecretDomainSeparation(t *testing.T) {
+	v := newVaultForTest(t, "vault-a")
+
+	secreto := []byte("semilla de firma, nada que deba salir de aquí")
+	ct, nonce, err := v.EncryptSecret("identity/v1", secreto)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := v.DecryptSecret("identity/v1", ct, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(back, secreto) {
+		t.Error("el round-trip no devolvió el secreto")
+	}
+
+	// Otro dominio NO abre lo del primero.
+	if _, err := v.DecryptSecret("otro/v1", ct, nonce); !errors.Is(err, ErrDecrypt) {
+		t.Errorf("otro dominio descifró el secreto: %v", err)
+	}
+	// Y el camino de los blobs tampoco, ni con el AAD mejor elegido.
+	if _, err := v.DecryptBlob(testTenant, strings.Repeat("ab", 32), ct, nonce); err == nil {
+		t.Error("un secreto interno se descifró como si fuera un payload")
+	}
+	// Un dominio vacío se rechaza: sería un secreto sin dominio.
+	if _, _, err := v.EncryptSecret("", secreto); !errors.Is(err, ErrAAD) {
+		t.Errorf("dominio vacío: err = %v, want %v", err, ErrAAD)
+	}
+	if _, err := v.DecryptSecret("", ct, nonce); !errors.Is(err, ErrAAD) {
+		t.Errorf("dominio vacío: err = %v, want %v", err, ErrAAD)
+	}
+}
+
+// TestSecretsAreBoundToTheirVault: el AAD lleva el identificador del vault, así
+// que copiar el material cifrado a otro vault no sirve de nada aunque compartan
+// passphrase.
+func TestSecretsAreBoundToTheirVault(t *testing.T) {
+	v1 := newVaultForTest(t, "vault-a")
+	v2 := newVaultForTest(t, "vault-b")
+	if v1.ID() == v2.ID() {
+		t.Fatal("los dos vaults comparten identificador: el test no probaría nada")
+	}
+
+	ct, nonce, err := v1.EncryptSecret("identity/v1", []byte("secreto"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v2.DecryptSecret("identity/v1", ct, nonce); !errors.Is(err, ErrDecrypt) {
+		t.Errorf("otro vault descifró el secreto: %v", err)
+	}
+}
+
+// newVaultForTest crea un vault en memoria con el identificador dado.
+func newVaultForTest(t *testing.T, id string) *Vault {
+	t.Helper()
+	v, err := Create(newMemStore(), id, []byte("passphrase del tenant"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(v.Close)
+	return v
+}
