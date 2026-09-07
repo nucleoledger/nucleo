@@ -1,0 +1,103 @@
+# Configuración de release de Núcleo.
+#
+# Un producto de integridad no distribuye binarios sin firmar. Todo lo de aquí
+# apunta a que quien descargue el binario pueda comprobar, sin confiar en
+# nosotros ni en GitHub, que es el que se compiló desde este código.
+version: 2
+
+project_name: nucleo
+
+before:
+  hooks:
+    - go mod download
+    - go test ./... -race
+
+builds:
+  - id: nucleo
+    main: ./cmd/nucleo
+    binary: nucleo
+    env:
+      # Sin cgo: es lo que permite un binario estático para cada plataforma sin
+      # arrastrar una toolchain de C, y es la razón por la que el SQLite de este
+      # proyecto es el driver de Go puro.
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      # -s -w quitan la tabla de símbolos y la información de depuración: el
+      # binario pesa menos y, sobre todo, dos compilaciones del mismo commit
+      # producen los mismos bytes.
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.FullCommit}}
+      - -X main.date={{.CommitDate}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: nucleo
+    ids: [nucleo]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - src: docs/TUTORIAL-es.md
+        dst: docs/TUTORIAL-es.md
+      - src: docs/PROTOCOL.md
+        dst: docs/PROTOCOL.md
+      - src: docs/RELEASING.md
+        dst: docs/RELEASING.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# La firma es keyless: cosign obtiene un certificado efímero del OIDC de las
+# Actions de GitHub, firma, y publica la entrada en el log de transparencia
+# público de Sigstore (Rekor). No hay ninguna clave privada que guardar ni que
+# perder, y la identidad que firmó queda registrada en un log que ni nosotros
+# podemos reescribir. Es la misma idea que este proyecto vende, aplicada a sí
+# mismo.
+signs:
+  - id: checksums
+    cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  # El CHANGELOG lo escribe una persona: agrupar mensajes de commit por prefijo
+  # produce una lista de cambios que solo entiende quien ya sabe lo que pasó.
+  disable: true
+
+release:
+  draft: true
+  prerelease: auto
+  header: |
+    ## Núcleo {{ .Tag }}
+
+    Verifica lo que descargas antes de usarlo. El procedimiento está en
+    [docs/RELEASING.md](https://github.com/nucleoledger/nucleo/blob/{{ .Tag }}/docs/RELEASING.md#verificar-una-descarga)
+    y no lleva más de un minuto.
+  footer: |
+    ---
+    Los binarios no llevan clave privada detrás: la firma es keyless de Sigstore,
+    hecha por el workflow de Actions de este repositorio, y la identidad que
+    firmó consta en el log público de transparencia de Rekor.

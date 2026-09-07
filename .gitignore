@@ -3,3 +3,4 @@ session-*.md
 bin/
 *.test
 *.out
+dist/

@@ -1,0 +1,62 @@
+name: release
+
+# Solo un tag publica. Un push a main no dispara nada de esto.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # Para crear el release y subir los artefactos.
+      contents: write
+      # El token OIDC es lo que hace posible la firma keyless: acredita ante
+      # Sigstore QUÉ workflow, de QUÉ repositorio y sobre QUÉ tag está firmando.
+      # Sin él habría que guardar una clave privada en un secreto, que es
+      # justamente lo que se quiere evitar.
+      id-token: write
+      # Para la attestation de procedencia nativa de Actions.
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # goreleaser necesita el historial completo y los tags para calcular
+          # la versión y el commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Comprobaciones antes de publicar
+        # El release corre los tests por su cuenta (hook `before` de
+        # goreleaser), pero el criterio de éxito del proyecto se comprueba aquí
+        # explícitamente: si esa demo no pasa, no hay versión que publicar.
+        run: |
+          go test ./... -race
+          ./scripts/demo-criterio-exito.sh
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # cosign no debe preguntar nada: no hay un humano delante.
+          COSIGN_YES: "true"
+
+      # Attestation de procedencia nativa de GitHub, además de la firma de
+      # cosign. Son dos cosas distintas y ninguna sustituye a la otra: la firma
+      # dice "estos bytes se firmaron desde este workflow"; la attestation
+      # describe CÓMO se construyeron, en el formato SLSA que otras herramientas
+      # ya saben leer.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*.tar.gz,dist/*.zip,dist/checksums.txt'
