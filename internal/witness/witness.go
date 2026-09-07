@@ -15,10 +15,15 @@ import (
 )
 
 var (
-	// ErrConflict indica que el checkpoint presentado no extiende al último que
-	// este testigo cosignó para ese origin: la señal de que el log intentó
-	// reescribir su historia. Corresponde al 409 de c2sp.org/tlog-witness.
-	ErrConflict = errors.New("witness: checkpoint inconsistente con el último cosignado")
+	// ErrConflict indica que el tamaño anterior declarado por el cliente no es
+	// el del último checkpoint que este testigo cosignó para ese origin.
+	//
+	// Corresponde al 409 de c2sp.org/tlog-witness, y a NADA MÁS: el spec reserva
+	// ese código a esta única causa, y su cuerpo es el tamaño verdadero para que
+	// un log honesto que perdió el hilo pueda reintentar. Una prueba que no
+	// verifica o una raíz que no cuadra son 422, no 409: ahí el tamaño declarado
+	// era correcto y devolverlo no ayudaría a nadie.
+	ErrConflict = errors.New("witness: el tamaño anterior no es el último cosignado")
 	// ErrUnknownLog indica un origin del que el testigo no conoce la clave.
 	ErrUnknownLog = errors.New("witness: log desconocido")
 	// ErrClockRewind indica que el reloj del testigo retrocedió.
@@ -283,8 +288,18 @@ func checkExtension(old uint64, seen bool, last, c checkpoint.Checkpoint, proof 
 	if !seen {
 		return fmt.Errorf("%w: tamaño anterior %d sin checkpoint recordado", ErrUnprocessable, old)
 	}
+	// Una prueba de consistencia que no verifica es 422, no 409.
+	//
+	// El spec no deja margen: «If the proof is not empty when the old size is
+	// zero, or if a Merkle Consistency Proof doesn't verify, the witness MUST
+	// respond with a "422 Unprocessable Entity" HTTP status code.» El 409 está
+	// reservado a UNA sola causa —que el tamaño anterior declarado no sea el
+	// último que el testigo cosignó— y su cuerpo es ese tamaño, que es
+	// justamente lo que aquí no hay que devolver: el cliente declaró el tamaño
+	// correcto, lo que falla es su prueba.
 	if err := ledger.VerifyConsistency(int(old), int(c.Size), last.RootHash, c.RootHash, proof); err != nil {
-		return &ConflictError{Origin: c.Origin, LastSize: old, Reason: err}
+		return fmt.Errorf("%w: la prueba de consistencia de %d a %d no verifica: %v",
+			ErrUnprocessable, old, c.Size, err)
 	}
 	return nil
 }

@@ -157,7 +157,7 @@ func TestHTTPStatusCodes(t *testing.T) {
 		{"firmado por otra clave", 5, h.proof(5, 7), impostor, http.StatusForbidden},
 		{"tamaño anterior mayor que el checkpoint", 9, nil, h.signBypassingLog(7, h.leaves), http.StatusBadRequest},
 		{"tamaño anterior que no es el recordado", 2, h.proof(2, 7), h.signBypassingLog(7, h.leaves), http.StatusConflict},
-		{"prueba que no verifica", 5, tamper(h.proof(5, 7)), h.signBypassingLog(7, h.leaves), http.StatusConflict},
+		{"prueba que no verifica", 5, tamper(h.proof(5, 7)), h.signBypassingLog(7, h.leaves), http.StatusUnprocessableEntity},
 		// Declarar 0 cuando el testigo recuerda 5 es un 409, no un 422: el spec
 		// dice que un cliente sin información PUEDE mandar 0 justamente para
 		// que el 409 le devuelva el tamaño verdadero. Se comprueba antes de
@@ -179,10 +179,17 @@ func TestHTTPStatusCodes(t *testing.T) {
 			if resp.StatusCode != c.want {
 				t.Errorf("HTTP %d, want %d", resp.StatusCode, c.want)
 			}
+			// El cuerpo con el tamaño, y su Content-Type, son EXCLUSIVOS del
+			// 409: es la única respuesta donde el tamaño del testigo sirve para
+			// algo. Emitirlo en un 422 invitaría al cliente a leer una cifra
+			// que no responde a su problema.
+			ct := resp.Header.Get("Content-Type")
 			if c.want == http.StatusConflict {
-				if ct := resp.Header.Get("Content-Type"); ct != SizeContentType {
+				if ct != SizeContentType {
 					t.Errorf("Content-Type = %q, want %q", ct, SizeContentType)
 				}
+			} else if ct == SizeContentType {
+				t.Errorf("un %d llevó el Content-Type del 409", resp.StatusCode)
 			}
 		})
 	}

@@ -280,13 +280,19 @@ func TestWitnessRejectsRewrittenHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Una historia reescrita se delata porque su prueba de consistencia no
+	// verifica, y eso el spec lo clasifica como 422: el cliente declaró el
+	// tamaño anterior correcto, lo que no se sostiene es su prueba.
 	_, err = h.witness.Cosign(evilMsg, evilProof)
-	if !errors.Is(err, ErrConflict) {
+	if !errors.Is(err, ErrUnprocessable) {
 		t.Fatalf("el testigo cosignó una historia reescrita: err = %v", err)
 	}
+
+	// El 409 queda para su única causa, y ahí sí lleva el tamaño verdadero.
+	_, err = h.witness.CosignAt(2, h.signBypassingLog(9, h.leaves), h.proof(2, 9))
 	var conflict *ConflictError
 	if !errors.As(err, &conflict) {
-		t.Fatalf("el error no es *ConflictError: %T", err)
+		t.Fatalf("el error no es *ConflictError: %v", err)
 	}
 	if conflict.LastSize != 5 {
 		t.Errorf("ConflictError.LastSize = %d, want 5 (semántica 409)", conflict.LastSize)
@@ -313,20 +319,21 @@ func TestWitnessRejectsBadProofs(t *testing.T) {
 	}
 
 	// El testigo clasifica los rechazos como los clasifica el protocolo, porque
-	// el servidor HTTP tiene que traducirlos a códigos distintos: una prueba que
-	// no demuestra la extensión es un conflicto (409), pero un tamaño anterior
-	// mayor que el del checkpoint es una petición mal formada (400). Meterlo
-	// todo en el mismo error obligaría al servidor a adivinar.
+	// el servidor HTTP tiene que traducirlos a códigos distintos. El 409 está
+	// reservado a UNA causa —el tamaño anterior declarado no es el último
+	// cosignado— porque su cuerpo es ese tamaño y solo ahí sirve de algo. Una
+	// prueba que no verifica es 422, y un tamaño anterior mayor que el del
+	// checkpoint es 400.
 	cases := []struct {
 		name  string
 		size  int
 		proof [][]byte
 		want  error
 	}{
-		{"sin prueba", 9, nil, ErrConflict},
-		{"prueba vacía", 9, [][]byte{}, ErrConflict},
-		{"prueba de otro tramo", 12, h.proof(5, 9), ErrConflict},
-		{"prueba manipulada", 9, tamper(h.proof(5, 9)), ErrConflict},
+		{"sin prueba", 9, nil, ErrUnprocessable},
+		{"prueba vacía", 9, [][]byte{}, ErrUnprocessable},
+		{"prueba de otro tramo", 12, h.proof(5, 9), ErrUnprocessable},
+		{"prueba manipulada", 9, tamper(h.proof(5, 9)), ErrUnprocessable},
 		{"retroceso de tamaño", 3, nil, ErrOldSize},
 	}
 	for _, c := range cases {
