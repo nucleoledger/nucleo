@@ -15,9 +15,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -47,6 +50,8 @@ const (
 	tenantSeedHex  = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 	logSeedHex     = "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
 	witnessSeedHex = "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+	// Semilla ML-DSA-44 del log: la segunda firma de ADR-007.
+	logPQSeedHex = "2a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40414243444546474849"
 )
 
 var base = time.Date(2026, 9, 6, 9, 0, 0, 0, time.UTC)
@@ -123,6 +128,12 @@ func run() error {
 	}
 	fmt.Printf("✔ POST /add-checkpoint → 200; el testigo cosignó un árbol de %d\n", res.LocalSize)
 	fmt.Println("  (era su primer checkpoint de este log: tamaño anterior 0, sin prueba)")
+	fmt.Println("  firmas en el checkpoint:")
+	if err := printSignatures(res.Cosigned); err != nil {
+		return err
+	}
+	fmt.Println("    Un verificador que solo conozca la Ed25519 ignora la ML-DSA-44")
+	fmt.Println("    y verifica exactamente igual: por eso se puede añadir hoy.")
 	if err := s.Close(); err != nil {
 		return err
 	}
@@ -241,6 +252,9 @@ func startWitness(dbPath string, priv ed25519.PrivateKey, logPub ed25519.PublicK
 }
 
 // newAdapter conecta el ledger y el emisor de checkpoints con la sincronización.
+//
+// El log firma con DOS claves: la Ed25519 de siempre y la ML-DSA-44 de ADR-007.
+// Quien no entienda la segunda ignora su línea de firma y verifica igual.
 func newAdapter(s *store.Store, logPriv ed25519.PrivateKey) (*logsync.StoreLog, error) {
 	signer, err := checkpoint.NewSigner(origin, logPriv)
 	if err != nil {
@@ -250,7 +264,53 @@ func newAdapter(s *store.Store, logPriv ed25519.PrivateKey) (*logsync.StoreLog, 
 	if err != nil {
 		return nil, err
 	}
+	pq, err := logPQSigner()
+	if err != nil {
+		return nil, err
+	}
+	if err := lg.AddSigner(pq); err != nil {
+		return nil, err
+	}
 	return logsync.NewStoreLog(s, lg), nil
+}
+
+// logPQSigner construye el firmante post-cuántico del log.
+func logPQSigner() (*checkpoint.MLDSASigner, error) {
+	seed, err := hex.DecodeString(logPQSeedHex)
+	if err != nil {
+		return nil, err
+	}
+	return checkpoint.NewMLDSASigner(origin, seed)
+}
+
+// printSignatures desglosa las firmas de un checkpoint real.
+func printSignatures(msg []byte) error {
+	pq, err := logPQSigner()
+	if err != nil {
+		return err
+	}
+	i := bytes.LastIndex(msg, []byte("\n\n"))
+	if i < 0 {
+		return fmt.Errorf("la nota no separa cuerpo y firmas")
+	}
+	for _, line := range strings.Split(strings.TrimRight(string(msg[i+2:]), "\n"), "\n") {
+		j := strings.LastIndex(line, " ")
+		blob, err := base64.StdEncoding.DecodeString(line[j+1:])
+		if err != nil {
+			return err
+		}
+		name := strings.TrimPrefix(line[:j], "— ")
+		switch len(blob) - 4 {
+		case ed25519.SignatureSize:
+			fmt.Printf("    · Ed25519      %4d bytes  %s\n", len(blob)-4, name)
+		case checkpoint.MLDSASignatureSize:
+			fmt.Printf("    · ML-DSA-44   %5d bytes  %s  (key ID %08x, extensión 0xff)\n",
+				len(blob)-4, name, pq.KeyHash())
+		default:
+			fmt.Printf("    · cosignature %5d bytes  %s\n", len(blob)-4, name)
+		}
+	}
+	return nil
 }
 
 // sealBlocks sella n bloques a partir del índice from.

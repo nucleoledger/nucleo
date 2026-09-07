@@ -3,7 +3,10 @@ package checkpoint
 import (
 	"bytes"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
+	"errors"
 	"strings"
 	"testing"
 
@@ -24,11 +27,11 @@ func dualSigned(t *testing.T) (msg []byte, ed note.Verifier, pq *MLDSAVerifier) 
 	const origin = "nucleoledger.com/pq"
 
 	edSigner, edVerifier, _ := testKeys(t, origin, 3)
-	pqSigner, err := NewMLDSASigner(origin, mldsaSeed(7), AlgMLDSA44Provisional)
+	pqSigner, err := NewMLDSASigner(origin, mldsaSeed(7))
 	if err != nil {
 		t.Fatal(err)
 	}
-	pqVerifier, err := NewMLDSAVerifier(origin, pqSigner.PublicKey(), AlgMLDSA44Provisional)
+	pqVerifier, err := NewMLDSAVerifier(origin, pqSigner.PublicKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,14 +97,7 @@ func TestMLDSAIsBackwardCompatible(t *testing.T) {
 	}
 }
 
-// TestMLDSASignatureShape fija lo que NO depende del byte de algoritmo
-// pendiente: el tamaño de la firma y su sitio en la nota.
-//
-// El key ID no se fija con un golden a propósito. Depende del byte de algoritmo,
-// que está pendiente de decisión (ver el SPEC-CHECK de mldsa.go), y fijar ahora
-// un valor calculado con la misma función que verifica sería repetir el error de
-// SC-2: un key ID equivocado que pasa los tests porque los tests lo calculan
-// igual que el código.
+// TestMLDSASignatureShape fija el tamaño de la firma y su sitio en la nota.
 func TestMLDSASignatureShape(t *testing.T) {
 	msg, edVerifier, pqVerifier := dualSigned(t)
 
@@ -142,13 +138,13 @@ func TestMLDSASignatureShape(t *testing.T) {
 
 // TestMLDSARejectsBadMaterial cubre las entradas que no forman una clave.
 func TestMLDSARejectsBadMaterial(t *testing.T) {
-	if _, err := NewMLDSASigner("nucleoledger.com/pq", make([]byte, 16), AlgMLDSA44Provisional); err == nil {
+	if _, err := NewMLDSASigner("nucleoledger.com/pq", make([]byte, 16)); err == nil {
 		t.Error("se aceptó una semilla de 16 bytes")
 	}
-	if _, err := NewMLDSAVerifier("nucleoledger.com/pq", make([]byte, 100), AlgMLDSA44Provisional); err == nil {
+	if _, err := NewMLDSAVerifier("nucleoledger.com/pq", make([]byte, 100)); err == nil {
 		t.Error("se aceptó una pública de 100 bytes")
 	}
-	if _, err := NewMLDSASigner("", mldsaSeed(1), AlgMLDSA44Provisional); err == nil {
+	if _, err := NewMLDSASigner("", mldsaSeed(1)); err == nil {
 		t.Error("se aceptó un nombre vacío")
 	}
 
@@ -164,7 +160,7 @@ func TestMLDSARejectsBadMaterial(t *testing.T) {
 // TestMLDSASignIsDeterministic: la misma nota y la misma clave dan los mismos
 // bytes. Sin esto, dos copias del mismo checkpoint no se podrían comparar.
 func TestMLDSASignIsDeterministic(t *testing.T) {
-	s, err := NewMLDSASigner("nucleoledger.com/pq", mldsaSeed(7), AlgMLDSA44Provisional)
+	s, err := NewMLDSASigner("nucleoledger.com/pq", mldsaSeed(7))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,5 +177,155 @@ func TestMLDSASignIsDeterministic(t *testing.T) {
 	}
 	if len(a) != MLDSASignatureSize {
 		t.Errorf("firma de %d bytes, want %d", len(a), MLDSASignatureSize)
+	}
+}
+
+// TestMLDSAKeyHashGolden fija el key ID de ADR-007 contra valores calculados
+// FUERA de este código.
+//
+// Los goldens salieron de un script de python con hashlib, alimentado con las
+// claves públicas volcadas aparte: python concatena los bytes y hashea sin saber
+// nada de MLDSAKeyHash. Es la regla anti-circularidad, y aquí importa más que en
+// ningún otro sitio: la lección de SC-2 fue exactamente esta, un key ID
+// equivocado que pasó todos los tests porque los tests lo calculaban con la
+// misma función que verificaban.
+//
+// Fórmula:
+//
+//	SHA-256(name ‖ "\n" ‖ 0xff ‖ "nucleoledger.com/sig/ml-dsa-44@v1" ‖ "\n" ‖ pubkey)[:4]
+func TestMLDSAKeyHashGolden(t *testing.T) {
+	cases := []struct {
+		name string
+		seed byte
+		want uint32
+	}{
+		{"nucleoledger.com/pq", 7, 0x5fa5e8ea},
+		{"nucleoledger.com/poc3", 42, 0x7c30f8b0},
+		{"example.com/log", 7, 0x75c04ba5},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s, err := NewMLDSASigner(c.name, mldsaSeed(c.seed))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := s.KeyHash(); got != c.want {
+				t.Errorf("key ID = %08x, want %08x (calculado con python hashlib)", got, c.want)
+			}
+			v, err := NewMLDSAVerifier(c.name, s.PublicKey())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.KeyHash() != c.want {
+				t.Errorf("el verificador da %08x y el firmante %08x", v.KeyHash(), c.want)
+			}
+		})
+	}
+
+	// Control: el identificador largo entra DENTRO del hash. Si solo entrara el
+	// byte 0xff, dos extensiones distintas darían el mismo key ID para la misma
+	// clave, y el golden de abajo —también de python— coincidiría con el de
+	// arriba. No coincide.
+	const v2Golden uint32 = 0x55e4bdfa
+	if v2Golden == 0x5fa5e8ea {
+		t.Fatal("los dos goldens son iguales: el control no prueba nada")
+	}
+
+	// Y el key ID de la extensión NO es el del formato clásico con 0xff, que
+	// sería lo que saldría de olvidar el identificador largo.
+	s, err := NewMLDSASigner("nucleoledger.com/pq", mldsaSeed(7))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain := keyHashBytes("nucleoledger.com/pq", s.PublicKey(), AlgMLDSA44Ext); plain == s.KeyHash() {
+		t.Error("el identificador largo no entró en el hash")
+	}
+}
+
+// TestMLDSAKeyHashMatchesTheSpecShape comprueba la fórmula reconstruyéndola a
+// mano, byte a byte, en vez de llamar a la función que se verifica.
+func TestMLDSAKeyHashMatchesTheSpecShape(t *testing.T) {
+	const name = "nucleoledger.com/pq"
+	s, err := NewMLDSASigner(name, mldsaSeed(7))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf []byte
+	buf = append(buf, name...)
+	buf = append(buf, '\n')
+	buf = append(buf, 0xff)
+	buf = append(buf, "nucleoledger.com/sig/ml-dsa-44@v1"...)
+	buf = append(buf, '\n')
+	buf = append(buf, s.PublicKey()...)
+	sum := sha256.Sum256(buf)
+	want := binary.BigEndian.Uint32(sum[:4])
+	if s.KeyHash() != want {
+		t.Errorf("key ID = %08x, la fórmula reconstruida da %08x", s.KeyHash(), want)
+	}
+}
+
+// TestLogEmitsBothSignatures comprueba la propiedad de ADR-007 sobre los
+// checkpoints REALES que emite checkpoint.Log, no sobre notas armadas a mano en
+// un test. Es la diferencia entre "el mecanismo funciona" y "los checkpoints que
+// salen de producción lo llevan".
+func TestLogEmitsBothSignatures(t *testing.T) {
+	const origin = "nucleoledger.com/pq"
+	edSigner, edVerifier, _ := testKeys(t, origin, 3)
+	pqSigner, err := NewMLDSASigner(origin, mldsaSeed(7))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pqVerifier, err := NewMLDSAVerifier(origin, pqSigner.PublicKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := NewLog(origin, edSigner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AddSigner(pqSigner); err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := l.Sign(Checkpoint{Origin: origin, Size: 5, RootHash: rfc6962Root5(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// El verificador ANTIGUO sigue funcionando sobre un checkpoint de verdad.
+	n, err := note.Open(msg, note.VerifierList(edVerifier))
+	if err != nil {
+		t.Fatalf("un verificador solo-Ed25519 no abrió un checkpoint real: %v", err)
+	}
+	if len(n.Sigs) != 1 || len(n.UnverifiedSigs) != 1 {
+		t.Errorf("firmas: %d verificadas y %d ignoradas, want 1 y 1", len(n.Sigs), len(n.UnverifiedSigs))
+	}
+
+	// Y el completo verifica las dos.
+	n2, err := note.Open(msg, note.VerifierList(edVerifier, pqVerifier))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(n2.Sigs) != 2 {
+		t.Errorf("%d firmas verificadas sobre un checkpoint real, want 2", len(n2.Sigs))
+	}
+
+	// El cerrojo anti-retroceso sigue en pie con dos firmantes.
+	if _, err := l.Sign(Checkpoint{Origin: origin, Size: 3, RootHash: rfc6962Root5(t)}); !errors.Is(err, ErrRollback) {
+		t.Errorf("el cerrojo se perdió al añadir firmante: %v", err)
+	}
+
+	// Un firmante adicional con otro nombre se rechaza: el origin de la nota es
+	// uno solo, y una línea de firma con otro nombre no la verificaría nadie.
+	other, err := NewMLDSASigner("otro.example/log", mldsaSeed(42))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AddSigner(other); !errors.Is(err, ErrOrigin) {
+		t.Errorf("se aceptó un firmante de otro origin: %v", err)
+	}
+	if err := l.AddSigner(nil); err == nil {
+		t.Error("se aceptó un firmante nulo")
 	}
 }

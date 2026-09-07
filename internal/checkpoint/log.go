@@ -20,7 +20,10 @@ import (
 type Log struct {
 	origin string
 	signer note.Signer
-	last   *Checkpoint
+	// extra son las firmas adicionales del log, hoy la ML-DSA-44 de ADR-007.
+	// Van en la MISMA nota que la Ed25519: quien no las entienda las ignora.
+	extra []note.Signer
+	last  *Checkpoint
 }
 
 // NewLog crea un log firmante para el origin dado.
@@ -32,6 +35,33 @@ func NewLog(origin string, signer note.Signer) (*Log, error) {
 		return nil, fmt.Errorf("checkpoint: firmante nulo para %q", origin)
 	}
 	return &Log{origin: origin, signer: signer}, nil
+}
+
+// AddSigner añade una firma adicional a todos los checkpoints que emita el log.
+//
+// Es como entra la ML-DSA-44 de ADR-007: no sustituye a la Ed25519, se suma a
+// ella en la misma nota. Un verificador que no conozca la clave nueva ignora su
+// línea de firma y sigue verificando exactamente igual, que es la propiedad que
+// hace posible añadir resistencia post-cuántica sin romper a nadie.
+//
+// El orden importa poco para la validez y mucho para los bytes: las firmas
+// salen en el orden en que se pasan a note.Sign, así que añadir un firmante
+// cambia los bytes de los checkpoints futuros —no los ya emitidos—.
+func (l *Log) AddSigner(s note.Signer) error {
+	if s == nil {
+		return fmt.Errorf("checkpoint: firmante adicional nulo para %q", l.origin)
+	}
+	if s.Name() != l.origin {
+		return fmt.Errorf("%w: el firmante adicional se llama %q y el log %q",
+			ErrOrigin, s.Name(), l.origin)
+	}
+	l.extra = append(l.extra, s)
+	return nil
+}
+
+// signers devuelve la firma principal seguida de las adicionales.
+func (l *Log) signers() []note.Signer {
+	return append([]note.Signer{l.signer}, l.extra...)
 }
 
 // Origin devuelve el identificador del log.
@@ -54,7 +84,7 @@ func (l *Log) Sign(c Checkpoint) ([]byte, error) {
 	if err := l.checkMonotonic(c); err != nil {
 		return nil, err
 	}
-	msg, err := Sign(c, l.signer)
+	msg, err := Sign(c, l.signers()...)
 	if err != nil {
 		return nil, err
 	}

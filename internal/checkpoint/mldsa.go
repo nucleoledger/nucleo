@@ -16,31 +16,28 @@ import (
 // quien no la entiende —las notas firmadas obligan a ignorar las firmas
 // desconocidas— y lo cuesta todo no haberla añadido cuando haga falta.
 //
-// SPEC-CHECK — EL BYTE DE ALGORITMO ESTÁ PENDIENTE DE DECISIÓN DEL DEV.
+// # El byte 0xff y por qué
 //
-// c2sp.org/signed-note (sha256 0aaa21aad2cd77cdba27c3c0da59d58bf77a264e7de45cff5fb41b8795bcf4a7)
-// asigna estos bytes: 0x01 Ed25519, 0x02 ECDSA, 0x03 reservado, 0x04
-// cosignature Ed25519 con timestamp, 0x05 TreeHeadSignature, 0x06 cosignature
-// ML-DSA-44 con timestamp, 0xfa–0xfe reservados, 0xff "para tipos de firma sin
-// byte asignado por esta especificación".
+// c2sp.org/signed-note no asigna ningún byte a una firma de log ML-DSA-44
+// llana. Asigna 0x01 a Ed25519, 0x04 a las cosignatures Ed25519 con timestamp y
+// 0x06 a las cosignatures ML-DSA-44 con timestamp. El 0x06 NO sirve aquí: es de
+// cosignatures, c2sp.org/tlog-cosignature lo define sobre el mensaje
+// "cosignature/v1\ntime <unix>\n" y habla de cosigner public key. Usarlo haría
+// que el log firmara como testigo de sí mismo, que es falso.
 //
-// NO hay byte asignado para una firma de log ML-DSA-44 llana. El 0x06 es de
-// COSIGNATURES: c2sp.org/tlog-cosignature lo define sobre el mensaje
-// "cosignature/v1\ntime <unix>\n" y habla de "cosigner public key". Usarlo aquí
-// haría que el log firmara como si fuera testigo de sí mismo, que es falso.
+// El spec destina el 0xff a los tipos sin byte asignado y recomienda seguirlo de
+// un identificador más largo que sea improbable que colisione. Ese identificador
+// es MLDSAExtensionID, decidido por el dev y fijado en ADR-007.
 //
-// Queda el 0xff, que el spec destina justamente a este caso, pero recomienda
-// seguirlo de "un identificador más largo que sea improbable que colisione" sin
-// fijar cuál. Ese identificador sería una extensión de Núcleo, no algo que el
-// spec determine, así que la decisión es del dev y no se toma aquí.
-//
-// Mientras tanto el byte es un parámetro con un valor provisional, y NO hay
-// golden de key ID: fijar uno ahora sería exactamente el error de SC-2, cuando
-// un key ID equivocado pasó los tests porque los tests lo calculaban con la
-// misma función que verificaban. Lo que sí está probado es la propiedad que
-// ADR-007 promete y que no depende de este byte: un verificador que solo conoce
-// la clave Ed25519 sigue verificando la nota.
-const AlgMLDSA44Provisional = 0xff
+// El formato del key ID no se cambia sin rotar la clave: el key ID identifica la
+// clave en cada línea de firma, así que tocarlo convierte en ilegibles todas las
+// firmas ya emitidas con ella.
+
+// MLDSAExtensionID es el identificador largo que sigue al byte 0xff.
+const MLDSAExtensionID = "nucleoledger.com/sig/ml-dsa-44@v1"
+
+// AlgMLDSA44Ext es el byte de extensión de c2sp.org/signed-note.
+const AlgMLDSA44Ext = 0xff
 
 // Tamaños de ML-DSA-44 (FIPS 204), comprobados contra crypto/mldsa.
 const (
@@ -63,11 +60,7 @@ type MLDSASigner struct {
 }
 
 // NewMLDSASigner construye un firmante desde su semilla de 32 bytes.
-//
-// El byte de algoritmo entra en el key ID y por eso se pide explícitamente: no
-// es un detalle interno, es parte de la identidad de la clave. Ver el
-// SPEC-CHECK de arriba.
-func NewMLDSASigner(name string, seed []byte, alg byte) (*MLDSASigner, error) {
+func NewMLDSASigner(name string, seed []byte) (*MLDSASigner, error) {
 	if err := validOrigin(name); err != nil {
 		return nil, err
 	}
@@ -81,7 +74,7 @@ func NewMLDSASigner(name string, seed []byte, alg byte) (*MLDSASigner, error) {
 	}
 	return &MLDSASigner{
 		name: name,
-		hash: keyHashBytes(name, sk.PublicKey().Bytes(), alg),
+		hash: MLDSAKeyHash(name, sk.PublicKey().Bytes()),
 		key:  sk,
 	}, nil
 }
@@ -113,7 +106,7 @@ type MLDSAVerifier struct {
 }
 
 // NewMLDSAVerifier construye un verificador desde la clave pública codificada.
-func NewMLDSAVerifier(name string, pub []byte, alg byte) (*MLDSAVerifier, error) {
+func NewMLDSAVerifier(name string, pub []byte) (*MLDSAVerifier, error) {
 	if err := validOrigin(name); err != nil {
 		return nil, err
 	}
@@ -125,7 +118,7 @@ func NewMLDSAVerifier(name string, pub []byte, alg byte) (*MLDSAVerifier, error)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrMLDSAKey, err)
 	}
-	return &MLDSAVerifier{name: name, hash: keyHashBytes(name, pub, alg), key: pk}, nil
+	return &MLDSAVerifier{name: name, hash: MLDSAKeyHash(name, pub), key: pk}, nil
 }
 
 // Name devuelve el nombre de la clave.
@@ -142,9 +135,27 @@ func (v *MLDSAVerifier) Verify(msg, sig []byte) bool {
 	return mldsa.Verify(v.key, msg, sig, &mldsa.Options{}) == nil
 }
 
-// keyHashBytes calcula el key ID sobre material de clave de cualquier tamaño:
-// SHA-256(name ‖ "\n" ‖ alg ‖ pubkey), truncado a 4 bytes big-endian. Es la
-// misma fórmula de KeyHashAlg, sin atarse a una pública de 32 bytes.
+// MLDSAKeyHash calcula el key ID de una clave ML-DSA-44 del log, con el formato
+// que fija ADR-007:
+//
+//	SHA-256(name ‖ "\n" ‖ 0xff ‖ MLDSAExtensionID ‖ "\n" ‖ pubkey)[:4]
+//
+// El identificador largo va DENTRO del hash, no solo en el byte de tipo: es lo
+// que impide que dos extensiones distintas que compartan el 0xff produzcan el
+// mismo key ID para la misma clave.
+func MLDSAKeyHash(name string, pub []byte) uint32 {
+	h := sha256.New()
+	h.Write([]byte(name))
+	h.Write([]byte("\n"))
+	h.Write([]byte{AlgMLDSA44Ext})
+	h.Write([]byte(MLDSAExtensionID))
+	h.Write([]byte("\n"))
+	h.Write(pub)
+	return binary.BigEndian.Uint32(h.Sum(nil))
+}
+
+// keyHashBytes calcula el key ID clásico de signed-note:
+// SHA-256(name ‖ "\n" ‖ alg ‖ pubkey), truncado a 4 bytes big-endian.
 func keyHashBytes(name string, pub []byte, alg byte) uint32 {
 	h := sha256.New()
 	h.Write([]byte(name))
