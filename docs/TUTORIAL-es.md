@@ -113,11 +113,11 @@ público de lo que no:
   hash contenido: e08ab33e7b33533ce06bb329179f55c14afea63b38fcb2d993d6625362a3b839
 
   perfil       : ecuador.sri.factura
-    clave_acceso:            0709202601179001234500100100100000000112345678111
-    establecimiento:         010
+    clave_acceso:            0709202601179001234500110010010000000011234567816
+    establecimiento:         001
     fecha_emision:           2026-09-07
     ruc_emisor:              1790012345001
-    secuencial:              000000011
+    secuencial:              000000001
     tipo_comprobante:        01
 
   campos sensibles, registrados como COMPROMISO (nunca como hash desnudo):

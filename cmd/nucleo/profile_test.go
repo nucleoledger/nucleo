@@ -16,8 +16,19 @@ import (
 // claveDemo arma una clave de acceso válida para los tests. El dígito
 // verificador se calcula, no se escribe: escribirlo a mano en un test que
 // verifica el cálculo sería circular.
+// claveDemo devuelve una clave de acceso COHERENTE con el XML de facturaXML:
+// los ocho campos que codifica son los mismos que el XML declara aparte, que es
+// lo que el perfil coteja desde el hallazgo MEDIO de la auditoría pre-pública.
 func claveDemo() string {
-	base := "070920260117900123450010010010000000011234567811"
+	base := "07092026" + // fecha de emisión
+		"01" + // factura
+		"1790012345001" + // RUC del emisor
+		"1" + // ambiente: pruebas
+		"001" + // establecimiento
+		"001" + // punto de emisión
+		"000000001" + // secuencial
+		"12345678" + // código numérico
+		"1" // tipo de emisión
 	return base + fmt.Sprint(ecuador.DigitoVerificador(base))
 }
 

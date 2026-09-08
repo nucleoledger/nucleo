@@ -27,7 +27,7 @@ func TestDigitoVerificadorGolden(t *testing.T) {
 	}{
 		{"ejemplo de la implementación PHP", "050320200717231252640012001002000001193050320001", 4},
 		{"desglose de campos del artículo", "040520260117912345670012001001000000123123456781", 4},
-		{"factura de la demo de Núcleo", "070920260117900123450010010010000000011234567811", 1},
+		{"factura de la demo de Núcleo", "070920260117900123450011001001000000001123456781", 6},
 		{"todo ceros", strings.Repeat("0", 48), 0},
 		{"todo unos", strings.Repeat("1", 48), 4},
 	}
@@ -87,7 +87,7 @@ func TestDigitoVerificadorCasosEspeciales(t *testing.T) {
 
 // TestParseClaveAccesoRechaza cubre lo que no es una clave de acceso.
 func TestParseClaveAccesoRechaza(t *testing.T) {
-	buena := "0709202601179001234500100100100000000112345678" + "11" + "1"
+	buena := claveDemo()
 	if len(buena) != 49 {
 		t.Fatalf("la clave de prueba mide %d", len(buena))
 	}
@@ -120,8 +120,7 @@ func TestParseClaveAccesoRechaza(t *testing.T) {
 
 // TestParseClaveAccesoDesglosa comprueba el troceado por posiciones.
 func TestParseClaveAccesoDesglosa(t *testing.T) {
-	base := "070920260117900123450010010010000000011234567811"
-	clave := base + fmt.Sprint(DigitoVerificador(base))
+	clave := claveDemo()
 
 	c, err := ParseClaveAcceso(clave)
 	if err != nil {
@@ -181,8 +180,23 @@ func facturaEjemplo(t *testing.T, clave string) []byte {
 </factura>`)
 }
 
+// claveDemo devuelve una clave de acceso COHERENTE con facturaEjemplo: los
+// campos que codifica son exactamente los que el XML declara aparte.
+//
+// La primera versión de este helper usaba una clave inventada cuyo
+// establecimiento, punto de emisión, secuencial y ambiente NO coincidían con los
+// del XML de prueba. Nadie lo notó hasta que el perfil empezó a cotejar los dos
+// sitios — que es precisamente para lo que sirve cotejarlos.
 func claveDemo() string {
-	base := "070920260117900123450010010010000000011234567811"
+	base := "07092026" + // fecha de emisión, ddmmaaaa
+		"01" + // factura
+		"1790012345001" + // RUC del emisor
+		"1" + // ambiente: pruebas
+		"001" + // establecimiento
+		"001" + // punto de emisión
+		"000000001" + // secuencial
+		"12345678" + // código numérico
+		"1" // tipo de emisión: normal
 	return base + fmt.Sprint(DigitoVerificador(base))
 }
 
@@ -243,7 +257,7 @@ func TestParseFacturaRechaza(t *testing.T) {
 		}
 	})
 
-	t.Run("el RUC del XML no es el de la clave", func(t *testing.T) {
+	t.Run("el RUC del XML no coincide con el de la clave", func(t *testing.T) {
 		xmlRaw := strings.Replace(string(facturaEjemplo(t, buena)),
 			"<ruc>1790012345001</ruc>", "<ruc>0999999999001</ruc>", 1)
 		_, _, err := ParseFactura([]byte(xmlRaw))
@@ -302,5 +316,98 @@ func TestParseActa(t *testing.T) {
 		if _, err := ParseActa(c.acta); !errors.Is(err, ErrDocumento) {
 			t.Errorf("%s: err = %v, want %v", c.nombre, err, ErrDocumento)
 		}
+	}
+}
+
+// TestCotejoClaveContraXML es el hallazgo MEDIO de la auditoría pre-pública.
+//
+// La clave de acceso codifica ocho campos que el XML repite en sus propios
+// elementos. Antes solo se comprobaba el RUC, así que un comprobante podía
+// declarar un establecimiento, un secuencial o una fecha distintos de los que
+// lleva su propia clave y sellarse igual. El ledger indexa por la clave y una
+// persona mira los elementos: un registro así haría que los dos entendieran
+// cosas distintas, para siempre.
+func TestCotejoClaveContraXML(t *testing.T) {
+	// Control: el XML coherente pasa. Sin esto, un cotejo que rechazara todo
+	// también aprobaría los casos de abajo.
+	if _, _, err := ParseFactura(facturaEjemplo(t, claveDemo())); err != nil {
+		t.Fatalf("el XML coherente se rechazó: %v", err)
+	}
+
+	// Cada caso altera UN elemento del XML para que deje de coincidir con lo
+	// que la clave codifica. Todos deben rechazarse, y el mensaje debe nombrar
+	// el campo: quien lo lee está buscando un fallo en su generador de facturas.
+	cases := []struct {
+		campo     string
+		de, a     string
+		enMensaje string
+	}{
+		{"ruc", "<ruc>1790012345001</ruc>", "<ruc>0999999999001</ruc>", "ruc"},
+		{"codDoc", "<codDoc>01</codDoc>", "<codDoc>04</codDoc>", "codDoc"},
+		{"ambiente", "<ambiente>1</ambiente>", "<ambiente>2</ambiente>", "ambiente"},
+		{"tipoEmision", "<tipoEmision>1</tipoEmision>", "<tipoEmision>2</tipoEmision>", "tipoEmision"},
+		{"estab", "<estab>001</estab>", "<estab>002</estab>", "estab"},
+		{"ptoEmi", "<ptoEmi>001</ptoEmi>", "<ptoEmi>002</ptoEmi>", "ptoEmi"},
+		{"secuencial", "<secuencial>000000001</secuencial>", "<secuencial>000000002</secuencial>", "secuencial"},
+		{"fechaEmision", "<fechaEmision>07/09/2026</fechaEmision>", "<fechaEmision>08/09/2026</fechaEmision>", "fechaEmision"},
+	}
+	for _, c := range cases {
+		t.Run(c.campo, func(t *testing.T) {
+			raw := string(facturaEjemplo(t, claveDemo()))
+			alterado := strings.Replace(raw, c.de, c.a, 1)
+			if alterado == raw {
+				t.Fatalf("la sustitución %q no se aplicó: el caso no prueba nada", c.de)
+			}
+			_, _, err := ParseFactura([]byte(alterado))
+			if !errors.Is(err, ErrDocumento) {
+				t.Fatalf("err = %v, want %v", err, ErrDocumento)
+			}
+			if !strings.Contains(err.Error(), c.enMensaje) {
+				t.Errorf("el mensaje no nombra el campo %q: %v", c.enMensaje, err)
+			}
+		})
+	}
+}
+
+// TestCotejoRechazaCamposAusentes: un elemento que falta tampoco cuadra. Sin
+// esta comprobación, borrar un campo del XML sería una forma de saltarse el
+// cotejo, que es lo contrario de lo que debería conseguir.
+func TestCotejoRechazaCamposAusentes(t *testing.T) {
+	for _, quitar := range []string{
+		"<estab>001</estab>",
+		"<ptoEmi>001</ptoEmi>",
+		"<secuencial>000000001</secuencial>",
+		"<tipoEmision>1</tipoEmision>",
+		"<ambiente>1</ambiente>",
+		"<codDoc>01</codDoc>",
+	} {
+		t.Run(quitar, func(t *testing.T) {
+			raw := string(facturaEjemplo(t, claveDemo()))
+			sin := strings.Replace(raw, quitar, "", 1)
+			if sin == raw {
+				t.Fatalf("no se pudo quitar %q", quitar)
+			}
+			if _, _, err := ParseFactura([]byte(sin)); !errors.Is(err, ErrDocumento) {
+				t.Errorf("err = %v, want %v", err, ErrDocumento)
+			}
+		})
+	}
+}
+
+// TestFechaEmisionConHora: el SRI a veces escribe la fecha con la hora detrás.
+// Aceptarla es correcto; lo que no puede es cambiar el día.
+func TestFechaEmisionConHora(t *testing.T) {
+	raw := strings.Replace(string(facturaEjemplo(t, claveDemo())),
+		"<fechaEmision>07/09/2026</fechaEmision>",
+		"<fechaEmision>07/09/2026 14:32:00</fechaEmision>", 1)
+	if _, _, err := ParseFactura([]byte(raw)); err != nil {
+		t.Errorf("una fecha con hora se rechazó: %v", err)
+	}
+
+	malaFecha := strings.Replace(string(facturaEjemplo(t, claveDemo())),
+		"<fechaEmision>07/09/2026</fechaEmision>",
+		"<fechaEmision>2026-09-07</fechaEmision>", 1)
+	if _, _, err := ParseFactura([]byte(malaFecha)); !errors.Is(err, ErrDocumento) {
+		t.Errorf("una fecha en otro formato debería rechazarse: %v", err)
 	}
 }

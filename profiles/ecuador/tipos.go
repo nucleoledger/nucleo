@@ -78,6 +78,7 @@ type facturaXML struct {
 		RazonSocial string `xml:"razonSocial"`
 		RUC         string `xml:"ruc"`
 		ClaveAcceso string `xml:"claveAcceso"`
+		TipoEmision string `xml:"tipoEmision"`
 		CodDoc      string `xml:"codDoc"`
 		Estab       string `xml:"estab"`
 		PtoEmi      string `xml:"ptoEmi"`
@@ -109,10 +110,8 @@ func ParseFactura(raw []byte) (Record, ClaveAcceso, error) {
 	if err := ValidarRUC(doc.InfoTrib.RUC); err != nil {
 		return Record{}, ClaveAcceso{}, err
 	}
-	if doc.InfoTrib.RUC != clave.RUCEmisor {
-		return Record{}, ClaveAcceso{}, fmt.Errorf(
-			"%w: el RUC del XML (%s) no es el de la clave de acceso (%s)",
-			ErrDocumento, doc.InfoTrib.RUC, clave.RUCEmisor)
+	if err := cotejarClaveConXML(clave, doc); err != nil {
+		return Record{}, ClaveAcceso{}, err
 	}
 
 	rec := Record{Type: TipoFactura, Fields: []Field{
@@ -184,4 +183,66 @@ func ParseActa(a Acta) (Record, error) {
 		})
 	}
 	return Record{Type: TipoActa, Fields: fields}, nil
+}
+
+// cotejarClaveConXML exige que los campos que la clave de acceso codifica sean
+// los mismos que el XML declara aparte.
+//
+// Los dos sitios dicen lo mismo por diseño del SRI: la clave de 49 dígitos lleva
+// dentro la fecha, el tipo de comprobante, el RUC, el ambiente, el
+// establecimiento, el punto de emisión, el secuencial y el tipo de emisión, y el
+// XML repite todo eso en sus propios elementos. Que coincidan no es una
+// casualidad que convenga comprobar: es una invariante del documento.
+//
+// Sellar un comprobante donde no coincidan sería registrar para siempre algo que
+// se contradice a sí mismo, y dejar que el ledger y un lector humano entiendan
+// cosas distintas del mismo registro: el ledger indexa por la clave, la persona
+// mira los elementos. Rechazar es lo único razonable, y el mensaje nombra el
+// campo porque quien lo lee está buscando un fallo en su generador de facturas.
+func cotejarClaveConXML(c ClaveAcceso, doc facturaXML) error {
+	fechaXML, err := fechaEmisionXML(doc.InfoFactura.FechaEmision)
+	if err != nil {
+		return err
+	}
+
+	campos := []struct {
+		nombre    string
+		enLaClave string
+		enElXML   string
+	}{
+		{"ruc", c.RUCEmisor, doc.InfoTrib.RUC},
+		{"codDoc (tipo de comprobante)", c.TipoComprobante, doc.InfoTrib.CodDoc},
+		{"ambiente", c.Ambiente, doc.InfoTrib.Ambiente},
+		{"tipoEmision", c.TipoEmision, doc.InfoTrib.TipoEmision},
+		{"estab (establecimiento)", c.Establecimiento, doc.InfoTrib.Estab},
+		{"ptoEmi (punto de emisión)", c.PuntoEmision, doc.InfoTrib.PtoEmi},
+		{"secuencial", c.Secuencial, doc.InfoTrib.Secuencial},
+		{"fechaEmision", c.FechaEmision.Format("2006-01-02"), fechaXML},
+	}
+	for _, campo := range campos {
+		if campo.enElXML == "" {
+			return fmt.Errorf("%w: al XML le falta %s, que la clave de acceso sí codifica",
+				ErrDocumento, campo.nombre)
+		}
+		if campo.enLaClave != campo.enElXML {
+			return fmt.Errorf(
+				"%w: %s no coincide — la clave de acceso dice %q y el XML dice %q",
+				ErrDocumento, campo.nombre, campo.enLaClave, campo.enElXML)
+		}
+	}
+	return nil
+}
+
+// fechaEmisionXML normaliza la fecha del XML, que el SRI escribe como dd/mm/aaaa
+// y a veces con la hora detrás.
+func fechaEmisionXML(raw string) (string, error) {
+	f := strings.TrimSpace(raw)
+	if i := strings.IndexByte(f, ' '); i > 0 {
+		f = f[:i]
+	}
+	t, err := time.Parse("02/01/2006", f)
+	if err != nil {
+		return "", fmt.Errorf("%w: fechaEmision %q no es dd/mm/aaaa", ErrDocumento, raw)
+	}
+	return t.Format("2006-01-02"), nil
 }

@@ -83,8 +83,19 @@ exige "dice que se escriban en papel"    "$salida_init" "Escríbelas EN PAPEL"
 
 # ---------------------------------------------------------------------------
 titulo "seal — sellar una factura del SRI con el perfil de Ecuador"
+# La clave de acceso se construye COHERENTE con el XML de abajo: el perfil
+# coteja los ocho campos que la clave codifica contra los que el XML declara
+# aparte, y rechaza si discrepan.
 CLAVE="$(python3 - <<'PY'
-base = "070920260117900123450010010010000000011234567811"
+base = ("07092026"      # fecha de emisión
+        "01"            # factura
+        "1790012345001" # RUC del emisor
+        "1"             # ambiente: pruebas
+        "001"           # establecimiento
+        "001"           # punto de emisión
+        "000000001"     # secuencial
+        "12345678"      # código numérico
+        "1")            # tipo de emisión
 s, f = 0, 2
 for ch in reversed(base):
     s += int(ch) * f
