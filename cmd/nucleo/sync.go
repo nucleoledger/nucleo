@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -200,28 +201,56 @@ func cmdWitness(e *env, args []string) error {
 // Vive junto a su memoria porque las dos cosas son la identidad del testigo: sin
 // la clave, las cosignatures que ya emitió no se pueden verificar, y sin la
 // memoria no sabe qué avaló. Perder cualquiera de las dos lo inutiliza.
+//
+// Es una CLAVE PRIVADA en un fichero, así que se trata como tal:
+//
+//   - Se crea con O_EXCL. No hay leer-y-después-escribir: entre esas dos
+//     operaciones cabe otro proceso creando el fichero, y el segundo en escribir
+//     dejaría al testigo con una clave distinta de la que el primero ya usó para
+//     cosignar. Con O_EXCL, el que llega tarde recibe un error en vez de pisar.
+//   - Se crea con permisos 0600 y se comprueba que un fichero YA EXISTENTE no
+//     sea legible por otros. Un testigo cuya clave privada puede leer cualquier
+//     usuario de la máquina no atestigua nada: quien la lea puede firmar en su
+//     nombre.
 func witnessKey(path string) (ed25519.PrivateKey, bool, error) {
-	raw, err := readLimited(path, maxKeyFile, "la clave del testigo")
-	if err == nil {
-		seed, err := hex.DecodeString(string(raw[:min(len(raw), 64)]))
-		if err != nil || len(seed) != ed25519.SeedSize {
-			return nil, false, usageErr("la clave del testigo en %q no es válida", path)
+	// Primero se intenta CREAR en exclusiva. Si el fichero ya está, se lee; si
+	// no, se acaba de crear y nadie más pudo ganarnos la carrera.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	switch {
+	case err == nil:
+		defer f.Close()
+		seed := make([]byte, ed25519.SeedSize)
+		if s, ok := hookSeed(); ok {
+			copy(seed, s)
+		} else if _, err := rand.Read(seed); err != nil {
+			return nil, false, err
 		}
-		return ed25519.NewKeyFromSeed(seed), false, nil
+		if _, err := f.Write([]byte(hex.EncodeToString(seed))); err != nil {
+			return nil, false, err
+		}
+		if err := f.Sync(); err != nil {
+			return nil, false, err
+		}
+		return ed25519.NewKeyFromSeed(seed), true, nil
+
+	case !errors.Is(err, os.ErrExist):
+		return nil, false, usageErr("no se pudo crear la clave del testigo en %q: %w", path, err)
 	}
-	if !errors.Is(err, os.ErrNotExist) {
+
+	// El fichero ya existe: se comprueban sus permisos antes de usarlo.
+	if err := checkKeyPerms(path); err != nil {
 		return nil, false, err
 	}
-	seed := make([]byte, ed25519.SeedSize)
-	if s, ok := hookSeed(); ok {
-		copy(seed, s)
-	} else if _, err := rand.Read(seed); err != nil {
+	raw, err := readLimited(path, maxKeyFile, "la clave del testigo")
+	if err != nil {
 		return nil, false, err
 	}
-	if err := os.WriteFile(path, []byte(hex.EncodeToString(seed)), 0o600); err != nil {
-		return nil, false, err
+	seed, err := hex.DecodeString(strings.TrimSpace(string(raw)))
+	if err != nil || len(seed) != ed25519.SeedSize {
+		return nil, false, usageErr("la clave del testigo en %q no es válida: se esperan %d bytes en hexadecimal",
+			path, ed25519.SeedSize)
 	}
-	return ed25519.NewKeyFromSeed(seed), true, nil
+	return ed25519.NewKeyFromSeed(seed), false, nil
 }
 
 // cmdWitnessKey imprime la clave pública del testigo.

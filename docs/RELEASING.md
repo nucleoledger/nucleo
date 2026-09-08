@@ -204,6 +204,24 @@ exacta de cosign.
 
 ---
 
+## La clave de un testigo, en Windows
+
+`nucleo witness serve` guarda su clave privada junto a su base de datos y, en
+Unix, **rehúsa arrancar si ese fichero es legible por otros usuarios**: un testigo
+cuya clave privada puede leer cualquiera no atestigua nada, porque quien la lea
+puede firmar en su nombre.
+
+En Windows esa comprobación **no se hace**. Los permisos que Go expone allí son
+una traducción aproximada; el control de acceso real vive en la ACL del fichero,
+que no se ve desde ahí. Una comprobación que puede decir «está bien» cuando no lo
+está es peor que no tenerla, así que no se finge.
+
+Si operas un testigo en Windows, restringe la ACL a tu cuenta:
+
+```powershell
+icacls testigo.db.key /inheritance:r /grant:r "$env:USERNAME:(R,W)"
+```
+
 ## Compilar desde el código
 
 Siempre es una alternativa a descargar, y no depende de confiar en nadie:
