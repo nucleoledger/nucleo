@@ -92,7 +92,13 @@ with `String(result.blockIndex)` when serializing. Inconvenient, but honest.
 
 `verifyReceipt` returns `{ valid: false, reasons: [...] }` instead of raising.
 A verifier that throws forces every caller into a `try`, and one forgotten `try`
-turns a bad receipt into a good one.
+turns a bad receipt into an uncaught exception — a button that does nothing in a
+browser, a 500 instead of "invalid receipt" on a server.
+
+That promise covers **every** input, not just the receipt: a malformed policy —
+a key with an odd number of hex digits, a 31-byte key, `null` where an object was
+expected — comes back as a reason too. There is also a last-resort catch around
+the whole function, because a promise with exceptions is not a promise.
 
 ```ts
 interface Result {

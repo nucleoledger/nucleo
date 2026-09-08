@@ -307,6 +307,58 @@ time ${timestamp.toString()}
   var SEPARATOR = "--- prueba verificable ---";
   var NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
   async function verifyReceipt(receipt, policy) {
+    try {
+      return await verificar(receipt, policy);
+    } catch (e) {
+      return {
+        valid: false,
+        declaredTime: null,
+        provableTime: null,
+        blockIndex: null,
+        recipient: null,
+        cosigners: [],
+        ignoredSignatures: [],
+        reasons: [`error inesperado al verificar: ${mensaje(e)}`],
+        checkpoint: null
+      };
+    }
+  }
+  function mensaje(e) {
+    if (e instanceof Error) return e.message;
+    return String(e);
+  }
+  function parsePolicy(p) {
+    if (typeof p !== "object" || p === null) throw new Error("no es un objeto");
+    if (typeof p.origin !== "string" || p.origin === "") {
+      throw new Error("falta el origin");
+    }
+    if (typeof p.logKey !== "string") throw new Error("logKey no es una cadena");
+    const logKey = clave(p.logKey, "logKey");
+    const witnesses = [];
+    const w = p.witnesses ?? {};
+    if (typeof w !== "object" || w === null) throw new Error("witnesses no es un objeto");
+    for (const [name, hex] of Object.entries(w)) {
+      if (typeof hex !== "string") throw new Error(`la clave del testigo ${name} no es una cadena`);
+      witnesses.push({ name, key: clave(hex, `la clave del testigo ${name}`) });
+    }
+    if (p.quorum !== void 0 && (!Number.isInteger(p.quorum) || p.quorum < 0)) {
+      throw new Error(`quorum inv\xE1lido: ${String(p.quorum)}`);
+    }
+    return { logKey, witnesses };
+  }
+  function clave(hex, cual) {
+    let raw;
+    try {
+      raw = fromHex(hex);
+    } catch (e) {
+      throw new Error(`${cual} no es hexadecimal v\xE1lido: ${mensaje(e)}`);
+    }
+    if (raw.length !== 32) {
+      throw new Error(`${cual} mide ${raw.length} bytes y una clave Ed25519 mide 32`);
+    }
+    return raw;
+  }
+  async function verificar(receipt, policy) {
     const reasons = [];
     const fail = (why) => ({
       valid: false,
@@ -323,7 +375,13 @@ time ${timestamp.toString()}
     try {
       p = parseReceipt(receipt);
     } catch (e) {
-      return fail(`el recibo no se pudo leer: ${e.message}`);
+      return fail(`el recibo no se pudo leer: ${mensaje(e)}`);
+    }
+    let claves;
+    try {
+      claves = parsePolicy(policy);
+    } catch (e) {
+      return fail(`la pol\xEDtica no se pudo leer: ${mensaje(e)}`);
     }
     const cosigners = [];
     const ignored = [];
@@ -336,13 +394,12 @@ time ${timestamp.toString()}
       reasons.push("el header del bloque no est\xE1 en forma can\xF3nica JCS");
     }
     const entryHash = await sha256(utf8(p.headerJSON));
-    const logKey = fromHex(policy.logKey);
+    const logKey = claves.logKey;
     const logId = await keyId(sha256, policy.origin, ALG_ED25519, logKey);
     let logSigned = false;
     const witnesses = /* @__PURE__ */ new Map();
-    for (const [name, hex] of Object.entries(policy.witnesses ?? {})) {
-      const key = fromHex(hex);
-      witnesses.set(await keyId(sha256, name, ALG_COSIGNATURE_V1, key), { name, key });
+    for (const w of claves.witnesses) {
+      witnesses.set(await keyId(sha256, w.name, ALG_COSIGNATURE_V1, w.key), w);
     }
     let earliest = null;
     for (const sig of p.note.sigs) {

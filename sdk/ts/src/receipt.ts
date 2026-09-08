@@ -102,6 +102,83 @@ interface Parsed {
  * recibo malo parezca bueno.
  */
 export async function verifyReceipt(receipt: string, policy: Policy): Promise<Result> {
+  try {
+    return await verificar(receipt, policy);
+  } catch (e) {
+    // Red de seguridad. Si algo dentro lanza pese a todo —un fallo de
+    // WebCrypto, un caso que no se previó—, quien llama recibe un veredicto
+    // negativo con la razón, no una excepción. La promesa de esta función es
+    // que nunca lanza, y una promesa con excepciones no es una promesa.
+    return {
+      valid: false,
+      declaredTime: null,
+      provableTime: null,
+      blockIndex: null,
+      recipient: null,
+      cosigners: [],
+      ignoredSignatures: [],
+      reasons: [`error inesperado al verificar: ${mensaje(e)}`],
+      checkpoint: null,
+    };
+  }
+}
+
+/** ClavesDePolitica es la política ya convertida a bytes. */
+interface ClavesDePolitica {
+  logKey: Uint8Array;
+  witnesses: Array<{ name: string; key: Uint8Array }>;
+}
+
+/** mensaje saca un texto legible de cualquier cosa que se haya lanzado. */
+function mensaje(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
+/**
+ * parsePolicy valida la política y la convierte a bytes.
+ *
+ * Comprueba los tamaños además del hexadecimal: una clave Ed25519 mide 32 bytes
+ * exactos, y una de 31 no es "casi válida", es otra cosa. Detectarlo aquí da un
+ * mensaje que dice qué clave está mal; dejarlo pasar daría un "la firma no
+ * verifica" que manda a buscar el problema al sitio equivocado.
+ */
+function parsePolicy(p: Policy): ClavesDePolitica {
+  if (typeof p !== "object" || p === null) throw new Error("no es un objeto");
+  if (typeof p.origin !== "string" || p.origin === "") {
+    throw new Error("falta el origin");
+  }
+  if (typeof p.logKey !== "string") throw new Error("logKey no es una cadena");
+  const logKey = clave(p.logKey, "logKey");
+
+  const witnesses: Array<{ name: string; key: Uint8Array }> = [];
+  const w = p.witnesses ?? {};
+  if (typeof w !== "object" || w === null) throw new Error("witnesses no es un objeto");
+  for (const [name, hex] of Object.entries(w)) {
+    if (typeof hex !== "string") throw new Error(`la clave del testigo ${name} no es una cadena`);
+    witnesses.push({ name, key: clave(hex, `la clave del testigo ${name}`) });
+  }
+  if (p.quorum !== undefined && (!Number.isInteger(p.quorum) || p.quorum < 0)) {
+    throw new Error(`quorum inválido: ${String(p.quorum)}`);
+  }
+  return { logKey, witnesses };
+}
+
+/** clave convierte un hexadecimal de 32 bytes, o explica por qué no puede. */
+function clave(hex: string, cual: string): Uint8Array {
+  let raw: Uint8Array;
+  try {
+    raw = fromHex(hex);
+  } catch (e) {
+    throw new Error(`${cual} no es hexadecimal válido: ${mensaje(e)}`);
+  }
+  if (raw.length !== 32) {
+    throw new Error(`${cual} mide ${raw.length} bytes y una clave Ed25519 mide 32`);
+  }
+  return raw;
+}
+
+async function verificar(receipt: string, policy: Policy): Promise<Result> {
   const reasons: string[] = [];
   const fail = (why: string): Result => ({
     valid: false,
@@ -119,7 +196,19 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
   try {
     p = parseReceipt(receipt);
   } catch (e) {
-    return fail(`el recibo no se pudo leer: ${(e as Error).message}`);
+    return fail(`el recibo no se pudo leer: ${mensaje(e)}`);
+  }
+
+  // La POLÍTICA también es entrada, y viene de fuera igual que el recibo: de un
+  // fichero de configuración, de un formulario, de un JSON pegado a mano. Una
+  // clave con un carácter de más hacía que fromHex lanzara, y una función que
+  // promete no lanzar tiene que cumplirlo con TODAS sus entradas, no solo con
+  // la que se espera que venga rota.
+  let claves: ClavesDePolitica;
+  try {
+    claves = parsePolicy(policy);
+  } catch (e) {
+    return fail(`la política no se pudo leer: ${mensaje(e)}`);
   }
 
   const cosigners: string[] = [];
@@ -143,14 +232,13 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
   const entryHash = await sha256(utf8(p.headerJSON));
 
   // 4. Firmas de la nota del checkpoint.
-  const logKey = fromHex(policy.logKey);
+  const logKey = claves.logKey;
   const logId = await keyId(sha256, policy.origin, ALG_ED25519, logKey);
   let logSigned = false;
 
   const witnesses = new Map<number, { name: string; key: Uint8Array }>();
-  for (const [name, hex] of Object.entries(policy.witnesses ?? {})) {
-    const key = fromHex(hex);
-    witnesses.set(await keyId(sha256, name, ALG_COSIGNATURE_V1, key), { name, key });
+  for (const w of claves.witnesses) {
+    witnesses.set(await keyId(sha256, w.name, ALG_COSIGNATURE_V1, w.key), w);
   }
 
   let earliest: bigint | null = null;
