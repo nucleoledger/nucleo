@@ -119,6 +119,9 @@ This is a security product, so the process that built it is part of what you are
 | AAD `tenant ‖ payload_hash` was ambiguous without a fixed-length suffix | medium | fixed-length `payload_hash` enforced |
 | Provable time was computed from signature *shape*, not verified signatures | medium | verification now requires a policy |
 | 422/409 status codes did not match `tlog-witness` | medium | [ADR-011](docs/adr/ADR-011-witness-http.md) |
+| Test hooks were compiled into the production binary | high | [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md) |
+| The Ecuador profile did not cross-check the access key against the XML | medium | [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md) |
+| The TypeScript verifier truncated indices to 32 bits | medium | [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md) |
 
 **Anti-circularity is a project rule.** Every golden value — hashes, key IDs, signatures, canonical bytes — is computed *outside* the code under test: `sha256sum`, `openssl`, an independent Python implementation, a C program linked against the reference Argon2 library. A test that verifies a function using that same function verifies nothing, and this project learned that the hard way.
 
@@ -128,6 +131,9 @@ This is a security product, so the process that built it is part of what you are
 - A receipt's recipient is not covered by any signature — it is chosen at issue time. The name is an address, not proof.
 - A network adversary can prevent detection (availability, and it is noisy) but cannot forge attestation (integrity). ([ADR-011](docs/adr/ADR-011-witness-http.md))
 - VRF commitments give third-party verifiability, **not** privacy: publishing a proof makes a low-entropy field brute-forceable. The ledger commitment is and stays HMAC. ([ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md), [ADR-012](docs/adr/ADR-012-vrf-library.md))
+
+The full record of who audited what, across four rounds, is in
+[ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md).
 
 **No external security audit has been performed.** The reviews above were model-driven and thorough, but they are not a substitute for a professional audit, and this software has not been used in production by anyone. Treat it accordingly.
 
