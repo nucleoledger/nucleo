@@ -137,7 +137,10 @@
   function render(r) {
     const ok = r.valid;
     const filas = [
-      ["bloque", r.blockIndex ?? "—"],
+      // blockIndex es un bigint: String() explícito, porque una plantilla que
+      // lo interpole sin convertir funcionaría por accidente y JSON.stringify
+      // lanzaría.
+      ["bloque", r.blockIndex === null ? "—" : String(r.blockIndex)],
       ["destinatario", r.recipient ?? "—"],
       ["log", r.checkpoint?.origin ?? "—"],
       ["testigos que verifican", r.cosigners.length ? r.cosigners.join(", ") : "ninguno"],

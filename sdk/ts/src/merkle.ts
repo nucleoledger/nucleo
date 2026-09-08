@@ -27,6 +27,13 @@ export async function nodeHash(
  * verifyInclusion comprueba que leafData está en el índice m de un árbol de
  * tamaño n con la raíz dada (RFC 9162 §2.1.3.2).
  *
+ * m y n son **BigInt**, y todo el bucle opera en BigInt. No es purismo: los
+ * operadores de bits de JavaScript convierten sus operandos a enteros de 32
+ * bits con signo, así que `fn >>= 1n` sobre un índice mayor que 2³¹ daría un
+ * número distinto —en silencio, sin excepción y sin aviso—. Un log de
+ * transparencia no tiene por qué quedarse por debajo de dos mil millones de
+ * entradas, y el día que pase, el verificador debe seguir diciendo la verdad.
+ *
  * leafData es el DATO de la hoja, no su hash: la función le aplica el prefijo
  * de dominio 0x00 por dentro. En Núcleo el dato de hoja es el hash del bloque,
  * SHA-256(JCS(header)), así que la hoja del árbol acaba siendo
@@ -40,33 +47,33 @@ export async function nodeHash(
 export async function verifyInclusion(
   sha256: (b: Uint8Array) => Promise<Uint8Array>,
   leafData: Uint8Array,
-  m: number,
-  n: number,
+  m: bigint,
+  n: bigint,
   proof: Uint8Array[],
   root: Uint8Array,
 ): Promise<boolean> {
-  if (m < 0 || n <= 0 || m >= n) return false;
+  if (m < 0n || n <= 0n || m >= n) return false;
 
   let fn = m;
-  let sn = n - 1;
+  let sn = n - 1n;
   let r = await leafHash(sha256, leafData);
 
   for (const p of proof) {
     // Sobrar nodos es tan inválido como faltar: una prueba con relleno
     // permitiría fabricar variantes de una prueba legítima.
-    if (sn === 0) return false;
-    if ((fn & 1) === 1 || fn === sn) {
+    if (sn === 0n) return false;
+    if (fn % 2n === 1n || fn === sn) {
       r = await nodeHash(sha256, p, r);
-      while ((fn & 1) === 0 && fn !== 0) {
-        fn >>= 1;
-        sn >>= 1;
+      while (fn % 2n === 0n && fn !== 0n) {
+        fn /= 2n;
+        sn /= 2n;
       }
     } else {
       r = await nodeHash(sha256, r, p);
     }
-    fn >>= 1;
-    sn >>= 1;
+    fn /= 2n;
+    sn /= 2n;
   }
-  if (sn !== 0) return false;
+  if (sn !== 0n) return false;
   return equal(r, root);
 }

@@ -95,7 +95,7 @@ var NucleoVerify = (() => {
   }
   function readUint64BE(b, at) {
     let v = 0n;
-    for (let i = 0; i < 8; i++) v = v << 8n | BigInt(b[at + i] ?? 0);
+    for (let i = 0; i < 8; i++) v = v * 256n + BigInt(b[at + i] ?? 0);
     return v;
   }
 
@@ -210,25 +210,25 @@ time ${timestamp.toString()}
     return sha2562(concat(new Uint8Array([1]), left, right));
   }
   async function verifyInclusion(sha2562, leafData, m, n, proof, root) {
-    if (m < 0 || n <= 0 || m >= n) return false;
+    if (m < 0n || n <= 0n || m >= n) return false;
     let fn = m;
-    let sn = n - 1;
+    let sn = n - 1n;
     let r = await leafHash(sha2562, leafData);
     for (const p of proof) {
-      if (sn === 0) return false;
-      if ((fn & 1) === 1 || fn === sn) {
+      if (sn === 0n) return false;
+      if (fn % 2n === 1n || fn === sn) {
         r = await nodeHash(sha2562, p, r);
-        while ((fn & 1) === 0 && fn !== 0) {
-          fn >>= 1;
-          sn >>= 1;
+        while (fn % 2n === 0n && fn !== 0n) {
+          fn /= 2n;
+          sn /= 2n;
         }
       } else {
         r = await nodeHash(sha2562, r, p);
       }
-      fn >>= 1;
-      sn >>= 1;
+      fn /= 2n;
+      sn /= 2n;
     }
-    if (sn !== 0) return false;
+    if (sn !== 0n) return false;
     return equal(r, root);
   }
 
@@ -252,7 +252,7 @@ time ${timestamp.toString()}
         continue;
       }
       if (blob.length < 5) continue;
-      const keyId2 = (blob[0] << 24 | blob[1] << 16 | blob[2] << 8 | blob[3]) >>> 0;
+      const keyId2 = uint32BE(blob, 0);
       sigs.push({ name, keyId: keyId2, signature: blob.slice(4), line });
     }
     if (sigs.length === 0) throw new Error("la nota no trae ninguna l\xEDnea de firma");
@@ -265,7 +265,10 @@ time ${timestamp.toString()}
     buf[prefix.length] = alg;
     buf.set(publicKey, prefix.length + 1);
     const h = await sha2562(buf);
-    return (h[0] << 24 | h[1] << 16 | h[2] << 8 | h[3]) >>> 0;
+    return uint32BE(h, 0);
+  }
+  function uint32BE(b, at) {
+    return b[at] * 2 ** 24 + b[at + 1] * 2 ** 16 + b[at + 2] * 2 ** 8 + b[at + 3];
   }
   var ALG_ED25519 = 1;
   var ALG_COSIGNATURE_V1 = 4;
@@ -281,7 +284,7 @@ time ${timestamp.toString()}
     if (indexLine === void 0 || !/^(0|[1-9][0-9]*)$/.test(indexLine)) {
       throw new Error(`\xEDndice no can\xF3nico: ${JSON.stringify(indexLine)}`);
     }
-    const index = Number(indexLine);
+    const index = BigInt(indexLine);
     const inclusionProof = [];
     let i = 2;
     for (; i < lines.length; i++) {
@@ -376,19 +379,18 @@ time ${timestamp.toString()}
     if (cosigners.length < quorum) {
       reasons.push(`qu\xF3rum de testigos no alcanzado: ${cosigners.length} de ${quorum}`);
     }
-    const size = Number(p.checkpoint.size);
     const ok = await verifyInclusion(
       sha256,
       entryHash,
       p.proof.index,
-      size,
+      p.checkpoint.size,
       p.proof.inclusionProof,
       p.checkpoint.rootHash
     );
     if (!ok) reasons.push("la prueba de inclusi\xF3n no verifica contra la ra\xEDz del checkpoint");
-    if (p.proof.index !== p.header.index) {
+    if (p.proof.index !== p.headerIndex) {
       reasons.push(
-        `el \xEDndice de la prueba (${p.proof.index}) no es el del header (${p.header.index})`
+        `el \xEDndice de la prueba (${p.proof.index}) no es el del header (${p.headerIndex})`
       );
     }
     const provable = earliest === null ? null : unixToRFC3339(earliest);
@@ -402,7 +404,7 @@ time ${timestamp.toString()}
       valid: reasons.length === 0,
       declaredTime: p.header.timestamp,
       provableTime: reasons.length === 0 ? provable : null,
-      blockIndex: p.header.index,
+      blockIndex: p.headerIndex,
       recipient: p.recipient,
       cosigners,
       ignoredSignatures: ignored,
@@ -430,7 +432,12 @@ time ${timestamp.toString()}
     const proof = parseProof(machine.slice(nl + 1));
     const note = parseNote(proof.checkpointNote);
     const checkpoint = parseCheckpoint(note.text);
-    return { recipient, headerJSON, header, proof, note, checkpoint, text };
+    return { recipient, headerJSON, header, headerIndex: headerIndexOf(headerJSON), proof, note, checkpoint, text };
+  }
+  function headerIndexOf(headerJSON) {
+    const m = /"index"\s*:\s*(\d+)/.exec(headerJSON);
+    if (!m) throw new Error("el header no lleva un \xEDndice entero");
+    return BigInt(m[1]);
   }
   function field(text, prefix) {
     for (const line of text.split("\n")) {
@@ -445,7 +452,7 @@ time ${timestamp.toString()}
       `emisor (tenant)   : ${p.header.tenant}`,
       `tipo de registro  : ${p.header.type}`,
       `hash del contenido: ${p.header.payload_hash}`,
-      `bloque            : ${p.header.index}`,
+      `bloque            : ${p.headerIndex}`,
       "",
       `TIEMPO DECLARADO  : ${p.header.timestamp}  (declarado por el sistema emisor)`,
       provable === null ? `TIEMPO DEMOSTRABLE: ${NO_PROVABLE_TIME}` : `TIEMPO DEMOSTRABLE: ${provable}  (atestiguado por testigos)`,

@@ -37,6 +37,11 @@ export interface Policy {
 
 /** Header es el header del bloque tal como viaja en el recibo. */
 export interface BlockHeader {
+  /**
+   * index tal como lo devuelve JSON.parse. NO se usa para verificar: por encima
+   * de 2^53 pierde precisión en silencio. La comparación se hace con
+   * Parsed.headerIndex, leído del texto canónico como BigInt.
+   */
   index: number;
   prev_hash: string;
   timestamp: string;
@@ -55,8 +60,15 @@ export interface Result {
   declaredTime: string | null;
   /** provableTime es el menor timestamp de las cosignatures aceptadas. */
   provableTime: string | null;
-  /** blockIndex es la posición del registro en el log. */
-  blockIndex: number | null;
+  /**
+   * blockIndex es la posición del registro en el log.
+   *
+   * Es un bigint, no un number, porque un índice de árbol puede pasar de 2^53 y
+   * un `number` lo redondearía sin avisar. Quien lo serialice a JSON debe
+   * convertirlo con String(): JSON.stringify no sabe qué hacer con un bigint y
+   * lanza, lo cual es incómodo pero honesto.
+   */
+  blockIndex: bigint | null;
   /** recipient es a quién iba dirigido. No está firmado: es dirección, no prueba. */
   recipient: string | null;
   /** cosigners son los testigos cuya cosignature verificó. */
@@ -74,6 +86,8 @@ interface Parsed {
   recipient: string;
   headerJSON: string;
   header: BlockHeader;
+  /** headerIndex es el índice leído del texto canónico, sin pasar por Number. */
+  headerIndex: bigint;
   proof: TlogProof;
   note: Note;
   checkpoint: Checkpoint;
@@ -184,19 +198,20 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
   }
 
   // 5. El camino de inclusión.
-  const size = Number(p.checkpoint.size);
+  // Todo en BigInt: el tamaño del checkpoint ya lo es, y el índice se leyó del
+  // texto canónico sin pasar por Number.
   const ok = await verifyInclusion(
     sha256,
     entryHash,
     p.proof.index,
-    size,
+    p.checkpoint.size,
     p.proof.inclusionProof,
     p.checkpoint.rootHash,
   );
   if (!ok) reasons.push("la prueba de inclusión no verifica contra la raíz del checkpoint");
-  if (p.proof.index !== p.header.index) {
+  if (p.proof.index !== p.headerIndex) {
     reasons.push(
-      `el índice de la prueba (${p.proof.index}) no es el del header (${p.header.index})`,
+      `el índice de la prueba (${p.proof.index}) no es el del header (${p.headerIndex})`,
     );
   }
 
@@ -213,7 +228,7 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
     valid: reasons.length === 0,
     declaredTime: p.header.timestamp,
     provableTime: reasons.length === 0 ? provable : null,
-    blockIndex: p.header.index,
+    blockIndex: p.headerIndex,
     recipient: p.recipient,
     cosigners,
     ignoredSignatures: ignored,
@@ -247,7 +262,25 @@ export function parseReceipt(receipt: string): Parsed {
   const note = parseNote(proof.checkpointNote);
   const checkpoint = parseCheckpoint(note.text);
 
-  return { recipient, headerJSON, header, proof, note, checkpoint, text };
+  return { recipient, headerJSON, header, headerIndex: headerIndexOf(headerJSON), proof, note, checkpoint, text };
+}
+
+/**
+ * headerIndexOf lee el índice del header canónico como BigInt, del TEXTO.
+ *
+ * No se usa el valor que devuelve JSON.parse porque los números de JavaScript
+ * son de doble precisión: un índice por encima de 2^53 se redondea al parsear,
+ * en silencio, y la comparación con el índice de la prueba compararía dos
+ * valores ya corrompidos —que además coincidirían, dando por bueno un recibo
+ * que no lo es—.
+ *
+ * El header está en forma canónica JCS, donde las claves van ordenadas y sin
+ * espacios, así que "index" es siempre el primer campo y su valor son dígitos.
+ */
+function headerIndexOf(headerJSON: string): bigint {
+  const m = /"index"\s*:\s*(\d+)/.exec(headerJSON);
+  if (!m) throw new Error("el header no lleva un índice entero");
+  return BigInt(m[1]!);
 }
 
 /** field extrae el valor de una línea del encabezado. */
@@ -273,7 +306,7 @@ function renderHeader(p: Parsed, provable: string | null): string {
     `emisor (tenant)   : ${p.header.tenant}`,
     `tipo de registro  : ${p.header.type}`,
     `hash del contenido: ${p.header.payload_hash}`,
-    `bloque            : ${p.header.index}`,
+    `bloque            : ${p.headerIndex}`,
     "",
     `TIEMPO DECLARADO  : ${p.header.timestamp}  (declarado por el sistema emisor)`,
     provable === null

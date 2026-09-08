@@ -54,7 +54,7 @@ describe("vectores de recibo generados por Go", () => {
       }
 
       // EL RECIBO GENERADO POR GO VERIFICA EN TS, BYTE A BYTE.
-      expect(result.blockIndex).toBe(v.block_index);
+      expect(result.blockIndex).toBe(BigInt(v.block_index));
       expect(result.declaredTime).toBe(v.declared_time);
       expect(result.provableTime).toBe(v.provable_time ?? null);
       expect(result.cosigners.length).toBeGreaterThan(0);

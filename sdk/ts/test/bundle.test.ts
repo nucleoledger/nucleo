@@ -68,7 +68,7 @@ describe("el bundle que sirve la página web", () => {
     const v = readJSON<Vector>("receipt", file);
     it(`${v.name}: el bundle da el mismo veredicto que la biblioteca`, async () => {
       const api = loadBundle();
-      const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{ valid: boolean; provableTime: string | null; blockIndex: number | null }>;
+      const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{ valid: boolean; provableTime: string | null; blockIndex: bigint | null }>;
       const result = await verify(v.receipt, {
         origin: v.policy.origin,
         logKey: v.policy.log_key,
@@ -78,7 +78,7 @@ describe("el bundle que sirve la página web", () => {
       expect(result.valid).toBe(v.valid);
       if (v.valid) {
         expect(result.provableTime).toBe(v.provable_time ?? null);
-        expect(result.blockIndex).toBe(v.block_index);
+        expect(result.blockIndex).toBe(BigInt(v.block_index));
       }
     });
   }

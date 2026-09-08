@@ -51,8 +51,8 @@ describe("vectores oficiales RFC 6962", () => {
       const ok = await verifyInclusion(
         sha256,
         data[p.leaf_index]!,
-        p.leaf_index,
-        p.tree_size,
+        BigInt(p.leaf_index),
+        BigInt(p.tree_size),
         p.proof_hex.map(fromHex),
         r,
       );
@@ -64,8 +64,8 @@ describe("vectores oficiales RFC 6962", () => {
       const ok = await verifyInclusion(
         sha256,
         data[p.leaf_index]!,
-        p.leaf_index,
-        p.tree_size,
+        BigInt(p.leaf_index),
+        BigInt(p.tree_size),
         p.proof_hex.map(fromHex),
         wrong,
       );
@@ -77,6 +77,6 @@ describe("vectores oficiales RFC 6962", () => {
     const p = inclusion.proofs.find((x) => x.tree_size === 8 && x.leaf_index === 5)!;
     const r = await root(data.slice(0, 8));
     const padded = [...p.proof_hex.map(fromHex), new Uint8Array(32)];
-    expect(await verifyInclusion(sha256, data[5]!, 5, 8, padded, r)).toBe(false);
+    expect(await verifyInclusion(sha256, data[5]!, 5n, 8n, padded, r)).toBe(false);
   });
 });

@@ -62,8 +62,7 @@ export function parseNote(msg: string): Note {
       continue;
     }
     if (blob.length < 5) continue;
-    const keyId =
-      ((blob[0]! << 24) | (blob[1]! << 16) | (blob[2]! << 8) | blob[3]!) >>> 0;
+    const keyId = uint32BE(blob, 0);
     sigs.push({ name, keyId, signature: blob.slice(4), line });
   }
   if (sigs.length === 0) throw new Error("la nota no trae ninguna línea de firma");
@@ -87,7 +86,20 @@ export async function keyId(
   buf[prefix.length] = alg;
   buf.set(publicKey, prefix.length + 1);
   const h = await sha256(buf);
-  return ((h[0]! << 24) | (h[1]! << 16) | (h[2]! << 8) | h[3]!) >>> 0;
+  return uint32BE(h, 0);
+}
+
+/**
+ * uint32BE lee un entero de 32 bits big-endian.
+ *
+ * Con aritmética y no con operadores de bits. Los de JavaScript trabajan sobre
+ * enteros de 32 bits CON SIGNO, así que `b[0] << 24` con b[0] ≥ 128 produce un
+ * número negativo que hay que corregir después con `>>> 0`. Funciona, pero es
+ * un sitio donde equivocarse es fácil y el error no se nota. Aquí no hay ningún
+ * operador de bits en todo el paquete, y así es comprobable de un vistazo.
+ */
+function uint32BE(b: Uint8Array, at: number): number {
+  return b[at]! * 2 ** 24 + b[at + 1]! * 2 ** 16 + b[at + 2]! * 2 ** 8 + b[at + 3]!;
 }
 
 /** ALG_ED25519 es el byte de tipo de una firma Ed25519 de nota. */

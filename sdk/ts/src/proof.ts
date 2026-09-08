@@ -7,7 +7,8 @@ export const MAGIC = "c2sp.org/tlog-proof@v1";
 
 /** TlogProof es la parte verificable del recibo. */
 export interface TlogProof {
-  index: number;
+  /** index es BigInt: un índice de árbol puede pasar de 2^53. */
+  index: bigint;
   inclusionProof: Uint8Array[];
   checkpointNote: string;
 }
@@ -22,7 +23,7 @@ export function parseProof(data: string): TlogProof {
   if (indexLine === undefined || !/^(0|[1-9][0-9]*)$/.test(indexLine)) {
     throw new Error(`índice no canónico: ${JSON.stringify(indexLine)}`);
   }
-  const index = Number(indexLine);
+  const index = BigInt(indexLine);
 
   const inclusionProof: Uint8Array[] = [];
   let i = 2;

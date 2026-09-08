@@ -70,6 +70,24 @@ If no witness in your policy signed it, `provableTime` is `null`. That is not a
 degraded result: it means the receipt proves *that* the record is in the log, not
 *when* it existed.
 
+## Why `bigint`
+
+`blockIndex` and the checkpoint size are `bigint`, and the whole inclusion-proof
+loop runs in `bigint`. That is not fastidiousness.
+
+JavaScript's bitwise operators coerce their operands to **32-bit signed**
+integers, and `number` is a double, exact only up to 2⁵³. A transparency log has
+no reason to stop below two billion entries, and on the day one does not, an
+implementation using `>>` and `Number` would compute a different index — silently,
+with no exception and no warning, which is the worst possible failure mode for a
+verifier.
+
+There is not a single bitwise operator left in this package, and the test suite
+enforces that with a grep.
+
+The practical consequence: `JSON.stringify(result)` throws on a `bigint`. Convert
+with `String(result.blockIndex)` when serializing. Inconvenient, but honest.
+
 ## It never throws
 
 `verifyReceipt` returns `{ valid: false, reasons: [...] }` instead of raising.
@@ -81,7 +99,7 @@ interface Result {
   valid: boolean;
   declaredTime: string | null;
   provableTime: string | null;
-  blockIndex: number | null;
+  blockIndex: bigint | null;   // bigint: a tree index can exceed 2^53
   recipient: string | null;
   cosigners: string[];
   ignoredSignatures: string[];

@@ -64,9 +64,17 @@ export function equal(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
-/** Lee un u64 big-endian. Devuelve bigint porque un u64 no cabe en un number. */
+/**
+ * Lee un u64 big-endian. Devuelve bigint porque un u64 no cabe en un number.
+ *
+ * Con multiplicación en vez de desplazamiento de bits. Sobre BigInt las dos
+ * cosas son exactas, pero en este paquete no hay NI UN operador de bits, y esa
+ * es una propiedad que se puede comprobar con un grep. Mezclar los seguros
+ * (BigInt) con los que truncan a 32 bits (Number) obligaría a mirar el tipo de
+ * cada operando para saber si una línea es correcta.
+ */
 export function readUint64BE(b: Uint8Array, at: number): bigint {
   let v = 0n;
-  for (let i = 0; i < 8; i++) v = (v << 8n) | BigInt(b[at + i] ?? 0);
+  for (let i = 0; i < 8; i++) v = v * 256n + BigInt(b[at + i] ?? 0);
   return v;
 }
