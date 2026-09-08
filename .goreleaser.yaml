@@ -11,6 +11,7 @@ before:
   hooks:
     - go mod download
     - go test ./... -race
+    - go test -tags testhooks ./... -race
 
 builds:
   - id: nucleo
@@ -25,6 +26,10 @@ builds:
     goarch: [amd64, arm64]
     flags:
       - -trimpath
+      # Sin -tags: los ganchos de prueba (NUCLEO_TEST_SEED y compañía) viven
+      # tras el tag `testhooks` y NO se compilan aquí. Un binario publicado que
+      # los honrara permitiría fijar el material "aleatorio" de las claves desde
+      # el entorno del proceso.
     ldflags:
       # -s -w quitan la tabla de símbolos y la información de depuración: el
       # binario pesa menos y, sobre todo, dos compilaciones del mismo commit

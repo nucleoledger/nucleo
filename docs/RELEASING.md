@@ -36,6 +36,29 @@ Y esa afirmación queda en un log de transparencia que ni quien publica puede
 reescribir después. Es exactamente la propiedad que Núcleo ofrece para los
 registros de sus usuarios, aplicada a su propia distribución.
 
+### Lo que NO va en el binario publicado
+
+Los ganchos de prueba —`NUCLEO_TEST_SEED`, `NUCLEO_TEST_CLOCK`,
+`NUCLEO_TEST_PASSPHRASE`— viven tras el build tag `testhooks`, y goreleaser
+compila **sin** ese tag. Ese código no está en el ejecutable que se publica.
+
+Un binario publicado que los honrara permitiría fijar desde el entorno del
+proceso el material "aleatorio" con el que se generan las claves de un vault.
+Que el gancho estuviera "apagado por una condición" no bastaría: seguiría siendo
+código presente y alcanzable. Lo que no se compiló no tiene esa superficie.
+
+El binario publicado sí conoce los NOMBRES de esas variables, porque los necesita
+para rechazarlas: si alguna está definida, **aborta** con un error que lo
+explica, en vez de avisar y seguir. Se puede comprobar sobre el binario
+descargado:
+
+```bash
+# El código de los ganchos no está:
+strings nucleo | grep -c "HONRA los ganchos de prueba"   # → 0
+# Y el rechazo sí:
+NUCLEO_TEST_SEED=x ./nucleo status ; echo $?             # → 1
+```
+
 Se firma **el fichero de checksums**, no cada archivo por separado. El
 `checksums.txt` contiene el SHA-256 de todos los artefactos, así que una firma
 sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
@@ -47,6 +70,7 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
 ### Antes del tag
 
 - [ ] `go test ./... -race` en verde.
+- [ ] `go test -tags testhooks ./... -race` en verde.
 - [ ] `golangci-lint run ./...` sin issues.
 - [ ] `./scripts/demo-criterio-exito.sh` en verde. Es el criterio del proyecto:
       si falla, no hay versión que publicar.

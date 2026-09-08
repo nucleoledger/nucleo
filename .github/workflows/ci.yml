@@ -18,6 +18,11 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test ./... -race
+      # Los tests de la CLI comparan salidas byte a byte y necesitan reloj y
+      # semilla fijos, así que se compilan con el tag `testhooks`. El binario
+      # que se publica NO lleva ese tag: ver .goreleaser.yaml y hooks_off.go.
+      - name: Test (con ganchos de prueba)
+        run: go test -tags testhooks ./... -race
 
   # El verificador de TypeScript corre contra los MISMOS ficheros de
   # testdata/vectors/ que la suite de Go. Es lo que impide que las dos
@@ -63,4 +68,8 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.13.2
+      # Segunda pasada con el tag, para que el código de los ganchos de prueba
+      # también se analice. Sin esto, hooks_on.go no lo vería nadie.
+      - name: Lint (con ganchos de prueba)
+        run: golangci-lint run --build-tags testhooks ./...
 

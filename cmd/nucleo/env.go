@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/nucleoledger/nucleo/internal/identity"
 	"github.com/nucleoledger/nucleo/internal/store"
@@ -78,10 +78,15 @@ func dispatch(e *env, args []string) error {
 	if !ok {
 		return usageErr("subcomando desconocido %q\n\n%s", name, usageText())
 	}
-	// El aviso va aquí y no en cada subcomando: si depende de que alguien se
-	// acuerde de llamarlo, tarde o temprano habrá un subcomando que no avise, y
-	// será justo el que alguien ejecute en producción con la semilla puesta.
-	warnTestHooks(e)
+	// La comprobación va aquí y no en cada subcomando: si depende de que alguien
+	// se acuerde de llamarla, tarde o temprano habrá un subcomando que no la
+	// haga, y será justo el que alguien ejecute con la semilla puesta.
+	//
+	// En un binario de producción esto ABORTA si hay algún gancho definido; en
+	// uno compilado con -tags testhooks solo avisa de que sí los honra.
+	if err := checkHooks(e); err != nil {
+		return err
+	}
 	return cmd(e, rest[1:])
 }
 
@@ -162,7 +167,7 @@ func readPassphrase(e *env, file, prompt string, confirm bool) ([]byte, error) {
 		}
 		return pass, nil
 	}
-	if pass := os.Getenv(envPassphrase); pass != "" {
+	if pass, ok := hookPassphrase(); ok {
 		return []byte(pass), nil
 	}
 	fd := int(os.Stdin.Fd())
@@ -194,7 +199,7 @@ func readPassphrase(e *env, file, prompt string, confirm bool) ([]byte, error) {
 
 // hexKey parsea una clave pública Ed25519 en hexadecimal.
 func hexKey(s string) (ed25519.PublicKey, error) {
-	raw, err := decodeHex(s)
+	raw, err := hex.DecodeString(s)
 	if err != nil || len(raw) != ed25519.PublicKeySize {
 		return nil, usageErr("clave pública inválida %q: se esperan %d bytes en hexadecimal", s, ed25519.PublicKeySize)
 	}
@@ -211,17 +216,8 @@ func sortedKeys[V any](m map[string]V) []string {
 	return out
 }
 
-// now devuelve el reloj de la CLI.
-func now() time.Time { return testClock() }
-
 // unmarshalJSON evita repetir el import de encoding/json en cada subcomando.
 func unmarshalJSON(raw []byte, v any) error { return json.Unmarshal(raw, v) }
-
-// openStoreAt abre el ledger de un directorio sin pasar por env. Lo usan los
-// tests para leer material que la CLI no imprime.
-func openStoreAt(dir string) (*store.Store, store.OpenResult, error) {
-	return store.Open(filepath.Join(dir, "nucleo.db"))
-}
 
 // marshalJSON serializa de forma estable.
 func marshalJSON(v any) ([]byte, error) { return json.Marshal(v) }

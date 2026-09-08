@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package main
 
 import (
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/witness"
 )
 
@@ -134,9 +137,11 @@ func TestInitIsDeterministicWithTestHooks(t *testing.T) {
 		t.Error("con la misma semilla salieron claves distintas: el gancho no fija el material")
 	}
 
-	// Y el aviso de gancho activo sale por stderr, siempre.
+	// Y el aviso sale por stderr siempre, diciendo lo que de verdad importa:
+	// que ESTE binario honra los ganchos y por tanto no es de producción.
 	_, stderr, _ := c.run("status")
-	if !strings.Contains(stderr, envSeed+" está definida") {
+	if !strings.Contains(stderr, "HONRA los ganchos de prueba") ||
+		!strings.Contains(stderr, envSeed) {
 		t.Errorf("no se avisó del gancho de pruebas:\n%s", stderr)
 	}
 }
@@ -428,4 +433,11 @@ func TestWitnessKeyIsReadable(t *testing.T) {
 	if _, _, code := c.run("witness", "key"); code != exitUsage {
 		t.Errorf("sin --db: código = %d, want %d", code, exitUsage)
 	}
+}
+
+// openStoreAt abre el ledger de un directorio sin pasar por env. Vive aquí, en
+// el fichero de test, porque solo lo usan los tests: dejarlo en el código de
+// producción sería mantener una función que nadie llama.
+func openStoreAt(dir string) (*store.Store, store.OpenResult, error) {
+	return store.Open(filepath.Join(dir, "nucleo.db"))
 }

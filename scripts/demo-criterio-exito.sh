@@ -65,7 +65,9 @@ printf 'directorio de trabajo: %s\n' "$TRABAJO"
 # ---------------------------------------------------------------------------
 titulo "compilar el binario"
 NUCLEO="$TRABAJO/nucleo"
-(cd "$RAIZ" && go build -o "$NUCLEO" ./cmd/nucleo)
+# Con -tags testhooks: la demo fija reloj y semilla para ser comparable, y ese
+# código no existe en el binario que se publica. Ver docs/RELEASING.md.
+(cd "$RAIZ" && go build -tags testhooks -o "$NUCLEO" ./cmd/nucleo)
 printf '   binario: %s\n' "$NUCLEO"
 
 # ---------------------------------------------------------------------------

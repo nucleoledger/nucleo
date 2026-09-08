@@ -19,9 +19,21 @@ to a pull request without asking.
 ## Running the tests
 
 ```bash
-go test ./... -race          # must be green
-golangci-lint run ./...      # must report 0 issues
+go test ./... -race                      # must be green
+go test -tags testhooks ./... -race      # and so must this
+golangci-lint run ./...                  # must report 0 issues
 ```
+
+### The `testhooks` build tag
+
+CLI tests compare output byte for byte, which needs a fixed clock and a fixed
+seed. That code lives behind `//go:build testhooks` and **is not compiled into a
+released binary**. Without the tag, a binary that finds `NUCLEO_TEST_SEED` in its
+environment refuses to run rather than warning: someone who sets it expects
+deterministic keys, and a warning on stderr would leave them believing they got
+them.
+
+If you touch anything under `cmd/nucleo`, run the suite **both ways**.
 
 The TypeScript verifier:
 

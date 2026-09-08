@@ -213,7 +213,7 @@ func witnessKey(path string) (ed25519.PrivateKey, bool, error) {
 		return nil, false, err
 	}
 	seed := make([]byte, ed25519.SeedSize)
-	if s, ok := testSeed(); ok {
+	if s, ok := hookSeed(); ok {
 		copy(seed, s)
 	} else if _, err := rand.Read(seed); err != nil {
 		return nil, false, err

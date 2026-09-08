@@ -174,7 +174,7 @@ func confirmCard(e *env, cards []string, threshold int) error {
 
 // newIdentity genera las identidades, o las deriva de la semilla de pruebas.
 func newIdentity(origin string) (*identity.Identity, error) {
-	seed, ok := testSeed()
+	seed, ok := hookSeed()
 	if !ok {
 		return identity.Generate(origin)
 	}
