@@ -26,6 +26,7 @@ func cmdSeal(e *env, args []string) error {
 	xmlFile := fs.String("xml", "", "fichero XML del comprobante (equivale a --payload con un perfil)")
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	clear := fs.Bool("no-encrypt", false, "no guarda el contenido cifrado; solo sella su hash")
+	maxPayload := fs.Int64("max-payload", DefaultMaxPayload, "tamaño máximo del documento a sellar, en bytes")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
@@ -45,9 +46,12 @@ func cmdSeal(e *env, args []string) error {
 	case *payload == "":
 		return usageErr("seal necesita --payload <archivo> (o --xml)")
 	}
-	data, err := os.ReadFile(*payload)
+	if *maxPayload <= 0 {
+		return usageErr("--max-payload debe ser positivo")
+	}
+	data, err := readLimited(*payload, *maxPayload, "el documento")
 	if err != nil {
-		return usageErr("no se pudo leer %q: %v", *payload, err)
+		return err
 	}
 
 	// El perfil interpreta el documento ANTES de sellar nada. Si la clave de

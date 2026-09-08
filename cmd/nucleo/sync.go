@@ -201,7 +201,7 @@ func cmdWitness(e *env, args []string) error {
 // la clave, las cosignatures que ya emitió no se pueden verificar, y sin la
 // memoria no sabe qué avaló. Perder cualquiera de las dos lo inutiliza.
 func witnessKey(path string) (ed25519.PrivateKey, bool, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readLimited(path, maxKeyFile, "la clave del testigo")
 	if err == nil {
 		seed, err := hex.DecodeString(string(raw[:min(len(raw), 64)]))
 		if err != nil || len(seed) != ed25519.SeedSize {

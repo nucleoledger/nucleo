@@ -30,6 +30,15 @@ CÓDIGOS DE SALIDA
   2  la verificación falló: hay una alteración o una discrepancia
   3  la sincronización con el testigo falló (incidente operativo)
 
+LÍMITES DE LECTURA
+  documento a sellar         64 MiB   (--max-payload para subirlo)
+  fichero de passphrase       1 MiB
+  fichero de tarjetas         1 MiB
+  clave del testigo           1 MiB
+
+  Existen para que un fichero equivocado —un volcado de la base, un log
+  rotado— dé un error en vez de consumir la memoria de la máquina.
+
 La passphrase se pide por terminal sin eco. Nunca se pasa por argumento: los
 argumentos son visibles en la lista de procesos de toda la máquina.
 `

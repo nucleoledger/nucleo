@@ -116,6 +116,11 @@ func cmdRestore(e *env, args []string) error {
 func readShares(e *env, file string) ([]string, error) {
 	var src *os.File
 	if file != "" {
+		// Las tarjetas son mnemónicos: unas pocas líneas de palabras. El mismo
+		// tope que para una clave sobra por tres órdenes de magnitud.
+		if _, err := readLimited(file, maxKeyFile, "el fichero de tarjetas"); err != nil {
+			return nil, err
+		}
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, usageErr("no se pudo leer %q: %v", file, err)

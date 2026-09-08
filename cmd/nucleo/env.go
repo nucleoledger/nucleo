@@ -157,9 +157,9 @@ func (e *env) unlock(s *store.Store, passphraseFile string, prompt string) (*vau
 // argumentos son visibles en la lista de procesos de toda la máquina.
 func readPassphrase(e *env, file, prompt string, confirm bool) ([]byte, error) {
 	if file != "" {
-		raw, err := os.ReadFile(file)
+		raw, err := readLimited(file, maxKeyFile, "el fichero de passphrase")
 		if err != nil {
-			return nil, usageErr("no se pudo leer la passphrase de %q: %v", file, err)
+			return nil, err
 		}
 		pass := []byte(strings.TrimRight(string(raw), "\r\n"))
 		if len(pass) == 0 {

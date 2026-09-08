@@ -115,6 +115,8 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  // 10 MB: un recibo son kilobytes, así que esto solo frena equivocaciones.
+  const MAX_ARCHIVO = 10 * 1024 * 1024;
   const recibo = $("recibo"), politica = $("politica"), salida = $("salida");
 
   // Arrastrar y soltar sobre cualquiera de los dos campos.
@@ -125,7 +127,18 @@
       e.preventDefault();
       el.classList.remove("drop");
       const f = e.dataTransfer?.files?.[0];
-      if (f) el.value = await f.text();
+      if (!f) return;
+      // Un recibo son unos kilobytes. El tope existe para que arrastrar el
+      // fichero equivocado dé un mensaje en vez de colgar la pestaña.
+      if (f.size > MAX_ARCHIVO) {
+        salida.innerHTML =
+          '<div class="tarjeta"><p class="veredicto mal">✘ El archivo es demasiado grande</p>' +
+          "<p>" + escapa(f.name) + " pesa " + (f.size / 1048576).toFixed(1) +
+          " MB y el máximo son 10 MB. Un recibo son unos pocos kilobytes: " +
+          "comprueba que has arrastrado el archivo correcto.</p></div>";
+        return;
+      }
+      el.value = await f.text();
     });
   }
 
