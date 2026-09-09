@@ -39,6 +39,16 @@ LÍMITES DE LECTURA
   Existen para que un fichero equivocado —un volcado de la base, un log
   rotado— dé un error en vez de consumir la memoria de la máquina.
 
+LA CLAVE DEL TESTIGO
+  witness serve guarda su clave privada junto a su base de datos, la crea en
+  exclusiva (nunca pisa una existente) y, en Linux y macOS, rehúsa arrancar si
+  otros usuarios pueden leerla.
+
+  En Windows esa comprobación NO se hace: el acceso lo gobierna la ACL del
+  fichero, que no se ve desde los permisos que expone Go, y una comprobación que
+  puede decir "está bien" cuando no lo está da una confianza que no se ha
+  ganado. Allí, restringe la ACL a tu cuenta (ver docs/RELEASING.md).
+
 La passphrase se pide por terminal sin eco. Nunca se pasa por argumento: los
 argumentos son visibles en la lista de procesos de toda la máquina.
 `
