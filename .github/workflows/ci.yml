@@ -7,7 +7,11 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      # setup-go se queda en v5 a propósito: v6 declara un cambio de ruptura en
+      # la selección de toolchain que interactúa con el `go 1.27.1` de go.mod, y
+      # no se puede comprobar sin ejecutar el CI. Subirla es un cambio de una
+      # línea cuando alguien pueda mirar el resultado.
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
@@ -33,8 +37,8 @@ jobs:
       run:
         working-directory: sdk/ts
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           # La versión la fija sdk/ts/.nvmrc, para que CI y la máquina de quien
           # desarrolla usen exactamente la misma. Es 22 porque en 18 el Ed25519
@@ -61,7 +65,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
