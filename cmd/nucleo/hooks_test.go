@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -30,11 +31,16 @@ func TestProductionBinaryRefusesHooks(t *testing.T) {
 		t.Skip("compila un binario; se salta en -short")
 	}
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "nucleo-prod")
+	bin := filepath.Join(dir, "nucleo-prod"+exeSuffix())
 
 	build := exec.Command("go", "build", "-trimpath", "-ldflags", "-s -w", "-o", bin, ".")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("no se pudo compilar el binario de producción: %v\n%s", err, out)
+	}
+	// Que el fichero esté DONDE se pidió no es obvio en Windows, y darlo por
+	// hecho costó un CI en rojo: ver exeSuffix.
+	if _, err := os.Stat(bin); err != nil {
+		t.Fatalf("go build no dejó el binario en %q: %v", bin, err)
 	}
 
 	raw, err := os.ReadFile(bin)
@@ -58,6 +64,14 @@ func TestProductionBinaryRefusesHooks(t *testing.T) {
 			cmd := exec.Command(bin, "--dir", dir, "status")
 			cmd.Env = append(os.Environ(), v+"=x")
 			out, err := cmd.CombinedOutput()
+			// Primero: que el proceso HAYA ARRANCADO. Si no arranca,
+			// ProcessState es nil y ExitCode() devuelve -1 en vez de entrar en
+			// pánico, así que el test fallaría con "código = -1, want 1" y con
+			// una salida vacía: tres errores confusos que no señalan la causa.
+			// Este mensaje sí la señala.
+			if cmd.ProcessState == nil {
+				t.Fatalf("el binario ni siquiera arrancó (%v). No es un fallo de la comprobación de ganchos: es que %q no se pudo ejecutar.", err, bin)
+			}
 			if err == nil {
 				t.Fatalf("el binario de producción aceptó %s:\n%s", v, out)
 			}
@@ -94,4 +108,22 @@ func filterHookVars(env []string) []string {
 		}
 	}
 	return out
+}
+
+// exeSuffix devuelve ".exe" en Windows y "" en el resto.
+//
+// `go build -o <nombre>` toma el nombre LITERALMENTE: cmd/go solo añade el
+// sufijo del ejecutable cuando NO se pasa -o. En Windows eso deja un fichero sin
+// extensión que os/exec no encuentra, porque su búsqueda prueba <nombre>.com,
+// .exe, .bat y .cmd y ninguno existe. El proceso no llega a arrancar.
+//
+// Cuesta verlo porque el fallo no se parece a su causa: exec devuelve un error,
+// ProcessState queda en nil, ExitCode() responde -1 sin entrar en pánico, y el
+// test se queja de un código de salida equivocado sobre un proceso que nunca
+// existió.
+func exeSuffix() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
 }
