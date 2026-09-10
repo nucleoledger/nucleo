@@ -117,6 +117,10 @@ First tagged version. The success criterion of the project
   inclusion path, cosignatures against a policy, and the receipt header.
 - **Zero runtime dependencies.**
 - Reads the same `testdata/vectors/` files as the Go suite.
+- `0.1.0-alpha.0` was published to npm **by hand and without provenance**
+  (`--provenance=false`): provenance needs an OIDC token that only CI holds, and
+  npm's trusted-publisher configuration cannot be created before the package
+  exists. Releases from `.github/workflows/publish-npm.yml` carry it.
 
 ### Static verifier (`web/verify`)
 
