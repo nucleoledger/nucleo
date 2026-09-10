@@ -1,0 +1,79 @@
+name: publish-npm
+
+# Publica @nucleoledger/verify en npm desde Actions, nunca desde una máquina de
+# desarrollo. El SDK lleva su propio tag (`vsdk-*`) porque su versión no avanza
+# al mismo ritmo que la del binario Go: un arreglo del verificador de TypeScript
+# no justifica una versión nueva de `nucleo`, ni al contrario.
+#
+# Autenticación: npm Trusted Publishing con OIDC. No hay token de npm en los
+# secretos del repositorio — no hay nada que robar, filtrar en un log ni rotar.
+# Cada publicación usa una credencial efímera que npm acredita contra ESTE
+# workflow de ESTE repositorio. La configuración del lado de npm está en
+# docs/RELEASING.md; si falta, el paso de publicar falla con 403.
+on:
+  push:
+    tags: ['vsdk-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # El token OIDC es toda la autenticación. Sin esto, npm no tiene forma de
+      # saber quién publica y rechaza la petición.
+      id-token: write
+    defaults:
+      run:
+        working-directory: sdk/ts
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # La misma versión que usa el CI y quien desarrolla: sdk/ts/.nvmrc.
+          node-version-file: sdk/ts/.nvmrc
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: sdk/ts/package-lock.json
+
+      # El npm que trae Node 22 es el 10.9.x, y trusted publishing exige 11.5.1
+      # o posterior. Sin esta línea el publish falla por versión, no por
+      # configuración, y el mensaje no lo deja claro.
+      - name: npm con soporte de trusted publishing
+        run: npm install -g npm@^11.5.1
+
+      - name: Versión de las herramientas
+        run: node -v && npm -v
+
+      - name: Install
+        run: npm ci
+
+      # La compuerta: se publica lo que pasa su propia suite, no lo que compila.
+      # Son los mismos pasos que el job sdk-ts del CI, repetidos aquí a
+      # propósito: que el CI esté verde en otro commit no dice nada de este tag.
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+
+      # Un tag que no coincide con la versión del paquete publicaría algo
+      # distinto de lo que el tag promete. Se comprueba antes de tocar la red.
+      - name: El tag coincide con la versión del paquete
+        if: github.ref_type == 'tag'
+        run: |
+          tag="${GITHUB_REF_NAME#vsdk-}"
+          pkg="$(node -p 'require("./package.json").version')"
+          echo "tag=$tag package.json=$pkg"
+          test "$tag" = "$pkg"
+
+      # Sin `--provenance`: con trusted publishing npm genera la atestación de
+      # procedencia por su cuenta. `publishConfig.provenance` queda en true en
+      # package.json de todas formas, para que una publicación por cualquier
+      # otra vía falle en lugar de salir sin procedencia en silencio.
+      - name: Publish
+        run: npm publish

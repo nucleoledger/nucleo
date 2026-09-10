@@ -236,3 +236,78 @@ Las compilaciones de release usan `-trimpath` y `-ldflags "-s -w"` con el
 timestamp del commit, así que un binario compilado desde el mismo commit y con la
 misma versión de Go debería dar los mismos bytes. Si el tuyo no coincide con el
 publicado, eso es exactamente el tipo de cosa que queremos saber.
+
+---
+
+## Publicar el SDK de TypeScript en npm
+
+El paquete `@nucleoledger/verify` se publica desde
+`.github/workflows/publish-npm.yml`, con su propio tag `vsdk-<versión>` para que
+su ritmo no quede atado al del binario Go. La autenticación es **npm Trusted
+Publishing**: OIDC contra ese workflow concreto, sin ningún token de npm en los
+secretos del repositorio.
+
+### Lo que hay que configurar una sola vez, en npmjs.com
+
+El paquete tiene que existir antes de poder configurarlo, y ya existe
+(`0.1.0-alpha.0`, publicado a mano y sin procedencia; ver CHANGELOG).
+
+1. Entrar en `https://www.npmjs.com/package/@nucleoledger/verify` → pestaña
+   **Settings**.
+2. En la sección **Trusted Publisher**, en "Select your publisher", pulsar
+   **GitHub Actions**.
+3. Rellenar los campos exactamente así:
+
+   | Campo | Valor |
+   |---|---|
+   | **Organization or user** | `nucleoledger` |
+   | **Repository** | `nucleo` |
+   | **Workflow filename** | `publish-npm.yml` |
+   | **Environment name** | *dejar vacío* |
+
+   El nombre del workflow es **solo el fichero**, no la ruta, y distingue
+   mayúsculas: tiene que coincidir carácter a carácter con el que hay en
+   `.github/workflows/`. Si algún día se rellena "Environment name", el job
+   necesita además una clave `environment:` con ese mismo nombre, o npm rechaza
+   la petición.
+
+4. En **Allowed actions**, marcar que se permite **`npm publish`**, no solo
+   `npm stage publish`. Esto importa: desde el 3 de septiembre de 2026 las
+   configuraciones nuevas solo permiten *staging* por omisión y la publicación
+   directa es opt-in. Si se deja como viene, el workflow falla con 403 aunque
+   todo lo demás esté bien.
+5. Guardar.
+
+Alternativa, si más adelante se prefiere una aprobación humana por versión: dejar
+solo el *staging*, cambiar el último paso del workflow a `npm stage publish`, y
+aprobar desde una máquina con `npm stage list @nucleoledger/verify` y
+`npm stage approve <stage-id>` (esto sí pide 2FA, y exige npm 11.15.0+).
+
+### Publicar una versión
+
+```bash
+# 1. La versión en sdk/ts/package.json es la que manda.
+cd sdk/ts && npm version 0.1.0-alpha.1 --no-git-tag-version
+# 2. Commit y, ya en la raíz, el tag con el MISMO número.
+git commit -am "chore(sdk): versión 0.1.0-alpha.1"
+git tag -a vsdk-0.1.0-alpha.1 -m "sdk 0.1.0-alpha.1"
+git push origin main vsdk-0.1.0-alpha.1
+```
+
+El workflow comprueba que el tag y `package.json` coinciden antes de tocar la
+red, y corre typecheck, tests y build antes de publicar. También se puede
+disparar a mano (`workflow_dispatch`), y en ese caso la comprobación del tag se
+salta porque no hay tag que comprobar.
+
+### Por qué no se pasa `--provenance`
+
+Con trusted publishing, npm genera la atestación de procedencia por su cuenta.
+`publishConfig.provenance: true` se queda en `package.json` de todas formas: así
+una publicación por cualquier otra vía —una máquina de desarrollo, por ejemplo—
+**falla** en vez de salir sin procedencia en silencio. Que esa bandera siga en
+pie lo vigila `sdk/ts/test/packaging.test.ts`, porque perderla no rompería nada
+visible.
+
+Requisitos de versión, por si el paso de publicar falla sin explicarse: trusted
+publishing necesita **npm 11.5.1+** y Node 22.14+. El npm que trae Node 22 es el
+10.9.x, así que el workflow instala uno más nuevo a propósito.

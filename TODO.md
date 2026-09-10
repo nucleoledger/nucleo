@@ -18,6 +18,7 @@
 - [x] Subir este esqueleto como primer commit y push — verificar: CI corre en Actions
 - [x] Añadir LICENSE AGPL-3.0 desde el selector de licencias de GitHub (texto canónico) — verificar: archivo LICENSE con texto completo oficial
 - [x] Activar 2FA en GitHub y en npm — verificar: ambos perfiles muestran la segunda factor activa
+- [ ] Configurar el trusted publisher de `@nucleoledger/verify` en npmjs.com (Settings → Trusted Publisher → GitHub Actions; pasos exactos en `docs/RELEASING.md`) — verificar: un tag `vsdk-*` publica sin token y el paquete aparece con procedencia
 
 ## Fase D — Laboratorio
 - [x] Externalizar vectores JCS a `testdata/vectors/jcs/` y hacer que los tests los lean de ahí — tocar: `internal/jcs/jcs_test.go` — verificar: tests en verde leyendo archivos
