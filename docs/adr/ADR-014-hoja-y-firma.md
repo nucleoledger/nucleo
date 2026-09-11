@@ -1,12 +1,33 @@
 # ADR-014-hoja-y-firma
 
-**Estado:** PROPUESTA, pendiente de decisión del dev · **Fecha:** 2026-09-10 · **Fuentes:** revisión externa 2026-09-10 (hallazgo 4), ADR-009 y su enmienda, ADR-006, PROTOCOL.md §1-§2, RFC 6962 §2.1, `internal/ledger/merkle.go`, `internal/store/integrity.go`
+**Estado:** ACEPTADA el 2026-09-10 por el dev · implementada en el Sprint 7b · **Fecha:** 2026-09-10 · **Fuentes:** revisión externa 2026-09-10 (hallazgo 4), ADR-009 y su enmienda, ADR-006, PROTOCOL.md §1-§2, RFC 6962 §2.1, `internal/ledger/merkle.go`, `internal/store/integrity.go`
 
 La revisión externa marcó como defecto de diseño —no como nota al pie— que la
 firma del bloque quede fuera de la hoja de Merkle: *"un auditor externo te lo va a
 marcar HIGH hasta que el leaf sea H(header ‖ sig) o equivalente; `verify --full` no
-es mitigación si nadie lo corre"*. Este ADR analiza el cambio. **No implementa
-nada.**
+es mitigación si nadie lo corre"*. Este ADR analizó el cambio y el dev lo **aprobó el 2026-09-10**: sí, y ahora.
+
+## Decisión
+
+Se adopta la **forma A** —`leaf_data = hash ‖ signature`, ambos crudos y de
+longitud fija— con las cuatro condiciones que recomendaba este ADR:
+
+1. Forma A, 32 + 64 = 96 bytes, sin separador ni prefijo de longitud.
+2. **La regla de hoja pasa a ser versionada y explícita.** Es la condición que más
+   valor tiene a largo plazo y quedó escrita en PROTOCOL.md §2.1 como concepto de
+   primera clase: `leaf/v1` (histórica) y `leaf/v2` (vigente), con la regla de que
+   todo cambio futuro es una versión NUEVA coordinada con los segmentos de ADR-006.
+   El log registra su regla al crearse y rehúsa abrirse bajo otra; el magic del
+   recibo la transporta. Sin esto, la migración por segmentos no era implementable
+   y el siguiente cambio habría sido otro "ahora o nunca".
+3. Una sola rotura de formato: ADR-015 se implementa en el mismo sprint, apoyado en
+   esto.
+4. Vectores primero, calculados fuera del código.
+
+PROTOCOL.md sube a **0.2-draft**. Es un cambio de ruptura pre-1.0 sin ruta de
+migración, y la razón por la que eso es aceptable está escrita ahí: cero
+consumidores. `v0.1.0-alpha` se publicó un día antes, sin despliegues conocidos y
+sin recibos en manos de terceros.
 
 ## Cómo está hoy, exactamente
 
