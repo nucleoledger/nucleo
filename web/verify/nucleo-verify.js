@@ -306,6 +306,12 @@ time ${timestamp.toString()}
   var MAGIC2 = "nucleo.org/receipt@v1";
   var SEPARATOR = "--- prueba verificable ---";
   var NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
+  var LEGAL_NOTICE = [
+    "ADVERTENCIA LEGAL",
+    "Este recibo es evidencia t\xE9cnica de integridad y tiempo. No constituye por s\xED",
+    "mismo un acto p\xFAblico, una certificaci\xF3n notarial ni un pronunciamiento de",
+    "autoridad. Su valor probatorio lo determina un perito o un juez."
+  ];
   async function verifyReceipt(receipt, policy) {
     try {
       return await verificar(receipt, policy);
@@ -513,6 +519,8 @@ time ${timestamp.toString()}
       "",
       `TIEMPO DECLARADO  : ${p.header.timestamp}  (declarado por el sistema emisor)`,
       provable === null ? `TIEMPO DEMOSTRABLE: ${NO_PROVABLE_TIME}` : `TIEMPO DEMOSTRABLE: ${provable}  (atestiguado por testigos)`,
+      "",
+      ...LEGAL_NOTICE,
       "",
       ""
     ];

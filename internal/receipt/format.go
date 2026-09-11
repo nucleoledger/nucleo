@@ -78,6 +78,8 @@ func renderText(r *Receipt, p proof.Policy) ([]byte, error) {
 		fmt.Fprintf(&b, "TIEMPO DEMOSTRABLE: %s\n", NoProvableTime)
 	}
 	b.WriteString("\n")
+	b.WriteString(LegalNotice)
+	b.WriteString("\n\n")
 	return []byte(b.String()), nil
 }
 

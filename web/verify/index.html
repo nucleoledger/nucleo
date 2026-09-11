@@ -58,6 +58,13 @@
   .relojes p { margin: .2rem 0; }
   .etiqueta { font-weight: 700; }
   .nota { color: var(--tenue); font-size: .9rem; margin-top: .5rem; }
+  /* La advertencia legal NO es letra pequeña. Un recibo verificado es justo el
+     momento en que alguien va a creer que tiene más valor del que tiene. */
+  .legal {
+    margin: 1rem 0 0; padding: .7rem .9rem; border-left: 4px solid var(--aviso);
+    background: #fdf8e8; color: #4a3c06; font-size: .95rem;
+  }
+  .legal strong { display: block; margin-bottom: .2rem; letter-spacing: .02em; }
   ul.razones { margin: .6rem 0 0; padding-left: 1.2rem; }
   ul.razones li { margin: .25rem 0; color: var(--mal); }
   footer { margin-top: 2.5rem; color: var(--tenue); font-size: .85rem; }
@@ -142,6 +149,16 @@
     });
   }
 
+  // AVISO_LEGAL repite, palabra por palabra, la advertencia que viaja dentro del
+  // propio recibo. Se enseña con veredicto válido y con veredicto inválido: el
+  // caso peligroso es justo el válido, cuando alguien está a punto de tratar un
+  // recibo correcto como si fuera un acto público.
+  // El texto va en UN solo literal, sin partirlo en concatenaciones: así se
+  // puede buscar en el fichero de un grep, y el test que lo compara con la
+  // constante del recibo no tropieza con las comillas de por medio.
+  const AVISO_LEGAL =
+    '<p class="legal"><strong>ADVERTENCIA LEGAL</strong>Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí mismo un acto público, una certificación notarial ni un pronunciamiento de autoridad. Su valor probatorio lo determina un perito o un juez.</p>';
+
   function escapa(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -180,6 +197,7 @@
             ? '<p class="nota">Este recibo demuestra que el contenido con ese hash estaba en el log. No demuestra que el contenido diga la verdad: eso es otra cosa.</p>'
             : `<ul class="razones">${r.reasons.map((x) => `<li>${escapa(x)}</li>`).join("")}</ul>`
         }
+        ${AVISO_LEGAL}
       </div>`;
   }
 

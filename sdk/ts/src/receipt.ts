@@ -23,6 +23,24 @@ export const SEPARATOR = "--- prueba verificable ---";
 /** NO_PROVABLE_TIME es lo que se imprime cuando no hay tiempo demostrable. */
 export const NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
 
+/**
+ * LEGAL_NOTICE es la advertencia legal que el emisor pone DENTRO del recibo.
+ *
+ * Tiene que ser byte a byte la misma que la constante LegalNotice de Go: viaja
+ * en el texto legible, y renderHeader vuelve a componerla para compararla con lo
+ * que llegó. Un recibo al que le hayan quitado la advertencia —o le hayan
+ * cambiado una palabra— no verifica.
+ *
+ * Eso es lo que la hace útil. Una advertencia que se puede borrar con un editor
+ * de texto no protege a nadie; esta no se puede borrar sin romper el recibo.
+ */
+export const LEGAL_NOTICE = [
+  "ADVERTENCIA LEGAL",
+  "Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí",
+  "mismo un acto público, una certificación notarial ni un pronunciamiento de",
+  "autoridad. Su valor probatorio lo determina un perito o un juez.",
+];
+
 /** Policy es lo que quien verifica debe conocer de antemano. */
 export interface Policy {
   /** origin del log que se espera. */
@@ -400,6 +418,8 @@ function renderHeader(p: Parsed, provable: string | null): string {
     provable === null
       ? `TIEMPO DEMOSTRABLE: ${NO_PROVABLE_TIME}`
       : `TIEMPO DEMOSTRABLE: ${provable}  (atestiguado por testigos)`,
+    "",
+    ...LEGAL_NOTICE,
     "",
     "",
   ];

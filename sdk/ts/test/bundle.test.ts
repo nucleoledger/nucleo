@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { listVectors, readJSON } from "./vectors.js";
+import { LEGAL_NOTICE } from "../src/receipt.js";
 
 // Verificación ANTI-TEATRO.
 //
@@ -95,5 +96,38 @@ describe("el bundle que sirve la página web", () => {
     const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{ valid: boolean }>;
     const result = await verify(ej.receipt, ej.policy);
     expect(result.valid, "el ejemplo que ofrece la página debe verificar").toBe(true);
+  });
+});
+
+// La advertencia legal tiene dos copias por necesidad: una viaja dentro del
+// recibo (y la cubre la igualdad byte a byte de Parse), y otra la pinta la
+// página para quien mira el veredicto sin leer el texto. Dos copias divergen
+// solas; esto es lo que lo impide.
+describe("la advertencia legal", () => {
+  const html = readFileSync(htmlPath, "utf8");
+
+  /** aplana deja una sola línea con espacios simples, para comparar redacciones. */
+  const aplana = (x: string) => x.replace(/\s+/g, " ").trim();
+
+  it("la página la enseña, con la MISMA redacción que el recibo", () => {
+    // El título y la prosa se comparan por separado porque en el HTML los separa
+    // un <strong>. La prosa sí tiene que aparecer entera y seguida: es la parte
+    // que dice qué NO es este documento, y basta con partirla para suavizarla.
+    const [titulo, ...prosa] = LEGAL_NOTICE;
+    expect(aplana(html)).toContain(titulo);
+    expect(aplana(html)).toContain(aplana(prosa.join(" ")));
+  });
+
+  it("no es letra pequeña: tiene su propio estilo, no el de las notas", () => {
+    // Si alguien la degradara a .nota acabaría en gris al pie de la tarjeta,
+    // que es exactamente donde nadie la lee.
+    expect(html).toMatch(/class="legal"/);
+    expect(html).toMatch(/\.legal\s*\{/);
+  });
+
+  it("se enseña también cuando el veredicto es válido", () => {
+    // El caso peligroso no es el rechazo: es el ✔ que alguien imprime y presenta.
+    const tarjeta = html.slice(html.indexOf("Recibo válido"));
+    expect(tarjeta).toContain("AVISO_LEGAL");
   });
 });

@@ -298,7 +298,7 @@ servidor, sin tu base de datos y sin pedirte permiso.
 ```
 
 ```
-✔ recibo escrito en ./recibo.txt (4500 bytes)
+✔ recibo escrito en ./recibo.txt (4740 bytes)
 
 nucleo.org/receipt@v1
 destinatario      : María Pérez (cédula 1712345678)
@@ -309,7 +309,20 @@ bloque            : 0
 
 TIEMPO DECLARADO  : 2026-09-07T10:00:00Z  (declarado por el sistema emisor)
 TIEMPO DEMOSTRABLE: 2026-09-07T10:00:00Z  (atestiguado por testigos)
+
+ADVERTENCIA LEGAL
+Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí
+mismo un acto público, una certificación notarial ni un pronunciamiento de
+autoridad. Su valor probatorio lo determina un perito o un juez.
 ```
+
+**La advertencia legal va dentro del recibo y no se puede quitar.** Está en el
+texto que el verificador vuelve a componer para compararlo byte a byte: un
+recibo al que le borren esas cuatro líneas deja de verificar. Es deliberado. Lo
+que Núcleo demuestra es que un registro existía con unos bytes concretos en un
+momento acotado por terceros; no demuestra que lo registrado sea cierto, ni
+tiene el efecto de un acto público. Un papel con aspecto técnico invita a esa
+lectura, y quien lo reciba merece leer el límite en el mismo papel.
 
 **Los dos tiempos son cosas distintas y el recibo nunca los confunde.**
 

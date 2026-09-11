@@ -37,6 +37,27 @@ const separator = "--- prueba verificable ---"
 // tercero" y "esto lo dice quien lo emitió".
 const NoProvableTime = "SIN TIEMPO DEMOSTRABLE"
 
+// LegalNotice es la advertencia legal que viaja DENTRO del recibo.
+//
+// No es decoración ni cobertura de nadie: es la diferencia entre lo que este
+// documento demuestra y lo que un lector va a suponer que demuestra. Núcleo
+// puede afirmar que un registro existía con unos bytes concretos en un momento
+// acotado por terceros. No puede afirmar que lo registrado sea cierto, ni que
+// tenga el efecto de un acto público, y un recibo impreso con sello de aspecto
+// técnico invita precisamente a esa lectura.
+//
+// Va en el texto legible, y por tanto queda cubierta por la igualdad byte a
+// byte que exige Parse: un recibo al que le quiten la advertencia deja de
+// verificar. Eso es deliberado. Si fuera un pie de página que se puede borrar
+// con un editor, el primer uso comercial lo borraría.
+//
+// Redacción fijada con el dev. Cambiarla cambia los bytes del recibo y por tanto
+// los vectores golden y el verificador de TypeScript: no se retoca a la ligera.
+const LegalNotice = "ADVERTENCIA LEGAL\n" +
+	"Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí\n" +
+	"mismo un acto público, una certificación notarial ni un pronunciamiento de\n" +
+	"autoridad. Su valor probatorio lo determina un perito o un juez."
+
 var (
 	// ErrFormat indica un recibo malformado.
 	ErrFormat = errors.New("receipt: recibo malformado")

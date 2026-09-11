@@ -11,7 +11,15 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
-Nothing yet.
+### Receipts
+
+- Receipts carry a **legal notice in Spanish**, inside the human-readable text and
+  therefore covered by the byte-for-byte equality that `Parse` enforces: a receipt
+  with the notice stripped or softened no longer verifies. It says what the document
+  is (technical evidence of integrity and time) and what it is not (a public act, a
+  notarial certification, a ruling by any authority), and that its evidentiary weight
+  is for an expert witness or a judge to determine. The static verifier shows the same
+  wording, with its own style rather than grey fine print.
 
 ## [0.1.0-alpha] — unreleased
 

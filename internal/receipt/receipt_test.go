@@ -229,6 +229,13 @@ func TestParseRejectsDoctoredText(t *testing.T) {
 		{"tipo cambiado", "sri.factura.v1", "sri.nota-credito.v1"},
 		{"tiempo declarado adelantado", "TIEMPO DECLARADO  : 2026-09-06T14:33:00Z", "TIEMPO DECLARADO  : 2026-09-06T09:00:00Z"},
 		{"tiempo demostrable inventado", "TIEMPO DEMOSTRABLE: " + provable.UTC().Format(timeLayout), "TIEMPO DEMOSTRABLE: 2020-01-01T00:00:00Z"},
+		// La advertencia legal viaja en el texto, así que la cubre esta misma
+		// regla. No es un detalle de redacción: si se pudiera borrar con un
+		// editor, el primer uso comercial la borraría, y el recibo seguiría
+		// verificando sin ella. Estas tres filas son lo que lo impide.
+		{"advertencia legal borrada", "\nADVERTENCIA LEGAL\nEste recibo es evidencia", "\nEste recibo es evidencia"},
+		{"advertencia legal suavizada", "No constituye por sí\nmismo un acto público", "Constituye por sí\nmismo un acto público"},
+		{"advertencia legal entera fuera", "\n" + LegalNotice + "\n", "\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			doctored := strings.Replace(string(data), c.from, c.to, 1)
@@ -383,7 +390,12 @@ hash del contenido: 5c7d1a10a8e4d0aa5cf8d1d05f3d6d13ca0fd0f2b5d3b8ba50e19e10d0f7
 bloque            : 2
 
 TIEMPO DECLARADO  : 2026-09-06T14:32:00Z  (declarado por el sistema emisor)
-TIEMPO DEMOSTRABLE: 2026-09-06T15:00:00Z  (atestiguado por testigos)`
+TIEMPO DEMOSTRABLE: 2026-09-06T15:00:00Z  (atestiguado por testigos)
+
+ADVERTENCIA LEGAL
+Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí
+mismo un acto público, una certificación notarial ni un pronunciamiento de
+autoridad. Su valor probatorio lo determina un perito o un juez.`
 
 	got := Text(data)
 	// El payload_hash depende del contenido del test, así que se compara todo
