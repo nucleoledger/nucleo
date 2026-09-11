@@ -176,6 +176,14 @@
       // devuelve el nombre ya limpio, así que la página la vuelve a poner: quien
       // mire el veredicto tiene que ver el mismo aviso que quien lee el papel.
       ["destinatario", r.recipient ? r.recipient + "  (anotado por el emisor, no firmado)" : "—"],
+      // La firma del bloque es la ruta que un recibo de la versión anterior NO
+      // daba: llevaba signer_pubkey y no llevaba la firma, así que quien lo
+      // recibía veía de quién decía ser y no podía comprobarlo.
+      ["firma del emisor", r.blockSignatureVerified === true
+        ? "✔ verificada contra signer_pubkey"
+        : r.blockSignatureVerified === false
+          ? "✘ NO verifica"
+          : "— no se pudo comprobar"],
       ["log", r.checkpoint?.origin ?? "—"],
       ["testigos que verifican", r.cosigners.length ? r.cosigners.join(", ") : "ninguno"],
     ];

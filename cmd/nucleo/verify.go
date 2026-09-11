@@ -33,8 +33,16 @@ func cmdStatus(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	// La regla de hoja se publica porque PROTOCOL.md §2.1 exige que sea legible por
+	// una máquina: es lo que permite que una migración futura por segmentos sepa qué
+	// está mirando sin deducirlo del tamaño de una hoja.
+	leafRule, err := s.LeafRule()
+	if err != nil {
+		return err
+	}
 	data := map[string]any{
 		"dir":           e.dir,
+		"leaf_rule":     leafRule,
 		"origin":        origin,
 		"log_pubkey":    logPub,
 		"tree_size":     res.TreeSize,
@@ -53,6 +61,7 @@ func cmdStatus(e *env, args []string) error {
 			e.printf("origin    : %s\n", origin)
 			e.printf("clave log : %s\n", logPub)
 		}
+		e.printf("regla hoja: %s\n", leafRule)
 		e.printf("bloques   : %d\n", res.TreeSize)
 		e.printf("raíz      : %s\n", hex.EncodeToString(root))
 		printAttestation(e, res)

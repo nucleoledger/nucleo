@@ -5,7 +5,7 @@
 // derivarlo y comprobar que coincide byte a byte. Un recibo con prueba impecable
 // y texto retocado —otra fecha, otro emisor, otro importe— se rechaza.
 
-import { equal, fromBase64, fromHex, toHex, utf8 } from "./bytes.js";
+import { concat, equal, fromBase64, fromHex, toHex, utf8 } from "./bytes.js";
 import { parseCheckpoint, type Checkpoint } from "./checkpoint.js";
 import { cosignedMessage, parseCosignature, COSIGNATURE_SIZE } from "./cosignature.js";
 import { sha256, verifyEd25519 } from "./crypto.js";
@@ -15,7 +15,18 @@ import { ALG_COSIGNATURE_V1, ALG_ED25519, keyId, parseNote, type Note } from "./
 import { parseProof, type TlogProof } from "./proof.js";
 
 /** MAGIC es la primera línea de un recibo. */
-export const MAGIC = "nucleo.org/receipt@v1";
+/**
+ * MAGIC fija a la vez el formato del recibo y la REGLA DE HOJA con la que se
+ * verifica (PROTOCOL.md §3.1). Un verificador nunca tiene que adivinar con qué
+ * regla recomponer la hoja: lo lee en la primera línea.
+ */
+export const MAGIC = "nucleo.org/receipt@v2";
+
+/** MAGIC_V1 es el magic histórico, para reconocerlo y dar un error que lo explique. */
+export const MAGIC_V1 = "nucleo.org/receipt@v1";
+
+/** BLOCK_SIG_SIZE es lo que mide una firma Ed25519. */
+export const BLOCK_SIG_SIZE = 64;
 
 /** SEPARATOR abre la parte de máquina. */
 export const SEPARATOR = "--- prueba verificable ---";
@@ -111,12 +122,27 @@ export interface Result {
   reasons: string[];
   /** checkpoint es el que respalda el recibo, si se pudo leer. */
   checkpoint: { origin: string; size: string; rootHash: string } | null;
+  /**
+   * blockSignatureVerified dice si la firma del bloque verifica contra la clave
+   * que declara el header.
+   *
+   * Es una ruta que un recibo v1 NO daba: llevaba signer_pubkey y no llevaba la
+   * firma, así que quien recibía el recibo veía de quién decía ser y no tenía nada
+   * con lo que comprobarlo. Es null si no se pudo llegar a comprobarlo.
+   *
+   * No es redundante con la prueba de inclusión. La inclusión demuestra que el log
+   * se comprometió con estos bytes; la firma demuestra que la clave del emisor los
+   * firmó. Una raíz cosignada dice qué publicó el log; una firma dice quién lo
+   * escribió.
+   */
+  blockSignatureVerified: boolean | null;
 }
 
 /** parsed guarda lo que se pudo leer del recibo antes de verificarlo. */
 interface Parsed {
   recipient: string;
   headerJSON: string;
+  blockSig: Uint8Array;
   header: BlockHeader;
   /** headerIndex es el índice leído del texto canónico, sin pasar por Number. */
   headerIndex: bigint;
@@ -146,6 +172,7 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
       declaredTime: null,
       provableTime: null,
       blockIndex: null,
+      blockSignatureVerified: null,
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
@@ -217,6 +244,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     declaredTime: null,
     provableTime: null,
     blockIndex: null,
+    blockSignatureVerified: null,
     recipient: null,
     cosigners: [],
     ignoredSignatures: [],
@@ -258,10 +286,26 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     reasons.push("el header del bloque no está en forma canónica JCS");
   }
 
-  // 3. La hoja de Merkle sale del header, no del recibo. Así el destinatario
-  // puede atar SU documento al registro: recomputa el hash de su contenido y
-  // comprueba que es el payload_hash que hay dentro de este header.
-  const entryHash = await sha256(utf8(p.headerJSON));
+  // 3. La hoja sale del header Y de la firma (leaf/v2, PROTOCOL.md §2.1). El
+  // destinatario sigue pudiendo atar SU documento al registro —recomputa el hash de
+  // su contenido y comprueba que es el payload_hash de este header— y ahora además
+  // puede comprobar quién lo firmó.
+  const blockHash = await sha256(utf8(p.headerJSON));
+  const leafData = concat(blockHash, p.blockSig);
+
+  // 3b. La firma del bloque contra signer_pubkey. Se comprueba aunque la inclusión
+  // vaya a comprobarse después: son dos afirmaciones distintas y quien lee el
+  // veredicto merece saber cuál de las dos falló.
+  let blockSignatureVerified: boolean | null = null;
+  const signerPub = fromHex(p.header.signer_pubkey ?? "");
+  if (signerPub === null || signerPub.length !== 32) {
+    reasons.push("signer_pubkey del header no es una clave Ed25519");
+  } else {
+    blockSignatureVerified = await verifyEd25519(signerPub, p.blockSig, blockHash);
+    if (!blockSignatureVerified) {
+      reasons.push("la firma del bloque no verifica con la clave signer_pubkey del header");
+    }
+  }
 
   // 4. Firmas de la nota del checkpoint.
   const logKey = claves.logKey;
@@ -322,7 +366,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   // texto canónico sin pasar por Number.
   const ok = await verifyInclusion(
     sha256,
-    entryHash,
+    leafData,
     p.proof.index,
     p.checkpoint.size,
     p.proof.inclusionProof,
@@ -346,6 +390,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
 
   return {
     valid: reasons.length === 0,
+    blockSignatureVerified,
     declaredTime: p.header.timestamp,
     provableTime: reasons.length === 0 ? provable : null,
     blockIndex: p.headerIndex,
@@ -368,6 +413,15 @@ export function parseReceipt(receipt: string): Parsed {
   const text = receipt.slice(0, at);
   const machine = receipt.slice(at + SEPARATOR.length + 1);
 
+  if (text.startsWith(MAGIC_V1 + "\n")) {
+    // Se reconoce el recibo viejo para poder decir QUÉ pasa. Sin esto el error
+    // hablaría de una firma que falta, y quien lo leyera buscaría el problema donde
+    // no está.
+    throw new Error(
+      `este recibo es ${MAGIC_V1}, con la regla de hoja leaf/v1; este verificador ` +
+        `implementa ${MAGIC} (leaf/v2). Ver PROTOCOL.md §2.1 y ADR-014`,
+    );
+  }
   if (!text.startsWith(MAGIC + "\n")) {
     throw new Error(`se esperaba ${MAGIC} en la primera línea`);
   }
@@ -384,11 +438,27 @@ export function parseReceipt(receipt: string): Parsed {
   const headerJSON = machine.slice(0, nl);
   const header = JSON.parse(headerJSON) as BlockHeader;
 
-  const proof = parseProof(machine.slice(nl + 1));
+  // Tras el header, la firma del bloque en base64 (PROTOCOL.md §3.1). Va aquí y no
+  // al final porque la cola del recibo es la nota del checkpoint: cualquier línea
+  // pegada después acabaría dentro de la nota, leída como una línea de firma más.
+  const rest = machine.slice(nl + 1);
+  const nl2 = rest.indexOf("\n");
+  if (nl2 < 0) throw new Error("falta la firma del bloque");
+  const blockSig = fromBase64(rest.slice(0, nl2));
+  if (blockSig.length !== BLOCK_SIG_SIZE) {
+    throw new Error(
+      `la firma del bloque mide ${blockSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`,
+    );
+  }
+
+  const proof = parseProof(rest.slice(nl2 + 1));
   const note = parseNote(proof.checkpointNote);
   const checkpoint = parseCheckpoint(note.text);
 
-  return { recipient, headerJSON, header, headerIndex: headerIndexOf(headerJSON), proof, note, checkpoint, text };
+  return {
+    recipient, headerJSON, blockSig, header, headerIndex: headerIndexOf(headerJSON),
+    proof, note, checkpoint, text,
+  };
 }
 
 /**

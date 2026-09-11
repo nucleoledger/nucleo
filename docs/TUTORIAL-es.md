@@ -210,6 +210,7 @@ es indistinguible de uno al que están impidiendo hablar.
 ledger    : ./mi-empresa/nucleo.db
 origin    : nucleoledger.com/mi-empresa
 clave log : 9ad2d5b3d3cc90105737568e1b5850035c181004e46f967da9ba21188818f004
+regla hoja: leaf/v2
 bloques   : 1
 raíz      : e6a49cdde0e70df7cac335235e395cfd290c6c8859d2ec90c980b59d3b6de31e
 estado    : ⚠ SIN ATESTIGUAR (1 bloques)
@@ -351,9 +352,9 @@ servidor, sin tu base de datos y sin pedirte permiso.
 ```
 
 ```
-✔ recibo escrito en ./recibo.txt (4740 bytes)
+✔ recibo escrito en ./recibo.txt (4867 bytes)
 
-nucleo.org/receipt@v1
+nucleo.org/receipt@v2
 destinatario      : María Pérez (cédula 1712345678)  (anotado por el emisor, no firmado)
 emisor (tenant)   : 1790012345001
 tipo de registro  : ecuador.sri.factura.v1
@@ -368,6 +369,23 @@ Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí
 mismo un acto público, una certificación notarial ni un pronunciamiento de
 autoridad. Su valor probatorio lo determina un perito o un juez.
 ```
+
+**El recibo lleva ahora la firma del bloque, y eso le da a tu cliente algo que
+antes no tenía.** En la parte de máquina, después del header canónico, va una línea
+con la firma Ed25519 del bloque. Sirve para dos cosas a la vez:
+
+- Es lo que permite recomponer la hoja del árbol de Merkle. Desde la versión
+  0.2-draft del protocolo la hoja es `hash ‖ firma`, no solo el hash
+  (`PROTOCOL.md` §2.1, regla `leaf/v2`), de modo que una raíz cosignada por un
+  testigo también clava las firmas. Antes no: alguien con acceso a tu base podía
+  destrozar la columna de firmas y la apertura seguía diciendo "atestiguada".
+- Y permite a quien recibe el recibo **comprobar quién lo firmó**. Antes veía
+  `signer_pubkey` en el header y no tenía nada con lo que contrastarlo. El
+  verificador HTML lo enseña como `firma del emisor: ✔ verificada contra
+  signer_pubkey`.
+
+Son dos afirmaciones distintas y hacen falta las dos: la inclusión demuestra que el
+log se comprometió con estos bytes; la firma demuestra que tu clave los firmó.
 
 **La etiqueta del destinatario no es un detalle.** El nombre lo elegiste tú al
 emitir el recibo y no está cubierto por ninguna firma: la prueba demuestra que el

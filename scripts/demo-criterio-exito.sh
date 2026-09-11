@@ -183,7 +183,7 @@ salida_recibo="$("$NUCLEO" --dir "$EMPRESA" receipt --block 0 \
   --recipient "María Pérez (cédula 1712345678)" \
   --out "$TRABAJO/recibo.txt" \
   --witness-name witness.nucleoledger.com/w1 --witness-key "$WKEY" 2>/dev/null)"
-exige "emite el recibo"                    "$salida_recibo" "nucleo.org/receipt@v1"
+exige "emite el recibo"                    "$salida_recibo" "nucleo.org/receipt@v2"
 exige "muestra el tiempo declarado"        "$salida_recibo" "TIEMPO DECLARADO"
 exige "y el demostrable, por separado"     "$salida_recibo" "(atestiguado por testigos)"
 [[ -s "$TRABAJO/recibo.txt" ]] && printf '   ✔ el recibo se guardó en un fichero (%s bytes)\n' \
@@ -220,12 +220,16 @@ sandbox.NucleoVerify.verifyReceipt(
   console.log("declaredTime=" + r.declaredTime);
   console.log("provableTime=" + r.provableTime);
   console.log("blockIndex=" + r.blockIndex);
+  console.log("blockSignatureVerified=" + r.blockSignatureVerified);
   if (!r.valid) console.log("reasons=" + r.reasons.join(" | "));
 });
 JS
 )"
   exige "el recibo de Go verifica en TypeScript" "$salida_ts" "valid=true"
   exige "y trae tiempo demostrable"              "$salida_ts" "provableTime=2026-09-07"
+  # La ruta que leaf/v2 le dio a la contraparte: comprobar QUIÉN firmó el bloque.
+  # Con leaf/v1 el recibo no llevaba la firma, así que esto no se podía comprobar.
+  exige "y verifica la firma del emisor"         "$salida_ts" "blockSignatureVerified=true"
   printf '   salida del verificador TS:\n%s\n' "$(echo "$salida_ts" | sed 's/^/     /')"
 else
   printf '   ⚠ node o el bundle no están disponibles; se salta la verificación cruzada\n'

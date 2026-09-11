@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { verifyReceipt, type Policy } from "../src/index.js";
+import { MAGIC, MAGIC_V1 } from "../src/receipt.js";
 import { readJSON } from "./vectors.js";
 
 // Hallazgo LOW de la auditoría pre-pública: verifyReceipt promete no lanzar
@@ -25,6 +26,20 @@ const politicaBuena: Policy = {
   witnesses: bueno.policy.witnesses,
   quorum: bueno.policy.quorum,
 };
+
+/**
+ * sustituye cambia una cadena y EXIGE que el cambio se haya aplicado.
+ *
+ * Sin esta comprobación, un caso del test puede dejar de probar nada en silencio:
+ * pasó aquí cuando el magic subió a v2 y la sustitución buscaba el literal de v1.
+ * El recibo seguía intacto, el verificador lo daba por bueno con razón, y el test
+ * señalaba al verificador.
+ */
+function sustituye(s: string, de: string, a: string): string {
+  const out = s.replace(de, a);
+  if (out === s) throw new Error(`la sustitución de ${JSON.stringify(de)} no se aplicó`);
+  return out;
+}
 
 /** noLanza ejecuta y exige un veredicto, nunca una excepción. */
 async function noLanza(receipt: unknown, policy: unknown, que: string) {
@@ -70,7 +85,8 @@ describe("verifyReceipt nunca lanza", () => {
       ["vacío", ""],
       ["truncado", bueno.receipt.slice(0, 50)],
       ["solo el separador", "--- prueba verificable ---\n"],
-      ["sin magic", bueno.receipt.replace("nucleo.org/receipt@v1", "otra/cosa@v9")],
+      ["sin magic", sustituye(bueno.receipt, MAGIC, "otra/cosa@v9")],
+      ["magic de la versión vieja", sustituye(bueno.receipt, MAGIC, MAGIC_V1)],
       ["header no es JSON", bueno.receipt.replace(/\{"index".*?\}/, "{no json}")],
       ["base64 roto en la prueba", bueno.receipt.replace(/^[A-Za-z0-9+/]{43}=$/m, "@@@@")],
       ["nulo", null],

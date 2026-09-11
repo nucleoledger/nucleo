@@ -8,7 +8,10 @@ interface Vector {
   description: string;
   receipt: string;
   policy: { origin: string; log_key: string; witnesses: Record<string, string>; quorum: number };
-  entry_hash: string;
+  // leaf_data es la hoja de leaf/v2 en hex: hash ‖ signature (PROTOCOL.md §2.1).
+  leaf_data: string;
+  leaf_rule: string;
+  block_signature: string;
   valid: boolean;
   reason?: string;
   declared_time: string;
@@ -115,5 +118,50 @@ describe("firmas desconocidas", () => {
     // El recibo trae la firma Ed25519 del log y la cosignature del testigo; con
     // una política que conoce las dos no debería quedar ninguna ignorada.
     expect(r.ignoredSignatures).toEqual([]);
+  });
+});
+
+// La firma del bloque es la ruta que un recibo v1 no daba. Aquí se comprueba que el
+// verificador de TypeScript la usa de verdad, contra los MISMOS vectores que Go.
+describe("la firma del bloque (leaf/v2)", () => {
+  for (const name of listVectors("receipt")) {
+    const v = readJSON<Vector>("receipt", name);
+    it(`${name}: el vector declara leaf/v2 y trae la firma`, () => {
+      expect(v.leaf_rule).toBe("leaf/v2");
+      // 96 bytes en hex: 32 del hash y 64 de la firma.
+      expect(v.leaf_data.length).toBe(192);
+      expect(v.block_signature.length).toBe(128);
+      // Y la hoja es exactamente la concatenación, en ese orden.
+      expect(v.leaf_data.endsWith(v.block_signature)).toBe(true);
+    });
+  }
+
+  it("un recibo válido reporta la firma del bloque verificada", async () => {
+    const v = readJSON<Vector>("receipt", "valido-1-cosignature.json");
+    const r = await verifyReceipt(v.receipt, toPolicy(v));
+    expect(r.valid, r.reasons.join(" | ")).toBe(true);
+    expect(r.blockSignatureVerified).toBe(true);
+  });
+
+  it("si se cambia la firma del bloque, el recibo NO verifica y se dice por qué", async () => {
+    const v = readJSON<Vector>("receipt", "valido-1-cosignature.json");
+    // Se sustituye la línea de la firma por otra de 64 bytes bien formada. El
+    // recibo sigue teniendo la forma correcta: lo que falla es la criptografía.
+    const lineas = v.receipt.split("\n");
+    const i = lineas.findIndex((l) => /^[A-Za-z0-9+/]{86}==$/.test(l));
+    expect(i, "no se encontró la línea de la firma del bloque").toBeGreaterThan(0);
+    lineas[i] = btoa(String.fromCharCode(...new Uint8Array(64)));
+    const r = await verifyReceipt(lineas.join("\n"), toPolicy(v));
+    expect(r.valid).toBe(false);
+    expect(r.blockSignatureVerified).toBe(false);
+    expect(r.reasons.join(" ")).toContain("la firma del bloque no verifica");
+  });
+
+  it("un recibo de la versión vieja se rechaza diciendo que es v1", async () => {
+    const v = readJSON<Vector>("receipt", "valido-1-cosignature.json");
+    const viejo = v.receipt.replace("nucleo.org/receipt@v2", "nucleo.org/receipt@v1");
+    const r = await verifyReceipt(viejo, toPolicy(v));
+    expect(r.valid).toBe(false);
+    expect(r.reasons.join(" ")).toContain("leaf/v1");
   });
 });

@@ -303,7 +303,9 @@ time ${timestamp.toString()}
   }
 
   // src/receipt.ts
-  var MAGIC2 = "nucleo.org/receipt@v1";
+  var MAGIC2 = "nucleo.org/receipt@v2";
+  var MAGIC_V1 = "nucleo.org/receipt@v1";
+  var BLOCK_SIG_SIZE = 64;
   var SEPARATOR = "--- prueba verificable ---";
   var NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
   var RECIPIENT_NOTE = "  (anotado por el emisor, no firmado)";
@@ -322,6 +324,7 @@ time ${timestamp.toString()}
         declaredTime: null,
         provableTime: null,
         blockIndex: null,
+        blockSignatureVerified: null,
         recipient: null,
         cosigners: [],
         ignoredSignatures: [],
@@ -372,6 +375,7 @@ time ${timestamp.toString()}
       declaredTime: null,
       provableTime: null,
       blockIndex: null,
+      blockSignatureVerified: null,
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
@@ -400,7 +404,18 @@ time ${timestamp.toString()}
     if (!jsonKeysAreSorted(p.headerJSON)) {
       reasons.push("el header del bloque no est\xE1 en forma can\xF3nica JCS");
     }
-    const entryHash = await sha256(utf8(p.headerJSON));
+    const blockHash = await sha256(utf8(p.headerJSON));
+    const leafData = concat(blockHash, p.blockSig);
+    let blockSignatureVerified = null;
+    const signerPub = fromHex(p.header.signer_pubkey ?? "");
+    if (signerPub === null || signerPub.length !== 32) {
+      reasons.push("signer_pubkey del header no es una clave Ed25519");
+    } else {
+      blockSignatureVerified = await verifyEd25519(signerPub, p.blockSig, blockHash);
+      if (!blockSignatureVerified) {
+        reasons.push("la firma del bloque no verifica con la clave signer_pubkey del header");
+      }
+    }
     const logKey = claves.logKey;
     const logId = await keyId(sha256, policy.origin, ALG_ED25519, logKey);
     let logSigned = false;
@@ -445,7 +460,7 @@ time ${timestamp.toString()}
     }
     const ok = await verifyInclusion(
       sha256,
-      entryHash,
+      leafData,
       p.proof.index,
       p.checkpoint.size,
       p.proof.inclusionProof,
@@ -466,6 +481,7 @@ time ${timestamp.toString()}
     }
     return {
       valid: reasons.length === 0,
+      blockSignatureVerified,
       declaredTime: p.header.timestamp,
       provableTime: reasons.length === 0 ? provable : null,
       blockIndex: p.headerIndex,
@@ -485,6 +501,11 @@ time ${timestamp.toString()}
     if (at < 0) throw new Error(`falta el separador ${JSON.stringify(SEPARATOR)}`);
     const text = receipt.slice(0, at);
     const machine = receipt.slice(at + SEPARATOR.length + 1);
+    if (text.startsWith(MAGIC_V1 + "\n")) {
+      throw new Error(
+        `este recibo es ${MAGIC_V1}, con la regla de hoja leaf/v1; este verificador implementa ${MAGIC2} (leaf/v2). Ver PROTOCOL.md \xA72.1 y ADR-014`
+      );
+    }
     if (!text.startsWith(MAGIC2 + "\n")) {
       throw new Error(`se esperaba ${MAGIC2} en la primera l\xEDnea`);
     }
@@ -496,10 +517,29 @@ time ${timestamp.toString()}
     if (nl < 0) throw new Error("falta el header can\xF3nico");
     const headerJSON = machine.slice(0, nl);
     const header = JSON.parse(headerJSON);
-    const proof = parseProof(machine.slice(nl + 1));
+    const rest = machine.slice(nl + 1);
+    const nl2 = rest.indexOf("\n");
+    if (nl2 < 0) throw new Error("falta la firma del bloque");
+    const blockSig = fromBase64(rest.slice(0, nl2));
+    if (blockSig.length !== BLOCK_SIG_SIZE) {
+      throw new Error(
+        `la firma del bloque mide ${blockSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`
+      );
+    }
+    const proof = parseProof(rest.slice(nl2 + 1));
     const note = parseNote(proof.checkpointNote);
     const checkpoint = parseCheckpoint(note.text);
-    return { recipient, headerJSON, header, headerIndex: headerIndexOf(headerJSON), proof, note, checkpoint, text };
+    return {
+      recipient,
+      headerJSON,
+      blockSig,
+      header,
+      headerIndex: headerIndexOf(headerJSON),
+      proof,
+      note,
+      checkpoint,
+      text
+    };
   }
   function headerIndexOf(headerJSON) {
     const m = /"index"\s*:\s*(\d+)/.exec(headerJSON);
