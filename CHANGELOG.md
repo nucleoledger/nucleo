@@ -11,6 +11,59 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### ⚠ Breaking: the Merkle leaf and the receipt format changed (PROTOCOL 0.2-draft)
+
+**Every root, checkpoint and receipt produced before this release is incompatible, and
+there is no migration path because there is nobody to migrate: `v0.1.0-alpha` shipped
+one day earlier with no known deployments and no third-party receipts.**
+
+Two accepted ADRs, implemented together on purpose so the break happens once:
+
+- **[ADR-014](docs/adr/ADR-014-hoja-y-firma.md) — `leaf/v2`.** A Merkle leaf is now
+  `hash ‖ signature` (32+64 raw bytes, no separator: both fields are fixed length) and
+  not the block hash alone. Under `leaf/v1` a cosigned root said nothing about the
+  `signature` column, so an adversary with write access could garble every signature
+  and the fast open path still reported the history as attested. `verify --full` caught
+  it, and as the external review put it: "`verify --full` is not mitigation if nobody
+  runs it". Now the check that already happens on open covers the signatures, with no
+  extra Ed25519 verification — what detects the tampering is the tree.
+
+  The residual gap is documented and has its own test: `leaf/v2` guarantees the
+  signature *bytes* are the ones present when the root was cosigned, not that they were
+  a valid signature. A dishonest issuer can write garbage, compute the root over it and
+  have a witness cosign that — witnesses do not verify block signatures, it is not
+  their job and they do not hold the keys. `verify --full` remains the route that
+  catches it, naming the block.
+
+- **[ADR-015](docs/adr/ADR-015-destinatario.md) — the issuer signs the receipt.** The
+  issuer's Ed25519 signature now covers the **whole receipt**, recipient included, so
+  rewriting the recipient invalidates the document. The label
+  `(anotado por el emisor, no firmado)` is replaced by `(firmado por el emisor)`.
+
+  This only became cheap *because* ADR-014 landed first: the verifying key is
+  `header.signer_pubkey`, the header is inside the leaf, and the leaf is under a root
+  witnesses cosign — so **a counterparty verifies with nothing but the receipt and its
+  policy. No key directory, no out-of-band exchange, no new PKI.** What the signature
+  does not establish, stated wherever it is shown: delivery, or that the issuer did not
+  issue another receipt for the same record to somebody else.
+
+**The leaf rule is now a first-class, versioned concept** (PROTOCOL §2.1), which is the
+part meant to outlive this change: a log records its rule at creation and refuses to
+open under a different one; the receipt magic carries it (`@v1` → `@v2`); a segment may
+never contain two rules, and a future migration closes the current segment and opens
+the next one under the new rule (ADR-006), chained by RFC 9162 §2.1.4 consistency
+proofs. That route did not exist for v1→v2, which is precisely what made this change a
+one-time opportunity rather than routine maintenance.
+
+Practical consequences for anyone who had a working setup:
+
+- `nucleo receipt` now asks for the passphrase, because it signs.
+- A receipt is ~220 bytes larger (4740 → 4962 in the tutorial's example).
+- A `@v1` receipt is recognised and rejected with a message that says so, in Go, in
+  TypeScript and on the static page — not with a confusing error about a missing field.
+- `status` publishes `leaf_rule`, and the RFC 6962 vectors are untouched: they test the
+  tree algorithm with arbitrary leaf data, and `merkle.go` did not change.
+
 ### Receipts
 
 - Receipts carry a **legal notice in Spanish**, inside the human-readable text and
