@@ -61,8 +61,38 @@ type Store struct {
 // Ed25519 posteriores al último checkpoint cosignado (enmienda de ADR-009).
 // Para la verificación exhaustiva está VerifyFull.
 func Open(path string) (*Store, OpenResult, error) {
+	s, err := connect(path)
+	if err != nil {
+		return nil, OpenResult{}, err
+	}
+	// La regla de hoja se comprueba ANTES de la integridad. Si el log es de otra
+	// regla, la raíz no va a cuadrar jamás, y un error que diga "la raíz no cuadra"
+	// mandaría a buscar corrupción donde hay un cambio de versión.
+	if err := s.checkLeafRule(); err != nil {
+		s.db.Close()
+		return nil, OpenResult{}, err
+	}
+	// Abrir es el momento de descubrir que alguien tocó el fichero: después ya
+	// se estaría sellando encima de una historia alterada.
+	res, err := s.VerifyIntegrity()
+	if err != nil {
+		s.db.Close()
+		return nil, OpenResult{}, err
+	}
+	s.opened = res
+	return s, res, nil
+}
+
+// connect abre la conexión y aplica el esquema, SIN verificar la integridad.
+//
+// Está separado de Open porque montar el escenario de un emisor deshonesto —uno
+// que escribe en la base antes de atestiguar— exige poder abrirla sin pasar por la
+// verificación, y porque duplicar el DSN en un test significaría que los PRAGMA del
+// test y los de producción pueden divergir sin que nada avise. No se exporta: nadie
+// fuera de este paquete debería poder saltarse la verificación de apertura.
+func connect(path string) (*Store, error) {
 	if path == "" {
-		return nil, OpenResult{}, errors.New("store: ruta vacía")
+		return nil, errors.New("store: ruta vacía")
 	}
 	// Los PRAGMA se pasan en el DSN para que los reciba CADA conexión del pool:
 	// journal_mode es persistente en el fichero, pero synchronous y
@@ -75,27 +105,19 @@ func Open(path string) (*Store, OpenResult, error) {
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, OpenResult{}, fmt.Errorf("store: apertura de %q: %w", path, err)
+		return nil, fmt.Errorf("store: apertura de %q: %w", path, err)
 	}
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return nil, OpenResult{}, fmt.Errorf("store: apertura de %q: %w", path, err)
+		return nil, fmt.Errorf("store: apertura de %q: %w", path, err)
 	}
 
 	s := &Store{db: db, path: path}
 	if err := s.migrate(); err != nil {
 		db.Close()
-		return nil, OpenResult{}, err
+		return nil, err
 	}
-	// Abrir es el momento de descubrir que alguien tocó el fichero: después ya
-	// se estaría sellando encima de una historia alterada.
-	res, err := s.VerifyIntegrity()
-	if err != nil {
-		db.Close()
-		return nil, OpenResult{}, err
-	}
-	s.opened = res
-	return s, res, nil
+	return s, nil
 }
 
 // Attestation devuelve el estado con el que se abrió la base, para quien recibe

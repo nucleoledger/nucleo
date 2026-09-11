@@ -114,17 +114,27 @@ func TestAppendBlockSequence(t *testing.T) {
 		t.Errorf("Blocks(9,2) = %v, %v", empty, err)
 	}
 
-	// Las hojas del árbol son los hashes, en orden.
-	leaves, err := s.LeafHashes()
+	// Las hojas del árbol son hash ‖ signature, en orden (leaf/v2, PROTOCOL.md
+	// §2.1). Se comprueban las dos mitades por separado y no la concatenación ya
+	// hecha: así el test detecta también un orden invertido, que daría la misma
+	// longitud y pasaría desapercibido.
+	leaves, err := s.LeafData()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(leaves) != 5 {
-		t.Fatalf("LeafHashes = %d, want 5", len(leaves))
+		t.Fatalf("LeafData = %d, want 5", len(leaves))
 	}
 	for i, l := range leaves {
-		if hex.EncodeToString(l) != blocks[i].Hash {
-			t.Errorf("hoja %d = %x, want %s", i, l, blocks[i].Hash)
+		if len(l) != ledger.LeafDataSize {
+			t.Errorf("hoja %d mide %d bytes, want %d", i, len(l), ledger.LeafDataSize)
+			continue
+		}
+		if got := hex.EncodeToString(l[:32]); got != blocks[i].Hash {
+			t.Errorf("hoja %d, primera mitad = %s, want el hash %s", i, got, blocks[i].Hash)
+		}
+		if got := hex.EncodeToString(l[32:]); got != blocks[i].Signature {
+			t.Errorf("hoja %d, segunda mitad = %s, want la firma %s", i, got, blocks[i].Signature)
 		}
 	}
 }

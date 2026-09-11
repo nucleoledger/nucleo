@@ -294,7 +294,7 @@ func buildChain(pub ed25519.PublicKey, priv ed25519.PrivateKey, t0 time.Time, ov
 func leavesOf(chain []*ledger.Block) ([][]byte, error) {
 	leaves := make([][]byte, 0, len(chain))
 	for _, b := range chain {
-		hb, err := b.HashBytes()
+		hb, err := b.LeafData()
 		if err != nil {
 			return nil, err
 		}

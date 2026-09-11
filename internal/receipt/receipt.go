@@ -17,6 +17,8 @@
 package receipt
 
 import (
+	"crypto/ed25519"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -28,7 +30,18 @@ import (
 )
 
 // Magic identifica el formato y su versión.
-const Magic = "nucleo.org/receipt@v1"
+// El magic fija a la vez el formato del recibo y la REGLA DE HOJA con la que se
+// verifica (PROTOCOL.md §3.1). Así un verificador nunca tiene que adivinar con qué
+// regla recomponer la hoja: lo lee en la primera línea.
+//
+// v1 queda como histórica: su hoja era solo el hash del bloque y su recibo no
+// llevaba la firma, así que quien lo tenía no podía comprobarla. Los recibos v1 no
+// verifican con este código, y eso es deliberado — ADR-014 y PROTOCOL 0.2-draft.
+const Magic = "nucleo.org/receipt@v2"
+
+// MagicV1 es el magic histórico. Se conserva para poder RECONOCER un recibo viejo
+// y dar un error que lo explique, en vez de uno que hable de un separador perdido.
+const MagicV1 = "nucleo.org/receipt@v1"
 
 // separator abre la parte de máquina.
 const separator = "--- prueba verificable ---"
@@ -88,13 +101,16 @@ var (
 	// prueba. Es el rechazo más importante de este paquete: un recibo cuyo texto
 	// visible contradiga sus bytes verificables sería un documento engañoso.
 	ErrTextMismatch = errors.New("receipt: el texto del recibo no coincide con la prueba")
+	// ErrBlockSignature indica que la firma del bloque no verifica contra la clave
+	// que el propio header declara.
+	ErrBlockSignature = errors.New("receipt: la firma del bloque no verifica con signer_pubkey")
 )
 
 // Ledger es lo que hace falta del ledger para emitir un recibo. Lo cumple
 // *store.Store sin adaptador.
 type Ledger interface {
 	Blocks(from, to uint64) ([]*ledger.Block, error)
-	LeafHashes() ([][]byte, error)
+	LeafData() ([][]byte, error)
 	LastCheckpoint() ([]byte, error)
 }
 
@@ -114,6 +130,14 @@ type Receipt struct {
 	// hash de la hoja y comprobar que el payload_hash que él calcula sobre su
 	// documento es el que está sellado.
 	Header ledger.Header
+	// BlockSig es la firma Ed25519 del bloque, 64 bytes crudos.
+	//
+	// Viaja en el recibo porque leaf/v2 la necesita: sin ella el destinatario no
+	// puede recomponer leaf_data y por tanto no puede verificar la inclusión. Y al
+	// viajar, gana algo que con leaf/v1 no tenía: puede comprobar la firma contra
+	// signer_pubkey. Antes veía la clave en el header y no tenía nada con lo que
+	// contrastarla.
+	BlockSig []byte
 	// Proof es la prueba de c2sp.org/tlog-proof.
 	Proof proof.Receipt
 }
@@ -152,7 +176,7 @@ func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
 		return nil, fmt.Errorf("%w: no hay bloque %d", ErrFormat, index)
 	}
 
-	leaves, err := l.LeafHashes()
+	leaves, err := l.LeafData()
 	if err != nil {
 		return nil, err
 	}
@@ -160,9 +184,14 @@ func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
 	if err != nil {
 		return nil, err
 	}
+	sig, err := hex.DecodeString(blocks[0].Signature)
+	if err != nil || len(sig) != ed25519.SignatureSize {
+		return nil, fmt.Errorf("%w: la firma del bloque %d no es una firma Ed25519", ErrFormat, index)
+	}
 	return &Receipt{
 		Recipient: recipient,
 		Header:    blocks[0].Header,
+		BlockSig:  sig,
 		Proof: proof.Receipt{
 			Index:          index,
 			InclusionProof: path,
@@ -171,9 +200,48 @@ func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
 	}, nil
 }
 
-// EntryHash recompone el hash de la hoja desde el header. Es lo que el
-// destinatario verifica, y por eso el header viaja entero en el recibo.
-func (r *Receipt) EntryHash() ([]byte, error) { return r.Header.Digest() }
+// LeafData recompone leaf_data desde el header y la firma que el recibo trae
+// (PROTOCOL.md §2.1, leaf/v2). Es lo que el destinatario mete en la prueba de
+// inclusión, y por eso el header viaja entero y la firma con él.
+//
+// Se llamaba EntryHash y devolvía el digest del header. El nombre era engañoso ya
+// entonces —lo que hace falta para verificar la inclusión son los datos de la hoja,
+// no su hash— y con leaf/v2 habría sido falso.
+func (r *Receipt) LeafData() ([]byte, error) {
+	digest, err := r.Header.Digest()
+	if err != nil {
+		return nil, err
+	}
+	return ledger.LeafData(digest, r.BlockSig)
+}
+
+// VerifyBlockSignature comprueba la firma del bloque contra la clave pública que
+// declara el header.
+//
+// Es la ruta que un recibo v1 no daba: llevaba signer_pubkey y no llevaba la firma,
+// así que la contraparte veía de quién decía ser y no podía comprobarlo.
+//
+// No sustituye a la prueba de inclusión ni al contrario. La inclusión demuestra que
+// el log se comprometió con estos bytes; la firma demuestra que la clave del emisor
+// los firmó. Una raíz cosignada dice qué publicó el log; una firma dice quién lo
+// escribió.
+func (r *Receipt) VerifyBlockSignature() error {
+	pub, err := hex.DecodeString(r.Header.SignerPubKey)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		return fmt.Errorf("%w: signer_pubkey no es una clave Ed25519", ErrFormat)
+	}
+	if len(r.BlockSig) != ed25519.SignatureSize {
+		return fmt.Errorf("%w: firma de bloque de %d bytes", ErrFormat, len(r.BlockSig))
+	}
+	digest, err := r.Header.Digest()
+	if err != nil {
+		return err
+	}
+	if !ed25519.Verify(pub, digest, r.BlockSig) {
+		return ErrBlockSignature
+	}
+	return nil
+}
 
 // DeclaredTime devuelve el timestamp que el emisor puso en el bloque.
 func (r *Receipt) DeclaredTime() (time.Time, error) { return r.Header.Time() }
@@ -207,9 +275,16 @@ func (r *Receipt) ProvableTime(p proof.Policy) (time.Time, bool, error) {
 // Verify. Que el encabezado se derive de lo MISMO que verifica el destinatario
 // es lo que impide que el texto y la prueba lleguen a contradecirse.
 func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
-	entryHash, err := r.EntryHash()
+	// La firma del bloque se comprueba ANTES de la prueba de inclusión. El orden
+	// no cambia el veredicto, pero sí el mensaje de error que alguien va a leer:
+	// "la firma del emisor no verifica" dice qué pasa; "la entrada no está
+	// incluida" mandaría a mirar el árbol cuando el problema es la firma.
+	if err := r.VerifyBlockSignature(); err != nil {
+		return proof.Result{}, err
+	}
+	leafData, err := r.LeafData()
 	if err != nil {
 		return proof.Result{}, err
 	}
-	return r.Proof.Verify(entryHash, p)
+	return r.Proof.Verify(leafData, p)
 }

@@ -162,13 +162,18 @@ func Parse(data []byte) (Receipt, error) {
 // entryHash es el hash del bloque, que es exactamente la hoja del árbol de
 // Merkle según PROTOCOL.md §2. Se importa internal/ledger solo por sus
 // funciones puras de verificación: no se consulta ningún almacén.
-func (r Receipt) Verify(entryHash []byte, p Policy) (Result, error) {
+func (r Receipt) Verify(leafData []byte, p Policy) (Result, error) {
 	if err := p.validate(); err != nil {
 		return Result{}, err
 	}
-	if len(entryHash) != checkpoint.RootSize {
-		return Result{}, fmt.Errorf("%w: el hash de la entrada mide %d bytes, se esperaban %d",
-			ErrFormat, len(entryHash), checkpoint.RootSize)
+	// La longitud esperada es la de leaf_data bajo la regla vigente, no la de un
+	// hash: bajo leaf/v2 la hoja son 96 bytes (PROTOCOL.md §2.1). Comprobarla aquí
+	// es lo que convierte un verificador que se quedó en leaf/v1 en un error
+	// inmediato en vez de un "la entrada no está incluida" que manda a buscar el
+	// problema en el árbol.
+	if len(leafData) != ledger.LeafDataSize {
+		return Result{}, fmt.Errorf("%w: leaf_data mide %d bytes, se esperaban %d (%s)",
+			ErrFormat, len(leafData), ledger.LeafDataSize, ledger.LeafRule)
 	}
 
 	logVerifier, err := checkpoint.NewVerifier(p.Origin, p.LogKey)
@@ -234,7 +239,7 @@ func (r Receipt) Verify(entryHash []byte, p Policy) (Result, error) {
 	if c.Size > uint64(maxInt) || r.Index > uint64(maxInt) {
 		return Result{}, fmt.Errorf("%w: tamaño o índice fuera de rango en esta plataforma", ErrIndex)
 	}
-	if err := ledger.VerifyInclusion(entryHash, int(r.Index), int(c.Size),
+	if err := ledger.VerifyInclusion(leafData, int(r.Index), int(c.Size),
 		r.InclusionProof, c.RootHash); err != nil {
 		return Result{}, fmt.Errorf("%w: %w", ErrInclusion, err)
 	}

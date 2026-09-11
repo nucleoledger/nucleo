@@ -446,7 +446,7 @@ func TestGoldenHeaderFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const want = `nucleo.org/receipt@v1
+	const want = `nucleo.org/receipt@v2
 destinatario      : María Pérez (cédula 1712345678)  (anotado por el emisor, no firmado)
 emisor (tenant)   : 1790012345001
 tipo de registro  : sri.factura.v1

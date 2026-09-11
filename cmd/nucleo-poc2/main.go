@@ -140,7 +140,7 @@ func run() error {
 	fmt.Println("  raíz A:", hex.EncodeToString(rootA))
 
 	// Recibo del bloque 2, emitido en la sesión 1.
-	leaves, err := s.LeafHashes()
+	leaves, err := s.LeafData()
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func run() error {
 	fmt.Println("  raíz B:", hex.EncodeToString(rootB))
 
 	// ---- LA DEMOSTRACIÓN --------------------------------------------------
-	leavesB, err := s2.LeafHashes()
+	leavesB, err := s2.LeafData()
 	if err != nil {
 		return err
 	}

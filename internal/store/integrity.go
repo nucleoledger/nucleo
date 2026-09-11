@@ -192,11 +192,27 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
 		if sha256Hex(headerJSON) != hash {
 			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: ledger.ErrHashMismatch}
 		}
-		raw, err := decodeHash(hash)
+		rawHash, err := decodeHash(hash)
 		if err != nil {
 			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
 		}
-		leaves = append(leaves, raw)
+		rawSig, err := hex.DecodeString(signature)
+		if err != nil {
+			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+		}
+		// La hoja es hash ‖ signature (leaf/v2, PROTOCOL.md §2.1). Aquí está el
+		// cambio que da valor a ADR-014: bajo leaf/v1 esta pasada solo ataba
+		// header↔hash, así que la columna signature no entraba en la raíz y alguien
+		// con escritura en la base podía destrozarla sin que la apertura lo notara
+		// —lo cazaba `verify --full`, que nadie ejecuta—. Ahora la firma entra en la
+		// hoja, así que la MISMA comprobación que ya se hacía al abrir la cubre,
+		// incluso por debajo del último checkpoint cosignado, donde las
+		// verificaciones Ed25519 se saltan a propósito por coste.
+		leaf, err := ledger.LeafData(rawHash, rawSig)
+		if err != nil {
+			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+		}
+		leaves = append(leaves, leaf)
 
 		// El último bloque cubierto por el checkpoint también se reconstruye,
 		// para poder comprobar el encadenamiento con el primero que no lo está.
@@ -321,9 +337,68 @@ func missingHistory(promised uint64, have int) error {
 // de ADR-009, porque el coste que había que atacar eran las verificaciones
 // Ed25519, no el árbol.
 func (s *Store) Root() ([]byte, error) {
-	leaves, err := s.LeafHashes()
+	leaves, err := s.LeafData()
 	if err != nil {
 		return nil, err
 	}
 	return ledger.Root(leaves), nil
+}
+
+// MetaLeafRuleKey es la clave de vault_meta donde el log registra con qué REGLA DE
+// HOJA se creó (PROTOCOL.md §2.1).
+const MetaLeafRuleKey = "log/leaf-rule/v1"
+
+// ErrLeafRule indica que el log se creó con una regla de hoja distinta de la que
+// implementa este binario.
+var ErrLeafRule = errors.New("store: el log usa otra regla de hoja")
+
+// checkLeafRule registra la regla de hoja en un log nuevo y la comprueba en uno
+// existente.
+//
+// Es lo que convierte la regla de hoja de PROTOCOL.md §2.1 en algo que una máquina
+// comprueba, en vez de un párrafo que alguien debería haber leído. Sin esto, abrir
+// un log de leaf/v1 con un binario de leaf/v2 daría un error de raíz que no cuadra
+// —cierto pero inútil— y quien lo viera buscaría corrupción donde hay un cambio de
+// versión.
+//
+// Un log SIN la marca y CON bloques es de leaf/v1 por definición: la marca se
+// escribe desde que existe. Se rechaza, y la única ruta que PROTOCOL contempla es
+// la de segmentos: cerrar el viejo y empezar otro.
+func (s *Store) checkLeafRule() error {
+	stored, err := s.GetMeta(MetaLeafRuleKey)
+	switch {
+	case err == nil:
+		if string(stored) != ledger.LeafRule {
+			return fmt.Errorf("%w: el log se creó con %q y este binario implementa %q. "+
+				"No hay conversión: la migración pasa por cerrar el segmento y abrir otro "+
+				"(PROTOCOL.md §2.1, ADR-006)", ErrLeafRule, stored, ledger.LeafRule)
+		}
+		return nil
+	case !errors.Is(err, ErrNotFound):
+		return err
+	}
+
+	// Sin marca: o el log es nuevo, o viene de antes de que la marca existiera.
+	size, err := s.Count()
+	if err != nil {
+		return err
+	}
+	if size > 0 {
+		return fmt.Errorf("%w: el log no declara regla de hoja y tiene %d bloques, "+
+			"así que es de %q; este binario implementa %q (PROTOCOL.md §2.1, ADR-014)",
+			ErrLeafRule, size, ledger.LeafRuleV1, ledger.LeafRule)
+	}
+	return s.PutMeta(MetaLeafRuleKey, []byte(ledger.LeafRule))
+}
+
+// LeafRule devuelve la regla de hoja con la que se creó este log.
+func (s *Store) LeafRule() (string, error) {
+	raw, err := s.GetMeta(MetaLeafRuleKey)
+	if errors.Is(err, ErrNotFound) {
+		return ledger.LeafRuleV1, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }

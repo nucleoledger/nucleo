@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -136,30 +137,46 @@ func (s *Store) AllBlocks() ([]*ledger.Block, error) {
 	return s.Blocks(0, last.Header.Index+1)
 }
 
-// LeafHashes devuelve los hashes de bloque en orden: son las hojas del árbol de
-// Merkle (PROTOCOL.md §2). Se leen sin reconstruir los headers, que es lo que
-// permite recomponer la raíz en una sola pasada.
-func (s *Store) LeafHashes() ([][]byte, error) {
+// LeafData devuelve los leaf_data de los bloques en orden: las hojas del árbol de
+// Merkle bajo la regla leaf/v2 (PROTOCOL.md §2.1), que es hash ‖ signature.
+//
+// Antes se llamaba LeafHashes y leía solo la columna hash. El nombre era engañoso
+// incluso entonces —devolvía datos de hoja, no hashes de hoja— y con leaf/v2 habría
+// sido directamente falso. Ahora lee las dos columnas, que es lo que hace que una
+// raíz cosignada clave también las firmas: bajo leaf/v1, alguien con escritura en
+// la base podía destrozar la columna signature sin que la raíz lo notara.
+//
+// Se leen sin reconstruir los headers, que es lo que permite recomponer la raíz en
+// una sola pasada.
+func (s *Store) LeafData() ([][]byte, error) {
 	if s.db == nil {
 		return nil, ErrClosed
 	}
-	rows, err := s.db.Query(`SELECT hash FROM blocks ORDER BY idx`)
+	rows, err := s.db.Query(`SELECT hash, signature FROM blocks ORDER BY idx`)
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura de hashes: %w", err)
+		return nil, fmt.Errorf("store: lectura de hojas: %w", err)
 	}
 	defer rows.Close()
 
 	var out [][]byte
 	for rows.Next() {
-		var hexHash string
-		if err := rows.Scan(&hexHash); err != nil {
+		var hexHash, hexSig string
+		if err := rows.Scan(&hexHash, &hexSig); err != nil {
 			return nil, err
 		}
-		raw, err := decodeHash(hexHash)
+		hash, err := decodeHash(hexHash)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, raw)
+		sig, err := hex.DecodeString(hexSig)
+		if err != nil {
+			return nil, fmt.Errorf("store: firma no es hex: %w", err)
+		}
+		data, err := ledger.LeafData(hash, sig)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, data)
 	}
 	return out, rows.Err()
 }

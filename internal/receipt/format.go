@@ -2,6 +2,8 @@ package receipt
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -36,10 +38,23 @@ func Format(r *Receipt, p proof.Policy) ([]byte, error) {
 		return nil, err
 	}
 
+	if len(r.BlockSig) != ed25519.SignatureSize {
+		return nil, fmt.Errorf("%w: firma de bloque de %d bytes, se esperaban %d",
+			ErrFormat, len(r.BlockSig), ed25519.SignatureSize)
+	}
+
 	var b bytes.Buffer
 	b.Write(text)
 	b.WriteString(separator + "\n")
 	b.Write(canonical)
+	b.WriteString("\n")
+	// La firma del bloque va en su propia línea, entre el header y la prueba
+	// (PROTOCOL.md §3.1). Aquí y no al final a propósito: la cola del recibo es la
+	// nota del checkpoint, y proof.Parse consume todo lo que viene después de la
+	// prueba. Cualquier línea pegada al final acabaría dentro de la nota, donde se
+	// leería como una línea de firma más — una firma nuestra disfrazada de firma de
+	// testigo es exactamente lo que no queremos que pueda pasar.
+	b.WriteString(base64.StdEncoding.EncodeToString(r.BlockSig))
 	b.WriteString("\n")
 	b.Write(tlogProof)
 	return b.Bytes(), nil
@@ -109,6 +124,15 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 	// que enseña un destinatario sin decir qué es no debe pasar por bueno.
 	recipient = strings.TrimSuffix(recipient, RecipientNote)
 
+	// Un recibo v1 se reconoce y se rechaza con un mensaje que lo explique. Sin
+	// esto, el error hablaría de una firma que falta o de un header ilegible, y
+	// quien lo leyera buscaría el problema donde no está.
+	if bytes.HasPrefix(data, []byte(MagicV1+"\n")) {
+		return nil, fmt.Errorf("%w: este recibo es %s, con la regla de hoja leaf/v1; "+
+			"este verificador implementa %s (leaf/v2). Ver PROTOCOL.md §2.1 y ADR-014",
+			ErrFormat, MagicV1, Magic)
+	}
+
 	// El header canónico ocupa una línea: es JCS, que no lleva saltos.
 	nl := bytes.IndexByte(machine, '\n')
 	if nl < 0 {
@@ -128,11 +152,29 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 		return nil, fmt.Errorf("%w: el header no está en forma canónica JCS", ErrFormat)
 	}
 
-	tlogProof, err := proof.Parse(machine[nl+1:])
+	// Tras el header, la línea de la firma del bloque.
+	rest := machine[nl+1:]
+	nl2 := bytes.IndexByte(rest, '\n')
+	if nl2 < 0 {
+		return nil, fmt.Errorf("%w: falta la firma del bloque", ErrFormat)
+	}
+	// Strict() y la longitud exacta, por lo mismo que en el resto del proyecto: que
+	// un recibo tenga UNA sola representación en bytes es lo que permite archivarlo
+	// y compararlo años después. Lo aprendimos con el fuzzer del testigo.
+	blockSig, err := base64.StdEncoding.Strict().DecodeString(string(rest[:nl2]))
+	if err != nil {
+		return nil, fmt.Errorf("%w: la firma del bloque no es base64 válido: %w", ErrFormat, err)
+	}
+	if len(blockSig) != ed25519.SignatureSize {
+		return nil, fmt.Errorf("%w: firma de bloque de %d bytes, se esperaban %d",
+			ErrFormat, len(blockSig), ed25519.SignatureSize)
+	}
+
+	tlogProof, err := proof.Parse(rest[nl2+1:])
 	if err != nil {
 		return nil, err
 	}
-	r := &Receipt{Recipient: recipient, Header: h, Proof: tlogProof}
+	r := &Receipt{Recipient: recipient, Header: h, BlockSig: blockSig, Proof: tlogProof}
 
 	want, err := renderText(r, p)
 	if err != nil {

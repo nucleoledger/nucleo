@@ -52,7 +52,7 @@ func bulkSeed(b *testing.B, path string, blocks []*ledger.Block, cosigned bool) 
 
 	leaves := make([][]byte, 0, len(blocks))
 	for _, blk := range blocks {
-		hb, err := blk.HashBytes()
+		hb, err := blk.LeafData()
 		if err != nil {
 			b.Fatal(err)
 		}

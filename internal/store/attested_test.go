@@ -62,7 +62,7 @@ func seedAttested(t *testing.T, n, cpSize int) string {
 		if err := s.AppendBlock(b); err != nil {
 			t.Fatal(err)
 		}
-		hb, err := b.HashBytes()
+		hb, err := b.LeafData()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,8 +114,11 @@ func TestLastCosignedCheckpointIgnoresLogOnlyNotes(t *testing.T) {
 }
 
 // corruptSignature sustituye la firma de un bloque por ceros, sin tocar su
-// header ni su hash. Es la única manipulación que la raíz cosignada NO cubre:
-// la firma vive fuera del header, así que no entra en la hoja de Merkle.
+// header ni su hash.
+//
+// Bajo leaf/v1 esta era la única manipulación que la raíz cosignada NO cubría: la
+// firma vivía fuera del header y fuera de la hoja. Bajo leaf/v2 la hoja es
+// hash ‖ signature, así que esta misma manipulación cambia la raíz.
 func corruptSignature(t *testing.T, path string, idx int) {
 	t.Helper()
 	db := rawDB(t, path)
@@ -129,23 +132,103 @@ func corruptSignature(t *testing.T, path string, idx int) {
 	}
 }
 
-// TestAttestedOpenSkipsSignaturesUnderCheckpoint es la prueba de que el atajo
-// existe de verdad —y, con el mismo gesto, de su precio exacto: la firma de un
-// bloque atestiguado se puede corromper sin que la apertura lo note. VerifyFull
-// sí lo nota. Está escrito en la enmienda de ADR-009.
-func TestAttestedOpenSkipsSignaturesUnderCheckpoint(t *testing.T) {
+// TestAttestedOpenDetectsCorruptSignatureUnderCheckpoint es el punto ciego de
+// leaf/v1, CERRADO. Es el test que justifica ADR-014 entero.
+//
+// Hasta leaf/v2 este test afirmaba lo contrario: que Open ACEPTABA un bloque
+// atestiguado con la firma destrozada, porque la raíz no cubría la columna
+// signature y por debajo del checkpoint cosignado las verificaciones Ed25519 se
+// saltan por coste. La mitigación documentada era `verify --full`, y la revisión
+// externa contestó lo único que se podía contestar: "verify --full no es mitigación
+// si nadie lo corre".
+//
+// Ahora la hoja es hash ‖ signature, así que destrozar la firma cambia la hoja,
+// cambia la raíz y la MISMA comprobación que ya se hacía al abrir lo detecta. Sin
+// verificar una sola firma Ed25519 de más: lo que detecta la manipulación es el
+// árbol, no la criptografía de firma.
+func TestAttestedOpenDetectsCorruptSignatureUnderCheckpoint(t *testing.T) {
 	path := seedAttested(t, 5, 5)
 	corruptSignature(t, path, 1)
 
 	s, _, err := Open(path)
-	if err != nil {
-		t.Fatalf("Open debía aceptar: la firma corrompida está bajo la raíz cosignada: %v", err)
-	}
-	defer s.Close()
-
-	_, err = s.VerifyFull()
 	if err == nil {
-		t.Fatal("VerifyFull aceptó un bloque con la firma corrompida")
+		s.Close()
+		t.Fatal("Open aceptó un bloque atestiguado con la firma destrozada: " +
+			"leaf/v2 debe cubrir la columna signature")
+	}
+	// Y el error señala al checkpoint, no al bloque: lo que no cuadra es la raíz
+	// reconstruida contra la que el log firmó. Es la forma correcta de decirlo —el
+	// bloque 1 por separado no tiene nada de raro, es el conjunto el que miente.
+	if !errors.Is(err, ErrIntegrity) {
+		t.Errorf("err = %v, want ErrIntegrity", err)
+	}
+
+	// Y es determinista: no depende de en qué orden se leyeron las filas.
+	if _, _, err := Open(path); err == nil {
+		t.Fatal("la segunda apertura tampoco debía pasar")
+	}
+}
+
+// TestVerifyFullCazaUnaFirmaInvalidaYaATESTIGUADA cubre el hueco que leaf/v2 NO
+// cierra, y es el que justifica que VerifyFull siga existiendo.
+//
+// leaf/v2 garantiza que los BYTES de la firma son los que había cuando se cosignó
+// la raíz. No garantiza que esos bytes fueran una firma válida: un emisor puede
+// escribir basura en la columna, calcular la raíz sobre esa basura y hacérsela
+// cosignar a un testigo. El testigo no verifica firmas de bloque —no es su trabajo
+// ni tiene las claves— así que cosignará encantado.
+//
+// Contra eso, la apertura rápida no puede hacer nada por diseño: por debajo del
+// checkpoint cosignado se salta las verificaciones Ed25519, que es de donde sale
+// 412 ms en vez de 8 s. Quien quiera descartarlo ejecuta la ruta exhaustiva. La
+// diferencia con antes es importante: ese hueco exige un emisor deshonesto desde el
+// principio, no un atacante que entra después a una base ya cerrada.
+func TestVerifyFullCazaUnaFirmaInvalidaYaATESTIGUADA(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nucleo.db")
+	s, _, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range chain(t, 5, 0) {
+		if err := s.AppendBlock(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// El emisor destroza la firma ANTES de atestiguar.
+	corruptSignature(t, path, 1)
+
+	s2 := openUnverified(t, path)
+	leaves, err := s2.LeafData()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, logPriv := testKeys(t, 7)
+	if err := s2.PutCheckpoint(cosign(t, 5, ledger.Root(leaves), logPriv)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// La apertura pasa: la raíz cosignada CUADRA con lo que hay en disco, basura
+	// incluida. Es la propiedad de leaf/v2 funcionando, no un fallo.
+	s3, res, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open debía pasar: la raíz cosignada cuadra con el contenido: %v", err)
+	}
+	defer s3.Close()
+	if !res.Attested {
+		t.Fatal("la base debería reportarse atestiguada")
+	}
+
+	// Y la ruta exhaustiva lo caza, nombrando el bloque.
+	_, err = s3.VerifyFull()
+	if err == nil {
+		t.Fatal("VerifyFull aceptó un bloque cuya firma no verifica")
 	}
 	var ie *IntegrityError
 	if !errors.As(err, &ie) || ie.Stage != "bloque" || ie.Index != 1 {
@@ -154,6 +237,18 @@ func TestAttestedOpenSkipsSignaturesUnderCheckpoint(t *testing.T) {
 	if !errors.Is(err, ledger.ErrBadSignature) {
 		t.Errorf("la causa no es ErrBadSignature: %v", err)
 	}
+}
+
+// openUnverified abre la base saltándose la verificación de integridad, que es lo
+// único que permite montar el escenario de arriba: un emisor con la base ya en la
+// mano no pasa por Open.
+func openUnverified(t *testing.T, path string) *Store {
+	t.Helper()
+	s, err := connect(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
 }
 
 // TestOpenWithoutCosignatureVerifiesEverything es el contrapunto: sin testigo no

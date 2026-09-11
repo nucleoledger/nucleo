@@ -44,7 +44,7 @@ func (a *StoreLog) TreeSize() (uint64, error) {
 
 // Root devuelve la raíz de Merkle de los primeros size bloques.
 func (a *StoreLog) Root(size uint64) ([]byte, error) {
-	leaves, err := a.Store.LeafHashes()
+	leaves, err := a.Store.LeafData()
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (a *StoreLog) Root(size uint64) ([]byte, error) {
 
 // ConsistencyProof arma PROOF(old, D[size]) desde las hojas del ledger.
 func (a *StoreLog) ConsistencyProof(old, size uint64) ([][]byte, error) {
-	leaves, err := a.Store.LeafHashes()
+	leaves, err := a.Store.LeafData()
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (a *StoreLog) ConsistencyProof(old, size uint64) ([][]byte, error) {
 // y recibir la cosignature, el log que arranque después seguirá sabiendo que ya
 // se comprometió con este tamaño y se negará a desdecirse.
 func (a *StoreLog) SignCheckpoint(size uint64) ([]byte, error) {
-	leaves, err := a.Store.LeafHashes()
+	leaves, err := a.Store.LeafData()
 	if err != nil {
 		return nil, err
 	}

@@ -47,8 +47,20 @@ func newEnv(t *testing.T) *env {
 	e := &env{t: t, entryIdx: 2, witPriv: map[string]ed25519.PrivateKey{}}
 	e.leaves = make([][]byte, 5)
 	for i := range e.leaves {
-		h := ledger.LeafHash([]byte(fmt.Sprintf("bloque-%d", i)))
-		e.leaves[i] = h // hojas de 32 bytes, como los hashes de bloque reales
+		// Hojas leaf/v2: hash ‖ signature, 96 bytes, como las reales
+		// (PROTOCOL.md §2.1). No hace falta que la firma sea válida —este paquete
+		// no la comprueba, eso es trabajo de internal/receipt— pero sí que mida lo
+		// que mide, porque la longitud es lo que hace inequívoca la concatenación.
+		hash := ledger.LeafHash([]byte(fmt.Sprintf("bloque-%d", i)))
+		sig := make([]byte, ed25519.SignatureSize)
+		for j := range sig {
+			sig[j] = byte(i*10 + j)
+		}
+		data, err := ledger.LeafData(hash, sig)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.leaves[i] = data
 	}
 	e.entry = e.leaves[e.entryIdx]
 
@@ -258,12 +270,24 @@ func TestVerifyQuorum(t *testing.T) {
 func TestVerifyRejectsWrongInputs(t *testing.T) {
 	e := newEnv(t)
 
-	otherEntry := ledger.LeafHash([]byte("otra entrada"))
+	// Otra hoja, bien formada pero distinta: el rechazo tiene que ser por inclusión
+	// y no por longitud, que es lo que prueba que la comprobación de longitud no
+	// está tapando la de inclusión.
+	otherEntry, err := ledger.LeafData(ledger.LeafHash([]byte("otra entrada")),
+		make([]byte, ed25519.SignatureSize))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.receipt.Verify(otherEntry, e.policy); !errors.Is(err, ErrInclusion) {
 		t.Errorf("acepta una entrada que no es la del recibo: err = %v", err)
 	}
-	if _, err := e.receipt.Verify(e.entry[:31], e.policy); err == nil {
-		t.Error("acepta un hash de entrada de longitud inválida")
+	// Y una hoja de 32 bytes —la de leaf/v1— se rechaza por longitud: es el caso de
+	// un verificador que se quedó en la regla vieja.
+	if _, err := e.receipt.Verify(e.entry[:32], e.policy); err == nil {
+		t.Error("acepta una hoja leaf/v1 de 32 bytes")
+	}
+	if _, err := e.receipt.Verify(e.entry[:95], e.policy); err == nil {
+		t.Error("acepta una hoja de longitud inválida")
 	}
 
 	wrongOrigin := e.policy

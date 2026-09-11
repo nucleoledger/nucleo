@@ -133,7 +133,7 @@ func TestDurableCycleAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	leavesA, err := s.LeafHashes()
+	leavesA, err := s.LeafData()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestDurableCycleAcrossRestart(t *testing.T) {
 
 	// LA COMPROBACIÓN DEL SPRINT: el testigo, que cosignó antes del reinicio y
 	// no se reinició, acepta la extensión calculada sobre la cadena reabierta.
-	leavesB, err := s2.LeafHashes()
+	leavesB, err := s2.LeafData()
 	if err != nil {
 		t.Fatal(err)
 	}

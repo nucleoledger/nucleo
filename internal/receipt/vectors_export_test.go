@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
 )
 
@@ -29,8 +30,14 @@ type vectorFile struct {
 	Receipt string `json:"receipt"`
 	// Policy son las claves con las que hay que verificarlo.
 	Policy vectorPolicy `json:"policy"`
-	// EntryHash es la hoja de Merkle esperada: SHA-256(JCS(header)).
-	EntryHash string `json:"entry_hash"`
+	// LeafData es leaf_data de la hoja, en hex: hash ‖ signature (leaf/v2,
+	// PROTOCOL.md §2.1). Lo que el verificador mete en la prueba de inclusión.
+	LeafData string `json:"leaf_data"`
+	// LeafRule nombra la regla con la que se construyó, para que un verificador
+	// futuro sepa qué está leyendo sin deducirlo del tamaño.
+	LeafRule string `json:"leaf_rule"`
+	// BlockSig es la firma del bloque en hex, la que el recibo ahora transporta.
+	BlockSig string `json:"block_signature"`
 	// Valid dice si debe verificar.
 	Valid bool `json:"valid"`
 	// Reason nombra el motivo del rechazo cuando Valid es false.
@@ -65,7 +72,7 @@ func TestExportReceiptVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entryHash, err := r.EntryHash()
+	leafData, err := r.LeafData()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +103,9 @@ func TestExportReceiptVectors(t *testing.T) {
 		Description:  "Recibo correcto con una cosignature de un testigo aceptado. Debe verificar.",
 		Receipt:      string(data),
 		Policy:       exported,
-		EntryHash:    hex.EncodeToString(entryHash),
+		LeafData:     hex.EncodeToString(leafData),
+		LeafRule:     ledger.LeafRule,
+		BlockSig:     hex.EncodeToString(r.BlockSig),
 		Valid:        true,
 		DeclaredTime: declared.UTC().Format(timeLayout),
 		ProvableTime: provable.UTC().Format(timeLayout),

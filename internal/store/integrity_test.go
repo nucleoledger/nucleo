@@ -244,7 +244,7 @@ func TestRootMatchesLedger(t *testing.T) {
 		if err := s.AppendBlock(b); err != nil {
 			t.Fatal(err)
 		}
-		hb, err := b.HashBytes()
+		hb, err := b.LeafData()
 		if err != nil {
 			t.Fatal(err)
 		}

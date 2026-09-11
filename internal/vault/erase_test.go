@@ -70,7 +70,7 @@ func TestEraseBlobLeavesLedgerProvable(t *testing.T) {
 
 	leaves := make([][]byte, 0, len(blocks))
 	for _, b := range blocks {
-		hb, err := b.HashBytes()
+		hb, err := b.LeafData()
 		if err != nil {
 			t.Fatal(err)
 		}

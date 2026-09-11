@@ -86,7 +86,7 @@ func run() error {
 	// Raíz de Merkle: esto es lo que se ancla en anchor.nucleo.ec.
 	leaves := make([][]byte, 0, len(chain))
 	for _, b := range chain {
-		hb, err := b.HashBytes()
+		hb, err := b.LeafData()
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ func run() error {
 	}
 	leaves2 := make([][]byte, 0, 3)
 	for _, b := range rewritten {
-		hb, _ := b.HashBytes()
+		hb, _ := b.LeafData()
 		leaves2 = append(leaves2, hb)
 	}
 	root2 := ledger.Root(leaves2)

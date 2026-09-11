@@ -264,7 +264,11 @@ func VerifyChain(blocks []*Block, expectedSigner ed25519.PublicKey) error {
 	return nil
 }
 
-// HashBytes devuelve el hash del bloque en bytes (hoja de Merkle).
+// HashBytes devuelve el hash del bloque en bytes.
+//
+// YA NO es la hoja de Merkle: bajo leaf/v2 la hoja es LeafData() —hash ‖ signature—
+// (PROTOCOL.md §2.1). Esta función se queda porque el hash por separado sigue
+// haciendo falta para la cadena y para comprobar la firma.
 func (b *Block) HashBytes() ([]byte, error) {
 	h, err := hex.DecodeString(b.Hash)
 	if err != nil || len(h) != sha256.Size {
@@ -284,4 +288,68 @@ func isHex(s string, wantLen int) bool {
 	}
 	_, err := hex.DecodeString(s)
 	return err == nil
+}
+
+// Regla de hoja de PROTOCOL.md §2.1. Es un NOMBRE, no un detalle interno.
+//
+// Lo que va en una hoja de Merkle fue durante cinco sprints una frase suelta del
+// protocolo —"las hojas son los hashes de bloque"— y eso es exactamente lo que
+// convirtió cambiarlo en un "ahora o nunca": sin versión explícita, un verificador
+// no tiene forma de saber qué regla aplicar, así que la migración por segmentos
+// que ADR-006 describe no era implementable. Ahora la regla se llama, se registra
+// y se comprueba.
+const (
+	// LeafRule es la regla vigente.
+	LeafRule = "leaf/v2"
+	// LeafRuleV1 es la histórica: la hoja era solo el hash del bloque.
+	LeafRuleV1 = "leaf/v1"
+	// LeafDataSize es lo que mide leaf_data en leaf/v2: 32 del hash más 64 de la
+	// firma.
+	LeafDataSize = sha256.Size + ed25519.SignatureSize
+)
+
+// ErrLeafData indica que los bytes no componen una hoja leaf/v2 válida.
+var ErrLeafData = errors.New("ledger: leaf_data inválido")
+
+// LeafData compone leaf_data de leaf/v2: hash ‖ signature, los dos CRUDOS.
+//
+//	leaf_data = hash(32) ‖ signature(64)        // 96 bytes
+//	leaf_hash = SHA-256(0x00 ‖ leaf_data)       // RFC 6962, ver LeafHash
+//
+// Sin separador y sin prefijo de longitud, y no por ahorrar: los dos campos son de
+// longitud FIJA, así que la concatenación no es ambigua. Un campo de longitud
+// variable aquí reintroduciría la ambigüedad que la auditoría externa encontró en
+// el AAD del vault, donde `tenant ‖ payload_hash` sí podía leerse de dos maneras.
+//
+// Esta función es el ÚNICO sitio donde se decide qué es una hoja. Antes la
+// decisión estaba repartida entre el almacén, el recibo y el verificador de
+// TypeScript, y por eso ninguno de los tres podía cambiarla sin romper a los otros
+// dos en silencio.
+func LeafData(hash, signature []byte) ([]byte, error) {
+	if len(hash) != sha256.Size {
+		return nil, fmt.Errorf("%w: hash de %d bytes, se esperaban %d", ErrLeafData, len(hash), sha256.Size)
+	}
+	if len(signature) != ed25519.SignatureSize {
+		return nil, fmt.Errorf("%w: firma de %d bytes, se esperaban %d", ErrLeafData, len(signature), ed25519.SignatureSize)
+	}
+	out := make([]byte, 0, LeafDataSize)
+	out = append(out, hash...)
+	out = append(out, signature...)
+	return out, nil
+}
+
+// LeafData compone la hoja de este bloque desde sus campos hex.
+func (b *Block) LeafData() ([]byte, error) {
+	if b == nil {
+		return nil, ErrEmptyChain
+	}
+	hash, err := hex.DecodeString(b.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("%w: hash no es hex: %w", ErrLeafData, err)
+	}
+	sig, err := hex.DecodeString(b.Signature)
+	if err != nil {
+		return nil, fmt.Errorf("%w: firma no es hex: %w", ErrLeafData, err)
+	}
+	return LeafData(hash, sig)
 }
