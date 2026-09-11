@@ -4,3 +4,17 @@ bin/
 *.test
 *.out
 dist/
+
+# Binarios compilados. Un producto de integridad no distribuye —ni versiona—
+# ejecutables que nadie puede atar a un commit: para eso está el release firmado
+# (.goreleaser.yaml + cosign). `nucleo.exe` llegó aquí por descuido en 5f61cc7 y
+# pesaba 17.6 MiB, el 99 % del repositorio.
+#
+# Las rutas van ANCLADAS con `/`: un patrón `nucleo` a secas ignoraría también
+# el directorio cmd/nucleo/ y el código fuente de la CLI desaparecería del
+# índice sin que nada avisara.
+/nucleo
+/nucleo.exe
+/nucleod
+/nucleod.exe
+*.exe
