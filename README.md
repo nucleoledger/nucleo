@@ -128,7 +128,11 @@ This is a security product, so the process that built it is part of what you are
 **Limits we document rather than hide:**
 
 - A block's signature is not inside its Merkle leaf, so a cosigned root does not pin the `signature` column. `verify --full` catches corruption there; the fast path does not. ([ADR-009](docs/adr/ADR-009-store-schema.md))
-- A receipt's recipient is not covered by any signature — it is chosen at issue time. The name is an address, not proof.
+- A receipt's recipient is not covered by any signature — it is chosen at issue time. The name is an
+  address, not proof. The receipt says so on the same line as the name, and the label cannot be
+  removed without invalidating the receipt. Making it a real claim requires the issuer to sign the
+  whole receipt, which is useless until the issuer's key is published somewhere the issuer cannot
+  quietly change: see [ADR-015](docs/adr/ADR-015-destinatario.md).
 - **ML-DSA-44 is one additional signature, not a post-quantum deployment.** It covers the log's
   checkpoint note through the `signed-note` `0xff` extension. Witness cosignatures are Ed25519,
   which `tlog-witness` states as a SHOULD for new deployments, and block signatures are Ed25519

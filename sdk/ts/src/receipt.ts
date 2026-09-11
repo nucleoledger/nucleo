@@ -34,6 +34,20 @@ export const NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
  * Eso es lo que la hace útil. Una advertencia que se puede borrar con un editor
  * de texto no protege a nadie; esta no se puede borrar sin romper el recibo.
  */
+/**
+ * RECIPIENT_NOTE es la etiqueta que acompaña al nombre del destinatario, en su
+ * misma línea.
+ *
+ * El destinatario no está cubierto por ninguna firma: lo elige quien emite el
+ * recibo. La prueba demuestra que el registro existía, no a quién se le entregó.
+ * La etiqueta va junto al nombre porque es ahí donde alguien va a leerlo como si
+ * fuera prueba de emisión a esa persona.
+ *
+ * Tiene que coincidir byte a byte con RecipientNote de Go. Los dos espacios del
+ * principio son parte de la constante.
+ */
+export const RECIPIENT_NOTE = "  (anotado por el emisor, no firmado)";
+
 export const LEGAL_NOTICE = [
   "ADVERTENCIA LEGAL",
   "Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí",
@@ -357,7 +371,13 @@ export function parseReceipt(receipt: string): Parsed {
   if (!text.startsWith(MAGIC + "\n")) {
     throw new Error(`se esperaba ${MAGIC} en la primera línea`);
   }
-  const recipient = field(text, "destinatario      : ");
+  // Se quita la etiqueta para devolver el nombre limpio. Si no viniera, el nombre
+  // queda tal cual, renderHeader la volverá a añadir y la comparación del texto
+  // rechaza el recibo: un recibo que enseña el nombre sin decir qué es no pasa.
+  const recipient = field(text, "destinatario      : ").replace(
+    new RegExp(`${RECIPIENT_NOTE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+    "",
+  );
 
   const nl = machine.indexOf("\n");
   if (nl < 0) throw new Error("falta el header canónico");
@@ -408,7 +428,7 @@ function field(text: string, prefix: string): string {
 function renderHeader(p: Parsed, provable: string | null): string {
   const lines = [
     MAGIC,
-    `destinatario      : ${p.recipient}`,
+    `destinatario      : ${p.recipient}${RECIPIENT_NOTE}`,
     `emisor (tenant)   : ${p.header.tenant}`,
     `tipo de registro  : ${p.header.type}`,
     `hash del contenido: ${p.header.payload_hash}`,

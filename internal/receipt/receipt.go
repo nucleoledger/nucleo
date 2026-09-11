@@ -19,6 +19,7 @@ package receipt
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
@@ -36,6 +37,25 @@ const separator = "--- prueba verificable ---"
 // escribe en mayúsculas y sin rodeos: es la diferencia entre "esto lo vio un
 // tercero" y "esto lo dice quien lo emitió".
 const NoProvableTime = "SIN TIEMPO DEMOSTRABLE"
+
+// RecipientNote es la etiqueta que acompaña AL NOMBRE del destinatario, en su
+// misma línea.
+//
+// El destinatario no está cubierto por ninguna firma: lo elige quien emite el
+// recibo, en el momento de emitirlo, y podría poner cualquier nombre. La prueba
+// demuestra que el registro existía; no demuestra a quién se le entregó.
+//
+// Eso hay que decirlo donde está el nombre, no en otro párrafo. El uso que la
+// revisión externa anticipó —pegar el recibo en el pie de un PDF con el nombre
+// del cliente— convierte ese nombre en aparente prueba de emisión a esa persona,
+// y en una disputa se leerá así. Va en la MISMA línea a propósito: una etiqueta
+// en la línea de abajo se separa del nombre con un copia-pega descuidado, y
+// entonces vuelve el problema que pretendía resolver.
+//
+// La opción completa —que el emisor firme el recibo entero, destinatario
+// incluido— se evalúa en ADR-015 y está sin decidir. Esta es la mínima honesta:
+// no añade garantías, deja de insinuarlas.
+const RecipientNote = "  (anotado por el emisor, no firmado)"
 
 // LegalNotice es la advertencia legal que viaja DENTRO del recibo.
 //
@@ -102,6 +122,15 @@ type Receipt struct {
 func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
 	if recipient == "" {
 		return nil, fmt.Errorf("%w: falta el destinatario", ErrFormat)
+	}
+	// Un nombre que contenga la etiqueta produciría una línea con la etiqueta dos
+	// veces. No rompe nada verificable —el round-trip cuadra y el nombre se
+	// recupera intacto— pero deja un papel ambiguo, y la ambigüedad en la línea
+	// del destinatario es justo lo que la etiqueta viene a quitar. Se rechaza al
+	// emitir: más vale no poder crear el problema que detectarlo después.
+	if strings.Contains(recipient, strings.TrimSpace(RecipientNote)) {
+		return nil, fmt.Errorf("%w: el destinatario no puede contener %q",
+			ErrFormat, strings.TrimSpace(RecipientNote))
 	}
 	noteBytes, err := l.LastCheckpoint()
 	if err != nil {

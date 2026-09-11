@@ -20,6 +20,14 @@ codes, and any golden test vector in `testdata/vectors/`.
   notarial certification, a ruling by any authority), and that its evidentiary weight
   is for an expert witness or a judge to determine. The static verifier shows the same
   wording, with its own style rather than grey fine print.
+- The recipient line now carries the label **"(anotado por el emisor, no firmado)"**,
+  on the same line as the name so a careless copy-paste cannot separate them. The
+  verifier returns the clean name; the static page re-adds the label. Issuing a receipt
+  whose recipient *contains* that label is refused, because it would print the label
+  twice and ambiguity on that line is the thing the label removes. The full option —the
+  issuer signing the whole receipt— is evaluated in
+  [ADR-015](docs/adr/ADR-015-destinatario.md) and **not implemented**: without a
+  published issuer key it would be a signature nobody can check.
 
 ## [0.1.0-alpha] — unreleased
 

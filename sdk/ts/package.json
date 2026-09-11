@@ -40,7 +40,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "bundle": "esbuild src/index.ts --bundle --format=iife --global-name=NucleoVerify --outfile=../../web/verify/nucleo-verify.js",
+    "bundle": "esbuild src/index.ts --bundle --format=iife --global-name=NucleoVerify --outfile=../../web/verify/nucleo-verify.js && node scripts/ejemplo.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepack": "npm run typecheck && npm run build"

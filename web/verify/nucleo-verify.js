@@ -306,6 +306,7 @@ time ${timestamp.toString()}
   var MAGIC2 = "nucleo.org/receipt@v1";
   var SEPARATOR = "--- prueba verificable ---";
   var NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
+  var RECIPIENT_NOTE = "  (anotado por el emisor, no firmado)";
   var LEGAL_NOTICE = [
     "ADVERTENCIA LEGAL",
     "Este recibo es evidencia t\xE9cnica de integridad y tiempo. No constituye por s\xED",
@@ -487,7 +488,10 @@ time ${timestamp.toString()}
     if (!text.startsWith(MAGIC2 + "\n")) {
       throw new Error(`se esperaba ${MAGIC2} en la primera l\xEDnea`);
     }
-    const recipient = field(text, "destinatario      : ");
+    const recipient = field(text, "destinatario      : ").replace(
+      new RegExp(`${RECIPIENT_NOTE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+      ""
+    );
     const nl = machine.indexOf("\n");
     if (nl < 0) throw new Error("falta el header can\xF3nico");
     const headerJSON = machine.slice(0, nl);
@@ -511,7 +515,7 @@ time ${timestamp.toString()}
   function renderHeader(p, provable) {
     const lines = [
       MAGIC2,
-      `destinatario      : ${p.recipient}`,
+      `destinatario      : ${p.recipient}${RECIPIENT_NOTE}`,
       `emisor (tenant)   : ${p.header.tenant}`,
       `tipo de registro  : ${p.header.type}`,
       `hash del contenido: ${p.header.payload_hash}`,

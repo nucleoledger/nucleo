@@ -59,7 +59,7 @@ func renderText(r *Receipt, p proof.Policy) ([]byte, error) {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n", Magic)
-	fmt.Fprintf(&b, "destinatario      : %s\n", r.Recipient)
+	fmt.Fprintf(&b, "destinatario      : %s%s\n", r.Recipient, RecipientNote)
 	fmt.Fprintf(&b, "emisor (tenant)   : %s\n", r.Header.Tenant)
 	fmt.Fprintf(&b, "tipo de registro  : %s\n", r.Header.Type)
 	fmt.Fprintf(&b, "hash del contenido: %s\n", r.Header.PayloadHash)
@@ -102,6 +102,12 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 	if err != nil {
 		return nil, err
 	}
+	// La etiqueta se quita para recuperar el nombre. Si el recibo no la trae
+	// —porque viene de una versión anterior, o porque alguien la borró— el nombre
+	// queda como estaba, renderText volverá a añadirla y la comparación byte a
+	// byte de más abajo rechazará el recibo. Es el resultado correcto: un recibo
+	// que enseña un destinatario sin decir qué es no debe pasar por bueno.
+	recipient = strings.TrimSuffix(recipient, RecipientNote)
 
 	// El header canónico ocupa una línea: es JCS, que no lleva saltos.
 	nl := bytes.IndexByte(machine, '\n')

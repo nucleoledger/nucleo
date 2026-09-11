@@ -365,6 +365,70 @@ func TestRecipientIsNotCoveredBySignatures(t *testing.T) {
 	}
 }
 
+// TestRecipientNote cubre la etiqueta que acompaña al nombre.
+//
+// La etiqueta existe porque el límite de arriba es real y nadie lo va a leer en
+// un test: quien reciba el papel tiene que verlo junto al nombre. Y como viaja en
+// el texto, la cubre la misma igualdad byte a byte que todo lo demás.
+func TestRecipientNote(t *testing.T) {
+	sc := newScene(t, 1)
+
+	t.Run("el nombre se imprime con la etiqueta y se recupera sin ella", func(t *testing.T) {
+		r, err := Issue(sc.store, "María Pérez", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := Format(r, sc.policy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "destinatario      : María Pérez  (anotado por el emisor, no firmado)") {
+			t.Errorf("la línea del destinatario no lleva la etiqueta:\n%s", Text(data))
+		}
+		back, err := Parse(data, sc.policy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Quien consuma el recibo recibe el nombre limpio: la etiqueta es para el
+		// humano que lee, no un sufijo que haya que limpiar en cada integración.
+		if back.Recipient != "María Pérez" {
+			t.Errorf("destinatario = %q, want %q", back.Recipient, "María Pérez")
+		}
+	})
+
+	t.Run("quitar la etiqueta invalida el recibo", func(t *testing.T) {
+		r, err := Issue(sc.store, "María Pérez", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := Format(r, sc.policy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		sin := strings.Replace(string(data), RecipientNote+"\n", "\n", 1)
+		if sin == string(data) {
+			t.Fatal("la sustitución no se aplicó: el test no prueba nada")
+		}
+		if _, err := Parse([]byte(sin), sc.policy()); !errors.Is(err, ErrTextMismatch) {
+			t.Errorf("err = %v, want ErrTextMismatch: un recibo que enseña el nombre sin decir qué es no debe pasar", err)
+		}
+	})
+
+	t.Run("un nombre que imita la etiqueta se rechaza, no se confunde", func(t *testing.T) {
+		// Caso adversario: el emisor pone como nombre algo que acaba igual que la
+		// etiqueta, buscando que Parse se la coma y el recibo muestre una línea
+		// ambigua. TrimSuffix quitaría la de más, el nombre recuperado no
+		// coincidiría con el impreso, y la igualdad byte a byte lo rechaza. Lo que
+		// importa es que FALLE, no que adivine la intención.
+		// Medido, no supuesto: ese nombre SÍ pasa el round-trip —la etiqueta sale
+		// dos veces, TrimSuffix quita una y los bytes cuadran—, así que detectarlo
+		// al parsear no servía. Se rechaza antes, al emitir.
+		if _, err := Issue(sc.store, "Alguien"+RecipientNote, 1); !errors.Is(err, ErrFormat) {
+			t.Errorf("err = %v, want ErrFormat: un nombre que imita la etiqueta no debe emitirse", err)
+		}
+	})
+}
+
 // TestGoldenHeaderFormat fija el formato del encabezado byte a byte.
 //
 // Un recibo es un documento que se imprime, se archiva y se compara con otro
@@ -383,7 +447,7 @@ func TestGoldenHeaderFormat(t *testing.T) {
 	}
 
 	const want = `nucleo.org/receipt@v1
-destinatario      : María Pérez (cédula 1712345678)
+destinatario      : María Pérez (cédula 1712345678)  (anotado por el emisor, no firmado)
 emisor (tenant)   : 1790012345001
 tipo de registro  : sri.factura.v1
 hash del contenido: 5c7d1a10a8e4d0aa5cf8d1d05f3d6d13ca0fd0f2b5d3b8ba50e19e10d0f7a0dd

@@ -171,7 +171,11 @@
       // lo interpole sin convertir funcionaría por accidente y JSON.stringify
       // lanzaría.
       ["bloque", r.blockIndex === null ? "—" : String(r.blockIndex)],
-      ["destinatario", r.recipient ?? "—"],
+      // El destinatario lo eligió quien emitió el recibo y no está cubierto por
+      // ninguna firma. La etiqueta viaja dentro del recibo, pero el verificador
+      // devuelve el nombre ya limpio, así que la página la vuelve a poner: quien
+      // mire el veredicto tiene que ver el mismo aviso que quien lee el papel.
+      ["destinatario", r.recipient ? r.recipient + "  (anotado por el emisor, no firmado)" : "—"],
       ["log", r.checkpoint?.origin ?? "—"],
       ["testigos que verifican", r.cosigners.length ? r.cosigners.join(", ") : "ninguno"],
     ];

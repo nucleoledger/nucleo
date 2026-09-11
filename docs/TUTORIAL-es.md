@@ -301,7 +301,7 @@ servidor, sin tu base de datos y sin pedirte permiso.
 ✔ recibo escrito en ./recibo.txt (4740 bytes)
 
 nucleo.org/receipt@v1
-destinatario      : María Pérez (cédula 1712345678)
+destinatario      : María Pérez (cédula 1712345678)  (anotado por el emisor, no firmado)
 emisor (tenant)   : 1790012345001
 tipo de registro  : ecuador.sri.factura.v1
 hash del contenido: e08ab33e7b33533ce06bb329179f55c14afea63b38fcb2d993d6625362a3b839
@@ -315,6 +315,14 @@ Este recibo es evidencia técnica de integridad y tiempo. No constituye por sí
 mismo un acto público, una certificación notarial ni un pronunciamiento de
 autoridad. Su valor probatorio lo determina un perito o un juez.
 ```
+
+**La etiqueta del destinatario no es un detalle.** El nombre lo elegiste tú al
+emitir el recibo y no está cubierto por ninguna firma: la prueba demuestra que el
+registro existía, no a quién se lo entregaste. Si el recibo enseñara el nombre a
+secas, en una disputa se leería como prueba de emisión a esa persona. Va en la
+misma línea que el nombre a propósito, para que un copia-pega no los separe. Si
+necesitas que el destinatario quede firmado, eso es otra cosa y está sin decidir
+(ver `docs/adr/ADR-015-destinatario.md`).
 
 **La advertencia legal va dentro del recibo y no se puede quitar.** Está en el
 texto que el verificador vuelve a componer para compararlo byte a byte: un
