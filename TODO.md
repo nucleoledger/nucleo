@@ -54,7 +54,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] `docs/adr/ADR-015-destinatario.md` — spike de decisión, sin implementar
 - [x] Política *fail-stale*: umbral configurable (72 h por omisión); `status` y
       `seal` avisan por stderr y en `--json`; `verify` lo reporta. Reloj inyectado
-- [ ] `init --kdf-profile {default,constrained}` con los parámetros persistidos y
+- [x] `init --kdf-profile {default,constrained}` con los parámetros persistidos y
       honrados por `Unlock`, y el coste de ambos perfiles MEDIDO
 - [ ] Fuzzers de todos los formatos de cable: note firmada, checkpoint,
       cosignature, recibo y cuerpo de la petición del testigo

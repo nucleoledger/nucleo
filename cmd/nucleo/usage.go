@@ -42,6 +42,25 @@ LÍMITES DE LECTURA
   Existen para que un fichero equivocado —un volcado de la base, un log
   rotado— dé un error en vez de consumir la memoria de la máquina.
 
+PERFILES DE DERIVACIÓN (init --kdf-profile)
+  La passphrase se convierte en clave con Argon2id, y eso cuesta memoria a
+  propósito: es lo que hace caro probar passphrases.
+
+    default      64 MiB · 3 iteraciones · 4 hilos   — RFC 9106 §4, 2.ª opción
+    constrained  19 MiB · 2 iteraciones · 1 hilo    — mínimo de OWASP
+
+  Medido en un Ryzen 7 5700U: abrir el vault tarda 51 ms con default y 25 ms con
+  constrained, y reserva 67 MB contra 20 MB.
+
+  El perfil reducido es MÁS DÉBIL y no hay forma de decirlo de otra manera: con
+  8 GiB, un atacante pasa de unos 2.400 intentos por segundo a unos 16.700, un
+  factor 7. Se ofrece porque en un plan compartido 64 MiB × 4 hilos choca con
+  los límites de LVE/CageFS, y ahí la alternativa real no es un perfil más
+  fuerte: es no cifrar nada. Si lo usas, compensa con una passphrase más larga.
+
+  Los parámetros se guardan en el vault: se abre con los que se creó, no con los
+  de la versión del binario. Cambiar de perfil exige crear un vault nuevo.
+
 ATESTACIÓN VIEJA
   Integridad y frescura son cosas distintas. Un ledger puede estar íntegro y
   atestiguado hasta el bloque 4.000 y llevar dos meses sin que nadie de fuera

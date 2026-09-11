@@ -244,3 +244,77 @@ func TestStaleAfterRechazaValoresAbsurdos(t *testing.T) {
 		}
 	}
 }
+
+// TestKDFProfileEnInit cubre el perfil de derivación desde la vía del usuario.
+//
+// Está aquí y no en internal/vault porque lo que puede romperse es la ruta
+// completa: que la bandera llegue, que los parámetros se guarden y que lo que
+// init IMPRIME sea lo que quedó en la base. Un init que dijera "constrained"
+// mientras guarda los valores por omisión sería peor que no tener la opción.
+func TestKDFProfileEnInit(t *testing.T) {
+	t.Run("constrained se guarda y se informa", func(t *testing.T) {
+		c := newCLI(t)
+		out := c.mustRun("--json", "init", "--origin", testOrigin,
+			"--assume-confirmed", "--kdf-profile", "constrained")
+		var v map[string]any
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatal(err)
+		}
+		kdf, ok := v["kdf"].(map[string]any)
+		if !ok {
+			t.Fatalf("init --json no informa del perfil de KDF:\n%s", out)
+		}
+		// Los números son los de la guía de OWASP, escritos literales.
+		for campo, quiero := range map[string]any{
+			"profile": "constrained", "memory_mib": 19.0, "iterations": 2.0, "parallelism": 1.0,
+		} {
+			if kdf[campo] != quiero {
+				t.Errorf("kdf.%s = %v, want %v", campo, kdf[campo], quiero)
+			}
+		}
+
+		// Y el vault se abre después: si los parámetros guardados no fueran los
+		// usados para derivar, cualquier operación que toque el vault fallaría.
+		c.sealFile(`{"x":1}`)
+	})
+
+	t.Run("el perfil por omisión sigue siendo el fuerte", func(t *testing.T) {
+		c := newCLI(t)
+		out := c.mustRun("--json", "init", "--origin", testOrigin, "--assume-confirmed")
+		var v map[string]any
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatal(err)
+		}
+		kdf := v["kdf"].(map[string]any)
+		if kdf["profile"] != "default" || kdf["memory_mib"] != 64.0 {
+			t.Errorf("sin bandera, el perfil debería ser default/64 MiB: %v", kdf)
+		}
+	})
+
+	t.Run("la salida humana avisa de que es más débil", func(t *testing.T) {
+		c := newCLI(t)
+		out := c.mustRun("init", "--origin", testOrigin, "--assume-confirmed",
+			"--kdf-profile", "constrained")
+		for _, want := range []string{
+			"perfil KDF    : constrained (19 MiB, 2 iteraciones, 1 hilo(s))",
+			"Más débil que el perfil por omisión",
+			"passphrase más larga",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("init no contiene %q:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("un perfil inventado es error de uso, no un vault sorpresa", func(t *testing.T) {
+		c := newCLI(t)
+		_, errOut, code := c.run("init", "--origin", testOrigin,
+			"--assume-confirmed", "--kdf-profile", "barato")
+		if code != exitUsage {
+			t.Errorf("código = %d, want %d", code, exitUsage)
+		}
+		if !strings.Contains(errOut, "kdf-profile") {
+			t.Errorf("stderr = %q", errOut)
+		}
+	})
+}

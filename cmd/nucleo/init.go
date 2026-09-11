@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -28,6 +29,8 @@ func cmdInit(e *env, args []string) error {
 	shares := fs.Int("shares", defaultShares, "número de tarjetas de respaldo")
 	threshold := fs.Int("threshold", defaultThreshold, "tarjetas necesarias para restaurar")
 	yes := fs.Bool("assume-confirmed", false, "salta la confirmación tecleada de la tarjeta (solo automatización)")
+	kdf := fs.String("kdf-profile", string(vault.ProfileDefault),
+		"perfil de derivación de la passphrase: default (64 MiB) o constrained (19 MiB, hosting compartido)")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
@@ -54,7 +57,15 @@ func cmdInit(e *env, args []string) error {
 	defer s.Close()
 
 	vaultID := *origin
-	v, err := vault.Create(s, vaultID, pass)
+	// El perfil se valida ANTES de derivar, para que un nombre mal escrito dé un
+	// error de uso en vez de un vault creado con los parámetros por omisión
+	// mientras quien lo creó cree que eligió otra cosa.
+	profile := vault.KDFProfile(*kdf)
+	if _, err := vault.ParamsFor(profile, make([]byte, vault.SaltLen)); err != nil {
+		return usageErr("--kdf-profile: %v; los válidos son %q y %q",
+			err, vault.ProfileDefault, vault.ProfileConstrained)
+	}
+	v, err := vault.CreateWithProfile(s, vaultID, pass, profile)
 	if err != nil {
 		return err
 	}
@@ -87,6 +98,13 @@ func cmdInit(e *env, args []string) error {
 		return err
 	}
 
+	// Los parámetros se leen de vault_meta, no de la variable local: así lo que se
+	// informa es lo que quedó GUARDADO, que es lo que Unlock usará.
+	storedParams, err := storedKDFParams(s)
+	if err != nil {
+		return err
+	}
+
 	e.out(map[string]any{
 		"origin":        id.Origin,
 		"dir":           e.dir,
@@ -94,11 +112,23 @@ func cmdInit(e *env, args []string) error {
 		"log_pubkey":    hexOf(id.LogPublic()),
 		"shares":        cards,
 		"threshold":     *threshold,
+		"kdf": map[string]any{
+			"profile":     storedParams.Profile(),
+			"memory_mib":  storedParams.Memory / 1024,
+			"iterations":  storedParams.Time,
+			"parallelism": storedParams.Threads,
+		},
 	}, func() {
 		e.printf("✔ vault y ledger creados en %s\n", e.dir)
 		e.printf("  origin        : %s\n", id.Origin)
 		e.printf("  clave tenant  : %s\n", hexOf(id.TenantPublic()))
 		e.printf("  clave del log : %s\n", hexOf(id.LogPublic()))
+		e.printf("  perfil KDF    : %s (%d MiB, %d iteraciones, %d hilo(s))\n",
+			storedParams.Profile(), storedParams.Memory/1024, storedParams.Time, storedParams.Threads)
+		if storedParams.Profile() == string(vault.ProfileConstrained) {
+			e.printf("                  Más débil que el perfil por omisión, a cambio de caber\n")
+			e.printf("                  en un plan compartido. Usa una passphrase más larga.\n")
+		}
 		printCards(e, cards, *threshold)
 	})
 
@@ -212,3 +242,22 @@ func wrapWords(s string, n int) []string {
 }
 
 func hexOf(b ed25519.PublicKey) string { return fmt.Sprintf("%x", b) }
+
+// storedKDFParams lee de vault_meta los parámetros de Argon2id con los que se
+// derivó la KEK.
+//
+// Se leen de la base y no de la constante del código porque son dos cosas que
+// pueden divergir: el código tiene los parámetros de ESTA versión, la base los
+// del día en que se creó el vault. Lo que importa —y lo que Unlock usará— es lo
+// que está guardado.
+func storedKDFParams(s *store.Store) (vault.Params, error) {
+	raw, err := s.GetMeta(vault.MetaParamsKey)
+	if err != nil {
+		return vault.Params{}, err
+	}
+	var p vault.Params
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return vault.Params{}, fmt.Errorf("parámetros de KDF ilegibles: %w", err)
+	}
+	return p, nil
+}

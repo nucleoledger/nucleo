@@ -44,6 +44,84 @@ type Params struct {
 	Salt    []byte `json:"salt"`
 }
 
+// Parámetros del perfil "constrained", para hosting compartido.
+//
+// Son el MÍNIMO de la guía de almacenamiento de contraseñas de OWASP: 19 MiB de
+// memoria, 2 iteraciones y 1 grado de paralelismo. No es una cifra inventada
+// para que quepa: es el punto más bajo que una guía reconocida respalda.
+//
+// Conviene ser muy claro sobre lo que se pierde, porque este perfil es más débil
+// y no hay forma de presentarlo de otro modo. Los parámetros por omisión de
+// Núcleo (t=3, p=4, m=64 MiB) son EXACTAMENTE la segunda opción recomendada del
+// RFC 9106 §4, la que el propio RFC da para entornos con poca memoria. El perfil
+// constrained queda por debajo de eso: deja de cumplir la recomendación del RFC
+// y se apoya en el mínimo de OWASP.
+//
+// La razón para aceptarlo es operativa, no criptográfica. ADR-005 eligió la CLI
+// precisamente porque en hosting compartido no se pueden tener daemons; en ese
+// mismo entorno, 64 MiB × 4 lanes choca con los límites de LVE/CageFS y el
+// resultado no es "un vault más lento", es un proceso que el hosting mata. La
+// alternativa real a este perfil no es uno más fuerte: es que esa persona no use
+// cifrado en absoluto, o no pueda abrir su propio vault.
+//
+// Con p=1 además se evita repartir el trabajo en cuatro lanes, que es lo que un
+// límite de procesos por usuario castiga primero.
+const (
+	ConstrainedTime    uint32 = 2
+	ConstrainedMemory  uint32 = 19 * 1024 // KiB, es decir 19 MiB
+	ConstrainedThreads uint8  = 1
+)
+
+// KDFProfile nombra un juego de parámetros de Argon2id.
+//
+// Existen nombres y no números sueltos porque quien elige esto al crear un vault
+// no está en condiciones de razonar sobre m, t y p: está decidiendo entre "mi
+// portátil o un VPS" y "un plan compartido de 10 dólares". El nombre se guarda
+// con los parámetros para que un vault diga con qué se creó.
+type KDFProfile string
+
+const (
+	// ProfileDefault es t=3, p=4, m=64 MiB: la segunda opción del RFC 9106 §4.
+	ProfileDefault KDFProfile = "default"
+	// ProfileConstrained es t=2, p=1, m=19 MiB: el mínimo de OWASP. Más débil.
+	ProfileConstrained KDFProfile = "constrained"
+)
+
+// ErrProfile indica un perfil de KDF desconocido.
+var ErrProfile = errors.New("vault: perfil de KDF desconocido")
+
+// ParamsFor devuelve los parámetros del perfil con el salt dado.
+func ParamsFor(profile KDFProfile, salt []byte) (Params, error) {
+	switch profile {
+	case ProfileDefault, "":
+		return DefaultParams(salt), nil
+	case ProfileConstrained:
+		return Params{
+			Time: ConstrainedTime, Memory: ConstrainedMemory,
+			Threads: ConstrainedThreads, KeyLen: KeyLen, Salt: salt,
+		}, nil
+	default:
+		return Params{}, fmt.Errorf("%w: %q", ErrProfile, profile)
+	}
+}
+
+// Profile nombra el perfil al que corresponden estos parámetros, o "personalizado"
+// si no coincide con ninguno conocido.
+//
+// Se deduce de los valores en vez de guardarse como etiqueta aparte a propósito:
+// una etiqueta puede mentir sobre los parámetros con los que se derivó de verdad
+// la KEK, y lo que se usa para abrir el vault son los números.
+func (p Params) Profile() string {
+	switch {
+	case p.Time == ArgonTime && p.Memory == ArgonMemory && p.Threads == ArgonThreads:
+		return string(ProfileDefault)
+	case p.Time == ConstrainedTime && p.Memory == ConstrainedMemory && p.Threads == ConstrainedThreads:
+		return string(ProfileConstrained)
+	default:
+		return "personalizado"
+	}
+}
+
 // DefaultParams devuelve los parámetros de esta versión con el salt dado.
 func DefaultParams(salt []byte) Params {
 	return Params{Time: ArgonTime, Memory: ArgonMemory, Threads: ArgonThreads, KeyLen: KeyLen, Salt: salt}
@@ -135,6 +213,13 @@ func (v *Vault) ID() string { return v.id }
 // y la DEK envuelta bajo la KEK derivada de la passphrase. Persiste parámetros,
 // identificador y DEK envuelta; la DEK en claro nunca toca el disco.
 func Create(ms MetaStore, vaultID string, passphrase []byte) (*Vault, error) {
+	return CreateWithProfile(ms, vaultID, passphrase, ProfileDefault)
+}
+
+// CreateWithProfile es Create con un perfil de KDF explícito. Los parámetros
+// quedan en vault_meta y son los que Unlock usará: un vault se abre con los
+// parámetros con los que se creó, no con los que estén de moda.
+func CreateWithProfile(ms MetaStore, vaultID string, passphrase []byte, profile KDFProfile) (*Vault, error) {
 	if vaultID == "" {
 		return nil, errors.New("vault: identificador de vault vacío")
 	}
@@ -150,7 +235,10 @@ func Create(ms MetaStore, vaultID string, passphrase []byte) (*Vault, error) {
 		return nil, fmt.Errorf("vault: DEK aleatoria: %w", err)
 	}
 
-	params := DefaultParams(salt)
+	params, err := ParamsFor(profile, salt)
+	if err != nil {
+		return nil, err
+	}
 	kek, err := DeriveKEK(passphrase, params)
 	if err != nil {
 		return nil, err

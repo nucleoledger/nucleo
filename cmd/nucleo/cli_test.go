@@ -117,11 +117,13 @@ func (c *cli) writeTemp(t *testing.T, content string) string {
 	return path
 }
 
-// TestInitIsDeterministicWithTestHooks fija la salida de init byte a byte.
+// TestInitIsDeterministicWithTestHooks fija las piezas de la salida de init.
 //
-// Un golden aquí vale doble: además de detectar cambios de formato, prueba que
-// los ganchos de prueba hacen lo que dicen. Si NUCLEO_TEST_SEED dejara de fijar
-// el material, estas claves cambiarían.
+// Comprueba las líneas que importan, no la salida entera: un golden byte a byte
+// de treinta líneas se rompe cada vez que se añade un campo y acaba actualizándose
+// sin leerlo, que es lo contrario de lo que un golden debe provocar. Lo que se fija
+// aquí es que cada pieza esté y que las claves sean deterministas: si
+// NUCLEO_TEST_SEED dejara de fijar el material, cambiarían.
 func TestInitIsDeterministicWithTestHooks(t *testing.T) {
 	c := newCLI(t)
 	out := c.mustRun("init", "--origin", testOrigin, "--assume-confirmed")

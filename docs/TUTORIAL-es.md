@@ -85,6 +85,22 @@ es un trámite: es lo que obliga a copiarlas mientras están en pantalla. El err
 más común es seguir adelante pensando en apuntarlas luego, y no se descubre
 hasta el día en que hacen falta.
 
+> **¿Hosting compartido?** Abrir el vault pide **64 MiB** de memoria, porque eso
+> es lo que hace caro probar passphrases. En un plan compartido con límites de
+> LVE/CageFS, eso no es "más lento": es un proceso que el hosting mata. Para ese
+> caso existe `init --kdf-profile constrained`, que baja a 19 MiB, 2 iteraciones
+> y 1 hilo — el mínimo que recomienda OWASP.
+>
+> Medido en un Ryzen 7 5700U: abrir el vault pasa de **51 ms y 67 MB** a **25 ms
+> y 20 MB**. Es más débil, y conviene saber cuánto: con 8 GiB de RAM, quien robe
+> tu vault pasa de unos **2.400 intentos por segundo a unos 16.700**, un factor
+> **7**. Compénsalo con una passphrase más larga — cuatro palabras más valen
+> mucho más que ese factor.
+>
+> Los parámetros quedan guardados en el vault, así que se abre con los que se
+> creó aunque una versión futura suba los valores por omisión. Cambiar de perfil
+> exige crear un vault nuevo.
+
 > **Automatización.** Para scripts existen `--passphrase-file` y
 > `--assume-confirmed`. Úsalos con cabeza: quien pueda leer ese fichero puede
 > abrir tu vault. La passphrase **nunca** se pasa por argumento, porque los

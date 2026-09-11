@@ -48,6 +48,18 @@ codes, and any golden test vector in `testdata/vectors/`.
   administrator's mail, so the alarm rings without anyone having to wire it up. The
   failure mode this addresses is not an attack — it is a cron job that quietly stopped
   running, which nothing in the system used to notice.
+- **`init --kdf-profile {default,constrained}`**, measured rather than guessed. The
+  default (t=3, p=4, m=64 MiB) is exactly RFC 9106 §4's second recommended option;
+  `constrained` (t=2, p=1, m=19 MiB) is the OWASP Password Storage minimum — below a
+  standards recommendation, and labelled as such in the CLI's own output. On a Ryzen 7
+  5700U, unlocking costs **51 ms / 67 MB** against **25 ms / 20 MB**; with 8 GiB an
+  attacker goes from ~2,400 to ~16,700 guesses per second, a factor of **7**.
+
+  It exists because ADR-005 chose a CLI precisely for shared hosting, where 64 MiB × 4
+  lanes is what LVE/CageFS kills first — so the real alternative to the weaker profile
+  is not a stronger one, it is no encryption at all. Parameters are stored in the vault
+  and `Unlock` uses the stored ones, with a test that proves it by substituting them and
+  requiring the unlock to fail.
 
 ## [0.1.0-alpha] — unreleased
 
