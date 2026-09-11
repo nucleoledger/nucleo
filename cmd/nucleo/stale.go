@@ -39,6 +39,14 @@ type staleness struct {
 	// las dos máquinas. Pero se dice, porque silenciarlo convertiría un reloj
 	// roto en una atestación eternamente fresca.
 	Future bool
+	// Empty es true cuando el ledger no tiene ni un bloque.
+	//
+	// Con cero bloques no hay nada que atestiguar, así que avisar sería gritar
+	// por algo que no existe. Y eso tiene un coste real: el primer `status` de
+	// quien acaba de instalar esto saldría con una alarma, aprendería en ese
+	// mismo momento que las alarmas de este programa se pueden ignorar, y para
+	// cuando la alarma importe ya estará entrenado para no leerla.
+	Empty bool
 }
 
 // checkStaleness juzga la frescura de la última atestación verificada.
@@ -46,8 +54,8 @@ type staleness struct {
 // Usa el instante que afirmó el TESTIGO, no el reloj local del momento en que se
 // guardó. Los dos están en el registro y la diferencia importa: el reloj local
 // es el de la máquina que podría querer que la alarma no suene.
-func checkStaleness(s *store.Store, now time.Time, threshold time.Duration) (staleness, error) {
-	out := staleness{Threshold: threshold}
+func checkStaleness(s *store.Store, now time.Time, threshold time.Duration, treeSize uint64) (staleness, error) {
+	out := staleness{Threshold: threshold, Empty: treeSize == 0}
 	r, ok, err := s.LastAttested()
 	if err != nil {
 		return out, err
@@ -77,7 +85,10 @@ func checkStaleness(s *store.Store, now time.Time, threshold time.Duration) (sta
 // cron: lo que necesita es poder leer un booleano sin parsear prosa.
 func (st staleness) json() map[string]any {
 	out := map[string]any{
-		"stale":           st.Stale,
+		// Con el ledger vacío, stale se reporta como false: no hay historia que
+		// pueda estar desamparada. El campo está igualmente para que quien
+		// automatice no tenga que distinguir el caso.
+		"stale":           st.Stale && !st.Empty,
 		"threshold_hours": st.Threshold.Hours(),
 		"attested_ever":   st.Known,
 	}
@@ -101,7 +112,7 @@ func (st staleness) json() map[string]any {
 // haga sonar la alarma sin que nadie haya tenido que programar nada. Un campo en
 // el JSON que nadie lee no es una alarma; es un dato.
 func (st staleness) warn(e *env) bool {
-	if !st.Stale && !st.Future {
+	if st.Empty || (!st.Stale && !st.Future) {
 		return false
 	}
 	if st.Future {

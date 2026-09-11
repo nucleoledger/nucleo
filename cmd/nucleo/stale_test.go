@@ -318,3 +318,39 @@ func TestKDFProfileEnInit(t *testing.T) {
 		}
 	})
 }
+
+// TestStaleLedgerVacioNoGrita: recién instalado, sin un solo bloque, no hay nada
+// que atestiguar y por tanto no hay nada que avisar.
+//
+// Parece un detalle de cortesía y no lo es. El primer `status` de quien acaba de
+// instalar esto saldría con una alarma, aprendería ahí mismo que las alarmas de
+// este programa se pueden ignorar, y para cuando una importe de verdad ya estará
+// entrenado para no leerla. Una alarma que se ignora es peor que no tenerla.
+func TestStaleLedgerVacioNoGrita(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+
+	out, errOut, code := c.run("--json", "status")
+	if code != exitOK {
+		t.Fatalf("código %d", code)
+	}
+	if avisoDeFrescura(errOut) {
+		t.Errorf("avisó sobre un ledger sin un solo bloque:\n%s", errOut)
+	}
+	if f := freshness(t, out); f["stale"] != false {
+		t.Errorf("freshness.stale = %v en un ledger vacío, want false", f["stale"])
+	}
+
+	humano, _, _ := c.run("status")
+	if strings.Contains(humano, "frescura") {
+		t.Errorf("la salida humana habla de frescura sin historia:\n%s", humano)
+	}
+
+	// Y en cuanto hay UN bloque, el aviso sí sale: lo que se silencia es el
+	// ledger vacío, no el ledger sin atestiguar.
+	c.sealFile(`{"x":1}`)
+	_, errOut, _ = c.run("status")
+	if !avisoDeFrescura(errOut) {
+		t.Errorf("con un bloque sin atestiguar debería avisar:\n%s", errOut)
+	}
+}

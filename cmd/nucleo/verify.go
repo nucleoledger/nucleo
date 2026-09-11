@@ -29,7 +29,7 @@ func cmdStatus(e *env, args []string) error {
 	// obligar a sacarlos de la base con SQL sería empujar a la gente a hurgar
 	// en el fichero que este programa existe para proteger.
 	origin, logPub := logIdentity(s)
-	st, err := checkStaleness(s, now(), e.staleAfter)
+	st, err := checkStaleness(s, now(), e.staleAfter, res.TreeSize)
 	if err != nil {
 		return err
 	}
@@ -69,6 +69,8 @@ func cmdStatus(e *env, args []string) error {
 // llevar dos meses sin sincronizar, y las dos frases serían verdad.
 func printFreshness(e *env, st staleness) {
 	switch {
+	case st.Empty:
+		// Nada que decir: no hay historia.
 	case !st.Known:
 		e.printf("frescura  : ⚠ nunca se obtuvo una atestación verificada\n")
 	case st.Stale:
@@ -121,7 +123,7 @@ func cmdVerify(e *env, args []string) error {
 		mode = "exhaustiva"
 	}
 
-	st, err := checkStaleness(s, now(), e.staleAfter)
+	st, err := checkStaleness(s, now(), e.staleAfter, res.TreeSize)
 	if err != nil {
 		return err
 	}
