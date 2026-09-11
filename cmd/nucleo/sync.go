@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/logsync"
+	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/witness"
 )
 
@@ -98,16 +99,35 @@ func cmdSync(e *env, args []string) error {
 		return syncErr("%v", err)
 	}
 
+	// Aquí, y solo aquí, se graba cuándo avaló un tercero este log: es el único
+	// punto del programa que acaba de VERIFICAR una cosignature contra la clave
+	// del testigo. Guardarlo es lo que permite que `status` y `seal` respondan
+	// "hace cuánto" sin volver a pedir la clave en cada invocación, que es la
+	// razón por la que ese chequeo no se haría nunca.
+	if res.Attested {
+		if err := s.PutLastAttested(store.AttestationRecord{
+			Witness:    *name,
+			At:         res.AttestedAt,
+			Size:       res.LocalSize,
+			RecordedAt: now(),
+		}); err != nil {
+			return err
+		}
+	}
+
 	e.out(map[string]any{
 		"origin":       res.Origin,
 		"local_size":   res.LocalSize,
 		"witness_size": res.WitnessSize,
 		"attested":     res.Attested,
+		"attested_at":  res.AttestedAt.UTC().Format(time.RFC3339),
 		"first_time":   res.Fresh,
 	}, func() {
 		e.printf("✔ atestación obtenida del testigo %s\n", *name)
 		e.printf("  origin  : %s\n", res.Origin)
 		e.printf("  bloques : %d\n", res.LocalSize)
+		e.printf("  tiempo  : %s (lo afirma el testigo, no este reloj)\n",
+			res.AttestedAt.UTC().Format(time.RFC3339))
 		if res.Fresh {
 			e.printf("  (era el primer checkpoint de este log para ese testigo)\n")
 		} else if res.WitnessSize < res.LocalSize {

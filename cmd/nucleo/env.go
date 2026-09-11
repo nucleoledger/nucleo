@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/nucleoledger/nucleo/internal/identity"
 	"github.com/nucleoledger/nucleo/internal/store"
@@ -25,6 +26,8 @@ type env struct {
 	json bool
 	// dir es el directorio del despliegue.
 	dir string
+	// staleAfter es el umbral de la política fail-stale.
+	staleAfter time.Duration
 }
 
 // dbPath devuelve la ruta del ledger.
@@ -95,11 +98,29 @@ func dispatch(e *env, args []string) error {
 // mismo. Un usuario no debería tener que recordar el orden.
 func parseGlobals(e *env, args []string) ([]string, error) {
 	e.dir = "."
+	e.staleAfter = DefaultStaleAfter
 	var rest []string
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
 		case a == "--json":
 			e.json = true
+		case a == "--stale-after" || strings.HasPrefix(a, "--stale-after="):
+			v := strings.TrimPrefix(a, "--stale-after=")
+			if v == a {
+				if i+1 >= len(args) {
+					return nil, usageErr("--stale-after necesita un valor, p.ej. 72h")
+				}
+				i++
+				v = args[i]
+			}
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return nil, usageErr("--stale-after: %v", err)
+			}
+			if d <= 0 {
+				return nil, usageErr("--stale-after tiene que ser positivo; 0 desactivaría el aviso, y para eso mejor no ponerlo")
+			}
+			e.staleAfter = d
 		case a == "--dir":
 			if i+1 >= len(args) {
 				return nil, usageErr("--dir necesita un valor")

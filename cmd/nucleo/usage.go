@@ -6,7 +6,7 @@ func usageText() string {
 	return `nucleo — registro con integridad demostrable
 
 USO
-  nucleo [--dir D] [--json] <subcomando> [opciones]
+  nucleo [--dir D] [--json] [--stale-after D] <subcomando> [opciones]
 
 SUBCOMANDOS
   init        crea el vault y el ledger, y entrega las tarjetas de respaldo
@@ -23,6 +23,9 @@ SUBCOMANDOS
 BANDERAS GLOBALES
   --dir D     directorio del despliegue (por defecto, el actual)
   --json      salida para máquinas en vez de para personas
+  --stale-after D
+              a partir de cuánto se considera VIEJA la última atestación
+              verificada (por omisión 72h). Ver ATESTACIÓN VIEJA.
 
 CÓDIGOS DE SALIDA
   0  todo correcto
@@ -38,6 +41,25 @@ LÍMITES DE LECTURA
 
   Existen para que un fichero equivocado —un volcado de la base, un log
   rotado— dé un error en vez de consumir la memoria de la máquina.
+
+ATESTACIÓN VIEJA
+  Integridad y frescura son cosas distintas. Un ledger puede estar íntegro y
+  atestiguado hasta el bloque 4.000 y llevar dos meses sin que nadie de fuera
+  vea una raíz: las dos frases serían verdad, y solo la primera consuela.
+
+  status, seal y verify avisan por STDERR —también con --json— cuando la última
+  atestación verificada pasa del umbral, o cuando nunca hubo ninguna. En --json
+  el veredicto va además en el objeto "freshness", con el campo "stale".
+
+  El aviso sale por stderr a propósito: un cron con stdout a un fichero y
+  stderr al correo del administrador hace sonar la alarma sin que nadie haya
+  tenido que programar nada. Ninguno de los tres falla por ello; el que falla
+  con código 3 es sync, que es el que de verdad no pudo hacer su trabajo.
+
+  La fecha que se compara es la que afirmó el TESTIGO en su cosignature, leída
+  después de verificarla contra su clave, no el reloj de esta máquina. Si los
+  dos relojes discrepan tanto que la atestación parece del futuro, se avisa de
+  eso en vez de dar la frescura por buena.
 
 LA CLAVE DEL TESTIGO
   witness serve guarda su clave privada junto a su base de datos, la crea en

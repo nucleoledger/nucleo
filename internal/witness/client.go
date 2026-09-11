@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/sumdb/note"
 )
@@ -68,17 +70,46 @@ func (c *Client) WitnessName() string { return c.verifier.Name() }
 // conoce; exigir una válida es lo que impide que esas firmas ajenas pasen por
 // atestación.
 func (c *Client) verifyCosigned(msg []byte) error {
+	_, err := c.CosignatureTime(msg)
+	return err
+}
+
+// CosignatureTime devuelve el instante que este testigo afirma, tras VERIFICAR
+// su cosignature sobre la nota.
+//
+// El timestamp vive dentro del blob de firma, así que leerlo sin comprobar la
+// firma sería leer lo que quiera contarnos quien controle los bytes: exactamente
+// el defecto que la auditoría encontró en el cálculo del tiempo demostrable,
+// donde una fecha se sacaba de la FORMA del blob. Aquí el orden es al revés:
+// primero abre la nota contra la clave del testigo, y solo entonces lee.
+//
+// Que devuelva un instante y no un booleano es lo que permite guardar "cuándo
+// avaló un tercero esto por última vez" sin volver a pedir la clave del testigo
+// en cada invocación de la CLI.
+func (c *Client) CosignatureTime(msg []byte) (time.Time, error) {
 	n, err := note.Open(msg, note.VerifierList(c.verifier))
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrNoCosignature, err)
+		return time.Time{}, fmt.Errorf("%w: %w", ErrNoCosignature, err)
 	}
 	for _, sig := range n.Sigs {
-		if sig.Name == c.verifier.Name() && sig.Hash == c.verifier.KeyHash() {
-			return nil
+		if sig.Name != c.verifier.Name() || sig.Hash != c.verifier.KeyHash() {
+			continue
 		}
+		raw, err := base64.StdEncoding.Strict().DecodeString(sig.Base64)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("%w: blob de firma ilegible: %w", ErrNoCosignature, err)
+		}
+		// Los 4 primeros bytes son el key hash que antepone note.
+		if len(raw) < keyHashPrefix {
+			return time.Time{}, fmt.Errorf("%w: blob de %d bytes", ErrCosignature, len(raw))
+		}
+		return Timestamp(raw[keyHashPrefix:])
 	}
-	return fmt.Errorf("%w: la nota abrió pero sin firma de %q", ErrNoCosignature, c.verifier.Name())
+	return time.Time{}, fmt.Errorf("%w: la nota abrió pero sin firma de %q", ErrNoCosignature, c.verifier.Name())
 }
+
+// keyHashPrefix son los 4 bytes de key ID que note pone delante de cada firma.
+const keyHashPrefix = 4
 
 func (c *Client) httpClient() *http.Client {
 	if c.HTTP != nil {

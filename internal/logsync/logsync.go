@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/witness"
@@ -81,6 +82,14 @@ type Result struct {
 	// Attested es true solo si Cosigned es una cosignature verificada que cubre
 	// el tamaño y la raíz locales del momento de la llamada.
 	Attested bool
+	// AttestedAt es el instante que el testigo afirma en la cosignature que se
+	// acaba de verificar. Solo tiene valor cuando Attested es true.
+	//
+	// Es el tiempo demostrable de ADR-002 para el estado actual del log, y el
+	// único dato con el que tiene sentido decidir si la atestación está vieja: el
+	// reloj local no sirve para eso, porque es el reloj de quien podría querer
+	// que la alarma no suene.
+	AttestedAt time.Time
 }
 
 // SyncWithWitness devuelve éxito ÚNICAMENTE cuando posee una cosignature
@@ -164,8 +173,18 @@ func SyncWithWitness(ctx context.Context, log LocalLog, c *witness.Client) (*Res
 	if err := log.RecordCosigned(cosigned); err != nil {
 		return nil, err
 	}
+	// El instante sale del cliente, que lo lee DESPUÉS de verificar la firma del
+	// testigo contra su clave. Si fallara aquí, la sincronización falla: una
+	// atestación cuyo instante no se puede leer no es una atestación utilizable,
+	// y dar éxito devolviendo un cero silencioso convertiría "no lo sé" en
+	// "1 de enero de 1970", que es peor que el error.
+	at, err := c.CosignatureTime(cosigned)
+	if err != nil {
+		return nil, err
+	}
 	res.Cosigned = cosigned
 	res.Attested = true
+	res.AttestedAt = at
 	return res, nil
 }
 

@@ -46,13 +46,13 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 ## Sprint 7 — cerrar la revisión externa
 - [x] Ningún binario compilado en el árbol; `.gitignore` con rutas ancladas (P0)
 - [x] PLAN/CLAUDE/AGENTS/TODO dicen la verdad del repo (deriva documental)
-- [ ] README: ML-DSA-44 es firma ADICIONAL del log vía extensión `0xff`; las
+- [x] README: ML-DSA-44 es firma ADICIONAL del log vía extensión `0xff`; las
       cosignatures de testigo siguen Ed25519 — nada de post-cuántico de punta a punta
-- [ ] Disclaimer legal en español EN el recibo y en el verificador HTML
-- [ ] El destinatario del recibo se etiqueta "(anotado por el emisor, no firmado)"
-- [ ] `docs/adr/ADR-014-hoja-y-firma.md` — spike de decisión, sin implementar
-- [ ] `docs/adr/ADR-015-destinatario.md` — spike de decisión, sin implementar
-- [ ] Política *fail-stale*: umbral configurable (72 h por omisión); `status` y
+- [x] Disclaimer legal en español EN el recibo y en el verificador HTML
+- [x] El destinatario del recibo se etiqueta "(anotado por el emisor, no firmado)"
+- [x] `docs/adr/ADR-014-hoja-y-firma.md` — spike de decisión, sin implementar
+- [x] `docs/adr/ADR-015-destinatario.md` — spike de decisión, sin implementar
+- [x] Política *fail-stale*: umbral configurable (72 h por omisión); `status` y
       `seal` avisan por stderr y en `--json`; `verify` lo reporta. Reloj inyectado
 - [ ] `init --kdf-profile {default,constrained}` con los parámetros persistidos y
       honrados por `Unlock`, y el coste de ambos perfiles MEDIDO

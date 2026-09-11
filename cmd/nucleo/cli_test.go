@@ -107,6 +107,16 @@ func (c *cli) sealFile(content string) string {
 	return c.mustRun("seal", "--tenant", testTenant, "--type", "sri.factura.v1", "--payload", path)
 }
 
+// writeTemp escribe un payload temporal y devuelve su ruta.
+func (c *cli) writeTemp(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(c.dir, fmt.Sprintf("tmp-%d.json", time.Now().UnixNano()))
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 // TestInitIsDeterministicWithTestHooks fija la salida de init byte a byte.
 //
 // Un golden aquí vale doble: además de detectar cambios de formato, prueba que

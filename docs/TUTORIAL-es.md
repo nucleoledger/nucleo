@@ -201,6 +201,16 @@ estado    : ⚠ SIN ATESTIGUAR (1 bloques)
             está garantizado: sin un checkpoint cosignado por un testigo,
             un prefijo truncado es indistinguible de la historia entera.
             Ejecuta `nucleo sync` contra un testigo.
+frescura  : ⚠ nunca se obtuvo una atestación verificada
+```
+
+Y por **stderr**, sin que nadie lo haya pedido:
+
+```
+AVISO: este ledger NUNCA ha obtenido una atestación verificada.
+       Que la cadena sea localmente válida no dice que esté completa: un
+       prefijo truncado es indistinguible de la historia entera mientras
+       nadie de fuera haya visto una raíz. Ejecuta `nucleo sync`.
 ```
 
 Ese aviso es importante y conviene entenderlo. Tu ledger es **íntegro**: cada
@@ -272,6 +282,7 @@ Vuelve a mirar el estado:
 
 ```
 estado    : ✔ historia atestiguada hasta 1 de 1 bloques
+frescura  : ✔ atestación de hace 0 segundos, por witness.nucleoledger.com/w1
 ```
 
 Eso ya es otra cosa. Ahora existe, fuera de tu máquina, una firma de un tercero
@@ -280,6 +291,32 @@ próxima sincronización detecta.
 
 **Sincroniza a menudo.** Un `sync` en el cron cada hora es razonable: lo que no
 esté atestiguado solo lo respalda tu propio disco.
+
+**Y si el cron se rompe, Núcleo te lo dice solo.** Esa es la parte que importa,
+porque un cron roto no avisa: simplemente deja de correr. Pasadas **72 horas** sin
+una atestación verificada, `status`, `seal` y `verify` escriben un aviso por
+**stderr** —también en modo `--json`, donde además va el campo
+`freshness.stale`—:
+
+```
+AVISO: la última atestación verificada es de hace 4 días (umbral: 3 días).
+       witness.nucleoledger.com/w1 la firmó el 2026-09-07T10:00:00Z, cubriendo 1
+       bloques. Desde entonces, lo que respalda esta historia es solo este disco.
+       Si hay un `nucleo sync` en el cron, probablemente lleva 4 días roto.
+```
+
+Que salga por stderr no es un detalle: una línea de cron con `>> registro.log`
+manda stdout al fichero y stderr al correo del administrador. Así la alarma suena
+sin que nadie haya tenido que programarla. El umbral se cambia con
+`--stale-after 12h`.
+
+Ninguno de los tres **falla** por esto: el bloque se sella, la verificación pasa y
+el código de salida sigue siendo 0. Integridad y frescura son preguntas distintas,
+y el que falla con código 3 es `sync`, que es el que de verdad no pudo trabajar.
+
+La fecha que se compara es la que afirmó **el testigo** en su cosignature, leída
+después de verificarla contra su clave — no el reloj de tu máquina, que es
+precisamente el reloj que alguien tocaría para que la alarma no suene.
 
 ---
 

@@ -4,8 +4,10 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 )
@@ -165,4 +167,89 @@ func (s *Store) LastSigned() ([]byte, error) {
 		return nil, fmt.Errorf("store: lectura del último checkpoint firmado: %w", err)
 	}
 	return []byte(v), nil
+}
+
+// LastAttestedKey es la clave bajo la que se guarda cuándo obtuvo este
+// despliegue, por última vez, una atestación VERIFICADA de un testigo.
+const LastAttestedKey = "log/last-attested/v1"
+
+// AttestationRecord es lo que se guarda bajo LastAttestedKey.
+//
+// Guarda DOS instantes porque responden a preguntas distintas y confundirlas es
+// justo el error que ADR-002 prohíbe:
+//
+//   - At es el timestamp de la cosignature: lo afirmó el testigo y se verificó
+//     contra su clave antes de escribir esto. Es el que cuenta para decidir si la
+//     atestación está vieja.
+//   - RecordedAt es el reloj local del momento en que se guardó. Sirve para
+//     detectar un desfase grosero entre las dos máquinas, y para diagnosticar.
+type AttestationRecord struct {
+	// Witness es el nombre del testigo cuya cosignature se verificó.
+	Witness string `json:"witness"`
+	// At es el timestamp de esa cosignature, en UTC.
+	At time.Time `json:"at"`
+	// Size es el tamaño del árbol que la cosignature cubría.
+	Size uint64 `json:"size"`
+	// RecordedAt es el reloj local al guardar, en UTC.
+	RecordedAt time.Time `json:"recorded_at"`
+}
+
+// PutLastAttested guarda el registro de la última atestación verificada.
+//
+// Solo debe llamarse cuando la cosignature se ha VERIFICADO contra la clave del
+// testigo. El registro es una caché del resultado de esa verificación: permite
+// que `status` responda "hace cuánto que un tercero avaló esto" sin tener que
+// pedir al operador la clave del testigo en cada invocación, que es la razón por
+// la que nadie ejecutaría el chequeo.
+//
+// Va en log_state, que es mutable por diseño (enmienda de ADR-009): avanza con
+// cada sincronización y no es una promesa append-only.
+func (s *Store) PutLastAttested(r AttestationRecord) error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	if r.Witness == "" || r.At.IsZero() {
+		return fmt.Errorf("store: registro de atestación incompleto")
+	}
+	r.At = r.At.UTC()
+	r.RecordedAt = r.RecordedAt.UTC()
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return fmt.Errorf("store: serialización del registro de atestación: %w", err)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if _, err := s.db.Exec(
+		`INSERT INTO log_state (k, v) VALUES (?, ?)
+		 ON CONFLICT(k) DO UPDATE SET v = excluded.v`,
+		LastAttestedKey, string(raw)); err != nil {
+		return fmt.Errorf("store: escritura del registro de atestación: %w", err)
+	}
+	return nil
+}
+
+// LastAttested devuelve el registro de la última atestación verificada.
+//
+// El segundo valor es false cuando no hay ninguno, que NO es un error: un ledger
+// recién creado, o uno que nunca sincronizó, está en ese estado. Quien llama
+// debe tratar la ausencia como el caso más grave, no como falta de información:
+// un despliegue que nunca obtuvo atestación está exactamente tan desamparado
+// como uno cuya última atestación es de hace un año.
+func (s *Store) LastAttested() (AttestationRecord, bool, error) {
+	if s.db == nil {
+		return AttestationRecord{}, false, ErrClosed
+	}
+	var v string
+	err := s.db.QueryRow(`SELECT v FROM log_state WHERE k = ?`, LastAttestedKey).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return AttestationRecord{}, false, nil
+	}
+	if err != nil {
+		return AttestationRecord{}, false, fmt.Errorf("store: lectura del registro de atestación: %w", err)
+	}
+	var r AttestationRecord
+	if err := json.Unmarshal([]byte(v), &r); err != nil {
+		return AttestationRecord{}, false, fmt.Errorf("store: registro de atestación ilegible: %w", err)
+	}
+	return r, true, nil
 }

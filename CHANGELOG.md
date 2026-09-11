@@ -29,6 +29,26 @@ codes, and any golden test vector in `testdata/vectors/`.
   [ADR-015](docs/adr/ADR-015-destinatario.md) and **not implemented**: without a
   published issuer key it would be a signature nobody can check.
 
+### Operation
+
+- **Fail-stale policy.** `status`, `seal` and `verify` warn on **stderr** — in `--json`
+  mode too, where the verdict is also in the `freshness` object — when the last
+  *verified* attestation is older than a configurable threshold (`--stale-after`,
+  72h by default), or when there has never been one. None of the three fails because
+  of it: integrity and freshness are different questions, and `sync` is the command
+  that exits 3 when it genuinely could not do its job.
+
+  The comparison uses the timestamp **the witness asserted** in its cosignature, read
+  only after verifying it against the witness key — not the local clock, which is the
+  clock someone would move to keep the alarm quiet. A clock so far off that the
+  attestation looks like it came from the future is reported as skew rather than
+  silently treated as fresh.
+
+  stderr is the point: a cron line that sends stdout to a file sends stderr to the
+  administrator's mail, so the alarm rings without anyone having to wire it up. The
+  failure mode this addresses is not an attack — it is a cron job that quietly stopped
+  running, which nothing in the system used to notice.
+
 ## [0.1.0-alpha] — unreleased
 
 First tagged version. The success criterion of the project

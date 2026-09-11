@@ -146,6 +146,19 @@ func cmdSeal(e *env, args []string) error {
 		salida["metadata"] = prof.plain
 		salida["commitments"] = commitments
 	}
+
+	// Sellar es el momento en que alguien está CONFIANDO en esto: acaba de meter
+	// un registro que va a dar por protegido. Si la última atestación lleva días
+	// muerta, es aquí donde tiene que enterarse, no la próxima vez que alguien se
+	// acuerde de mirar `status`. El sellado no falla por ello —el bloque queda
+	// escrito y firmado, que es lo que se pidió— pero deja de ser silencioso.
+	st, err := checkStaleness(s, now(), e.staleAfter)
+	if err != nil {
+		return err
+	}
+	salida["freshness"] = st.json()
+	st.warn(e)
+
 	e.out(salida, func() {
 		e.printf("✔ registro sellado\n")
 		e.printf("  bloque       : %d\n", b.Header.Index)
@@ -159,6 +172,9 @@ func cmdSeal(e *env, args []string) error {
 		}
 		e.printf("\n  El bloque aún no está atestiguado. Ejecuta `nucleo sync` para que\n")
 		e.printf("  un testigo lo vea; hasta entonces solo lo respalda esta máquina.\n")
+		if st.Stale {
+			printFreshness(e, st)
+		}
 	})
 	return nil
 }
