@@ -175,11 +175,19 @@
       // ninguna firma. La etiqueta viaja dentro del recibo, pero el verificador
       // devuelve el nombre ya limpio, así que la página la vuelve a poner: quien
       // mire el veredicto tiene que ver el mismo aviso que quien lee el papel.
-      ["destinatario", r.recipient ? r.recipient + "  (anotado por el emisor, no firmado)" : "—"],
+      ["destinatario", r.recipient ? r.recipient + "  (firmado por el emisor)" : "—"],
       // La firma del bloque es la ruta que un recibo de la versión anterior NO
       // daba: llevaba signer_pubkey y no llevaba la firma, así que quien lo
       // recibía veía de quién decía ser y no podía comprobarlo.
-      ["firma del emisor", r.blockSignatureVerified === true
+      // Dos firmas distintas del MISMO emisor, y conviene no mezclarlas: la del
+      // bloque dice quién escribió el registro, la del recibo dice quién emitió
+      // ESTE documento a ESTE destinatario.
+      ["firma del recibo", r.receiptSignatureVerified === true
+        ? "✔ verificada — el destinatario y el texto están firmados"
+        : r.receiptSignatureVerified === false
+          ? "✘ NO verifica: el recibo fue alterado"
+          : "— el recibo no lleva firma del emisor"],
+      ["firma del bloque", r.blockSignatureVerified === true
         ? "✔ verificada contra signer_pubkey"
         : r.blockSignatureVerified === false
           ? "✘ NO verifica"

@@ -2,6 +2,7 @@ package receipt
 
 import (
 	"crypto/ed25519"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -33,10 +34,18 @@ func key(b byte) ed25519.PrivateKey {
 
 // scene sella una historia y la cosigna con los testigos pedidos.
 type scene struct {
-	store    *store.Store
-	logPub   ed25519.PublicKey
-	wits     map[string]ed25519.PublicKey
-	provable time.Time
+	store      *store.Store
+	logPub     ed25519.PublicKey
+	wits       map[string]ed25519.PublicKey
+	provable   time.Time
+	tenantPriv ed25519.PrivateKey
+}
+
+// issue emite un recibo firmado por el emisor de la escena. Existe para que los
+// tests digan lo que prueban y no repitan la política y la clave en cada línea.
+func (sc *scene) issue(t *testing.T, recipient string, index uint64) (*Receipt, error) {
+	t.Helper()
+	return Issue(sc.store, recipient, index, sc.policy(), sc.tenantPriv)
 }
 
 func newScene(t *testing.T, cosigners int) *scene {
@@ -83,7 +92,10 @@ func newScene(t *testing.T, cosigners int) *scene {
 		t.Fatal(err)
 	}
 
-	sc := &scene{store: s, logPub: logPriv.Public().(ed25519.PublicKey), wits: map[string]ed25519.PublicKey{}}
+	sc := &scene{
+		store: s, logPub: logPriv.Public().(ed25519.PublicKey),
+		wits: map[string]ed25519.PublicKey{}, tenantPriv: tenantPriv,
+	}
 	// Los testigos cosignan en instantes DISTINTOS y en orden decreciente, para
 	// que el mínimo no sea trivialmente el primero que se procesa.
 	for i := 0; i < cosigners; i++ {
@@ -123,7 +135,7 @@ func (sc *scene) policy() proof.Policy {
 // etiquetados por separado y nunca confundidos.
 func TestReceiptShowsBothClocks(t *testing.T) {
 	sc := newScene(t, 3)
-	r, err := Issue(sc.store, "María Pérez (cédula 1712345678)", 2)
+	r, err := sc.issue(t, "María Pérez (cédula 1712345678)", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +196,7 @@ func TestReceiptShowsBothClocks(t *testing.T) {
 // presentarlo como prueba, que es justo lo que PROTOCOL.md §4 prohíbe.
 func TestReceiptWithoutCosignatures(t *testing.T) {
 	sc := newScene(t, 0)
-	r, err := Issue(sc.store, "Contraparte S.A.", 1)
+	r, err := sc.issue(t, "Contraparte S.A.", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +223,7 @@ func TestReceiptWithoutCosignatures(t *testing.T) {
 // un documento engañoso con aspecto de válido.
 func TestParseRejectsDoctoredText(t *testing.T) {
 	sc := newScene(t, 2)
-	r, err := Issue(sc.store, "María Pérez", 3)
+	r, err := sc.issue(t, "María Pérez", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +271,7 @@ func TestParseRejectsDoctoredText(t *testing.T) {
 // llamaba— desmentía el papel.
 func TestUntrustedCosignatureGivesNoProvableTime(t *testing.T) {
 	sc := newScene(t, 2)
-	r, err := Issue(sc.store, "Contraparte S.A.", 0)
+	r, err := sc.issue(t, "Contraparte S.A.", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,29 +326,32 @@ func TestUntrustedCosignatureGivesNoProvableTime(t *testing.T) {
 // checkpoint cubre todavía.
 func TestIssueRefusesUnattestedEntry(t *testing.T) {
 	sc := newScene(t, 1)
-	if _, err := Issue(sc.store, "alguien", 9); !errors.Is(err, ErrNotAttested) {
+	if _, err := sc.issue(t, "alguien", 9); !errors.Is(err, ErrNotAttested) {
 		t.Errorf("err = %v, want %v", err, ErrNotAttested)
 	}
-	if _, err := Issue(sc.store, "", 0); !errors.Is(err, ErrFormat) {
+	if _, err := sc.issue(t, "", 0); !errors.Is(err, ErrFormat) {
 		t.Errorf("sin destinatario: err = %v, want %v", err, ErrFormat)
 	}
 }
 
-// TestRecipientIsNotCoveredBySignatures documenta un LÍMITE real del formato, en
-// vez de dejarlo implícito.
+// TestRecipientEstaCubiertoPorLaFirmaDelEmisor es el límite de ADR-015, CERRADO.
 //
-// El destinatario se elige al emitir el recibo, mucho después de que el bloque
-// se sellara, así que no está dentro de nada firmado y no puede estarlo sin
-// firmar el recibo entero con otra clave. Cambiarlo produce un recibo dirigido a
-// otra persona cuya prueba sigue siendo válida.
+// Hasta este sprint este test afirmaba lo contrario y se llamaba
+// TestRecipientIsNotCoveredBySignatures: reescribir el nombre producía un recibo
+// dirigido a otra persona cuya prueba seguía siendo válida, y el test existía para
+// dejarlo escrito en voz alta. La revisión externa señaló por qué eso era un
+// problema de producto y no una nota al pie: "van a pegar el recibo en el pie del
+// PDF con el nombre del cliente, y en una disputa ese nombre se leerá como prueba
+// de emisión a esa persona".
 //
-// Eso no rompe lo que el recibo demuestra —que ESTE contenido estaba en el log
-// en ESE momento— pero sí significa que el nombre del destinatario no es prueba
-// de nada. Cualquier lectura contraria sería falsa, y por eso hay un test que lo
-// dice en voz alta.
-func TestRecipientIsNotCoveredBySignatures(t *testing.T) {
+// Ahora el emisor firma el recibo ENTERO, destinatario incluido, y reescribir el
+// nombre invalida el documento. Lo que sigue siendo verdad —y conviene no
+// confundirlo— es que la firma no demuestra ENTREGA, y que el emisor puede emitir
+// dos recibos del mismo registro a dos destinatarios distintos. Lo que ya no puede
+// pasar es que un tercero con el fichero en la mano lo redirija.
+func TestRecipientEstaCubiertoPorLaFirmaDelEmisor(t *testing.T) {
 	sc := newScene(t, 1)
-	r, err := Issue(sc.store, "María Pérez", 1)
+	r, err := sc.issue(t, "María Pérez", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,24 +359,18 @@ func TestRecipientIsNotCoveredBySignatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Control: el recibo recién emitido sí verifica.
+	if _, err := Parse(data, sc.policy()); err != nil {
+		t.Fatalf("el recibo recién emitido no parsea: %v", err)
+	}
 
 	redirected := strings.Replace(string(data), "María Pérez", "Juan Gómez", 1)
 	if redirected == string(data) {
-		t.Fatal("la sustitución no se aplicó")
+		t.Fatal("la sustitución no se aplicó: el test no prueba nada")
 	}
-	other, err := Parse([]byte(redirected), sc.policy())
-	if err != nil {
-		t.Fatalf("cambiar el destinatario NO invalida el recibo, y el test existe para dejarlo escrito: %v", err)
-	}
-	if other.Recipient != "Juan Gómez" {
-		t.Errorf("destinatario = %q, want %q", other.Recipient, "Juan Gómez")
-	}
-	// Lo que sí se conserva intacto es lo que la prueba demuestra.
-	if _, err := other.Verify(sc.policy()); err != nil {
-		t.Errorf("la prueba dejó de verificar al cambiar el destinatario: %v", err)
-	}
-	if other.Header.PayloadHash != r.Header.PayloadHash {
-		t.Error("el contenido sellado cambió, que sería otra cosa muy distinta")
+	if _, err := Parse([]byte(redirected), sc.policy()); !errors.Is(err, ErrReceiptSignature) {
+		t.Errorf("err = %v, want ErrReceiptSignature: reescribir el destinatario "+
+			"tiene que invalidar el recibo", err)
 	}
 }
 
@@ -374,7 +383,7 @@ func TestRecipientNote(t *testing.T) {
 	sc := newScene(t, 1)
 
 	t.Run("el nombre se imprime con la etiqueta y se recupera sin ella", func(t *testing.T) {
-		r, err := Issue(sc.store, "María Pérez", 1)
+		r, err := sc.issue(t, "María Pérez", 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -382,7 +391,7 @@ func TestRecipientNote(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), "destinatario      : María Pérez  (anotado por el emisor, no firmado)") {
+		if !strings.Contains(string(data), "destinatario      : María Pérez  (firmado por el emisor)") {
 			t.Errorf("la línea del destinatario no lleva la etiqueta:\n%s", Text(data))
 		}
 		back, err := Parse(data, sc.policy())
@@ -397,7 +406,7 @@ func TestRecipientNote(t *testing.T) {
 	})
 
 	t.Run("quitar la etiqueta invalida el recibo", func(t *testing.T) {
-		r, err := Issue(sc.store, "María Pérez", 1)
+		r, err := sc.issue(t, "María Pérez", 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -423,7 +432,7 @@ func TestRecipientNote(t *testing.T) {
 		// Medido, no supuesto: ese nombre SÍ pasa el round-trip —la etiqueta sale
 		// dos veces, TrimSuffix quita una y los bytes cuadran—, así que detectarlo
 		// al parsear no servía. Se rechaza antes, al emitir.
-		if _, err := Issue(sc.store, "Alguien"+RecipientNote, 1); !errors.Is(err, ErrFormat) {
+		if _, err := sc.issue(t, "Alguien"+RecipientNote, 1); !errors.Is(err, ErrFormat) {
 			t.Errorf("err = %v, want ErrFormat: un nombre que imita la etiqueta no debe emitirse", err)
 		}
 	})
@@ -437,7 +446,7 @@ func TestRecipientNote(t *testing.T) {
 // sea deliberado.
 func TestGoldenHeaderFormat(t *testing.T) {
 	sc := newScene(t, 1)
-	r, err := Issue(sc.store, "María Pérez (cédula 1712345678)", 2)
+	r, err := sc.issue(t, "María Pérez (cédula 1712345678)", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +456,7 @@ func TestGoldenHeaderFormat(t *testing.T) {
 	}
 
 	const want = `nucleo.org/receipt@v2
-destinatario      : María Pérez (cédula 1712345678)  (anotado por el emisor, no firmado)
+destinatario      : María Pérez (cédula 1712345678)  (firmado por el emisor)
 emisor (tenant)   : 1790012345001
 tipo de registro  : sri.factura.v1
 hash del contenido: 5c7d1a10a8e4d0aa5cf8d1d05f3d6d13ca0fd0f2b5d3b8ba50e19e10d0f7a0dd
@@ -484,4 +493,112 @@ func normalizeHash(s string) string {
 		return s
 	}
 	return s[:i+len(prefix)] + "<payload_hash>" + s[i+j:]
+}
+
+// TestFirmaDelEmisorAdversarial son los rechazos que ADR-015 tiene que garantizar.
+//
+// Un recibo circula fuera del control de quien lo emitió: acaba en un correo, en un
+// PDF, en el disco de un tercero. Todo lo que se prueba aquí es lo que alguien con
+// el fichero en la mano podría intentar.
+func TestFirmaDelEmisorAdversarial(t *testing.T) {
+	sc := newScene(t, 1)
+	r, err := sc.issue(t, "María Pérez", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := Format(r, sc.policy())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("sin la línea de firma, el recibo se rechaza", func(t *testing.T) {
+		// El formato la exige. Un recibo sin ella es de una versión anterior, o de
+		// alguien que la borró esperando que nadie la echara de menos.
+		sin := *r
+		sin.ReceiptSig = nil
+		bytesSin, err := Format(&sin, sc.policy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Parse(bytesSin, sc.policy()); !errors.Is(err, ErrNoReceiptSignature) {
+			t.Errorf("err = %v, want ErrNoReceiptSignature", err)
+		}
+	})
+
+	t.Run("firmado por otra clave, se rechaza", func(t *testing.T) {
+		// Alguien que tiene SU propia clave firma un recibo con el destinatario
+		// cambiado. La firma es perfecta; lo que no cuadra es quién la hizo, y
+		// signer_pubkey —que va dentro del header, bajo la raíz cosignada— es lo que
+		// lo delata. De ahí que ADR-015 no necesite PKI nueva.
+		otra := key(99)
+		falso := *r
+		falso.Recipient = "Juan Gómez"
+		if err := Sign(&falso, sc.policy(), otra); err == nil {
+			t.Fatal("Sign aceptó una clave que no es la de signer_pubkey")
+		}
+		// Y si se salta Sign y se pega la firma a mano, la verificación la rechaza.
+		msg, err := SignedBytes(&falso, sc.policy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(msg)
+		falso.ReceiptSig = ed25519.Sign(otra, digest[:])
+		if err := VerifyReceiptSignature(&falso, sc.policy()); !errors.Is(err, ErrReceiptSignature) {
+			t.Errorf("err = %v, want ErrReceiptSignature", err)
+		}
+	})
+
+	t.Run("la firma de OTRO recibo no sirve para este", func(t *testing.T) {
+		// Recortar y pegar una firma válida de un recibo a otro. Es el ataque que
+		// hace falta cubrir todo el documento y no solo el destinatario: si la firma
+		// cubriera solo el nombre, esta línea firmada valdría para cualquier prueba.
+		otro, err := sc.issue(t, "Otra Persona", 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mezcla := *r
+		mezcla.ReceiptSig = otro.ReceiptSig
+		if err := VerifyReceiptSignature(&mezcla, sc.policy()); !errors.Is(err, ErrReceiptSignature) {
+			t.Errorf("err = %v, want ErrReceiptSignature", err)
+		}
+	})
+
+	t.Run("la línea de firma dice un emisor que no es el del header", func(t *testing.T) {
+		manoseado := strings.Replace(string(data), "— "+testTenant+" ", "— 9999999999001 ", 1)
+		if manoseado == string(data) {
+			t.Fatal("la sustitución no se aplicó: el test no prueba nada")
+		}
+		if _, err := Parse([]byte(manoseado), sc.policy()); !errors.Is(err, ErrFormat) {
+			t.Errorf("err = %v, want ErrFormat", err)
+		}
+	})
+
+	t.Run("tocar la advertencia legal invalida la firma, no solo el texto", func(t *testing.T) {
+		// La advertencia ya estaba cubierta por la igualdad byte a byte del texto.
+		// Ahora lo está además por una firma, que es una garantía distinta: la
+		// primera dice "no coincide con lo que dice la prueba", la segunda dice
+		// "el emisor no firmó esto".
+		suave := strings.Replace(string(data), "No constituye por sí", "Constituye por sí", 1)
+		if suave == string(data) {
+			t.Fatal("la sustitución no se aplicó")
+		}
+		if _, err := Parse([]byte(suave), sc.policy()); err == nil {
+			t.Error("se aceptó un recibo con la advertencia suavizada")
+		}
+	})
+
+	t.Run("un recibo de la versión v1 se reconoce y se explica", func(t *testing.T) {
+		viejo := strings.Replace(string(data), Magic, MagicV1, 1)
+		_, err := Parse([]byte(viejo), sc.policy())
+		if !errors.Is(err, ErrFormat) {
+			t.Fatalf("err = %v, want ErrFormat", err)
+		}
+		// El mensaje tiene que nombrar la versión y la regla de hoja, o quien lo lea
+		// irá a buscar corrupción donde hay un cambio de formato.
+		for _, quiero := range []string{MagicV1, "leaf/v1", "ADR-014"} {
+			if !strings.Contains(err.Error(), quiero) {
+				t.Errorf("el mensaje no menciona %q: %v", quiero, err)
+			}
+		}
+	})
 }

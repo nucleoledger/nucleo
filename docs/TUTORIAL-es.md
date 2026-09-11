@@ -352,10 +352,10 @@ servidor, sin tu base de datos y sin pedirte permiso.
 ```
 
 ```
-✔ recibo escrito en ./recibo.txt (4867 bytes)
+✔ recibo escrito en ./recibo.txt (4962 bytes)
 
 nucleo.org/receipt@v2
-destinatario      : María Pérez (cédula 1712345678)  (anotado por el emisor, no firmado)
+destinatario      : María Pérez (cédula 1712345678)  (firmado por el emisor)
 emisor (tenant)   : 1790012345001
 tipo de registro  : ecuador.sri.factura.v1
 hash del contenido: e08ab33e7b33533ce06bb329179f55c14afea63b38fcb2d993d6625362a3b839
@@ -387,13 +387,25 @@ con la firma Ed25519 del bloque. Sirve para dos cosas a la vez:
 Son dos afirmaciones distintas y hacen falta las dos: la inclusión demuestra que el
 log se comprometió con estos bytes; la firma demuestra que tu clave los firmó.
 
-**La etiqueta del destinatario no es un detalle.** El nombre lo elegiste tú al
-emitir el recibo y no está cubierto por ninguna firma: la prueba demuestra que el
-registro existía, no a quién se lo entregaste. Si el recibo enseñara el nombre a
-secas, en una disputa se leería como prueba de emisión a esa persona. Va en la
-misma línea que el nombre a propósito, para que un copia-pega no los separe. Si
-necesitas que el destinatario quede firmado, eso es otra cosa y está sin decidir
-(ver `docs/adr/ADR-015-destinatario.md`).
+**El destinatario va FIRMADO.** El nombre lo eliges tú al emitir el recibo, y el
+emisor firma el documento entero —nombre, los dos tiempos y la advertencia legal—
+con la misma clave que firmó el bloque. Reescribir el nombre invalida el recibo: ya
+no es una línea que cualquiera con el fichero pueda cambiar.
+
+Lo que esa firma **no** dice, y conviene que lo sepas antes de que alguien te lo
+pregunte en una reunión: no demuestra que se lo entregaras a esa persona, y nada te
+impide emitir dos recibos del mismo registro para dos destinatarios distintos. Dice
+quién produjo ESTE documento para ESTE destinatario con ESTE texto. Por eso la
+etiqueta es `(firmado por el emisor)` y no "entregado a".
+
+La parte bonita es que tu cliente no necesita nada para comprobarlo. La clave con la
+que se verifica es `signer_pubkey`, que va dentro del header, y el header entra en la
+hoja del árbol de Merkle: la misma raíz que cosigna el testigo clava también la clave.
+**Cero claves que repartir, cero directorios, cero intercambios por correo.**
+
+> **Ojo, esto cambia el comando.** `receipt` ahora te pide la passphrase, porque la
+> clave con la que firma vive cifrada en el vault. Antes solo leía. En un cron, usa
+> `--passphrase-file`.
 
 **La advertencia legal va dentro del recibo y no se puede quitar.** Está en el
 texto que el verificador vuelve a componer para compararlo byte a byte: un

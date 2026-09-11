@@ -38,3 +38,10 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              pre-1.0 sin consumidores. Los goldens viejos no se conservan; la
              historia de git los tiene si alguien los necesita.
 
+             Y en el mismo sprint, ADR-015: la parte de máquina gana una segunda
+             línea con la FIRMA DEL EMISOR sobre el recibo entero, destinatario
+             incluido, y la etiqueta del destinatario pasa de "(anotado por el
+             emisor, no firmado)" a "(firmado por el emisor)". Se verifica con
+             signer_pubkey, que ya viaja en el header: cero claves nuevas que
+             repartir.
+

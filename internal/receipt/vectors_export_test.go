@@ -63,7 +63,7 @@ func TestExportReceiptVectors(t *testing.T) {
 	}
 
 	sc := newScene(t, 1)
-	r, err := Issue(sc.store, "María Pérez (cédula 1712345678)", 2)
+	r, err := sc.issue(t, "María Pérez (cédula 1712345678)", 2)
 	if err != nil {
 		t.Fatal(err)
 	}

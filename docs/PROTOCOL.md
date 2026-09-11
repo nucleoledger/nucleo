@@ -122,6 +122,7 @@ Machine section of `receipt@v2`, one item per line, in this order:
 ```
 <JCS(header)>                     canonical header bytes, exactly as signed
 <base64(signature)>               the block's 64-byte Ed25519 signature
+— <tenant> <base64(receipt_sig)>  the ISSUER's signature over the whole receipt
 <c2sp.org/tlog-proof@v1 …>        index, inclusion path, and the checkpoint note
 ```
 
@@ -141,6 +142,35 @@ A verifier of `receipt@v2` MUST:
 Step 2 is not redundant with step 3. Step 3 proves the log committed to these bytes;
 step 2 proves the tenant key signed them. A root pins what the log published; a
 signature says who authored it.
+
+#### The issuer signature (normative)
+
+```
+receipt_sig = Ed25519( tenant_sk, SHA-256( receipt_bytes_without_the_signature_line ) )
+```
+
+It covers the **whole receipt**, recipient included — not the recipient alone. Signing
+the recipient line by itself would let anyone recombine a signed line with a different
+proof, which is how a signature becomes decoration.
+
+The verifying key is `header.signer_pubkey`: the same key that signed the block. That
+is the whole point, and it is why this required `leaf/v2` first. `signer_pubkey` lives
+inside the header, the header is inside the leaf, and the leaf is under a root that
+witnesses cosign — so the key a verifier should use is pinned by the same attestation
+that pins everything else. **A verifier needs nothing beyond the receipt and its
+policy: no key directory, no out-of-band exchange, no new PKI.**
+
+A `receipt@v2` MUST carry this line, and a verifier MUST reject a receipt that lacks
+it or whose signature does not verify. What it establishes: the issuer — and only the
+issuer — produced THIS document for THIS recipient with THIS text, including the legal
+notice. What it does **not** establish: delivery, or that the issuer did not also
+issue a different receipt for the same record to somebody else. The recipient line is
+therefore labelled `(firmado por el emisor)` and not, say, "delivered to".
+
+The signed bytes depend on the issuer's verification policy, because the rendered text
+contains the provable time and that only exists relative to a set of witnesses. A
+recipient whose policy differs already rejected such a receipt on the text
+byte-equality rule; the signature inherits that constraint rather than adding one.
 
 ## 4. Time (normative)
 

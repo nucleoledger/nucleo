@@ -221,6 +221,7 @@ sandbox.NucleoVerify.verifyReceipt(
   console.log("provableTime=" + r.provableTime);
   console.log("blockIndex=" + r.blockIndex);
   console.log("blockSignatureVerified=" + r.blockSignatureVerified);
+  console.log("receiptSignatureVerified=" + r.receiptSignatureVerified);
   if (!r.valid) console.log("reasons=" + r.reasons.join(" | "));
 });
 JS
@@ -229,7 +230,10 @@ JS
   exige "y trae tiempo demostrable"              "$salida_ts" "provableTime=2026-09-07"
   # La ruta que leaf/v2 le dio a la contraparte: comprobar QUIÉN firmó el bloque.
   # Con leaf/v1 el recibo no llevaba la firma, así que esto no se podía comprobar.
-  exige "y verifica la firma del emisor"         "$salida_ts" "blockSignatureVerified=true"
+  exige "y verifica la firma del bloque"         "$salida_ts" "blockSignatureVerified=true"
+  # Y la firma del emisor sobre el recibo completo (ADR-015): es la que hace que el
+  # nombre del destinatario deje de ser una línea reescribible por cualquiera.
+  exige "y la firma del recibo, destinatario incluido" "$salida_ts" "receiptSignatureVerified=true"
   printf '   salida del verificador TS:\n%s\n' "$(echo "$salida_ts" | sed 's/^/     /')"
 else
   printf '   ⚠ node o el bundle no están disponibles; se salta la verificación cruzada\n'

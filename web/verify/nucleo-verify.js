@@ -308,7 +308,8 @@ time ${timestamp.toString()}
   var BLOCK_SIG_SIZE = 64;
   var SEPARATOR = "--- prueba verificable ---";
   var NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
-  var RECIPIENT_NOTE = "  (anotado por el emisor, no firmado)";
+  var RECIPIENT_NOTE = "  (firmado por el emisor)";
+  var RECEIPT_SIG_PREFIX = "\u2014 ";
   var LEGAL_NOTICE = [
     "ADVERTENCIA LEGAL",
     "Este recibo es evidencia t\xE9cnica de integridad y tiempo. No constituye por s\xED",
@@ -325,6 +326,7 @@ time ${timestamp.toString()}
         provableTime: null,
         blockIndex: null,
         blockSignatureVerified: null,
+        receiptSignatureVerified: null,
         recipient: null,
         cosigners: [],
         ignoredSignatures: [],
@@ -376,6 +378,7 @@ time ${timestamp.toString()}
       provableTime: null,
       blockIndex: null,
       blockSignatureVerified: null,
+      receiptSignatureVerified: null,
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
@@ -407,6 +410,7 @@ time ${timestamp.toString()}
     const blockHash = await sha256(utf8(p.headerJSON));
     const leafData = concat(blockHash, p.blockSig);
     let blockSignatureVerified = null;
+    let receiptSignatureVerified = null;
     const signerPub = fromHex(p.header.signer_pubkey ?? "");
     if (signerPub === null || signerPub.length !== 32) {
       reasons.push("signer_pubkey del header no es una clave Ed25519");
@@ -414,6 +418,15 @@ time ${timestamp.toString()}
       blockSignatureVerified = await verifyEd25519(signerPub, p.blockSig, blockHash);
       if (!blockSignatureVerified) {
         reasons.push("la firma del bloque no verifica con la clave signer_pubkey del header");
+      }
+      if (p.receiptSig === null) {
+        reasons.push("el recibo no lleva firma del emisor");
+      } else {
+        const digest = await sha256(utf8(p.signedBytes));
+        receiptSignatureVerified = await verifyEd25519(signerPub, p.receiptSig, digest);
+        if (!receiptSignatureVerified) {
+          reasons.push("la firma del emisor sobre el recibo no verifica: el recibo fue alterado");
+        }
       }
     }
     const logKey = claves.logKey;
@@ -482,6 +495,7 @@ time ${timestamp.toString()}
     return {
       valid: reasons.length === 0,
       blockSignatureVerified,
+      receiptSignatureVerified,
       declaredTime: p.header.timestamp,
       provableTime: reasons.length === 0 ? provable : null,
       blockIndex: p.headerIndex,
@@ -526,13 +540,40 @@ time ${timestamp.toString()}
         `la firma del bloque mide ${blockSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`
       );
     }
-    const proof = parseProof(rest.slice(nl2 + 1));
+    let afterSig = rest.slice(nl2 + 1);
+    let receiptSig = null;
+    let signedBytes = receipt;
+    if (afterSig.startsWith(RECEIPT_SIG_PREFIX)) {
+      const nl3 = afterSig.indexOf("\n");
+      if (nl3 < 0) throw new Error("la l\xEDnea de la firma del emisor no termina");
+      const line = afterSig.slice(0, nl3);
+      const sp = line.lastIndexOf(" ");
+      if (sp < 0) throw new Error("la l\xEDnea de la firma del emisor no trae nombre y firma");
+      const name = line.slice(RECEIPT_SIG_PREFIX.length, sp);
+      if (name !== header.tenant) {
+        throw new Error(
+          `la firma del emisor dice ser de ${JSON.stringify(name)} y el header declara ${JSON.stringify(header.tenant)}`
+        );
+      }
+      receiptSig = fromBase64(line.slice(sp + 1));
+      if (receiptSig.length !== BLOCK_SIG_SIZE) {
+        throw new Error(`la firma del emisor mide ${receiptSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`);
+      }
+      const entera = line + "\n";
+      const at2 = receipt.lastIndexOf(entera);
+      if (at2 < 0) throw new Error("no se pudo aislar la l\xEDnea de la firma del emisor");
+      signedBytes = receipt.slice(0, at2) + receipt.slice(at2 + entera.length);
+      afterSig = afterSig.slice(nl3 + 1);
+    }
+    const proof = parseProof(afterSig);
     const note = parseNote(proof.checkpointNote);
     const checkpoint = parseCheckpoint(note.text);
     return {
       recipient,
       headerJSON,
       blockSig,
+      receiptSig,
+      signedBytes,
       header,
       headerIndex: headerIndexOf(headerJSON),
       proof,

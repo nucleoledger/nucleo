@@ -3,7 +3,9 @@ package receipt
 import (
 	"bytes"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -56,8 +58,85 @@ func Format(r *Receipt, p proof.Policy) ([]byte, error) {
 	// testigo es exactamente lo que no queremos que pueda pasar.
 	b.WriteString(base64.StdEncoding.EncodeToString(r.BlockSig))
 	b.WriteString("\n")
+	// La firma del emisor, si ya está. Cuando no está, Format produce exactamente
+	// los bytes que hay que firmar: es la misma función, y por eso no puede haber
+	// discrepancia entre "lo que se firmó" y "lo que se publica menos la firma".
+	// Definir el mensaje firmado como "el documento sin su línea de firma" y
+	// construirlo con otra función sería el camino más corto a firmar una cosa y
+	// publicar otra.
+	if len(r.ReceiptSig) > 0 {
+		b.WriteString(ReceiptSigPrefix)
+		b.WriteString(r.Header.Tenant)
+		b.WriteString(" ")
+		b.WriteString(base64.StdEncoding.EncodeToString(r.ReceiptSig))
+		b.WriteString("\n")
+	}
 	b.Write(tlogProof)
 	return b.Bytes(), nil
+}
+
+// SignedBytes devuelve los bytes que la firma del emisor cubre: el recibo ENTERO
+// tal como se publicará, menos su propia línea de firma.
+//
+// Cubre todo y no solo el destinatario a propósito. Firmar la línea del
+// destinatario por separado permitiría recombinar una línea firmada con otra prueba,
+// que es la forma clásica de convertir una firma en nada.
+func SignedBytes(r *Receipt, p proof.Policy) ([]byte, error) {
+	sin := *r
+	sin.ReceiptSig = nil
+	return Format(&sin, p)
+}
+
+// Sign firma el recibo con la clave del emisor —la misma que firmó el bloque— y
+// deja la firma dentro.
+//
+// Se firma el digest SHA-256 de los bytes, no los bytes: es la convención de todo
+// el protocolo (PROTOCOL.md §1) y permite que un verificador que ya calculó el
+// digest no tenga que conservar el documento entero.
+//
+// Exige que la clave sea la de signer_pubkey. Firmar con otra produciría un recibo
+// que no verifica, y descubrirlo al emitir es mucho mejor que descubrirlo cuando lo
+// rechaza la contraparte.
+func Sign(r *Receipt, p proof.Policy, priv ed25519.PrivateKey) error {
+	if len(priv) != ed25519.PrivateKeySize {
+		return fmt.Errorf("%w: clave privada de %d bytes", ErrFormat, len(priv))
+	}
+	pub, ok := priv.Public().(ed25519.PublicKey)
+	if !ok || hex.EncodeToString(pub) != r.Header.SignerPubKey {
+		return fmt.Errorf("%w: la clave no es la de signer_pubkey del header", ErrFormat)
+	}
+	msg, err := SignedBytes(r, p)
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(msg)
+	r.ReceiptSig = ed25519.Sign(priv, digest[:])
+	return nil
+}
+
+// VerifyReceiptSignature comprueba la firma del emisor sobre el recibo completo.
+//
+// La clave sale del header del propio recibo, y eso es lo que hace que esto no
+// necesite PKI nueva: signer_pubkey está dentro del header, el header entra en la
+// hoja desde leaf/v2, y la hoja está bajo una raíz que los testigos cosignan. La
+// contraparte no tiene que pedirle la clave a nadie ni confiar en un directorio.
+func VerifyReceiptSignature(r *Receipt, p proof.Policy) error {
+	if len(r.ReceiptSig) == 0 {
+		return ErrNoReceiptSignature
+	}
+	pub, err := hex.DecodeString(r.Header.SignerPubKey)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		return fmt.Errorf("%w: signer_pubkey no es una clave Ed25519", ErrFormat)
+	}
+	msg, err := SignedBytes(r, p)
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(msg)
+	if !ed25519.Verify(pub, digest[:], r.ReceiptSig) {
+		return ErrReceiptSignature
+	}
+	return nil
 }
 
 // renderText compone el encabezado legible bajo la política dada.
@@ -170,11 +249,45 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 			ErrFormat, len(blockSig), ed25519.SignatureSize)
 	}
 
-	tlogProof, err := proof.Parse(rest[nl2+1:])
+	// Y tras ella, la firma del emisor. El formato la EXIGE; se lee como opcional
+	// para poder dar un error propio —"no lleva firma del emisor"— en vez de que
+	// proof.Parse se queje de un magic que no entiende.
+	afterSig := rest[nl2+1:]
+	var receiptSig []byte
+	if bytes.HasPrefix(afterSig, []byte(ReceiptSigPrefix)) {
+		nl3 := bytes.IndexByte(afterSig, '\n')
+		if nl3 < 0 {
+			return nil, fmt.Errorf("%w: la línea de la firma del emisor no termina", ErrFormat)
+		}
+		line := string(afterSig[:nl3])
+		sp := strings.LastIndex(line, " ")
+		if sp < 0 {
+			return nil, fmt.Errorf("%w: la línea de la firma del emisor no trae nombre y firma", ErrFormat)
+		}
+		name := strings.TrimPrefix(line[:sp], ReceiptSigPrefix)
+		if name != h.Tenant {
+			return nil, fmt.Errorf("%w: la firma del emisor dice ser de %q y el header declara %q",
+				ErrFormat, name, h.Tenant)
+		}
+		receiptSig, err = base64.StdEncoding.Strict().DecodeString(line[sp+1:])
+		if err != nil {
+			return nil, fmt.Errorf("%w: la firma del emisor no es base64 válido: %w", ErrFormat, err)
+		}
+		if len(receiptSig) != ed25519.SignatureSize {
+			return nil, fmt.Errorf("%w: firma del emisor de %d bytes, se esperaban %d",
+				ErrFormat, len(receiptSig), ed25519.SignatureSize)
+		}
+		afterSig = afterSig[nl3+1:]
+	}
+
+	tlogProof, err := proof.Parse(afterSig)
 	if err != nil {
 		return nil, err
 	}
-	r := &Receipt{Recipient: recipient, Header: h, BlockSig: blockSig, Proof: tlogProof}
+	r := &Receipt{
+		Recipient: recipient, Header: h, BlockSig: blockSig,
+		ReceiptSig: receiptSig, Proof: tlogProof,
+	}
 
 	want, err := renderText(r, p)
 	if err != nil {
@@ -182,6 +295,13 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 	}
 	if !bytes.Equal(want, text) {
 		return nil, fmt.Errorf("%w:\nse leyó:\n%s\nla prueba dice:\n%s", ErrTextMismatch, text, want)
+	}
+	// La firma del emisor se exige aquí, en Parse, y no solo en Verify. Es lo que la
+	// hace útil: si fuera opcional al leer, un recibo sin ella seguiría imprimiéndose
+	// igual de bien y la protección del destinatario dependería de que alguien se
+	// acordara de llamar a la otra función.
+	if err := VerifyReceiptSignature(r, p); err != nil {
+		return nil, err
 	}
 	return r, nil
 }
@@ -203,7 +323,21 @@ func textField(text []byte, prefix string) (string, error) {
 // encabezado se DERIVA de esta misma verificación, en renderText, y Parse lo
 // vuelve a derivar y exige igualdad byte a byte. Lo que antes eran dos fuentes
 // que había que reconciliar es ahora una sola.
-func (r *Receipt) Verify(p proof.Policy) (proof.Result, error) { return r.verify(p) }
+func (r *Receipt) Verify(p proof.Policy) (proof.Result, error) {
+	// La firma del emisor sobre el recibo entero, que es la que cubre al
+	// destinatario (ADR-015). Va primero porque es la más barata de comprobar y la
+	// que delata el manoseo más probable: alguien que reescribe el nombre.
+	//
+	// Se comprueba AQUÍ y en Parse, pero NO en verify, y la diferencia no es un
+	// detalle de organización: el texto legible se deriva del tiempo demostrable, el
+	// tiempo demostrable sale de verify, y la firma cubre el texto. Si verify
+	// exigiera la firma, firmar sería imposible — habría que verificar la firma para
+	// poder calcular los bytes que hay que firmar. Lo descubrí intentándolo.
+	if err := VerifyReceiptSignature(r, p); err != nil {
+		return proof.Result{}, err
+	}
+	return r.verify(p)
+}
 
 // Text devuelve solo el encabezado legible, para imprimirlo.
 func Text(data []byte) string {

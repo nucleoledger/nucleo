@@ -13,7 +13,7 @@ SUBCOMANDOS
   seal        sella un registro en el ledger
   status      muestra el estado del ledger y si está atestiguado
   verify      verifica la integridad del ledger  (--full para la exhaustiva)
-  receipt     emite el recibo de un bloque para un destinatario
+  receipt     emite el recibo FIRMADO de un bloque para un destinatario
   reconcile   coteja el sistema vivo contra lo sellado
   sync        pide atestación a un testigo
   witness     witness serve — levanta un testigo · witness key — su clave pública
@@ -25,7 +25,23 @@ BANDERAS GLOBALES
   --json      salida para máquinas en vez de para personas
   --stale-after D
               a partir de cuánto se considera VIEJA la última atestación
-              verificada (por omisión 72h). Ver ATESTACIÓN VIEJA.
+              verificada (por omisión 72h). Ver EL RECIBO Y SUS DOS FIRMAS
+  Un recibo @v2 lleva dos firmas, las dos de la clave del emisor, y dicen cosas
+  distintas:
+
+    firma del bloque   quién escribió el registro. Es lo que permite además
+                       recomponer la hoja del árbol (regla leaf/v2).
+    firma del recibo   quién emitió ESTE documento para ESTE destinatario con
+                       ESTE texto, advertencia legal incluida.
+
+  Quien recibe el recibo las verifica con lo que ya tiene: la clave sale de
+  signer_pubkey, que va dentro del header, y el header está bajo la raíz que
+  cosignan los testigos. No hay claves que repartir.
+
+  Por eso el subcomando receipt pide la passphrase: firma. Un recibo de la versión anterior
+  (@v1) se reconoce y se rechaza diciendo que lo es.
+
+ATESTACIÓN VIEJA.
 
 CÓDIGOS DE SALIDA
   0  todo correcto

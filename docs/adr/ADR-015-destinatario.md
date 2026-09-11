@@ -1,6 +1,6 @@
 # ADR-015-destinatario
 
-**Estado:** PROPUESTA, pendiente de decisión del dev · **Fecha:** 2026-09-10 · **Fuentes:** revisión externa 2026-09-10 (hallazgo 5), PROTOCOL.md §3-§4, ADR-002, `internal/receipt`, `internal/identity`
+**Estado:** ACEPTADA el 2026-09-10 por el dev · implementada en el Sprint 7b, después de ADR-014 y apoyada en él · **Fecha:** 2026-09-10 · **Fuentes:** revisión externa 2026-09-10 (hallazgo 5), PROTOCOL.md §3-§4, ADR-002, `internal/receipt`, `internal/identity`
 
 La revisión externa del 10-sep-2026 señaló que el destinatario del recibo no está
 cubierto por ninguna firma y que, pese a eso, va a acabar impreso en el pie de un
@@ -15,8 +15,55 @@ línea que el nombre, y viaja dentro del texto que `Parse` compara byte a byte, 
 que no se puede quitar sin invalidar el recibo. Eso no añade garantías: deja de
 insinuarlas.
 
-Este ADR evalúa la **opción completa** —que el emisor firme el recibo entero,
-destinatario incluido— y **no la implementa**.
+Este ADR evaluó la **opción completa** —que el emisor firme el recibo entero,
+destinatario incluido— y el dev la **aprobó el 2026-09-10**, con la condición que
+este ADR pedía: después de ADR-014 y apoyada en él.
+
+## Decisión, y por qué la recomendación cambió de "todavía no" a "sí"
+
+La recomendación original era "hacerlo, pero no antes de resolver la distribución de
+la clave", porque una firma del emisor no vale nada si quien recibe el recibo no sabe
+qué clave esperar. **ADR-014 resolvió eso sin proponérselo.**
+
+La clave que firma el recibo es la MISMA que firma los bloques, y su pública —
+`signer_pubkey` — vive dentro del header. Desde `leaf/v2` el header entra en la hoja
+de Merkle, y la hoja está bajo una raíz que los testigos cosignan. Es decir: la clave
+con la que hay que verificar la firma del emisor viene **clavada por la misma
+atestación que clava todo lo demás**.
+
+Eso elimina la parte cara de este ADR. No hay directorio de claves, no hay
+`.well-known`, no hay intercambio fuera de banda: la contraparte verifica con lo que
+ya tiene en el recibo y en su política. Es exactamente la restricción que el dev puso
+—«cero PKI nueva»— y resulta que era alcanzable.
+
+De las tres opciones de clave que este ADR analizaba, se adopta la **(b), la clave del
+tenant**, y no la (c) que se recomendaba en abstracto. El motivo es ese mismo: una
+cuarta semilla habría sido más limpia conceptualmente y habría exigido distribuir una
+clave más, que es justo el problema que la (b) no tiene. La limitación de la (b) queda
+escrita: si algún día la clave del tenant se rota por motivos del ledger, los recibos
+emitidos antes dejan de verificar contra la clave publicada.
+
+### Formato adoptado
+
+```
+— <tenant> <base64(firma de 64 bytes)>
+receipt_sig = Ed25519( tenant_sk, SHA-256( recibo SIN su línea de firma ) )
+```
+
+Cubre el recibo ENTERO y no solo el destinatario, por la razón que este ADR ya
+anticipaba: firmar la línea del destinatario por separado permitiría recombinar una
+línea firmada con otra prueba. Está en PROTOCOL.md §3.1 como texto normativo.
+
+La etiqueta `(anotado por el emisor, no firmado)` **muere** y la reemplaza
+`(firmado por el emisor)`. Las dos dicen la verdad en su momento; la segunda es la
+que ahora corresponde.
+
+### El precio, dicho claro
+
+`nucleo receipt` pasa a **exigir la passphrase**: la clave del emisor vive cifrada en
+el vault y antes este comando solo leía. Para un cron que emite recibos, eso es un
+`--passphrase-file` más. Se compra con ello que la línea del destinatario deje de ser
+reescribible por cualquiera que tenga el fichero.
 
 ## Qué problema resuelve de verdad, y cuál no
 

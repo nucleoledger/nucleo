@@ -187,6 +187,7 @@ func cmdReceipt(e *env, args []string) error {
 	out := fs.String("out", "", "fichero de salida (por defecto, la pantalla)")
 	witnessName := fs.String("witness-name", "", "nombre del testigo aceptado")
 	witnessKey := fs.String("witness-key", "", "clave pública del testigo, en hexadecimal")
+	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
@@ -210,7 +211,19 @@ func cmdReceipt(e *env, args []string) error {
 		return err
 	}
 
-	r, err := receipt.Issue(s, *recipient, uint64(*block))
+	// Emitir un recibo pasa a exigir la passphrase, y conviene decir por qué: desde
+	// ADR-015 el emisor FIRMA el recibo entero, destinatario incluido, y esa clave
+	// vive cifrada en el vault. Antes `receipt` solo leía, así que no hacía falta.
+	// El precio es real —una passphrase más en el cron que emite recibos— y compra
+	// que la línea del destinatario deje de ser reescribible por cualquiera que
+	// tenga el fichero.
+	v, id, err := e.unlock(s, *passFile, "Passphrase del vault: ")
+	if err != nil {
+		return err
+	}
+	defer v.Close()
+
+	r, err := receipt.Issue(s, *recipient, uint64(*block), pol, id.Tenant)
 	if err != nil {
 		if errors.Is(err, receipt.ErrNotAttested) {
 			return usageErr("%v\n  Ejecuta `nucleo sync` para que un testigo cubra ese bloque.", err)

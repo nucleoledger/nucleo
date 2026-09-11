@@ -57,7 +57,10 @@ export const NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
  * Tiene que coincidir byte a byte con RecipientNote de Go. Los dos espacios del
  * principio son parte de la constante.
  */
-export const RECIPIENT_NOTE = "  (anotado por el emisor, no firmado)";
+export const RECIPIENT_NOTE = "  (firmado por el emisor)";
+
+/** RECEIPT_SIG_PREFIX abre la línea de la firma del emisor. */
+export const RECEIPT_SIG_PREFIX = "— ";
 
 export const LEGAL_NOTICE = [
   "ADVERTENCIA LEGAL",
@@ -136,6 +139,16 @@ export interface Result {
    * escribió.
    */
   blockSignatureVerified: boolean | null;
+  /**
+   * receiptSignatureVerified dice si la firma del emisor sobre el recibo COMPLETO
+   * verifica. Es la que cubre al destinatario (ADR-015).
+   *
+   * La clave sale del propio recibo —signer_pubkey, dentro del header— y el header
+   * entra en la hoja de Merkle desde leaf/v2, así que una raíz cosignada por
+   * testigos la clava. Por eso esto no necesita ninguna PKI nueva: se verifica con
+   * lo que ya hay en el recibo y en la política.
+   */
+  receiptSignatureVerified: boolean | null;
 }
 
 /** parsed guarda lo que se pudo leer del recibo antes de verificarlo. */
@@ -143,6 +156,9 @@ interface Parsed {
   recipient: string;
   headerJSON: string;
   blockSig: Uint8Array;
+  receiptSig: Uint8Array | null;
+  /** signedBytes es el recibo SIN su línea de firma: lo que el emisor firmó. */
+  signedBytes: string;
   header: BlockHeader;
   /** headerIndex es el índice leído del texto canónico, sin pasar por Number. */
   headerIndex: bigint;
@@ -173,6 +189,7 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
       provableTime: null,
       blockIndex: null,
       blockSignatureVerified: null,
+      receiptSignatureVerified: null,
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
@@ -245,6 +262,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     provableTime: null,
     blockIndex: null,
     blockSignatureVerified: null,
+    receiptSignatureVerified: null,
     recipient: null,
     cosigners: [],
     ignoredSignatures: [],
@@ -297,6 +315,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   // vaya a comprobarse después: son dos afirmaciones distintas y quien lee el
   // veredicto merece saber cuál de las dos falló.
   let blockSignatureVerified: boolean | null = null;
+  let receiptSignatureVerified: boolean | null = null;
   const signerPub = fromHex(p.header.signer_pubkey ?? "");
   if (signerPub === null || signerPub.length !== 32) {
     reasons.push("signer_pubkey del header no es una clave Ed25519");
@@ -304,6 +323,19 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     blockSignatureVerified = await verifyEd25519(signerPub, p.blockSig, blockHash);
     if (!blockSignatureVerified) {
       reasons.push("la firma del bloque no verifica con la clave signer_pubkey del header");
+    }
+
+    // 3c. Y la firma del emisor sobre el recibo ENTERO, destinatario incluido
+    // (ADR-015). Es la que hace que el nombre del destinatario deje de ser una línea
+    // que cualquiera con el fichero puede reescribir.
+    if (p.receiptSig === null) {
+      reasons.push("el recibo no lleva firma del emisor");
+    } else {
+      const digest = await sha256(utf8(p.signedBytes));
+      receiptSignatureVerified = await verifyEd25519(signerPub, p.receiptSig, digest);
+      if (!receiptSignatureVerified) {
+        reasons.push("la firma del emisor sobre el recibo no verifica: el recibo fue alterado");
+      }
     }
   }
 
@@ -391,6 +423,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   return {
     valid: reasons.length === 0,
     blockSignatureVerified,
+    receiptSignatureVerified,
     declaredTime: p.header.timestamp,
     provableTime: reasons.length === 0 ? provable : null,
     blockIndex: p.headerIndex,
@@ -451,13 +484,45 @@ export function parseReceipt(receipt: string): Parsed {
     );
   }
 
-  const proof = parseProof(rest.slice(nl2 + 1));
+  // Y tras ella, la firma del emisor sobre el recibo entero (ADR-015). El formato
+  // la exige; se lee como opcional para poder decir "no lleva firma del emisor" en
+  // vez de que el parser de la prueba se queje de un magic que no entiende.
+  let afterSig = rest.slice(nl2 + 1);
+  let receiptSig: Uint8Array | null = null;
+  let signedBytes = receipt;
+  if (afterSig.startsWith(RECEIPT_SIG_PREFIX)) {
+    const nl3 = afterSig.indexOf("\n");
+    if (nl3 < 0) throw new Error("la línea de la firma del emisor no termina");
+    const line = afterSig.slice(0, nl3);
+    const sp = line.lastIndexOf(" ");
+    if (sp < 0) throw new Error("la línea de la firma del emisor no trae nombre y firma");
+    const name = line.slice(RECEIPT_SIG_PREFIX.length, sp);
+    if (name !== header.tenant) {
+      throw new Error(
+        `la firma del emisor dice ser de ${JSON.stringify(name)} y el header declara ${JSON.stringify(header.tenant)}`,
+      );
+    }
+    receiptSig = fromBase64(line.slice(sp + 1));
+    if (receiptSig.length !== BLOCK_SIG_SIZE) {
+      throw new Error(`la firma del emisor mide ${receiptSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`);
+    }
+    // Lo firmado es el recibo SIN esta línea. Se quita de la cadena en vez de
+    // volver a renderizar el documento: son los mismos bytes y no hay dos caminos
+    // que puedan divergir.
+    const entera = line + "\n";
+    const at = receipt.lastIndexOf(entera);
+    if (at < 0) throw new Error("no se pudo aislar la línea de la firma del emisor");
+    signedBytes = receipt.slice(0, at) + receipt.slice(at + entera.length);
+    afterSig = afterSig.slice(nl3 + 1);
+  }
+
+  const proof = parseProof(afterSig);
   const note = parseNote(proof.checkpointNote);
   const checkpoint = parseCheckpoint(note.text);
 
   return {
-    recipient, headerJSON, blockSig, header, headerIndex: headerIndexOf(headerJSON),
-    proof, note, checkpoint, text,
+    recipient, headerJSON, blockSig, receiptSig, signedBytes, header,
+    headerIndex: headerIndexOf(headerJSON), proof, note, checkpoint, text,
   };
 }
 

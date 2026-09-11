@@ -166,7 +166,7 @@ func run() error {
 
 	// ---- Un recibo entregable ---------------------------------------------
 	fmt.Println("\n== Recibo del bloque 3, con los dos relojes ==")
-	if err := printReceipt(s2, logPriv.Public().(ed25519.PublicKey), witnessPriv.Public().(ed25519.PublicKey)); err != nil {
+	if err := printReceipt(s2, tenantPriv, logPriv.Public().(ed25519.PublicKey), witnessPriv.Public().(ed25519.PublicKey)); err != nil {
 		return err
 	}
 
@@ -384,11 +384,7 @@ func printState(r store.OpenResult) {
 }
 
 // printReceipt emite un recibo y lo enseña como lo vería quien lo recibe.
-func printReceipt(s *store.Store, logPub, witnessPub ed25519.PublicKey) error {
-	r, err := receipt.Issue(s, "María Pérez (cédula 1712345678)", 3)
-	if err != nil {
-		return err
-	}
+func printReceipt(s *store.Store, tenantPriv ed25519.PrivateKey, logPub, witnessPub ed25519.PublicKey) error {
 	// La política del EMISOR: con ella se calcula el tiempo demostrable que va
 	// impreso. Un tiempo demostrable sin política sería una fecha con aspecto de
 	// demostrada.
@@ -396,6 +392,10 @@ func printReceipt(s *store.Store, logPub, witnessPub ed25519.PublicKey) error {
 		Origin: origin, LogKey: logPub,
 		Witnesses: map[string]ed25519.PublicKey{witnessName: witnessPub},
 		Quorum:    1,
+	}
+	r, err := receipt.Issue(s, "María Pérez (cédula 1712345678)", 3, policy, tenantPriv)
+	if err != nil {
+		return err
 	}
 	data, err := receipt.Format(r, policy)
 	if err != nil {

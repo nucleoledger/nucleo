@@ -68,7 +68,15 @@ const NoProvableTime = "SIN TIEMPO DEMOSTRABLE"
 // La opción completa —que el emisor firme el recibo entero, destinatario
 // incluido— se evalúa en ADR-015 y está sin decidir. Esta es la mínima honesta:
 // no añade garantías, deja de insinuarlas.
-const RecipientNote = "  (anotado por el emisor, no firmado)"
+const RecipientNote = "  (firmado por el emisor)"
+
+// RecipientNoteUnsigned es la etiqueta ANTERIOR, la del recibo que no llevaba firma
+// del emisor. Se conserva solo para reconocer un recibo viejo y explicarlo.
+const RecipientNoteUnsigned = "  (anotado por el emisor, no firmado)"
+
+// ReceiptSigPrefix abre la línea de la firma del emisor, con la misma convención que
+// las líneas de firma de una nota firmada: "— <nombre> <base64>".
+const ReceiptSigPrefix = "— "
 
 // LegalNotice es la advertencia legal que viaja DENTRO del recibo.
 //
@@ -104,6 +112,13 @@ var (
 	// ErrBlockSignature indica que la firma del bloque no verifica contra la clave
 	// que el propio header declara.
 	ErrBlockSignature = errors.New("receipt: la firma del bloque no verifica con signer_pubkey")
+	// ErrReceiptSignature indica que la firma del emisor sobre el recibo completo no
+	// verifica. Es el rechazo que protege al destinatario: sin él, la línea del
+	// destinatario la puede reescribir cualquiera que tenga el fichero.
+	ErrReceiptSignature = errors.New("receipt: la firma del emisor sobre el recibo no verifica")
+	// ErrNoReceiptSignature indica un recibo sin firma del emisor. El formato la
+	// exige: un recibo sin ella es de una versión anterior.
+	ErrNoReceiptSignature = errors.New("receipt: el recibo no lleva firma del emisor")
 )
 
 // Ledger es lo que hace falta del ledger para emitir un recibo. Lo cumple
@@ -140,10 +155,35 @@ type Receipt struct {
 	BlockSig []byte
 	// Proof es la prueba de c2sp.org/tlog-proof.
 	Proof proof.Receipt
+	// ReceiptSig es la firma del emisor sobre el recibo ENTERO, destinatario
+	// incluido: 64 bytes crudos (ADR-015, PROTOCOL.md §3.1).
+	//
+	// La clave es la MISMA que firma los bloques, y ahí está el truco que hace que
+	// esto no necesite ninguna PKI nueva: su pública viaja en el header como
+	// signer_pubkey, y desde leaf/v2 el header entra en la hoja, así que una raíz
+	// cosignada por testigos la clava. La contraparte verifica esta firma con lo que
+	// ya tiene en el recibo y en su política, sin preguntarle a nadie.
+	//
+	// Lo que añade: el destinatario deja de ser una línea que cualquiera con el
+	// fichero puede reescribir. Lo que NO añade: nada impide al emisor emitir dos
+	// recibos del mismo registro a dos destinatarios distintos, ni demuestra entrega.
+	ReceiptSig []byte
 }
 
-// Issue arma el recibo del bloque indicado contra el último checkpoint guardado.
-func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
+// Issue arma el recibo del bloque indicado contra el último checkpoint guardado, y
+// lo FIRMA con la clave del emisor.
+//
+// Firma aquí y no en un paso aparte porque el formato exige la firma (ADR-015): un
+// Issue que devolviera recibos sin firmar dejaría que alguien se olvidara del
+// segundo paso y emitiera documentos que ningún verificador acepta. Es imposible
+// construir un recibo incompleto por descuido.
+//
+// Necesita la política porque el texto legible depende de ella —el tiempo demostrable
+// solo existe respecto a unos testigos— y la firma cubre el texto. Una consecuencia
+// que conviene tener clara: el emisor firma el recibo tal como se renderiza bajo SU
+// política. Si la contraparte usa otra, el recibo ya se rechazaba antes por el texto;
+// ahora además no verificaría la firma. Es la misma restricción, no una nueva.
+func Issue(l Ledger, recipient string, index uint64, p proof.Policy, priv ed25519.PrivateKey) (*Receipt, error) {
 	if recipient == "" {
 		return nil, fmt.Errorf("%w: falta el destinatario", ErrFormat)
 	}
@@ -152,9 +192,11 @@ func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
 	// recupera intacto— pero deja un papel ambiguo, y la ambigüedad en la línea
 	// del destinatario es justo lo que la etiqueta viene a quitar. Se rechaza al
 	// emitir: más vale no poder crear el problema que detectarlo después.
-	if strings.Contains(recipient, strings.TrimSpace(RecipientNote)) {
-		return nil, fmt.Errorf("%w: el destinatario no puede contener %q",
-			ErrFormat, strings.TrimSpace(RecipientNote))
+	for _, prohibida := range []string{RecipientNote, RecipientNoteUnsigned} {
+		if strings.Contains(recipient, strings.TrimSpace(prohibida)) {
+			return nil, fmt.Errorf("%w: el destinatario no puede contener %q",
+				ErrFormat, strings.TrimSpace(prohibida))
+		}
 	}
 	noteBytes, err := l.LastCheckpoint()
 	if err != nil {
@@ -188,7 +230,7 @@ func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
 	if err != nil || len(sig) != ed25519.SignatureSize {
 		return nil, fmt.Errorf("%w: la firma del bloque %d no es una firma Ed25519", ErrFormat, index)
 	}
-	return &Receipt{
+	r := &Receipt{
 		Recipient: recipient,
 		Header:    blocks[0].Header,
 		BlockSig:  sig,
@@ -197,7 +239,11 @@ func Issue(l Ledger, recipient string, index uint64) (*Receipt, error) {
 			InclusionProof: path,
 			CheckpointNote: noteBytes,
 		},
-	}, nil
+	}
+	if err := Sign(r, p, priv); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // LeafData recompone leaf_data desde el header y la firma que el recibo trae
@@ -271,9 +317,14 @@ func (r *Receipt) ProvableTime(p proof.Policy) (time.Time, bool, error) {
 	return res.ProvableTime, true, nil
 }
 
-// verify es la verificación completa, compartida por el renderizado y por
-// Verify. Que el encabezado se derive de lo MISMO que verifica el destinatario
-// es lo que impide que el texto y la prueba lleguen a contradecirse.
+// verify es la verificación compartida por el renderizado y por Verify. Que el
+// encabezado se derive de lo MISMO que verifica el destinatario es lo que impide
+// que el texto y la prueba lleguen a contradecirse.
+//
+// NO comprueba la firma del emisor, y eso es deliberado: el texto se deriva del
+// tiempo demostrable, el tiempo demostrable sale de aquí, y la firma del emisor
+// cubre el texto. Exigirla aquí haría imposible firmar. La comprueban Verify y
+// Parse, que son las dos puertas por las que entra un recibo ajeno.
 func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
 	// La firma del bloque se comprueba ANTES de la prueba de inclusión. El orden
 	// no cambia el veredicto, pero sí el mensaje de error que alguien va a leer:
