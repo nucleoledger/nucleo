@@ -1,79 +1,75 @@
 # TODO.md — Backlog atómico
 
-## Hecho (estado real del proyecto)
-- [x] Documento de concepto v1.2 con las 5 decisiones de protocolo cerradas y fundamentadas (`docs/CONCEPTO-v1.2-es.md`)
-- [x] Investigación profunda: C2SP, SLIP-0039, VRF/RFC 9381, TSA Ecuador, hosting compartido, segmentación (informe con fuentes)
-- [x] Verificación de nombre: GitHub `nucleoledger` libre, npm `@nucleoledger` libre → elegido
-- [x] JCS RFC 8785 nativo con vectores oficiales en verde (`internal/jcs`)
-- [x] Bloque firmado: header + SHA-256(JCS) + Ed25519 + validación de cadena con firmante esperado (`internal/ledger/block.go`)
-- [x] Merkle RFC 6962 con prueba de inclusión y verificación RFC 9162 (`internal/ledger/merkle.go`)
-- [x] Demo de ataques: edición, refirma, reescritura total (`cmd/nucleo-demo`)
-- [x] Migración del módulo a `github.com/nucleoledger/nucleo` (tests en verde)
-- [x] Documentos fundacionales: README, PROTOCOL.md, ADRs, CLAUDE/AGENTS/PLAN/TODO
+Estado: `v0.1.0-alpha` publicada (tag firmado, release verificado con cosign y
+procedencia SLSA, `@nucleoledger/verify@0.1.0-alpha.0` en npm). **Sprint 7 en
+curso:** cerrar la revisión externa del 10-sep-2026.
 
-## Tareas del dev (fuera del código, hacer YA)
-- [x] Crear organización `nucleoledger` en GitHub (plan Free) — verificar: la URL github.com/nucleoledger existe y es tuya
-- [x] Crear organización `@nucleoledger` en npm (reserva el scope) — verificar: aparece en tu perfil npm
-- [x] Verificar dominio `nucleoledger.com` (y opcional `nucleo.ec` en nic.ec) — verificar: whois/registrador
-- [x] Subir este esqueleto como primer commit y push — verificar: CI corre en Actions
-- [x] Añadir LICENSE AGPL-3.0 desde el selector de licencias de GitHub (texto canónico) — verificar: archivo LICENSE con texto completo oficial
-- [x] Activar 2FA en GitHub y en npm — verificar: ambos perfiles muestran la segunda factor activa
-- [ ] Configurar el trusted publisher de `@nucleoledger/verify` en npmjs.com (Settings → Trusted Publisher → GitHub Actions; pasos exactos en `docs/RELEASING.md`) — verificar: un tag `vsdk-*` publica sin token y el paquete aparece con procedencia
+El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
+commits, en `CHANGELOG.md` y en `docs/adr/`, que es donde hay que buscarlo. Una
+lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 
-## Fase D — Laboratorio
-- [x] Externalizar vectores JCS a `testdata/vectors/jcs/` y hacer que los tests los lean de ahí — tocar: `internal/jcs/jcs_test.go` — verificar: tests en verde leyendo archivos
-- [x] Fuzz test de JCS (round-trip y no-pánico) — tocar: `internal/jcs/jcs_fuzz_test.go` — verificar: `go test -fuzz=FuzzJCS -fuzztime=30s ./internal/jcs`
-- [x] Añadir golangci-lint config mínima — tocar: `.golangci.yml` — verificar: `golangci-lint run` limpio (v2.13.2, job de lint en CI)
-- [x] Validar workflow CI en los 3 SO — tocar: `.github/workflows/ci.yml` — verificar: badge verde tras el push
+## Hecho, por sprint
+- [x] **Fase D + Fase 0** — JCS RFC 8785 nativo con vectores oficiales y fuzzing;
+      bloque firmado y cadena; Merkle RFC 6962 con inclusión y consistencia;
+      checkpoint C2SP; cosignature simulada; recibo tlog-proof; CI en tres SO.
+- [x] **Sprint 2** — `internal/store` SQLite append-only; `internal/vault`
+      (Argon2id → KEK → DEK, XChaCha20-Poly1305 con AAD no ambiguo); respaldo
+      SLIP-0039 con los 45 vectores de Trezor; apertura rápida respaldada por
+      checkpoint cosignado (10^5 bloques: 8,66 s → 412 ms) y `VerifyFull`.
+- [x] **Sprint 3** — testigo HTTP real completo; reconciliación; detección de
+      rollback por memoria del testigo; segunda firma ML-DSA-44 vía extensión
+      `0xff`; cerrojo anti-retroceso duradero (`log_state`).
+- [x] **Sprint 4** — `cmd/nucleo` con códigos de salida 0/1/2/3; vectores de
+      recibo cross-lenguaje; `sdk/ts` con cero dependencias de runtime;
+      `web/verify` estático.
+- [x] **Sprint 5** — compromisos HMAC con subclave por tenant; perfil Ecuador
+      (`sri.factura.v1`, `sas.acta.v1`); el criterio de éxito como script
+      ejecutable; tutorial con salidas reales; spike VRF (ADR-012).
+- [x] **Sprint 6 + pre-lanzamiento** — README y CHANGELOG; release firmado
+      (goreleaser + cosign keyless + procedencia SLSA); los 6 hallazgos de la
+      auditoría pre-pública (ADR-013); publicación npm con trusted publishing.
 
-## Fase 0 — Prueba de concepto C2SP
-- [x] Prueba de consistencia RFC 9162 §2.1.4 (`ConsistencyProof` + `VerifyConsistency`) — tocar: `internal/ledger/merkle.go` + test nuevo — verificar: test con árbol extendido (pasa) y árbol reescrito (falla)
-- [x] Formato de checkpoint (nota firmada: origin, size, root) con Ed25519 — tocar: `internal/checkpoint/` nuevo — verificar: golden test del formato exacto
-- [x] Cosignature v1 simulada (testigo local: timestamp + firma sobre el checkpoint) — tocar: `internal/witness/` nuevo — verificar: test de rechazo ante checkpoint inconsistente (detecta reescritura)
-- [x] Recibo estilo tlog-proof (checkpoint + índice + inclusion path) serializado — tocar: `internal/proof/` nuevo — verificar: verificación offline sin acceso al ledger + medir bytes
-- [x] Benchmark de sellado y tamaño de recibo — tocar: `internal/ledger/bench_test.go` — verificar: `go test -bench` reporta cifras; anotarlas en README
-- [x] Evaluar spike `golang.org/x/mod/sumdb/note` vs formato manual (decisión → ADR-008) — verificar: ADR escrito con conclusión
+## Tareas del dev (fuera del código)
+- [x] Organizaciones `nucleoledger` en GitHub y `@nucleoledger` en npm; dominio; 2FA; LICENSE
+- [ ] Configurar el trusted publisher de `@nucleoledger/verify` en npmjs.com
+      (Settings → Trusted Publisher → GitHub Actions; pasos exactos en
+      `docs/RELEASING.md`; **marcar "allow npm publish"**, no solo staging) —
+      verificar: un tag `vsdk-*` publica sin token y el paquete sale con procedencia
+- [ ] Crear el buzón `security@nucleoledger.com` o cambiar la dirección en
+      `SECURITY.md` — verificar: un correo a esa dirección llega
+- [ ] Activar el reporte privado de vulnerabilidades en GitHub — verificar:
+      Settings → Security → la opción aparece habilitada
+- [ ] Cronometrar el tutorial con alguien de fuera del proyecto — verificar: una
+      hora medida, no estimada por quien lo escribió
+- [ ] Decidir sobre ADR-012 (VRF), ADR-014 (hoja y firma) y ADR-015 (destinatario)
 
-## Después (Sprint 2 — no empezar sin cerrar lo anterior)
-- [x] `internal/store`: SQLite append-only (4 tablas + triggers; caché de subárboles DIFERIDA — ADR-009; el benchmark dispara la condición pero el cuello no es la raíz: ver reporte)
-- [x] `internal/vault`: KEK/DEK + XChaCha20-Poly1305 con AAD (SLIP-0039 evaluado en ADR-010, dependencia NO añadida)
-- [x] Enmienda ADR-009: la apertura verifica desde el último checkpoint cosignado (la condición de >5 s se cumplió, pero el cuello no era el árbol)
-- [x] Apertura O(árbol) respaldada por checkpoint cosignado + `VerifyFull()` para auditorías — 10^5 bloques en 412 ms (antes 8,66 s)
-- [x] Respaldo de la KEK con SLIP-0039 (`shurlinet/go-slip39` v0.1.0 fijada, aislada tras `BackupKEK`/`RestoreKEK` en `internal/vault/backup.go`)
-- [x] 45 vectores oficiales SLIP-0039 en nuestra suite (`testdata/vectors/slip39/`, descargados del repo canónico de Trezor)
-- [x] El respaldo corrupto falla ruidosamente: palabra mutada, shares de respaldos distintos y k-1 shares (RS1024)
-- [x] AAD no ambiguo: `payload_hash` de longitud fija validado en cifrado y descifrado (hallazgo MEDIO de la auditoría GPT-5.5)
-- [x] `Open` expone el estado atestiguado (`OpenResult`); el rollback local con borrado de checkpoints queda SEÑALADO (hallazgo ALTO de la auditoría GPT-5.5)
-- [x] Contrato de restauración documentado y probado: `RestoreKEK` + `UnwrapDEK` (hallazgo BAJO de la auditoría GPT-5.5)
-- [x] `BackupKEK` verifica el round-trip antes de entregar shares (condición 1 de ADR-010, CERRADA)
-- [x] `cmd/nucleo-poc3`: testigo HTTP en su propia base, reinicio del log, rollback simulado y detectado
-- [x] Recibos con destinatario (`receipt.Issue`) con tiempo declarado y demostrable etiquetados por separado (PROTOCOL §4)
+## Sprint 7 — cerrar la revisión externa
+- [x] Ningún binario compilado en el árbol; `.gitignore` con rutas ancladas (P0)
+- [x] PLAN/CLAUDE/AGENTS/TODO dicen la verdad del repo (deriva documental)
+- [ ] README: ML-DSA-44 es firma ADICIONAL del log vía extensión `0xff`; las
+      cosignatures de testigo siguen Ed25519 — nada de post-cuántico de punta a punta
+- [ ] Disclaimer legal en español EN el recibo y en el verificador HTML
+- [ ] El destinatario del recibo se etiqueta "(anotado por el emisor, no firmado)"
+- [ ] `docs/adr/ADR-014-hoja-y-firma.md` — spike de decisión, sin implementar
+- [ ] `docs/adr/ADR-015-destinatario.md` — spike de decisión, sin implementar
+- [ ] Política *fail-stale*: umbral configurable (72 h por omisión); `status` y
+      `seal` avisan por stderr y en `--json`; `verify` lo reporta. Reloj inyectado
+- [ ] `init --kdf-profile {default,constrained}` con los parámetros persistidos y
+      honrados por `Unlock`, y el coste de ambos perfiles MEDIDO
+- [ ] Fuzzers de todos los formatos de cable: note firmada, checkpoint,
+      cosignature, recibo y cuerpo de la petición del testigo
 
-## Sprint 3
-- [x] Testigo HTTP real (`c2sp.org/tlog-witness`): servidor, cliente y estado persistente en su propio SQLite — ADR-011 fija la versión del spec
-- [x] `internal/reconcile`: cotejo del sistema vivo contra lo sellado, con `IncludeFullVerify` (la ejecución programada que promete la enmienda de ADR-009)
-- [x] Detección de rollback por memoria del testigo (hallazgo ALTO de auditoría GPT) — `logsync.SyncWithWitness` consulta al testigo antes de firmar y devuelve `RollbackError` con ambos tamaños
-- [x] Segunda firma ML-DSA-44 en checkpoints reales (ADR-007), vía la extensión 0xff de signed-note con identificador `nucleoledger.com/sig/ml-dsa-44@v1`; key ID con golden calculado en python
-- [x] Cerrojo anti-retroceso del log DURADERO: se persiste el checkpoint firmado antes de contactar al testigo y el log se rehidrata al reabrir (tabla `log_state`)
-- [x] El cliente del testigo verifica las cosignatures antes de aceptar nada (hallazgo ALTO/MUST de la 2.ª auditoría GPT-5.5)
-- [x] `SyncWithWitness` solo devuelve éxito con atestación verificada del estado actual; el replay de una nota vieja genuina ya no lo silencia (ALTO de la 2.ª auditoría)
-- [x] El tiempo demostrable del recibo se calcula solo con cosignatures verificadas bajo política (MEDIO de la 2.ª auditoría)
+## Siguiente sprint (no empezar sin cerrar el 7)
+- [ ] **Sealer PHP.** El mercado es PHP en cPanel y hoy solo hay CLI Go y
+      verificador TS. Es el hueco más grande del producto.
+- [ ] **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo
+      demostrable no existe para una pyme. Testigo mutuo entre instalaciones, o
+      un tercero con incentivo (contador, certificadora, colegio de abogados).
+- [ ] Identidad de registro estable y eventos `issued`/`voided` en el perfil
+      genérico: las facturas se anulan y hoy `reconcile` no lo modela (pide ADR)
 
-## Sprint 4 — la CLI es el producto
-- [x] `cmd/nucleo`: binario único con subcomandos, salida en español, `--json`, y códigos de salida documentados (0/1/2/3)
-- [x] `init`/`backup`/`restore` con passphrase sin eco, tarjetas SLIP-0039 y confirmación tecleada (ADR-004)
-- [x] `seal`/`status`/`verify [--full]`/`receipt`/`reconcile`/`sync`/`witness serve`
-- [x] Vectores de recibo golden en `testdata/vectors/receipt/`, generados desde un test Go
-- [x] `sdk/ts` — `@nucleoledger/verify`: verificador offline con CERO dependencias de runtime (WebCrypto)
-- [x] Job de CI para Node que corre los tests del SDK contra los vectores compartidos
-- [x] `web/verify/index.html`: verificador estático sin red ni frameworks, con el bundle del SDK y test anti-teatro
-
-## Sprint 5 — perfil Ecuador
-- [x] `internal/commit`: compromisos HMAC-SHA-256 con subclave por tenant derivada de la DEK vía HKDF (ADR-003, vía interna)
-- [x] `profiles/ecuador`: `sri.factura.v1` y `sas.acta.v1`, con validación del dígito verificador módulo 11 y clasificación de campos sensibles
-- [x] `nucleo seal --profile ecuador.sri.factura --xml`: valida, extrae metadatos, sella el XML byte a byte y registra compromisos
-- [x] `scripts/demo-criterio-exito.sh`: el criterio de éxito de CONCEPTO §18 como test ejecutable
-- [x] Fricción de producto corregida: `status` publica origin y clave del log, y `witness key` devuelve la del testigo (antes hacía falta SQL)
-- [x] `docs/TUTORIAL-es.md`: "Integra Núcleo en tu sistema en una hora", con todas las salidas ejecutadas de verdad
-- [x] Spike VRF `vrf-r255` evaluado en ADR-012 — dependencia NO añadida, pendiente de decisión
-
+## Fuera de alcance hasta nuevo aviso
+- **Dual-license con texto y precio** — decisión de negocio del dev, no de ingeniería.
+- **Auditoría humana pagada** — cuando haya ingresos. Hasta entonces el README
+  dice que no hay auditoría externa y eso no se maquilla.
+- **HSM** — v1 es software-only. Documentado como límite, no como pendiente.
