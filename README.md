@@ -122,6 +122,13 @@ This is a security product, so the process that built it is part of what you are
 | Test hooks were compiled into the production binary | high | [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md) |
 | The Ecuador profile did not cross-check the access key against the XML | medium | [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md) |
 | The TypeScript verifier truncated indices to 32 bits | medium | [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md) |
+| A compiled `nucleo.exe` was committed to the tree — 17.6 MiB, 99% of the repo | high | removed; history left intact because the `v0.1.0-alpha` signature pins it |
+| The witness `add-checkpoint` parser decoded base64 non-strictly, so two different request bodies produced the same request | medium | found by the new wire-format fuzzer; every other parser already used `.Strict()` |
+| A receipt said nothing about what it is worth in front of a judge | medium | legal notice inside the receipt, covered by the byte-for-byte text check |
+| The recipient line read as proof of delivery | medium | labelled in-line; the full fix is [ADR-015](docs/adr/ADR-015-destinatario.md), undecided |
+| Stale attestation was nobody's incident: "nobody looks at `status`" | medium | fail-stale policy — `status`, `seal` and `verify` warn on stderr unprompted |
+| Argon2id at 64 MiB × 4 lanes contradicts the shared-hosting target ADR-005 chose | medium | measured `--kdf-profile constrained`; the cost to an attacker is stated, not hidden |
+| Process docs had drifted: PLAN.md still promised SQLite "next sprint" | low | PLAN/CLAUDE/AGENTS/TODO rewritten to the real state |
 
 **Anti-circularity is a project rule.** Every golden value — hashes, key IDs, signatures, canonical bytes — is computed *outside* the code under test: `sha256sum`, `openssl`, an independent Python implementation, a C program linked against the reference Argon2 library. A test that verifies a function using that same function verifies nothing, and this project learned that the hard way.
 
@@ -142,6 +149,15 @@ This is a security product, so the process that built it is part of what you are
   ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md))
 - A network adversary can prevent detection (availability, and it is noisy) but cannot forge attestation (integrity). ([ADR-011](docs/adr/ADR-011-witness-http.md))
 - VRF commitments give third-party verifiability, **not** privacy: publishing a proof makes a low-entropy field brute-forceable. The ledger commitment is and stays HMAC. ([ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md), [ADR-012](docs/adr/ADR-012-vrf-library.md))
+
+**A fifth round came from outside the project**, after `v0.1.0-alpha` was published: a
+model with no internal context, working only from what is public. Its most useful
+findings were not cryptographic — they were about the product around the theorem: who
+witnesses for a small business, how a PHP ERP seals in the same transaction, what the
+receipt says in front of a judge, and what happens when somebody restores yesterday's
+backup. Two of its findings became ADRs that are still **undecided**:
+[ADR-014](docs/adr/ADR-014-hoja-y-firma.md) (put the block signature inside the Merkle
+leaf) and [ADR-015](docs/adr/ADR-015-destinatario.md).
 
 The full record of who audited what, across four rounds, is in
 [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md).

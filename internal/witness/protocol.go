@@ -24,6 +24,10 @@ const (
 	SizeContentType = "text/x.tlog.size"
 	// MaxProofLines es el máximo de líneas de prueba que el cliente puede enviar.
 	MaxProofLines = 63
+	// ProofNodeSize es lo que mide un nodo de la prueba de consistencia: un hash
+	// SHA-256. El spec habla de "líneas de prueba de consistencia en base64", y
+	// una prueba de consistencia de un árbol Merkle RFC 6962 son hashes.
+	ProofNodeSize = sha256.Size
 )
 
 // ErrMalformedRequest indica un cuerpo de petición que no respeta el formato.
@@ -49,6 +53,16 @@ func MarshalAddCheckpoint(r AddCheckpointRequest) ([]byte, error) {
 	}
 	if len(r.Note) == 0 {
 		return nil, fmt.Errorf("%w: checkpoint vacío", ErrMalformedRequest)
+	}
+	// La misma regla que al parsear, y en el mismo lado del cable por simetría:
+	// un cliente que envíe un nodo que no es un hash recibiría un 400 del otro
+	// extremo, y es mejor que lo sepa aquí, donde el error señala a su propio
+	// código, que allí, donde parece un problema del testigo.
+	for i, node := range r.Proof {
+		if len(node) != ProofNodeSize {
+			return nil, fmt.Errorf("%w: nodo de prueba %d de %d bytes, se esperaban %d",
+				ErrMalformedRequest, i, len(node), ProofNodeSize)
+		}
 	}
 	var b bytes.Buffer
 	// El spec exige decimal ASCII sin ceros a la izquierda, y "0" para el cero:
@@ -95,9 +109,35 @@ func UnmarshalAddCheckpoint(body []byte) (AddCheckpointRequest, error) {
 	}
 	var proof [][]byte
 	for _, l := range proofLines {
-		node, err := base64.StdEncoding.DecodeString(string(l))
+		// Tres comprobaciones, y las tres las pidió el fuzzer de este paquete.
+		//
+		// 1. Strict() rechaza el base64 cuyos bits de relleno no son cero. Sin él,
+		//    "00000000001=" y "00000000000=" decodifican a los mismos bytes, así
+		//    que dos cuerpos distintos producían la misma petición.
+		// 2. Un nodo mide lo que mide un hash. El decodificador de Go IGNORA los
+		//    bytes \r y \n dentro de la entrada, así que una línea con solo un
+		//    \r decodificaba a cero bytes y pasaba por nodo de prueba. El spec
+		//    dice que cada línea termina en U+000A: un \r no es parte del
+		//    formato. La hermana de esta función, proof.Parse, ya exigía la
+		//    longitud; esta no.
+		// 3. Y re-codificar tiene que dar la MISMA línea. Es lo que cierra
+		//    cualquier otra holgura del decodificador sin tener que enumerarlas:
+		//    un \r en medio de una línea por lo demás válida seguiría
+		//    decodificando a 32 bytes, y esta comprobación lo caza.
+		//
+		// Nada de esto es quisquilloso. Este cuerpo llega por HTTP de cualquiera
+		// que alcance el puerto, y que una petición tenga una sola representación
+		// en bytes es lo que permite compararla, registrarla y razonar sobre ella.
+		node, err := base64.StdEncoding.Strict().DecodeString(string(l))
 		if err != nil {
 			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba en base64 inválido: %w", ErrMalformedRequest, err)
+		}
+		if len(node) != ProofNodeSize {
+			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba de %d bytes, se esperaban %d",
+				ErrMalformedRequest, len(node), ProofNodeSize)
+		}
+		if base64.StdEncoding.EncodeToString(node) != string(l) {
+			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba con una codificación base64 no canónica", ErrMalformedRequest)
 		}
 		proof = append(proof, node)
 	}

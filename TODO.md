@@ -56,7 +56,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       `seal` avisan por stderr y en `--json`; `verify` lo reporta. Reloj inyectado
 - [x] `init --kdf-profile {default,constrained}` con los parámetros persistidos y
       honrados por `Unlock`, y el coste de ambos perfiles MEDIDO
-- [ ] Fuzzers de todos los formatos de cable: note firmada, checkpoint,
+- [x] Fuzzers de todos los formatos de cable: note firmada, checkpoint,
       cosignature, recibo y cuerpo de la petición del testigo
 
 ## Siguiente sprint (no empezar sin cerrar el 7)

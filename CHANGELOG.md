@@ -61,6 +61,25 @@ codes, and any golden test vector in `testdata/vectors/`.
   and `Unlock` uses the stored ones, with a test that proves it by substituting them and
   requiring the unlock to fail.
 
+### Testing
+
+- **Fuzzers for every wire format**, not just JCS: the checkpoint body, the signed note
+  (parse and verify paths), the `tlog-cosignature@v1` signature blob, the `tlog-proof`
+  receipt, the full receipt with its human-readable wrapper, and the body of the witness
+  `add-checkpoint` request — the one that arrives over HTTP from anyone who can reach
+  the port, before anything is verified.
+
+  Two invariants, and the second is the one that found something: no panic, and **a
+  rejection leaves no half-state** — when a parser returns an error, the value it
+  returns must be the zero value. A parser that fills in half a struct *and* returns an
+  error invites the caller to use that half.
+
+  The accepted inputs are also required to round-trip to identical bytes. That caught a
+  real defect in the witness protocol: `UnmarshalAddCheckpoint` decoded proof nodes with
+  a non-strict base64 decoder, so `"00000000001="` and `"00000000000="` produced the
+  same request. Every other parser in the project already used `.Strict()` for the same
+  construct; this one was the outlier. Fixed, with the failing input kept as a corpus seed.
+
 ## [0.1.0-alpha] — unreleased
 
 First tagged version. The success criterion of the project

@@ -60,6 +60,59 @@ jobs:
       - name: El bundle publicado está al día
         run: git diff --exit-code ../../web/verify/nucleo-verify.js
 
+  # Fuzz corto de los formatos de cable.
+  #
+  # Dos cosas distintas protegen aquí, y conviene no confundirlas:
+  #
+  #  1. El CORPUS de regresión ya corre en cada job de test, gratis: los ficheros
+  #     de internal/*/testdata/fuzz son casos normales para `go test`. Una entrada
+  #     que rompió algo una vez no vuelve a pasar desapercibida sin que este job
+  #     exista. Eso es lo que de verdad impide retrocesos.
+  #  2. Este job EXPLORA caminos nuevos en el código que acaba de cambiar, que es
+  #     lo único que el corpus no puede hacer.
+  #
+  # 15 segundos por fuzzer y no 30: ocho fuzzers × 15 s más el arranque dan unos
+  # 2m30s, que es justo lo que ya tarda el job más lento (test en macOS). Así el
+  # tiempo total de CI no sube, porque este job no pasa a ser el camino crítico.
+  # Con 30 s sí lo sería, y el precio —cuatro minutos de espera en cada push— no
+  # lo compensa un fuzzing que de todas formas es demasiado corto para encontrar
+  # nada profundo. Lo profundo se busca a mano, en tandas de minutos, y el
+  # hallazgo se deja en el corpus.
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - name: Fuzz de los formatos de cable
+        run: |
+          set -e
+          while read -r pkg fn; do
+            [ -z "$pkg" ] && continue
+            echo "── $pkg $fn"
+            go test "./$pkg" -run='^$' -fuzz="^${fn}\$" -fuzztime=15s
+          done <<'LIST'
+          internal/checkpoint FuzzParseBody
+          internal/checkpoint FuzzParseNote
+          internal/checkpoint FuzzVerifyNote
+          internal/witness FuzzUnmarshalAddCheckpoint
+          internal/witness FuzzCosignature
+          internal/proof FuzzParseProof
+          internal/receipt FuzzParseReceipt
+          internal/receipt FuzzTextoLegible
+          LIST
+      # Un hallazgo del fuzzer deja un fichero nuevo en testdata/fuzz. En CI eso
+      # se perdería al terminar el job, así que se sube como artefacto: sin él,
+      # el log diría que algo falló y nadie podría reproducirlo.
+      - name: Guardar el caso que falló, si lo hay
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: corpus-del-fallo
+          path: internal/**/testdata/fuzz/**
+          if-no-files-found: ignore
+
   # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
   # La configuración y el porqué de cada exclusión están en .golangci.yml.
   lint:
