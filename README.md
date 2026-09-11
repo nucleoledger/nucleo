@@ -64,7 +64,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 
 **C2SP.** Signed checkpoints (`tlog-checkpoint`) · witness cosignatures (`tlog-cosignature@v1`) · **the full HTTP witness protocol** (`tlog-witness`: `add-checkpoint` and the monitoring endpoint, with the spec version pinned in [ADR-011](docs/adr/ADR-011-witness-http.md)) · offline-verifiable receipts (`tlog-proof`).
 
-**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob satisfies data-deletion rights while the chain and its receipts stay valid · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 as a second log signature** ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)), backward-compatible by construction.
+**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob satisfies data-deletion rights while the chain and its receipts stay valid · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 (FIPS 204) as an *additional* signature on the log's own checkpoint note**, carried in the `0xff` extension of `signed-note` under a Núcleo identifier ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)). It is backward-compatible by construction — and that cuts both ways: a standard C2SP verifier ignores it. Witness cosignatures are still Ed25519. This is post-quantum hygiene on one signature, **not** a post-quantum chain end to end; see the limits below.
 
 **Ecuador profile.** `sri.factura.v1` with módulo-11 access-key validation, and `sas.acta.v1`. Each type declares which fields are guessable and must travel as HMAC commitments rather than bare hashes.
 
@@ -129,6 +129,13 @@ This is a security product, so the process that built it is part of what you are
 
 - A block's signature is not inside its Merkle leaf, so a cosigned root does not pin the `signature` column. `verify --full` catches corruption there; the fast path does not. ([ADR-009](docs/adr/ADR-009-store-schema.md))
 - A receipt's recipient is not covered by any signature — it is chosen at issue time. The name is an address, not proof.
+- **ML-DSA-44 is one additional signature, not a post-quantum deployment.** It covers the log's
+  checkpoint note through the `signed-note` `0xff` extension. Witness cosignatures are Ed25519,
+  which `tlog-witness` states as a SHOULD for new deployments, and block signatures are Ed25519
+  too. An adversary with a quantum computer that breaks Ed25519 breaks the block signatures and
+  the cosignatures; the ML-DSA signature would survive and prove only what the log itself
+  asserted. Read it as hygiene for the day the migration matters, not as protection today.
+  ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md))
 - A network adversary can prevent detection (availability, and it is noisy) but cannot forge attestation (integrity). ([ADR-011](docs/adr/ADR-011-witness-http.md))
 - VRF commitments give third-party verifiability, **not** privacy: publishing a proof makes a low-entropy field brute-forceable. The ledger commitment is and stays HMAC. ([ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md), [ADR-012](docs/adr/ADR-012-vrf-library.md))
 
@@ -149,7 +156,7 @@ The protocol and every design decision, with sources:
 - [`docs/RELEASING.md`](docs/RELEASING.md) — how releases are built, signed and verified
 - [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) — concept document (Spanish)
 
-Foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof), RFC 6962/9162, RFC 8785, RFC 9381, Ed25519 + ML-DSA-44 (FIPS 204), XChaCha20-Poly1305, Argon2id, SLIP-0039.
+Foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof), RFC 6962/9162, RFC 8785, RFC 9381, Ed25519 (everywhere) + ML-DSA-44 (FIPS 204, one extra log signature), XChaCha20-Poly1305, Argon2id, SLIP-0039.
 
 ## Language
 
