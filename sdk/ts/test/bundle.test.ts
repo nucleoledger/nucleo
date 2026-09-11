@@ -84,6 +84,39 @@ describe("el bundle que sirve la página web", () => {
     });
   }
 
+  // La tercera implementación del rechazo: la que de verdad va a usar la contraparte
+  // es el BUNDLE, no la biblioteca. Que la biblioteca rechace un recibo redirigido no
+  // prueba que la página lo rechace: podría servir un bundle viejo. Este test va
+  // contra el mismo fichero que carga el HTML.
+  it("el bundle rechaza un recibo con el destinatario retocado", async () => {
+    const v = readJSON<Vector>("receipt", "valido-1-cosignature.json");
+    const api = loadBundle();
+    const verify = api["verifyReceipt"] as (
+      r: string,
+      p: unknown,
+    ) => Promise<{ valid: boolean; receiptSignatureVerified: boolean | null; reasons: string[] }>;
+    const pol = {
+      origin: v.policy.origin,
+      logKey: v.policy.log_key,
+      witnesses: v.policy.witnesses,
+      quorum: v.policy.quorum,
+    };
+
+    const bueno = await verify(v.receipt, pol);
+    expect(bueno.valid, bueno.reasons.join(" | ")).toBe(true);
+    expect(bueno.receiptSignatureVerified).toBe(true);
+
+    const original = "María Pérez (cédula 1712345678)";
+    const redirigido = v.receipt.replace(original, "Juan Gómez".padEnd(original.length));
+    expect(redirigido).not.toBe(v.receipt);
+    const malo = await verify(redirigido, pol);
+    expect(malo.valid).toBe(false);
+    expect(malo.receiptSignatureVerified).toBe(false);
+  });
+
+  {
+  }
+
   it("el recibo de ejemplo de la página verifica con su política", async () => {
     const api = loadBundle();
     const sandbox: Record<string, unknown> = { window: {} };

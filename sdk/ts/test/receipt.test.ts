@@ -165,3 +165,74 @@ describe("la firma del bloque (leaf/v2)", () => {
     expect(r.reasons.join(" ")).toContain("leaf/v1");
   });
 });
+
+// Tests ADVERSARIALES de la firma del emisor (ADR-015), en la implementación que
+// de verdad va a usar la contraparte: la que corre en su navegador.
+//
+// Todo lo que se prueba aquí es lo que alguien con el fichero del recibo en la mano
+// podría intentar. Los mismos casos existen en Go (internal/receipt); que las dos
+// implementaciones coincidan en RECHAZAR es tan importante como que coincidan en
+// aceptar, y los vectores compartidos solo cubren lo segundo.
+describe("la firma del emisor, atacada", () => {
+  const v = readJSON<Vector>("receipt", "valido-1-cosignature.json");
+
+  it("control: el recibo íntegro verifica y reporta las dos firmas", async () => {
+    const r = await verifyReceipt(v.receipt, toPolicy(v));
+    expect(r.valid, r.reasons.join(" | ")).toBe(true);
+    expect(r.receiptSignatureVerified).toBe(true);
+    expect(r.blockSignatureVerified).toBe(true);
+  });
+
+  it("el destinatario retocado invalida el recibo", async () => {
+    const original = "María Pérez (cédula 1712345678)";
+    expect(v.receipt).toContain(original);
+    const redirigido = v.receipt.replace(original, "Juan Gómez".padEnd(original.length));
+    expect(redirigido).not.toBe(v.receipt);
+
+    const r = await verifyReceipt(redirigido, toPolicy(v));
+    expect(r.valid).toBe(false);
+    expect(r.receiptSignatureVerified).toBe(false);
+    expect(r.reasons.join(" ")).toContain("la firma del emisor sobre el recibo no verifica");
+  });
+
+  it("sin la línea de firma, el recibo se rechaza", async () => {
+    const lineas = v.receipt.split("\n");
+    const i = lineas.findIndex((l) => l.startsWith("— 1790012345001 "));
+    expect(i, "no se encontró la línea de la firma del emisor").toBeGreaterThan(0);
+    lineas.splice(i, 1);
+    const r = await verifyReceipt(lineas.join("\n"), toPolicy(v));
+    expect(r.valid).toBe(false);
+    expect(r.receiptSignatureVerified).toBeNull();
+    expect(r.reasons.join(" ")).toContain("no lleva firma del emisor");
+  });
+
+  it("una firma de otra clave no cuela", async () => {
+    // 64 bytes bien formados que no son la firma del emisor. La clave con la que se
+    // comprueba sale del header, así que no hay forma de "traer la tuya".
+    const lineas = v.receipt.split("\n");
+    const i = lineas.findIndex((l) => l.startsWith("— 1790012345001 "));
+    lineas[i] = "— 1790012345001 " + btoa(String.fromCharCode(...new Uint8Array(64).fill(7)));
+    const r = await verifyReceipt(lineas.join("\n"), toPolicy(v));
+    expect(r.valid).toBe(false);
+    expect(r.receiptSignatureVerified).toBe(false);
+  });
+
+  it("la línea de firma que dice otro emisor se rechaza", async () => {
+    const r = await verifyReceipt(
+      v.receipt.replace("— 1790012345001 ", "— 9999999999001 "),
+      toPolicy(v),
+    );
+    expect(r.valid).toBe(false);
+    expect(r.reasons.join(" ")).toContain("dice ser de");
+  });
+
+  it("suavizar la advertencia legal invalida la firma", async () => {
+    // La advertencia ya estaba cubierta por la igualdad del texto. Ahora lo está
+    // además por una firma, y son garantías distintas: una dice "no coincide con la
+    // prueba", la otra dice "el emisor no firmó esto".
+    const suave = v.receipt.replace("No constituye por sí", "Constituye  por sí");
+    expect(suave).not.toBe(v.receipt);
+    const r = await verifyReceipt(suave, toPolicy(v));
+    expect(r.valid).toBe(false);
+  });
+});
