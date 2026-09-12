@@ -138,10 +138,38 @@ func parseGlobals(e *env, args []string) ([]string, error) {
 
 // openStore abre el ledger del directorio.
 func (e *env) openStore() (*store.Store, store.OpenResult, error) {
+	return e.openStoreWith("", "")
+}
+
+// openStoreWith abre el ledger aportando, si se dieron, el testigo y su clave.
+//
+// Son lo único que el fichero no puede contener: la prueba de que un tercero
+// avala la historia tiene que venir de fuera del fichero, o no prueba nada
+// (ADR-016). Sin ellos la apertura es igual de válida, pero lo que afirma es
+// menos: "checkpoint presente, no verificado" en vez de "atestiguada".
+func (e *env) openStoreWith(witnessName, witnessKey string) (*store.Store, store.OpenResult, error) {
 	if _, err := os.Stat(e.dbPath()); err != nil {
 		return nil, store.OpenResult{}, usageErr("no hay ledger en %q; ejecuta `nucleo init --dir %s`", e.dir, e.dir)
 	}
-	s, res, err := store.Open(e.dbPath())
+	var (
+		s   *store.Store
+		res store.OpenResult
+		err error
+	)
+	switch {
+	case witnessName == "" && witnessKey == "":
+		s, res, err = store.Open(e.dbPath())
+	case witnessName == "" || witnessKey == "":
+		return nil, store.OpenResult{}, usageErr("--witness-name y --witness-key van juntos")
+	default:
+		pub, kerr := hexKey(witnessKey)
+		if kerr != nil {
+			return nil, store.OpenResult{}, kerr
+		}
+		s, res, err = store.OpenWithWitnesses(e.dbPath(), store.WitnessPolicy{
+			Witnesses: map[string]ed25519.PublicKey{witnessName: pub}, Quorum: 1,
+		})
+	}
 	if err != nil {
 		// Abrir falla cuando la integridad no cuadra: eso es verificación, no uso.
 		if errors.Is(err, store.ErrIntegrity) {

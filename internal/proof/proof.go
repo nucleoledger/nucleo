@@ -157,25 +157,20 @@ func Parse(data []byte) (Receipt, error) {
 	return Receipt{Index: index, InclusionProof: nodes, CheckpointNote: rest}, nil
 }
 
-// Verify comprueba el recibo contra la política, sin tocar el ledger.
+// VerifyNote comprueba una nota de checkpoint bajo la política: la firma del
+// log con la clave de la política, las cosignatures de los testigos aceptados, y
+// el quórum. Devuelve qué testigos verificaron y el tiempo demostrable.
 //
-// entryHash es el hash del bloque, que es exactamente la hoja del árbol de
-// Merkle según PROTOCOL.md §2. Se importa internal/ledger solo por sus
-// funciones puras de verificación: no se consulta ningún almacén.
-func (r Receipt) Verify(leafData []byte, p Policy) (Result, error) {
+// Es la ÚNICA definición de "esta nota está atestiguada" del proyecto, y por eso
+// vive aquí y la llaman dos sitios: la verificación de un recibo, y la apertura
+// del ledger (ADR-016). Antes la apertura tenía su propia idea —"una nota con una
+// línea de 76 bytes"— y la auditoría adversarial demostró que esa idea la
+// satisfacía cualquiera con escritura en la base. Dos definiciones de atestación
+// es una de más.
+func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 	if err := p.validate(); err != nil {
 		return Result{}, err
 	}
-	// La longitud esperada es la de leaf_data bajo la regla vigente, no la de un
-	// hash: bajo leaf/v2 la hoja son 96 bytes (PROTOCOL.md §2.1). Comprobarla aquí
-	// es lo que convierte un verificador que se quedó en leaf/v1 en un error
-	// inmediato en vez de un "la entrada no está incluida" que manda a buscar el
-	// problema en el árbol.
-	if len(leafData) != ledger.LeafDataSize {
-		return Result{}, fmt.Errorf("%w: leaf_data mide %d bytes, se esperaban %d (%s)",
-			ErrFormat, len(leafData), ledger.LeafDataSize, ledger.LeafRule)
-	}
-
 	logVerifier, err := checkpoint.NewVerifier(p.Origin, p.LogKey)
 	if err != nil {
 		return Result{}, err
@@ -191,7 +186,7 @@ func (r Receipt) Verify(leafData []byte, p Policy) (Result, error) {
 		witnessNames[v.KeyHash()] = name
 	}
 
-	c, n, err := checkpoint.Verify(r.CheckpointNote, verifiers...)
+	c, n, err := checkpoint.Verify(noteBytes, verifiers...)
 	if err != nil {
 		return Result{}, err
 	}
@@ -232,6 +227,33 @@ func (r Receipt) Verify(leafData []byte, p Policy) (Result, error) {
 	if len(res.Cosigners) < p.Quorum {
 		return Result{}, fmt.Errorf("%w: %d de %d", ErrQuorum, len(res.Cosigners), p.Quorum)
 	}
+	return res, nil
+}
+
+// Verify comprueba el recibo contra la política, sin tocar el ledger.
+//
+// entryHash es el hash del bloque, que es exactamente la hoja del árbol de
+// Merkle según PROTOCOL.md §2. Se importa internal/ledger solo por sus
+// funciones puras de verificación: no se consulta ningún almacén.
+func (r Receipt) Verify(leafData []byte, p Policy) (Result, error) {
+	if err := p.validate(); err != nil {
+		return Result{}, err
+	}
+	// La longitud esperada es la de leaf_data bajo la regla vigente, no la de un
+	// hash: bajo leaf/v2 la hoja son 96 bytes (PROTOCOL.md §2.1). Comprobarla aquí
+	// es lo que convierte un verificador que se quedó en leaf/v1 en un error
+	// inmediato en vez de un "la entrada no está incluida" que manda a buscar el
+	// problema en el árbol.
+	if len(leafData) != ledger.LeafDataSize {
+		return Result{}, fmt.Errorf("%w: leaf_data mide %d bytes, se esperaban %d (%s)",
+			ErrFormat, len(leafData), ledger.LeafDataSize, ledger.LeafRule)
+	}
+
+	res, err := VerifyNote(r.CheckpointNote, p)
+	if err != nil {
+		return Result{}, err
+	}
+	c := res.Checkpoint
 
 	if r.Index >= c.Size {
 		return Result{}, fmt.Errorf("%w: índice %d, tamaño %d", ErrIndex, r.Index, c.Size)

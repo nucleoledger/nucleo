@@ -370,10 +370,22 @@ func TestFullCycleWithWitness(t *testing.T) {
 		t.Fatalf("sync:\n%s", out)
 	}
 
-	// Ahora sí está atestiguado, y status lo dice con otras palabras.
-	st := c.mustRun("status")
+	// Ahora sí está atestiguado, y status lo dice con otras palabras — pero SOLO
+	// si se le aporta el testigo. La prueba de que un tercero avala la historia
+	// tiene que venir de fuera del fichero (ADR-016): sin ella, status no puede
+	// afirmar "atestiguada", y no la afirma.
+	st := c.mustRun("status", "--witness-name", name, "--witness-key", key)
 	if !strings.Contains(st, "✔ historia atestiguada hasta 1 de 1 bloques") {
-		t.Errorf("status tras sync:\n%s", st)
+		t.Errorf("status con testigo tras sync:\n%s", st)
+	}
+	sin := c.mustRun("status")
+	if strings.Contains(sin, "historia atestiguada") {
+		t.Errorf("status SIN testigo afirmó atestación verificada; es lo que la auditoría explotó:\n%s", sin)
+	}
+	for _, want := range []string{"checkpoint presente hasta el bloque 1, NO verificado", "--witness-key"} {
+		if !strings.Contains(sin, want) {
+			t.Errorf("status sin testigo no dice %q:\n%s", want, sin)
+		}
 	}
 
 	rec := c.mustRun("receipt", "--block", "0", "--recipient", "María Pérez",

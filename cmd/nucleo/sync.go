@@ -48,7 +48,7 @@ func cmdSync(e *env, args []string) error {
 		return usageErr("%v", err)
 	}
 
-	s, _, err := e.openStore()
+	s, _, err := e.openStoreWith(*name, *key)
 	if err != nil {
 		return err
 	}

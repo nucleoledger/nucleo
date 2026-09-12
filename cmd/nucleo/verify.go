@@ -11,10 +11,11 @@ import (
 func cmdStatus(e *env, args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
+	wName, wKey := witnessFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	s, res, err := e.openStore()
+	s, res, err := e.openStoreWith(*wName, *wKey)
 	if err != nil {
 		return err
 	}
@@ -46,7 +47,8 @@ func cmdStatus(e *env, args []string) error {
 		"origin":        origin,
 		"log_pubkey":    logPub,
 		"tree_size":     res.TreeSize,
-		"attested":      res.Attested,
+		"attested":      res.Attested(),
+		"attestation":   res.Attestation.String(),
 		"attested_size": res.AttestedSize,
 		"root":          hex.EncodeToString(root),
 		"freshness":     st.json(),
@@ -114,10 +116,11 @@ func cmdVerify(e *env, args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	full := fs.Bool("full", false, "recomputa TODAS las firmas, sin apoyarse en ningún checkpoint")
+	wName, wKey := witnessFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	s, res, err := e.openStore()
+	s, res, err := e.openStoreWith(*wName, *wKey)
 	if err != nil {
 		return err
 	}
@@ -144,7 +147,8 @@ func cmdVerify(e *env, args []string) error {
 	e.out(map[string]any{
 		"mode":          mode,
 		"tree_size":     res.TreeSize,
-		"attested":      res.Attested,
+		"attested":      res.Attested(),
+		"attestation":   res.Attestation.String(),
 		"attested_size": res.AttestedSize,
 		"freshness":     st.json(),
 	}, func() {
@@ -152,7 +156,7 @@ func cmdVerify(e *env, args []string) error {
 			e.printf("✔ verificación EXHAUSTIVA superada: %d bloques, todas las firmas recomputadas\n", res.TreeSize)
 		} else {
 			e.printf("✔ verificación superada: %d bloques\n", res.TreeSize)
-			if res.Attested {
+			if res.Attested() {
 				e.printf("  (las firmas anteriores al bloque %d están amparadas por un\n", res.AttestedSize)
 				e.printf("   checkpoint cosignado; `verify --full` las recomprueba todas)\n")
 			}
@@ -170,8 +174,17 @@ func printAttestation(e *env, r store.OpenResult) {
 	switch {
 	case r.TreeSize == 0:
 		e.printf("estado    : base nueva, todavía sin historia que atestiguar\n")
-	case r.Attested:
+	case r.Attestation == store.AttestationVerified:
 		e.printf("estado    : ✔ historia atestiguada hasta %d de %d bloques\n", r.AttestedSize, r.TreeSize)
+	case r.Attestation == store.AttestationUnverified:
+		// Hay un checkpoint cosignado y su firma de log verifica, pero nadie ha
+		// aportado la clave del testigo, así que no se sabe si un tercero lo
+		// avala. Se dice así, y no "atestiguada": la auditoría adversarial
+		// fabricó una nota con forma de cosignada y el programa la daba por buena.
+		e.printf("estado    : ◐ checkpoint presente hasta el bloque %d, NO verificado\n", r.AttestedSize)
+		e.printf("            %s.\n", r.Reason)
+		e.printf("            Para comprobar que un testigo lo avala, pasa --witness-name y\n")
+		e.printf("            --witness-key: la prueba tiene que venir de fuera de este fichero.\n")
 	default:
 		e.printf("estado    : ⚠ SIN ATESTIGUAR (%d bloques)\n", r.TreeSize)
 		e.printf("            La cadena es localmente válida, pero que esté COMPLETA no\n")
@@ -179,4 +192,11 @@ func printAttestation(e *env, r store.OpenResult) {
 		e.printf("            un prefijo truncado es indistinguible de la historia entera.\n")
 		e.printf("            Ejecuta `nucleo sync` contra un testigo.\n")
 	}
+}
+
+// witnessFlags registra las dos banderas con las que un subcomando aporta la
+// política de testigos al abrir el ledger (ADR-016).
+func witnessFlags(fs *flag.FlagSet) (name, key *string) {
+	return fs.String("witness-name", "", "nombre del testigo cuya cosignature avala el ledger"),
+		fs.String("witness-key", "", "clave pública de ese testigo, en hexadecimal")
 }

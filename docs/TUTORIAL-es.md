@@ -295,12 +295,34 @@ Déjalo corriendo y abre otra terminal.
   (era el primer checkpoint de este log para ese testigo)
 ```
 
-Vuelve a mirar el estado:
+Vuelve a mirar el estado, **aportando el testigo**:
+
+```bash
+./nucleo --dir ./mi-empresa status \
+  --witness-name witness.nucleoledger.com/w1 --witness-key "$WKEY"
+```
 
 ```
 estado    : ✔ historia atestiguada hasta 1 de 1 bloques
 frescura  : ✔ atestación de hace 0 segundos, por witness.nucleoledger.com/w1
 ```
+
+Fíjate en que `status` **pide la clave del testigo** para decir "atestiguada". Sin
+ella dice otra cosa, a propósito:
+
+```
+estado    : ◐ checkpoint presente hasta el bloque 1, NO verificado
+            no se aportó ninguna política de testigos al abrir.
+            Para comprobar que un testigo lo avala, pasa --witness-name y
+            --witness-key: la prueba tiene que venir de fuera de este fichero.
+```
+
+La razón es la que da nombre a este producto. Todo lo que hay dentro de
+`nucleo.db` lo puede escribir quien tenga el fichero — incluido un checkpoint con
+aspecto de cosignado, y una auditoría lo fabricó. Lo único que **no** se puede
+fabricar es la firma de un testigo cuya clave no se tiene, y eso solo se comprueba
+con una clave que traes tú desde fuera. Por eso "atestiguada" no es algo que el
+fichero pueda afirmar de sí mismo: es algo que verificas, o no lo es.
 
 Eso ya es otra cosa. Ahora existe, fuera de tu máquina, una firma de un tercero
 diciendo que tu log tenía un bloque. Recortarlo dejaría una contradicción que la

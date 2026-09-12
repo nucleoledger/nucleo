@@ -58,6 +58,7 @@ func bulkSeed(b *testing.B, path string, blocks []*ledger.Block, cosigned bool) 
 		}
 		leaves = append(leaves, hb)
 	}
+	declareLogKey(b, s)
 	_, logPriv := testKeys(b, 7)
 	if err := s.PutCheckpoint(cosign(b, uint64(len(blocks)), ledger.Root(leaves), logPriv)); err != nil {
 		b.Fatal(err)
@@ -96,7 +97,17 @@ func benchOpen(b *testing.B, cosigned bool) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				s, _, err := Open(path)
+				// Con testigo, la apertura aporta su política: es la única forma de
+				// que tome el atajo (ADR-016), que es lo que este benchmark mide.
+				var (
+					s   *Store
+					err error
+				)
+				if cosigned {
+					s, _, err = openAttested(b, path)
+				} else {
+					s, _, err = Open(path)
+				}
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -176,7 +187,7 @@ func BenchmarkVerifyFull(b *testing.B) {
 		b.Run(sizeName(n), func(b *testing.B) {
 			path := filepath.Join(b.TempDir(), "nucleo.db")
 			bulkSeed(b, path, blocks, true)
-			s, _, err := Open(path)
+			s, _, err := openAttested(b, path)
 			if err != nil {
 				b.Fatal(err)
 			}

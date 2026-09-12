@@ -26,6 +26,7 @@ func cmdSeal(e *env, args []string) error {
 	xmlFile := fs.String("xml", "", "fichero XML del comprobante (equivale a --payload con un perfil)")
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	clear := fs.Bool("no-encrypt", false, "no guarda el contenido cifrado; solo sella su hash")
+	wName, wKey := witnessFlags(fs)
 	maxPayload := fs.Int64("max-payload", DefaultMaxPayload, "tamaño máximo del documento a sellar, en bytes")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
@@ -73,7 +74,7 @@ func cmdSeal(e *env, args []string) error {
 		return usageErr("seal necesita --tenant")
 	}
 
-	s, _, err := e.openStore()
+	s, _, err := e.openStoreWith(*wName, *wKey)
 	if err != nil {
 		return err
 	}
@@ -198,7 +199,7 @@ func cmdReceipt(e *env, args []string) error {
 		return usageErr("receipt necesita --recipient \"Nombre\"")
 	}
 
-	s, _, err := e.openStore()
+	s, _, err := e.openStoreWith(*witnessName, *witnessKey)
 	if err != nil {
 		return err
 	}
@@ -307,8 +308,8 @@ func issuerPolicy(s *store.Store, witnessName, witnessKey string) (proof.Policy,
 // metaLogPubKey guarda la pública del log en claro, para poder verificar sin
 // abrir el vault. Es pública: no hay nada que proteger y sí mucho que ganar en
 // que un verificador no necesite la passphrase.
-const metaLogPubKey = "log/pubkey/v1"
+const metaLogPubKey = store.MetaLogPubKey
 
 // metaOriginKey guarda el origin del log, también en claro y por lo mismo:
 // configurar un testigo o una política no debería exigir abrir el vault.
-const metaOriginKey = "log/origin/v1"
+const metaOriginKey = store.MetaOriginKey

@@ -23,6 +23,7 @@ func cmdReconcile(e *env, args []string) error {
 	fs := flag.NewFlagSet("reconcile", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	source := fs.String("source", "", "fichero JSONL con los registros vivos")
+	wName, wKey := witnessFlags(fs)
 	full := fs.Bool("full", true, "ejecuta también la verificación exhaustiva del ledger")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
@@ -34,7 +35,7 @@ func cmdReconcile(e *env, args []string) error {
 			"  y el ledger nunca selló.")
 	}
 
-	s, _, err := e.openStore()
+	s, _, err := e.openStoreWith(*wName, *wKey)
 	if err != nil {
 		return err
 	}

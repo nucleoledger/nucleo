@@ -104,6 +104,14 @@ func TestDurableCycleAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Lo que init deja en claro: la clave pública del log. Desde ADR-016 la
+	// apertura exige que los checkpoints almacenados estén firmados por ella.
+	if err := s.PutMeta(store.MetaLogPubKey, logPub); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutMeta(store.MetaOriginKey, []byte(origin)); err != nil {
+		t.Fatal(err)
+	}
 	v, err := vault.Create(s, vaultID, []byte(passphrase))
 	if err != nil {
 		t.Fatal(err)
@@ -159,12 +167,16 @@ func TestDurableCycleAcrossRestart(t *testing.T) {
 	}
 
 	// ---- Sesión 2: reapertura en frío --------------------------------------
-	s2, openState, err := store.Open(dbPath)
+	// Se reabre aportando el testigo desde FUERA del fichero: sin eso, la apertura
+	// no puede afirmar "atestiguada", solo "checkpoint presente" (ADR-016).
+	s2, openState, err := store.OpenWithWitnesses(dbPath, store.WitnessPolicy{
+		Witnesses: map[string]ed25519.PublicKey{witnessName: witnessPub}, Quorum: 1,
+	})
 	if err != nil {
 		t.Fatalf("la base no superó la verificación al reabrir: %v", err)
 	}
 	defer s2.Close()
-	if !openState.Attested || openState.AttestedSize != 5 || openState.TreeSize != 5 {
+	if !openState.Attested() || openState.AttestedSize != 5 || openState.TreeSize != 5 {
 		t.Fatalf("estado al reabrir = %+v, want atestiguada hasta 5 de 5", openState)
 	}
 

@@ -57,7 +57,15 @@ func seedLedger(t *testing.T, n int, withCheckpoint bool) string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, priv := testKeys(t, 7)
+		pub, priv := testKeys(t, 7)
+		// La identidad pública del log, en claro, como la deja init: desde ADR-016
+		// la apertura exige que los checkpoints estén firmados por ella.
+		if err := s.PutMeta(MetaLogPubKey, pub); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.PutMeta(MetaOriginKey, []byte("nucleoledger.com/poc")); err != nil {
+			t.Fatal(err)
+		}
 		signer, err := checkpoint.NewSigner("nucleoledger.com/poc", priv)
 		if err != nil {
 			t.Fatal(err)
@@ -198,7 +206,13 @@ func TestOpenDetectsCheckpointMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, priv := testKeys(t, 7)
+	pub, priv := testKeys(t, 7)
+	if err := s.PutMeta(MetaLogPubKey, pub); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutMeta(MetaOriginKey, []byte("nucleoledger.com/poc")); err != nil {
+		t.Fatal(err)
+	}
 	signer, err := checkpoint.NewSigner("nucleoledger.com/poc", priv)
 	if err != nil {
 		t.Fatal(err)

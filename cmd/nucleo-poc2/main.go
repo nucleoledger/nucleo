@@ -341,7 +341,7 @@ func printAttestation(r store.OpenResult) {
 	case r.TreeSize == 0:
 		fmt.Println("· ESTADO: base nueva, todavía sin historia que atestiguar")
 		return
-	case r.Attested:
+	case r.Attested():
 		fmt.Printf("✔ ESTADO: historia atestiguada hasta %d de %d bloques\n", r.AttestedSize, r.TreeSize)
 		return
 	}

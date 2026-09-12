@@ -46,6 +46,10 @@ type Store struct {
 
 	// opened guarda el estado con el que se verificó la base al abrirla.
 	opened OpenResult
+
+	// witnesses es la política de testigos que aportó quien abrió, o nil. Sin
+	// ella la apertura no puede reportar atestación verificada (ADR-016).
+	witnesses *WitnessPolicy
 }
 
 // Open abre la base, creándola si no existe, verifica su integridad y devuelve
@@ -60,11 +64,21 @@ type Store struct {
 // La verificación reconstruye el árbol completo y solo recomputa las firmas
 // Ed25519 posteriores al último checkpoint cosignado (enmienda de ADR-009).
 // Para la verificación exhaustiva está VerifyFull.
-func Open(path string) (*Store, OpenResult, error) {
+func Open(path string) (*Store, OpenResult, error) { return open(path, nil) }
+
+// OpenWithWitnesses abre como Open, aportando la política de testigos desde
+// fuera del fichero. Es la única forma de que el resultado diga
+// AttestationVerified, y por tanto la única que toma el atajo de ADR-009.
+func OpenWithWitnesses(path string, wp WitnessPolicy) (*Store, OpenResult, error) {
+	return open(path, &wp)
+}
+
+func open(path string, wp *WitnessPolicy) (*Store, OpenResult, error) {
 	s, err := connect(path)
 	if err != nil {
 		return nil, OpenResult{}, err
 	}
+	s.witnesses = wp
 	// La regla de hoja se comprueba ANTES de la integridad. Si el log es de otra
 	// regla, la raíz no va a cuadrar jamás, y un error que diga "la raíz no cuadra"
 	// mandaría a buscar corrupción donde hay un cambio de versión.

@@ -174,8 +174,18 @@ salida_sync="$("$NUCLEO" --dir "$EMPRESA" sync \
   --witness-name witness.nucleoledger.com/w1 --witness-key "$WKEY" 2>/dev/null)"
 exige "obtiene atestación" "$salida_sync" "atestación obtenida"
 
-salida_status="$("$NUCLEO" --dir "$EMPRESA" status 2>/dev/null)"
-exige "y el estado pasa a atestiguado" "$salida_status" "historia atestiguada hasta 1 de 1"
+# Con el testigo aportado desde fuera, la apertura VERIFICA la atestación y lo
+# dice. Sin él, no puede afirmar nada sobre terceros y no lo afirma (ADR-016):
+# es la diferencia entre lo que el fichero dice de sí mismo y lo que un tercero
+# avala, y una auditoría demostró que la primera se puede fabricar entera.
+salida_status="$("$NUCLEO" --dir "$EMPRESA" status \
+  --witness-name witness.nucleoledger.com/w1 --witness-key "$WKEY" 2>/dev/null)"
+exige "y el estado pasa a atestiguado (con el testigo)" "$salida_status" "historia atestiguada hasta 1 de 1"
+salida_status_sin="$("$NUCLEO" --dir "$EMPRESA" status 2>/dev/null)"
+exige "y sin el testigo NO lo afirma"  "$salida_status_sin" "NO verificado"
+if grep -q "historia atestiguada" <<<"$salida_status_sin"; then
+  printf '   ✘ status sin testigo afirmó atestación verificada\n'; fallos=$((fallos+1))
+fi
 
 # ---------------------------------------------------------------------------
 titulo "receipt — emitir un recibo para el cliente"

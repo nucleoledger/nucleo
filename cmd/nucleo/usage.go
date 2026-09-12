@@ -77,6 +77,28 @@ PERFILES DE DERIVACIÓN (init --kdf-profile)
   Los parámetros se guardan en el vault: se abre con los que se creó, no con los
   de la versión del binario. Cambiar de perfil exige crear un vault nuevo.
 
+QUÉ SIGNIFICA "ATESTIGUADA"
+  Un checkpoint guardado en el ledger solo cuenta como atestación si se puede
+  VERIFICAR, con la misma maquinaria que un recibo: la firma del log con la
+  clave que el propio ledger declara, y la cosignature del testigo con una
+  clave que viene de FUERA del fichero. Esa clave la aportas tú:
+
+    nucleo status --witness-name w/1 --witness-key HEX
+    (también verify, seal y reconcile; receipt y sync ya la llevan)
+
+  Sin ella, la apertura no puede afirmar nada sobre terceros y no lo afirma:
+  dice "checkpoint presente, NO verificado". Y sin atestación verificada no
+  hay atajo: se recomputan todas las firmas, que en 10^5 bloques son ~8 s en
+  vez de medio segundo. Es el precio de que status no mienta.
+
+  En --json el campo "attestation" vale "none", "unverified" o "verified", y
+  "attested" es true solo con "verified".
+
+  Por qué la clave del testigo no puede vivir en el fichero: un atacante con
+  escritura en la base puede fabricar un checkpoint entero, y una auditoría lo
+  hizo. Lo único que no puede fabricar es una cosignature de un testigo cuya
+  clave no tiene — y eso solo se comprueba con una clave que tú traes.
+
 ATESTACIÓN VIEJA
   Integridad y frescura son cosas distintas. Un ledger puede estar íntegro y
   atestiguado hasta el bloque 4.000 y llevar dos meses sin que nadie de fuera

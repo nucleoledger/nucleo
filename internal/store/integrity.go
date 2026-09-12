@@ -2,6 +2,7 @@ package store
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/ledger"
+	"github.com/nucleoledger/nucleo/internal/proof"
 )
 
 // ErrIntegrity indica que la base no es coherente consigo misma.
@@ -68,20 +70,85 @@ const (
 type OpenResult struct {
 	// TreeSize es el número de bloques persistidos.
 	TreeSize uint64
-	// Attested indica que existe un checkpoint cosignado persistido Y que la
-	// raíz reconstruida cuadra con él.
-	Attested bool
-	// AttestedSize es el tamaño de árbol que ese checkpoint atestigua, o 0.
+	// Attestation dice qué respalda la historia. Ver Attestation.
+	Attestation Attestation
+	// AttestedSize es el tamaño de árbol que cubre el checkpoint considerado, o 0
+	// si no hay ninguno. Con Attestation == AttestationUnverified es lo que el
+	// checkpoint AFIRMA, no lo que se ha comprobado.
 	AttestedSize uint64
+	// Reason explica, cuando Attestation no es Verified pero había un checkpoint,
+	// por qué no se pudo verificar: sin política, o política que no cuadra.
+	Reason string
 }
+
+// Attestation es el estado de la atestación al abrir (ADR-016).
+//
+// Era un booleano, y el booleano mentía: "hay una nota con una línea de 76 bytes"
+// se reportaba como "un tercero avala esta historia", y la auditoría adversarial
+// escribió esa nota a mano. Ahora hay tres estados, y solo el tercero autoriza el
+// atajo de ADR-009.
+type Attestation int
+
+const (
+	// AttestationNone: no hay ningún checkpoint con forma de cosignado.
+	AttestationNone Attestation = iota
+	// AttestationUnverified: hay un checkpoint cosignado, su firma de log verifica
+	// con la clave de vault_meta, pero NO se aportó política de testigos (o la que
+	// se aportó no cuadra). No se sabe si un tercero lo avala. Sin atajo.
+	AttestationUnverified
+	// AttestationVerified: firma de log Y cosignatures verificadas bajo la política
+	// que aportó quien abre. Es la única lectura que autoriza el atajo.
+	AttestationVerified
+)
+
+// String nombra el estado, también para --json.
+func (a Attestation) String() string {
+	switch a {
+	case AttestationVerified:
+		return "verified"
+	case AttestationUnverified:
+		return "unverified"
+	default:
+		return "none"
+	}
+}
+
+// Attested dice si la historia está atestiguada, en el único sentido que ahora
+// tiene esa palabra: VERIFICADA.
+func (r OpenResult) Attested() bool { return r.Attestation == AttestationVerified }
 
 // String describe el estado en una línea, para logs y CLI.
 func (r OpenResult) String() string {
-	if r.Attested {
+	switch r.Attestation {
+	case AttestationVerified:
 		return fmt.Sprintf("historia atestiguada hasta %d de %d bloques", r.AttestedSize, r.TreeSize)
+	case AttestationUnverified:
+		return fmt.Sprintf("checkpoint presente (%d bloques) pero NO verificado: %s", r.AttestedSize, r.Reason)
+	default:
+		return fmt.Sprintf("SIN ATESTIGUAR: %d bloques, cadena localmente válida, historia completa no garantizada", r.TreeSize)
 	}
-	return fmt.Sprintf("SIN ATESTIGUAR: %d bloques, cadena localmente válida, historia completa no garantizada", r.TreeSize)
 }
+
+// WitnessPolicy es lo que quien abre aporta desde FUERA del fichero: qué testigos
+// acepta y cuántos hacen falta. El origin y la clave del log los pone el propio
+// almacén desde vault_meta; ver ADR-016 sobre por qué eso solo no basta.
+type WitnessPolicy struct {
+	Witnesses map[string]ed25519.PublicKey
+	Quorum    int
+}
+
+// Claves de vault_meta donde init deja, EN CLARO, la identidad pública del log.
+// Son públicas: verificar un recibo o abrir el ledger no debe exigir la
+// passphrase.
+const (
+	MetaLogPubKey = "log/pubkey/v1"
+	MetaOriginKey = "log/origin/v1"
+)
+
+// ErrCheckpointSignature indica que un checkpoint almacenado no está firmado por
+// la clave del log que este mismo ledger declara. No hay rotación de la clave del
+// log, así que solo tiene una lectura: alguien escribió en la base.
+var ErrCheckpointSignature = errors.New("store: un checkpoint almacenado no está firmado por la clave del log")
 
 // VerifyIntegrity recorre la base y comprueba que sigue contando la misma
 // historia. Es lo que ejecuta Open.
@@ -126,9 +193,18 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 	if err != nil {
 		return OpenResult{}, err
 	}
+
+	// El atajo de ADR-009 solo se toma con atestación VERIFICADA (ADR-016). Antes
+	// bastaba una nota con forma de cosignada, y la auditoría adversarial
+	// escribió una a mano: el atacante no se saltaba la frontera, la dibujaba.
+	state := AttestationNone
+	reason := ""
 	var signedFrom uint64
-	if mode == modeAttested && attested != nil {
-		signedFrom = attested.Size
+	if attested != nil {
+		state, reason = s.attestationState(attested)
+		if mode == modeAttested && state == AttestationVerified {
+			signedFrom = attested.size
+		}
 	}
 
 	leaves, err := s.walk(signedFrom)
@@ -139,14 +215,77 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 		return OpenResult{}, err
 	}
 
-	res := OpenResult{TreeSize: uint64(len(leaves))}
+	res := OpenResult{TreeSize: uint64(len(leaves)), Attestation: state, Reason: reason}
 	if attested != nil {
 		// Llegar aquí significa que verifyAgainstCheckpoints contrastó la raíz
 		// de este checkpoint contra el árbol reconstruido y cuadró.
-		res.Attested = true
-		res.AttestedSize = attested.Size
+		res.AttestedSize = attested.size
 	}
 	return res, nil
+}
+
+// attestationState decide qué es un checkpoint cosignado guardado: verificado,
+// o presente sin verificar. Nunca decide "atestiguado" por la forma de la nota.
+func (s *Store) attestationState(c *storedCheckpoint) (Attestation, string) {
+	if s.witnesses == nil {
+		return AttestationUnverified, "no se aportó ninguna política de testigos al abrir"
+	}
+	pol, err := s.logPolicy(c)
+	if err != nil {
+		return AttestationUnverified, err.Error()
+	}
+	pol.Witnesses = s.witnesses.Witnesses
+	pol.Quorum = s.witnesses.Quorum
+	if _, err := proof.VerifyNote(c.note, pol); err != nil {
+		return AttestationUnverified, err.Error()
+	}
+	return AttestationVerified, ""
+}
+
+// logPolicy arma la política del log —origin y clave pública— desde vault_meta.
+// Sin testigos: eso lo aporta quien abre.
+func (s *Store) logPolicy(c *storedCheckpoint) (proof.Policy, error) {
+	pub, err := s.GetMeta(MetaLogPubKey)
+	if err != nil {
+		return proof.Policy{}, fmt.Errorf("la base tiene checkpoints pero no declara la clave pública del log: %w", err)
+	}
+	origin := c.origin
+	if raw, err := s.GetMeta(MetaOriginKey); err == nil {
+		origin = string(raw)
+	}
+	return proof.Policy{Origin: origin, LogKey: pub}, nil
+}
+
+// verifyLogSignature exige que la nota esté firmada por la clave del log que ESTE
+// ledger declara en vault_meta. Es la comprobación (a) de ADR-016.
+//
+// Sube el listón solo un peldaño —quien escribe en la base puede sustituir la
+// clave con un UPDATE más— pero es el peldaño que hace ruidoso el ataque: una
+// clave sustituida la delatan los recibos ya emitidos, el testigo y quien haya
+// anotado la clave que status publica. Lo que no puede pasar es lo que pasaba:
+// que una nota firmada por NADIE contara como atestación.
+func (s *Store) verifyLogSignature(c *storedCheckpoint) error {
+	pol, err := s.logPolicy(c)
+	if err != nil {
+		return &IntegrityError{Stage: "checkpoint", Index: -1, Err: err}
+	}
+	v, err := checkpoint.NewVerifier(pol.Origin, pol.LogKey)
+	if err != nil {
+		return &IntegrityError{Stage: "checkpoint", Index: -1, Err: err}
+	}
+	if _, _, err := checkpoint.Verify(c.note, v); err != nil {
+		return &IntegrityError{Stage: "checkpoint", Index: -1,
+			Err: fmt.Errorf("%w (tamaño %d): %w", ErrCheckpointSignature, c.size, err)}
+	}
+	return nil
+}
+
+// storedCheckpoint es una nota guardada junto a lo que dice de sí misma.
+type storedCheckpoint struct {
+	note   []byte
+	origin string
+	size   uint64
+	root   []byte
 }
 
 // walk recorre la tabla de bloques UNA vez y devuelve las hojas del árbol.
@@ -261,7 +400,7 @@ func decodeBlock(idx int64, hash, headerJSON, signature string) (*ledger.Block, 
 // attestedCheckpoint devuelve el último checkpoint cosignado persistido, o nil
 // si no hay ninguno. Un checkpoint que promete más bloques de los que hay es un
 // fallo de integridad aquí mismo: no puede respaldar ningún atajo.
-func (s *Store) attestedCheckpoint(n int) (*checkpoint.Checkpoint, error) {
+func (s *Store) attestedCheckpoint(n int) (*storedCheckpoint, error) {
 	note, err := s.LastCosignedCheckpoint()
 	if errors.Is(err, ErrNotFound) {
 		return nil, nil
@@ -276,7 +415,13 @@ func (s *Store) attestedCheckpoint(n int) (*checkpoint.Checkpoint, error) {
 	if c.Size > uint64(n) {
 		return nil, missingHistory(c.Size, n)
 	}
-	return &c, nil
+	sc := &storedCheckpoint{note: note, origin: c.Origin, size: c.Size, root: c.RootHash}
+	// Firma del log SIEMPRE, se aporte o no política de testigos. Una nota que no
+	// está firmada por este log no es "sin verificar": es manipulación.
+	if err := s.verifyLogSignature(sc); err != nil {
+		return nil, err
+	}
+	return sc, nil
 }
 
 // verifyAgainstCheckpoints contrasta la raíz reconstruida con la que prometió el
@@ -285,7 +430,7 @@ func (s *Store) attestedCheckpoint(n int) (*checkpoint.Checkpoint, error) {
 // Se comprueban los dos porque cumplen papeles distintos: el último es la
 // promesa más reciente del log, y el cosignado es el que respalda el atajo de
 // firmas. Saltarse el segundo dejaría el atajo sin fundamento.
-func (s *Store) verifyAgainstCheckpoints(leaves [][]byte, attested *checkpoint.Checkpoint) error {
+func (s *Store) verifyAgainstCheckpoints(leaves [][]byte, attested *storedCheckpoint) error {
 	note, err := s.LastCheckpoint()
 	if errors.Is(err, ErrNotFound) {
 		return nil // un ledger sin checkpoints todavía no prometió nada
@@ -297,11 +442,21 @@ func (s *Store) verifyAgainstCheckpoints(leaves [][]byte, attested *checkpoint.C
 	if err != nil {
 		return &IntegrityError{Stage: "checkpoint", Index: -1, Err: err}
 	}
+	// El último checkpoint también tiene que estar firmado por este log. Es la
+	// otra nota que la apertura usa —para contrastar la raíz— y una nota ajena
+	// ahí es tan manipulación como en la atestada.
+	if err := s.verifyLogSignature(&storedCheckpoint{
+		note: note, origin: last.Origin, size: last.Size, root: last.RootHash,
+	}); err != nil {
+		return err
+	}
 	if err := verifyRootAt(leaves, last); err != nil {
 		return err
 	}
-	if attested != nil && attested.Size != last.Size {
-		return verifyRootAt(leaves, *attested)
+	if attested != nil && attested.size != last.Size {
+		return verifyRootAt(leaves, checkpoint.Checkpoint{
+			Origin: attested.origin, Size: attested.size, RootHash: attested.root,
+		})
 	}
 	return nil
 }

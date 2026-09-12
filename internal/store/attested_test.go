@@ -47,6 +47,33 @@ func cosign(t testing.TB, size uint64, root []byte, logPriv ed25519.PrivateKey) 
 	return cosigned
 }
 
+// testWitnessPolicy es la política con la que hay que abrir para que las notas de
+// cosign() cuenten como atestación VERIFICADA: el testigo de clave 9.
+func testWitnessPolicy(t testing.TB) WitnessPolicy {
+	t.Helper()
+	wPub, _ := testKeys(t, 9)
+	return WitnessPolicy{Witnesses: map[string]ed25519.PublicKey{"witness.example/w": wPub}, Quorum: 1}
+}
+
+// declareLogKey escribe en vault_meta la clave pública del log de los tests (la 7),
+// como hace init. Sin ella, un ledger con checkpoints no abre (ADR-016).
+func declareLogKey(t testing.TB, s *Store) {
+	t.Helper()
+	logPub, _ := testKeys(t, 7)
+	if err := s.PutMeta(MetaLogPubKey, logPub); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutMeta(MetaOriginKey, []byte(testOrigin)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// openAttested abre aportando la política de testigos de los tests.
+func openAttested(t testing.TB, path string) (*Store, OpenResult, error) {
+	t.Helper()
+	return OpenWithWitnesses(path, testWitnessPolicy(t))
+}
+
 // seedAttested crea una base con n bloques y un checkpoint COSIGNADO sobre los
 // primeros cpSize. Con cpSize == 0 no se guarda checkpoint alguno.
 func seedAttested(t *testing.T, n, cpSize int) string {
@@ -56,6 +83,9 @@ func seedAttested(t *testing.T, n, cpSize int) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Lo que init deja en claro y la apertura exige desde ADR-016: la clave
+	// pública del log con la que tienen que estar firmados los checkpoints.
+	declareLogKey(t, s)
 	blocks := chain(t, n, 0)
 	leaves := make([][]byte, 0, n)
 	for i, b := range blocks {
@@ -99,7 +129,7 @@ func TestLastCosignedCheckpointIgnoresLogOnlyNotes(t *testing.T) {
 	}
 
 	path = seedAttested(t, 5, 5)
-	s2, _, err := Open(path)
+	s2, _, err := openAttested(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +180,7 @@ func TestAttestedOpenDetectsCorruptSignatureUnderCheckpoint(t *testing.T) {
 	path := seedAttested(t, 5, 5)
 	corruptSignature(t, path, 1)
 
-	s, _, err := Open(path)
+	s, _, err := openAttested(t, path)
 	if err == nil {
 		s.Close()
 		t.Fatal("Open aceptó un bloque atestiguado con la firma destrozada: " +
@@ -164,7 +194,7 @@ func TestAttestedOpenDetectsCorruptSignatureUnderCheckpoint(t *testing.T) {
 	}
 
 	// Y es determinista: no depende de en qué orden se leyeron las filas.
-	if _, _, err := Open(path); err == nil {
+	if _, _, err := openAttested(t, path); err == nil {
 		t.Fatal("la segunda apertura tampoco debía pasar")
 	}
 }
@@ -189,6 +219,7 @@ func TestVerifyFullCazaUnaFirmaInvalidaYaATESTIGUADA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	declareLogKey(t, s)
 	for _, b := range chain(t, 5, 0) {
 		if err := s.AppendBlock(b); err != nil {
 			t.Fatal(err)
@@ -216,12 +247,12 @@ func TestVerifyFullCazaUnaFirmaInvalidaYaATESTIGUADA(t *testing.T) {
 
 	// La apertura pasa: la raíz cosignada CUADRA con lo que hay en disco, basura
 	// incluida. Es la propiedad de leaf/v2 funcionando, no un fallo.
-	s3, res, err := Open(path)
+	s3, res, err := openAttested(t, path)
 	if err != nil {
 		t.Fatalf("Open debía pasar: la raíz cosignada cuadra con el contenido: %v", err)
 	}
 	defer s3.Close()
-	if !res.Attested {
+	if !res.Attested() {
 		t.Fatal("la base debería reportarse atestiguada")
 	}
 
@@ -353,7 +384,7 @@ func TestAttestedOpenVerifiesBlocksAfterCheckpoint(t *testing.T) {
 // esperados.
 func assertIntegrityFailure(t *testing.T, path, stage string, index int64) {
 	t.Helper()
-	s, _, err := Open(path)
+	s, _, err := openAttested(t, path)
 	if err == nil {
 		s.Close()
 		t.Fatal("Open aceptó una base manipulada")
@@ -375,7 +406,7 @@ func TestAttestedOpenDetectsRootMismatchOfCosignedCheckpoint(t *testing.T) {
 
 	// Se añade un checkpoint (solo del log) sobre los 5 bloques reales: ese
 	// cuadra. Después se corrompe la raíz del cosignado de tamaño 3.
-	s, _, err := Open(path)
+	s, _, err := openAttested(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +444,7 @@ func TestAttestedOpenDetectsRootMismatchOfCosignedCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s2, _, err := Open(path)
+	s2, _, err := openAttested(t, path)
 	if err == nil {
 		s2.Close()
 		t.Fatal("Open aceptó un checkpoint cosignado cuya raíz no es la del ledger")
@@ -430,7 +461,7 @@ func TestAttestedOpenDetectsRootMismatchOfCosignedCheckpoint(t *testing.T) {
 // TestVerifyFullOnHealthyLedger es el control negativo de VerifyFull.
 func TestVerifyFullOnHealthyLedger(t *testing.T) {
 	path := seedAttested(t, 7, 4)
-	s, _, err := Open(path)
+	s, _, err := openAttested(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,11 +541,11 @@ func TestRollbackWithCheckpointDeletionOpensUnattested(t *testing.T) {
 	path := seedAttested(t, 5, 5)
 
 	// Control: antes del ataque, la historia está atestiguada.
-	s, res, err := Open(path)
+	s, res, err := openAttested(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.Attested || res.AttestedSize != 5 || res.TreeSize != 5 {
+	if !res.Attested() || res.AttestedSize != 5 || res.TreeSize != 5 {
 		t.Fatalf("estado inicial = %+v, want atestiguada hasta 5 de 5", res)
 	}
 	if got := s.Attestation(); got != res {
@@ -538,13 +569,13 @@ func TestRollbackWithCheckpointDeletionOpensUnattested(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s2, res2, err := Open(path)
+	s2, res2, err := openAttested(t, path)
 	if err != nil {
 		t.Fatalf("Open rechazó un prefijo íntegro: %v", err)
 	}
 	defer s2.Close()
 
-	if res2.Attested {
+	if res2.Attested() {
 		t.Error("la historia truncada se declaró atestiguada")
 	}
 	if res2.AttestedSize != 0 {
@@ -570,13 +601,13 @@ func TestRollbackWithCheckpointDeletionOpensUnattested(t *testing.T) {
 // dos en vez de reducirlo a "atestiguada, sí o no".
 func TestOpenResultReportsPartialAttestation(t *testing.T) {
 	path := seedAttested(t, 7, 4)
-	s, res, err := Open(path)
+	s, res, err := openAttested(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
 
-	if !res.Attested || res.AttestedSize != 4 || res.TreeSize != 7 {
+	if !res.Attested() || res.AttestedSize != 4 || res.TreeSize != 7 {
 		t.Fatalf("estado = %+v, want atestiguada hasta 4 de 7", res)
 	}
 	if !strings.Contains(res.String(), "hasta 4 de 7") {

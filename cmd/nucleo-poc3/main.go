@@ -375,7 +375,7 @@ func printState(r store.OpenResult) {
 	switch {
 	case r.TreeSize == 0:
 		fmt.Println("· ESTADO: base nueva, todavía sin historia que atestiguar")
-	case r.Attested:
+	case r.Attested():
 		fmt.Printf("✔ ESTADO: historia atestiguada hasta %d de %d bloques\n", r.AttestedSize, r.TreeSize)
 	default:
 		fmt.Printf("⚠ ESTADO: SIN ATESTIGUAR (%d bloques) — localmente válida,\n", r.TreeSize)

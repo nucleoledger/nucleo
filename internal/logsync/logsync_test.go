@@ -99,6 +99,14 @@ func newScene(t *testing.T, blocks int) *scene {
 	}
 
 	logPriv := keyFrom(50)
+	// La clave pública del log en claro, como la deja init: desde ADR-016 la
+	// apertura rehúsa una base con checkpoints que no la declare.
+	if err := s.PutMeta(store.MetaLogPubKey, logPriv.Public().(ed25519.PublicKey)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutMeta(store.MetaOriginKey, []byte(testOrigin)); err != nil {
+		t.Fatal(err)
+	}
 	logSigner, err := checkpoint.NewSigner(testOrigin, logPriv)
 	if err != nil {
 		t.Fatal(err)
@@ -257,7 +265,7 @@ func TestSyncDetectsLocalRollback(t *testing.T) {
 		t.Fatalf("el prefijo truncado no abrió: %v", err)
 	}
 	defer s2.Close()
-	if openState.Attested {
+	if openState.Attested() {
 		t.Error("el prefijo truncado se declaró atestiguado")
 	}
 	if openState.TreeSize != 4 {
