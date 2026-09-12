@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,6 +157,66 @@ func TestExportReceiptVectors(t *testing.T) {
 	assertVector(t, valid)
 	assertVector(t, altered)
 	assertVector(t, untrusted)
+
+	// D.6: tamaños 1, 2, 4, 8 y 9 (índices 0 y último), y el destinatario que
+	// imita una línea de firma. Todos válidos; todos pasan también por el
+	// diferencial Go↔TS.
+	for _, n := range []int{1, 2, 4, 8, 9} {
+		for _, idx := range []int{0, n - 1} {
+			sc := newSceneN(t, 1, n)
+			exportValid(t, dir, sc, fmt.Sprintf("valido-n%d-i%d", n, idx), fmt.Sprintf("log de %d bloques, recibo del bloque %d", n, idx),
+				"María Pérez (cédula 1712345678)", uint64(idx))
+			if n == 1 {
+				break // índice 0 y último coinciden
+			}
+		}
+	}
+	sc2 := newScene(t, 1)
+	exportValid(t, dir, sc2, "valido-destinatario-imita-firma",
+		"el destinatario es un texto con la forma de una línea de firma; tiene que viajar como nombre y nada más",
+		"— 1790012345001 AAAA", 2)
+}
+
+// exportValid emite, exporta y comprueba un vector válido.
+func exportValid(t *testing.T, dir string, sc *scene, name, desc, recipient string, idx uint64) {
+	t.Helper()
+	r, err := sc.issue(t, recipient, idx)
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	pol := sc.policy()
+	data, err := Format(r, pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leafData, err := r.LeafData()
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared, _ := r.DeclaredTime()
+	provable, _, _ := r.ProvableTime(pol)
+	exported := vectorPolicy{
+		Origin: pol.Origin, LogKey: hex.EncodeToString(pol.LogKey),
+		SignerKey: hex.EncodeToString(pol.SignerKey), Witnesses: map[string]string{}, Quorum: pol.Quorum,
+	}
+	for wn, pub := range pol.Witnesses {
+		exported.Witnesses[wn] = hex.EncodeToString(pub)
+	}
+	v := vectorFile{
+		Name: name, Description: desc, Receipt: string(data), Policy: exported,
+		LeafData: hex.EncodeToString(leafData), LeafRule: ledger.LeafRule,
+		BlockSig: hex.EncodeToString(r.BlockSig), Valid: true,
+		DeclaredTime: declared.UTC().Format(timeLayout), ProvableTime: provable.UTC().Format(timeLayout),
+		BlockIndex: idx,
+	}
+	raw, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name+".json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	assertVector(t, v)
 }
 
 // assertVector comprueba que el vector se comporte como declara.

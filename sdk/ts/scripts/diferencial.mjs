@@ -36,7 +36,7 @@ for (const c of catalogo.casos) {
   let tsValid = false;
   let tsErr = "";
   try {
-    const r = await verifyReceipt(c.receipt, catalogo.policy);
+    const r = await verifyReceipt(c.receipt, c.policy);
     tsValid = r.valid;
     tsErr = r.reasons.join(" | ");
   } catch (e) {
@@ -46,7 +46,7 @@ for (const c of catalogo.casos) {
   }
   if (tsValid) tsAcepta++;
   if (tsValid !== c.go_valid) {
-    divergencias.push({ nombre: c.nombre, go: c.go_valid, ts: tsValid, goErr: c.go_err ?? "", tsErr });
+    divergencias.push({ nombre: `${c.vector}: ${c.nombre}`, go: c.go_valid, ts: tsValid, goErr: c.go_err ?? "", tsErr });
   }
 }
 

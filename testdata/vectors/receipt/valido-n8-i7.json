@@ -1,0 +1,21 @@
+{
+  "name": "valido-n8-i7",
+  "description": "log de 8 bloques, recibo del bloque 7",
+  "receipt": "nucleo.org/receipt@v2\ndestinatario      : María Pérez (cédula 1712345678)  (firmado por el emisor)\nemisor (tenant)   : 1790012345001\ntipo de registro  : sri.factura.v1\nhash del contenido: 781a5ec9b9ce2f3f273ab87a46a281b57659337d0daf3918657fb744affc3686\nbloque            : 7\n\nTIEMPO DECLARADO  : 2026-09-06T14:37:00Z  (declarado por el sistema emisor)\nTIEMPO DEMOSTRABLE: 2026-09-06T15:00:00Z  (atestiguado por testigos)\n\nADVERTENCIA LEGAL\nEste recibo es evidencia técnica de integridad y tiempo. No constituye por sí\nmismo un acto público, una certificación notarial ni un pronunciamiento de\nautoridad. Su valor probatorio lo determina un perito o un juez.\n\n--- prueba verificable ---\n{\"index\":7,\"payload_cid\":\"blob://x\",\"payload_hash\":\"781a5ec9b9ce2f3f273ab87a46a281b57659337d0daf3918657fb744affc3686\",\"prev_hash\":\"5f092fe9eec13a7be58fee9c8dabc213d9c5d3686dcd3899683410cef666a2c9\",\"signer_pubkey\":\"79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-06T14:37:00Z\",\"type\":\"sri.factura.v1\"}\nH+CbXy4dq06kh3a498chgW7TGN3NLcdDO0qyLcGPST6+gW53sGwW1D/BqIraFEEvcdu4WIifqoq4zhRDmBLCBA==\n— 1790012345001 QM8Hv/Fu+CAb0X9u8FnqlXVZ6gx7b5RsKkOKWm6x0VeCam8fTF0BWhHWEpDPkYwFM6hEVsf/hri1HnoZvTzbDA==\nc2sp.org/tlog-proof@v1\n7\n9yzi4J88JJISKdpaoAtAo8Nh1p/OJ2CKA62dM8L07As=\n2NXEgh7hDk5AO8aLtNFJLBAEh/+Hg5c4ccGbmA6lGmw=\n+eXuQeRS2CjI574AUOYrQg5AiqFTiUIwnLaG2kOZllU=\n\nnucleoledger.com/recibos\n8\n4+qCKx/4ydIP8c9504uD3Q2XLvwZV6C5jAHUr4mGctc=\n\n— nucleoledger.com/recibos O0zkAP8jGigT3Iua8wRFVUnTDsftdpWdFSsSc642FEm1rCQVN2ULf3AFRqzlzdan8U6AELMugEBH3JuKXcMea1f8qAA=\n— witness.example/w1 D3og2AAAAABqnX/w0p0bXleUPZcfxn4tFURkzgF0TX7p21iadPG9UEjGTWhHXTYhVVyD4VZGpvVK8D9gNM6m9RW3Ujc/GDlMIGDvCA==\n",
+  "policy": {
+    "origin": "nucleoledger.com/recibos",
+    "log_key": "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628",
+    "signer_key": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664",
+    "witnesses": {
+      "witness.example/w1": "1e985ffbe45a77ee58253c6b392ae9272442cee842cec49dbf88fbb0fffd16a8"
+    },
+    "quorum": 1
+  },
+  "leaf_data": "ac0b3e88e2da907ac8c6804f29ed3549127ccd2cfb3e0c25c9b6e065f194ce091fe09b5f2e1dab4ea48776b8f7c721816ed318ddcd2dc7433b4ab22dc18f493ebe816e77b06c16d43fc1a88ada14412f71dbb858889faa8ab8ce14439812c204",
+  "leaf_rule": "leaf/v2",
+  "block_signature": "1fe09b5f2e1dab4ea48776b8f7c721816ed318ddcd2dc7433b4ab22dc18f493ebe816e77b06c16d43fc1a88ada14412f71dbb858889faa8ab8ce14439812c204",
+  "valid": true,
+  "declared_time": "2026-09-06T14:37:00Z",
+  "provable_time": "2026-09-06T15:00:00Z",
+  "block_index": 7
+}

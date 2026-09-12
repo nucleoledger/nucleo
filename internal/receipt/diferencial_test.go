@@ -84,82 +84,101 @@ func catalogoDeMutaciones(base string) []mutacion {
 	return out
 }
 
+type politicaVector struct {
+	Origin    string            `json:"origin"`
+	LogKey    string            `json:"log_key"`
+	SignerKey string            `json:"signer_key"`
+	Witnesses map[string]string `json:"witnesses"`
+	Quorum    int               `json:"quorum"`
+}
+
+// mutacionConPolitica es una entrada del catálogo: cada caso lleva su política,
+// porque el catálogo recorre TODOS los vectores válidos —once: tamaños 1, 2, 4,
+// 5, 8 y 9 con índices 0 y último, y el destinatario que imita una firma— y cada
+// uno tiene la suya.
+type mutacionConPolitica struct {
+	mutacion
+	Vector string         `json:"vector"`
+	Policy map[string]any `json:"policy"`
+}
+
 func TestDiferencialGeneraCatalogo(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "vectors", "receipt", "valido-1-cosignature.json"))
-	if err != nil {
-		t.Fatal(err)
+	files, err := filepath.Glob(filepath.Join("..", "..", "testdata", "vectors", "receipt", "valido-*.json"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("sin vectores válidos: %v", err)
 	}
-	var v struct {
-		Receipt string `json:"receipt"`
-		Policy  struct {
-			Origin    string            `json:"origin"`
-			LogKey    string            `json:"log_key"`
-			SignerKey string            `json:"signer_key"`
-			Witnesses map[string]string `json:"witnesses"`
-			Quorum    int               `json:"quorum"`
-		} `json:"policy"`
-	}
-	if err := json.Unmarshal(raw, &v); err != nil {
-		t.Fatal(err)
-	}
-	pol := proof.Policy{Origin: v.Policy.Origin, Quorum: v.Policy.Quorum,
-		Witnesses: map[string]ed25519.PublicKey{}}
-	if pol.LogKey, err = hex.DecodeString(v.Policy.LogKey); err != nil {
-		t.Fatal(err)
-	}
-	if pol.SignerKey, err = hex.DecodeString(v.Policy.SignerKey); err != nil {
-		t.Fatal(err)
-	}
-	for n, h := range v.Policy.Witnesses {
-		if pol.Witnesses[n], err = hex.DecodeString(h); err != nil {
+	var catalogo []mutacionConPolitica
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
 			t.Fatal(err)
 		}
-	}
-
-	casos := catalogoDeMutaciones(v.Receipt)
-	aceptados := 0
-	for i := range casos {
-		r, err := Parse([]byte(casos[i].Receipt), pol)
-		if err == nil {
-			_, err = r.Verify(pol)
+		var v struct {
+			Name    string         `json:"name"`
+			Receipt string         `json:"receipt"`
+			Policy  politicaVector `json:"policy"`
 		}
-		if err != nil {
-			casos[i].GoErr = err.Error()
-			continue
+		if err := json.Unmarshal(raw, &v); err != nil {
+			t.Fatal(err)
 		}
-		casos[i].GoValid = true
-		aceptados++
-	}
-
-	// Go solo debe aceptar el recibo intacto. "truncado tras la última línea" es
-	// el propio recibo, y se cuenta con él. Cualquier otra aceptación es una
-	// representación alternativa del mismo recibo, que es lo que C.3 prohíbe.
-	if aceptados != 2 {
-		for _, c := range casos {
-			if c.GoValid {
-				t.Errorf("Go acepta: %s", c.Nombre)
+		pol := proof.Policy{Origin: v.Policy.Origin, Quorum: v.Policy.Quorum,
+			Witnesses: map[string]ed25519.PublicKey{}}
+		if pol.LogKey, err = hex.DecodeString(v.Policy.LogKey); err != nil {
+			t.Fatal(err)
+		}
+		if pol.SignerKey, err = hex.DecodeString(v.Policy.SignerKey); err != nil {
+			t.Fatal(err)
+		}
+		for n, h := range v.Policy.Witnesses {
+			if pol.Witnesses[n], err = hex.DecodeString(h); err != nil {
+				t.Fatal(err)
 			}
 		}
-		t.Fatalf("Go acepta %d mutaciones; solo debe aceptar el recibo intacto (y su copia truncada)", aceptados)
+		polJSON := map[string]any{
+			"origin": v.Policy.Origin, "logKey": v.Policy.LogKey, "signerKey": v.Policy.SignerKey,
+			"witnesses": v.Policy.Witnesses, "quorum": v.Policy.Quorum,
+		}
+
+		casos := catalogoDeMutaciones(v.Receipt)
+		aceptados := 0
+		for i := range casos {
+			r, err := Parse([]byte(casos[i].Receipt), pol)
+			if err == nil {
+				_, err = r.Verify(pol)
+			}
+			if err != nil {
+				casos[i].GoErr = err.Error()
+			} else {
+				casos[i].GoValid = true
+				aceptados++
+			}
+			catalogo = append(catalogo, mutacionConPolitica{mutacion: casos[i], Vector: v.Name, Policy: polJSON})
+		}
+		// Go solo acepta el recibo intacto y su copia truncada tras la última línea,
+		// que es el mismo recibo. Cualquier otra aceptación es una representación
+		// alternativa del mismo recibo, que es lo que C.3 prohíbe.
+		if aceptados != 2 {
+			for _, c := range casos {
+				if c.GoValid {
+					t.Errorf("%s: Go acepta: %s", v.Name, c.Nombre)
+				}
+			}
+			t.Fatalf("%s: Go acepta %d mutaciones; solo debe aceptar el intacto y su copia", v.Name, aceptados)
+		}
 	}
 
 	out := os.Getenv("NUCLEO_DIFERENCIAL_OUT")
 	if out == "" {
-		t.Logf("%d mutaciones generadas; NUCLEO_DIFERENCIAL_OUT no está definido, no se escribe el catálogo", len(casos))
+		t.Logf("%d mutaciones sobre %d vectores; NUCLEO_DIFERENCIAL_OUT no está definido, no se escribe el catálogo",
+			len(catalogo), len(files))
 		return
 	}
-	enc, err := json.MarshalIndent(map[string]any{
-		"policy": map[string]any{
-			"origin": v.Policy.Origin, "logKey": v.Policy.LogKey, "signerKey": v.Policy.SignerKey,
-			"witnesses": v.Policy.Witnesses, "quorum": v.Policy.Quorum,
-		},
-		"casos": casos,
-	}, "", " ")
+	enc, err := json.MarshalIndent(map[string]any{"casos": catalogo}, "", " ")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(out, enc, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("%d mutaciones escritas en %s", len(casos), out)
+	t.Logf("%d mutaciones sobre %d vectores escritas en %s", len(catalogo), len(files), out)
 }

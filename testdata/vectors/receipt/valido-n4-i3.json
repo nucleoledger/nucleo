@@ -1,0 +1,21 @@
+{
+  "name": "valido-n4-i3",
+  "description": "log de 4 bloques, recibo del bloque 3",
+  "receipt": "nucleo.org/receipt@v2\ndestinatario      : María Pérez (cédula 1712345678)  (firmado por el emisor)\nemisor (tenant)   : 1790012345001\ntipo de registro  : sri.factura.v1\nhash del contenido: 3981ecbf18b2050de21d7926067d47abd38be73dce66085ebb6a7b2d828c9ff6\nbloque            : 3\n\nTIEMPO DECLARADO  : 2026-09-06T14:33:00Z  (declarado por el sistema emisor)\nTIEMPO DEMOSTRABLE: 2026-09-06T15:00:00Z  (atestiguado por testigos)\n\nADVERTENCIA LEGAL\nEste recibo es evidencia técnica de integridad y tiempo. No constituye por sí\nmismo un acto público, una certificación notarial ni un pronunciamiento de\nautoridad. Su valor probatorio lo determina un perito o un juez.\n\n--- prueba verificable ---\n{\"index\":3,\"payload_cid\":\"blob://x\",\"payload_hash\":\"3981ecbf18b2050de21d7926067d47abd38be73dce66085ebb6a7b2d828c9ff6\",\"prev_hash\":\"44654876cbbfe18a7108bdbc0191f169ee91a61cb4a253d027c5461274ea243a\",\"signer_pubkey\":\"79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-06T14:33:00Z\",\"type\":\"sri.factura.v1\"}\n2L64nn/00BN9KgpoIdDDkG2SbbIJoRXtfyshTzzde082UW9zcd7pNpFb6CHS7MuNda6UWeCYTIwfCP3yBUcqBg==\n— 1790012345001 ftmOQBe4nL57hl903MlfGnn7kVHCQ7qnGSPD2F/zHCu133AXFd5A0hqx/tsiVMshLQLVtGRTYNthVV5D6wsgCw==\nc2sp.org/tlog-proof@v1\n3\nBADWZK3v8qNFGNzbNvoaOtlYzDDI/IpY4dgfp+tpKOY=\nZOFPb2xsb4v/V4NmHyv72/Dyg+3mG66cSqiUgWMgDzs=\n\nnucleoledger.com/recibos\n4\n+eXuQeRS2CjI574AUOYrQg5AiqFTiUIwnLaG2kOZllU=\n\n— nucleoledger.com/recibos O0zkADb82OcoOy7DihivgbNz4t2EGVsL1XT+gxjxgTE85yAKVFQrwBXkbWLdR6maDoeTPyphfqMjPpeTKr8u1kAqFAg=\n— witness.example/w1 D3og2AAAAABqnX/w8hod37yKVPwaCd4EUq4XPg1aZHUpb/UvcHdbPC6cLc4Z+nDheAg/tn8ZJpMB7noBHwPNyKSrubDzBfzQ2fZ9Cg==\n",
+  "policy": {
+    "origin": "nucleoledger.com/recibos",
+    "log_key": "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628",
+    "signer_key": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664",
+    "witnesses": {
+      "witness.example/w1": "1e985ffbe45a77ee58253c6b392ae9272442cee842cec49dbf88fbb0fffd16a8"
+    },
+    "quorum": 1
+  },
+  "leaf_data": "e0fe92973e316bc833802eccd16f0b5eefd5b2430d58ec3eb4af1d71d7218708d8beb89e7ff4d0137d2a0a6821d0c3906d926db209a115ed7f2b214f3cdd7b4f36516f7371dee936915be821d2eccb8d75ae9459e0984c8c1f08fdf205472a06",
+  "leaf_rule": "leaf/v2",
+  "block_signature": "d8beb89e7ff4d0137d2a0a6821d0c3906d926db209a115ed7f2b214f3cdd7b4f36516f7371dee936915be821d2eccb8d75ae9459e0984c8c1f08fdf205472a06",
+  "valid": true,
+  "declared_time": "2026-09-06T14:33:00Z",
+  "provable_time": "2026-09-06T15:00:00Z",
+  "block_index": 3
+}

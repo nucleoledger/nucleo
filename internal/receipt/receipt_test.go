@@ -48,7 +48,12 @@ func (sc *scene) issue(t *testing.T, recipient string, index uint64) (*Receipt, 
 	return Issue(sc.store, recipient, index, sc.policy(), sc.tenantPriv)
 }
 
-func newScene(t *testing.T, cosigners int) *scene {
+func newScene(t *testing.T, cosigners int) *scene { return newSceneN(t, cosigners, 5) }
+
+// newSceneN es newScene con n bloques. Los vectores golden cubren tamaños 1, 2, 4,
+// 8 y 9 además del 5 original: el 1 no tiene camino de inclusión, los 2^n son los
+// que no dejan nodo suelto, y el 9 es el primero con un nodo colgando a la derecha.
+func newSceneN(t *testing.T, cosigners, n int) *scene {
 	t.Helper()
 	s, _, err := store.Open(filepath.Join(t.TempDir(), "nucleo.db"))
 	if err != nil {
@@ -59,7 +64,7 @@ func newScene(t *testing.T, cosigners int) *scene {
 	tenantPriv := key(1)
 	tenantPub := tenantPriv.Public().(ed25519.PublicKey)
 	var prev *ledger.Block
-	for i := 0; i < 5; i++ {
+	for i := 0; i < n; i++ {
 		h, err := ledger.NewHeader(prev, testTenant, "sri.factura.v1",
 			[]byte(fmt.Sprintf(`{"factura":%d,"importe":"1250.00"}`, i)), "blob://x",
 			tenantPub, testBase.Add(time.Duration(i)*time.Minute))
@@ -86,7 +91,7 @@ func newScene(t *testing.T, cosigners int) *scene {
 		t.Fatal(err)
 	}
 	msg, err := checkpoint.Sign(checkpoint.Checkpoint{
-		Origin: testOrigin, Size: 5, RootHash: root,
+		Origin: testOrigin, Size: uint64(n), RootHash: root,
 	}, logSigner)
 	if err != nil {
 		t.Fatal(err)
