@@ -113,6 +113,38 @@ jobs:
           path: internal/**/testdata/fuzz/**
           if-no-files-found: ignore
 
+  # Diferencial Go ↔ TypeScript (C.4 del Sprint 7c).
+  #
+  # Los vectores compartidos solo prueban que los dos verificadores coinciden en
+  # ACEPTAR. La auditoría adversarial encontró cuatro entradas en las que Go
+  # aceptaba y TypeScript rechazaba, y ninguna suite las miraba. Este job genera
+  # un catálogo de mutaciones del recibo golden con el veredicto de Go
+  # (internal/receipt/diferencial_test.go) y lo pasa por el bundle que sirve la
+  # página (sdk/ts/scripts/diferencial.mjs). Cualquier divergencia de veredicto
+  # falla el job — aunque los dos rechacen, si rechazan por motivos distintos no
+  # es divergencia; si uno acepta y otro no, sí. Para añadir mutaciones, ver el
+  # test de Go.
+  diferencial:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: sdk/ts/.nvmrc
+          cache: npm
+          cache-dependency-path: sdk/ts/package-lock.json
+      - name: Catálogo con los veredictos de Go
+        run: NUCLEO_DIFERENCIAL_OUT="$RUNNER_TEMP/catalogo.json" go test ./internal/receipt -run '^TestDiferencialGeneraCatalogo$'
+      - name: Los mismos recibos por el bundle de TypeScript
+        working-directory: sdk/ts
+        run: |
+          npm ci
+          npm run bundle
+          node scripts/diferencial.mjs "$RUNNER_TEMP/catalogo.json"
+
   # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
   # La configuración y el porqué de cada exclusión están en .golangci.yml.
   lint:

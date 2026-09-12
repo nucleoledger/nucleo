@@ -291,6 +291,7 @@ time ${timestamp.toString()}
       const l = lines[i];
       if (l === "") break;
       const node = fromBase64(l);
+      if (toBase64(node) !== l) throw new Error(`nodo de la prueba en base64 no can\xF3nico: ${JSON.stringify(l)}`);
       if (node.length !== 32) {
         throw new Error(`nodo de ${node.length} bytes, se esperaban 32`);
       }
@@ -534,7 +535,11 @@ time ${timestamp.toString()}
     const rest = machine.slice(nl + 1);
     const nl2 = rest.indexOf("\n");
     if (nl2 < 0) throw new Error("falta la firma del bloque");
-    const blockSig = fromBase64(rest.slice(0, nl2));
+    const blockSigLine = rest.slice(0, nl2);
+    const blockSig = fromBase64(blockSigLine);
+    if (toBase64(blockSig) !== blockSigLine) {
+      throw new Error("la firma del bloque no est\xE1 en base64 can\xF3nico");
+    }
     if (blockSig.length !== BLOCK_SIG_SIZE) {
       throw new Error(
         `la firma del bloque mide ${blockSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`
@@ -556,6 +561,9 @@ time ${timestamp.toString()}
         );
       }
       receiptSig = fromBase64(line.slice(sp + 1));
+      if (toBase64(receiptSig) !== line.slice(sp + 1)) {
+        throw new Error("la firma del emisor no est\xE1 en base64 can\xF3nico");
+      }
       if (receiptSig.length !== BLOCK_SIG_SIZE) {
         throw new Error(`la firma del emisor mide ${receiptSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`);
       }

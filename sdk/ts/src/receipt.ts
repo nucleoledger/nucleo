@@ -5,7 +5,7 @@
 // derivarlo y comprobar que coincide byte a byte. Un recibo con prueba impecable
 // y texto retocado —otra fecha, otro emisor, otro importe— se rechaza.
 
-import { concat, equal, fromBase64, fromHex, toHex, utf8 } from "./bytes.js";
+import { concat, equal, fromBase64, fromHex, toBase64, toHex, utf8 } from "./bytes.js";
 import { parseCheckpoint, type Checkpoint } from "./checkpoint.js";
 import { cosignedMessage, parseCosignature, COSIGNATURE_SIZE } from "./cosignature.js";
 import { sha256, verifyEd25519 } from "./crypto.js";
@@ -477,7 +477,16 @@ export function parseReceipt(receipt: string): Parsed {
   const rest = machine.slice(nl + 1);
   const nl2 = rest.indexOf("\n");
   if (nl2 < 0) throw new Error("falta la firma del bloque");
-  const blockSig = fromBase64(rest.slice(0, nl2));
+  const blockSigLine = rest.slice(0, nl2);
+  const blockSig = fromBase64(blockSigLine);
+  // Canónico o nada: la línea tiene que ser EXACTAMENTE la codificación de lo que
+  // decodifica. El diferencial Go↔TS (C.4) encontró en su primera ejecución que
+  // un \r al final de la línea de la firma del emisor pasaba aquí y no en Go —el
+  // decodificador tolera basura que la re-codificación no reproduce—. Un recibo
+  // con dos representaciones no es un recibo que se pueda archivar y comparar.
+  if (toBase64(blockSig) !== blockSigLine) {
+    throw new Error("la firma del bloque no está en base64 canónico");
+  }
   if (blockSig.length !== BLOCK_SIG_SIZE) {
     throw new Error(
       `la firma del bloque mide ${blockSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`,
@@ -503,6 +512,9 @@ export function parseReceipt(receipt: string): Parsed {
       );
     }
     receiptSig = fromBase64(line.slice(sp + 1));
+    if (toBase64(receiptSig) !== line.slice(sp + 1)) {
+      throw new Error("la firma del emisor no está en base64 canónico");
+    }
     if (receiptSig.length !== BLOCK_SIG_SIZE) {
       throw new Error(`la firma del emisor mide ${receiptSig.length} bytes y una Ed25519 mide ${BLOCK_SIG_SIZE}`);
     }
