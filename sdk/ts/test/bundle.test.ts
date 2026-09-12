@@ -164,3 +164,31 @@ describe("la advertencia legal", () => {
     expect(tarjeta).toContain("AVISO_LEGAL");
   });
 });
+
+// C.5 del Sprint 7c: la etiqueta "(firmado por el emisor)" solo puede aparecer
+// junto a un nombre cuya firma VERIFICÓ. La auditoría adversarial enseñó la fila
+// del destinatario con un nombre reescrito y esa etiqueta al lado, debajo de un
+// veredicto que decía lo contrario. Como la página compone la fila en JavaScript
+// inline, lo que se prueba aquí es el código de esa fila tal como está escrito.
+describe("la fila del destinatario en la página", () => {
+  const html = readFileSync(htmlPath, "utf8");
+  const fila = html.slice(html.indexOf('["destinatario"'), html.indexOf('["firma del recibo"'));
+
+  it("condiciona la etiqueta a receiptSignatureVerified === true", () => {
+    expect(fila).toContain("receiptSignatureVerified === true");
+    expect(fila).toContain('"  (firmado por el emisor)"');
+  });
+
+  it("marca visualmente el nombre cuando la firma NO verifica", () => {
+    expect(fila).toContain("NO VERIFICADO");
+    expect(fila).toContain("✘");
+  });
+
+  it("no hay ninguna otra forma de pintar la etiqueta sin la condición", () => {
+    // Se cuenta el LITERAL que se concatena al nombre —con sus dos espacios y sus
+    // comillas—, no la frase suelta, que también aparece en comentarios. Si alguien
+    // añadiera una segunda concatenación incondicional, este test la vería.
+    const apariciones = html.split('"  (firmado por el emisor)"').length - 1;
+    expect(apariciones).toBe(1);
+  });
+});

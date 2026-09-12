@@ -175,7 +175,16 @@
       // ninguna firma. La etiqueta viaja dentro del recibo, pero el verificador
       // devuelve el nombre ya limpio, así que la página la vuelve a poner: quien
       // mire el veredicto tiene que ver el mismo aviso que quien lee el papel.
-      ["destinatario", r.recipient ? r.recipient + "  (firmado por el emisor)" : "—"],
+      // La etiqueta afirma que el nombre está firmado. Solo se pone si la firma
+      // VERIFICÓ: la auditoría adversarial enseñó esta fila con un destinatario
+      // reescrito y la etiqueta "(firmado por el emisor)" al lado, debajo de un
+      // veredicto que decía que esa misma firma no verificaba. Esta fila es la
+      // que alguien fotografía; el veredicto de arriba no.
+      ["destinatario", r.recipient === null || r.recipient === undefined
+        ? "—"
+        : r.receiptSignatureVerified === true
+          ? r.recipient + "  (firmado por el emisor)"
+          : r.recipient + "  ✘ NO VERIFICADO — la firma del emisor no respalda este nombre"],
       // La firma del bloque es la ruta que un recibo de la versión anterior NO
       // daba: llevaba signer_pubkey y no llevaba la firma, así que quien lo
       // recibía veía de quién decía ser y no podía comprobarlo.
