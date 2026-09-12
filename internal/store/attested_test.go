@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -548,7 +549,7 @@ func TestRollbackWithCheckpointDeletionOpensUnattested(t *testing.T) {
 	if !res.Attested() || res.AttestedSize != 5 || res.TreeSize != 5 {
 		t.Fatalf("estado inicial = %+v, want atestiguada hasta 5 de 5", res)
 	}
-	if got := s.Attestation(); got != res {
+	if got := s.Attestation(); !reflect.DeepEqual(got, res) {
 		t.Errorf("Attestation() = %+v, want %+v", got, res)
 	}
 	if err := s.Close(); err != nil {

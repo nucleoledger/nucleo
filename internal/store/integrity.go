@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/ledger"
@@ -84,6 +85,15 @@ type OpenResult struct {
 	// SignerKey es la clave, en hex, que firma TODA la cadena (la del bloque 0; la
 	// continuidad garantiza que es la misma en todos). Vacía si no hay bloques.
 	SignerKey string
+	// AttestedAt es el tiempo demostrable de la atestación VERIFICADA: el menor de
+	// los timestamps de las cosignatures que la política aceptó. Cero si
+	// Attestation no es Verified. Es la única fuente de frescura que no depende de
+	// lo que alguien haya escrito en este fichero (la segunda auditoría insertó un
+	// registro local de "última atestación" y la frescura decía ✔).
+	AttestedAt time.Time
+	// AttestedBy son los testigos cuyas cosignatures verificaron, en orden de
+	// aparición en la nota. Vacío si Attestation no es Verified.
+	AttestedBy []string
 }
 
 // SignerState es lo que la apertura puede afirmar del firmante de bloques.
@@ -293,9 +303,10 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 	// escribió una a mano: el atacante no se saltaba la frontera, la dibujaba.
 	state := AttestationNone
 	reason := ""
+	var verified *proof.Result
 	var signedFrom uint64
 	if attested != nil {
-		state, reason = s.attestationState(attested)
+		state, reason, verified = s.attestationState(attested)
 		if mode == modeAttested && state == AttestationVerified {
 			signedFrom = attested.size
 		}
@@ -334,25 +345,32 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 		// de este checkpoint contra el árbol reconstruido y cuadró.
 		res.AttestedSize = attested.size
 	}
+	if verified != nil {
+		res.AttestedAt = verified.ProvableTime
+		res.AttestedBy = verified.Cosigners
+	}
 	return res, nil
 }
 
 // attestationState decide qué es un checkpoint cosignado guardado: verificado,
 // o presente sin verificar. Nunca decide "atestiguado" por la forma de la nota.
-func (s *Store) attestationState(c *storedCheckpoint) (Attestation, string) {
+// Con Verified devuelve además el resultado de la verificación —testigos y tiempo
+// demostrable—, que es de donde sale la frescura.
+func (s *Store) attestationState(c *storedCheckpoint) (Attestation, string, *proof.Result) {
 	if s.witnesses == nil {
-		return AttestationUnverified, "no se aportó ninguna política de testigos al abrir"
+		return AttestationUnverified, "no se aportó ninguna política de testigos al abrir", nil
 	}
 	pol, err := s.logPolicy(c)
 	if err != nil {
-		return AttestationUnverified, err.Error()
+		return AttestationUnverified, err.Error(), nil
 	}
 	pol.Witnesses = s.witnesses.Witnesses
 	pol.Quorum = s.witnesses.Quorum
-	if _, err := proof.VerifyNote(c.note, pol); err != nil {
-		return AttestationUnverified, err.Error()
+	res, err := proof.VerifyNote(c.note, pol)
+	if err != nil {
+		return AttestationUnverified, err.Error(), nil
 	}
-	return AttestationVerified, ""
+	return AttestationVerified, "", &res
 }
 
 // logPolicy arma la política del log —origin y clave pública— desde vault_meta.

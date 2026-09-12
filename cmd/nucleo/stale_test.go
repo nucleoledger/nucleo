@@ -37,8 +37,8 @@ func avanzaReloj(t *testing.T, d time.Duration) {
 // aviso del gancho y no habría detectado que la política no avisa nunca.
 func avisoDeFrescura(errOut string) bool {
 	for _, marca := range []string{
-		"atestación verificada es de hace",
-		"NUNCA ha obtenido una atestación verificada",
+		"la última atestación es de hace",
+		"ninguna atestación verificada ni registro",
 		"dice ser del futuro",
 	} {
 		if strings.Contains(errOut, marca) {
@@ -74,12 +74,12 @@ func TestStaleSinAtestacionNunca(t *testing.T) {
 	// El código de salida NO cambia: "la historia está íntegra" y "alguien de
 	// fuera la vio hace poco" son preguntas distintas, y mezclarlas en un solo
 	// código dejaría sin forma de distinguirlas a quien automatiza.
-	for _, want := range []string{"NUNCA ha obtenido una atestación verificada", "nucleo sync"} {
+	for _, want := range []string{"ninguna atestación verificada ni registro", "nucleo sync"} {
 		if !strings.Contains(errOut, want) {
 			t.Errorf("stderr no contiene %q:\n%s", want, errOut)
 		}
 	}
-	if !strings.Contains(out, "frescura  : ⚠ nunca se obtuvo") {
+	if !strings.Contains(out, "frescura  : ⚠ ninguna atestación verificada") {
 		t.Errorf("stdout no dice nada de frescura:\n%s", out)
 	}
 }
@@ -91,13 +91,19 @@ func TestStaleTrasElUmbral(t *testing.T) {
 	url, name, key := startTestWitness(t, c.logPubKey(t))
 	c.mustRun("sync", "--witness", url, "--witness-name", name, "--witness-key", key)
 
-	// Recién sincronizado: ni un aviso.
+	// Recién sincronizado: ni un aviso. Pero sin política la frescura sale del
+	// registro local, y la línea lo dice; con la política, de la cosignature
+	// verificada, y solo entonces lleva ✔.
 	out, errOut, _ := c.run("status")
 	if avisoDeFrescura(errOut) {
 		t.Errorf("avisó con una atestación de hace un instante:\n%s", errOut)
 	}
-	if !strings.Contains(out, "frescura  : ✔") {
-		t.Errorf("no dice que la frescura está bien:\n%s", out)
+	if !strings.Contains(out, "frescura  : ◐ registro local de hace") || !strings.Contains(out, "NO verificado") {
+		t.Errorf("sin política, la frescura tiene que decir que es el registro local:\n%s", out)
+	}
+	out, _, _ = c.run("status", "--witness-name", name, "--witness-key", key)
+	if !strings.Contains(out, "frescura  : ✔ atestación verificada de hace") {
+		t.Errorf("con política, no dice que la frescura está bien:\n%s", out)
 	}
 
 	// Pasan cuatro días sin que nadie sincronice.
@@ -111,8 +117,19 @@ func TestStaleTrasElUmbral(t *testing.T) {
 			t.Errorf("stderr no contiene %q:\n%s", want, errOut)
 		}
 	}
-	if !strings.Contains(out, "frescura  : ⚠ la última atestación es de hace 4 días") {
+	if !strings.Contains(out, "frescura  : ⚠ la última atestación es de hace 4 días (umbral 3 días) (registro local, NO verificado)") {
 		t.Errorf("stdout:\n%s", out)
+	}
+	if !strings.Contains(errOut, "(umbral: 3 días) (registro local, NO verificado)") {
+		t.Errorf("el aviso por stderr no califica el registro local:\n%s", errOut)
+	}
+	// Con la política, la misma edad, pero de la cosignature verificada.
+	out, errOut, _ = c.run("status", "--witness-name", name, "--witness-key", key)
+	if strings.Contains(out, "registro local") || strings.Contains(errOut, "registro local") {
+		t.Errorf("con política verificada no debería hablar del registro local:\n%s\n%s", out, errOut)
+	}
+	if !strings.Contains(out, "frescura  : ⚠ la última atestación es de hace 4 días (umbral 3 días)\n") {
+		t.Errorf("stdout con política:\n%s", out)
 	}
 
 	// Con un umbral mayor que la edad, el mismo estado no es incidente. Prueba

@@ -34,7 +34,7 @@ func cmdStatus(e *env, args []string) error {
 	// obligar a sacarlos de la base con SQL sería empujar a la gente a hurgar
 	// en el fichero que este programa existe para proteger.
 	origin, logPub := logIdentity(s)
-	st, err := checkStaleness(s, now(), e.staleAfter, res.TreeSize)
+	st, err := checkStaleness(s, res, now(), e.staleAfter, res.TreeSize)
 	if err != nil {
 		return err
 	}
@@ -88,20 +88,31 @@ func cmdStatus(e *env, args []string) error {
 // historia está amparada por alguna raíz cosignada; esta, si eso ocurrió hace
 // poco. Un ledger puede estar perfectamente atestiguado hasta el bloque 4.000 y
 // llevar dos meses sin sincronizar, y las dos frases serían verdad.
+//
+// Y la frescura está subordinada a la atestación: la marca ✔ solo sale cuando la
+// fecha viene de la cosignature que la apertura VERIFICÓ. Si lo único que hay es el
+// registro local de sync, la línea lo dice en la misma frase —"registro local, NO
+// verificado"—, porque ese registro lo escribe quien tenga la base y la segunda
+// auditoría lo escribió.
 func printFreshness(e *env, st staleness) {
 	switch {
 	case st.Empty:
 		// Nada que decir: no hay historia.
 	case !st.Known:
-		e.printf("frescura  : ⚠ nunca se obtuvo una atestación verificada\n")
+		e.printf("frescura  : ⚠ ninguna atestación verificada, ni registro de haberla tenido\n")
 	case st.Stale:
-		e.printf("frescura  : ⚠ la última atestación es de hace %s (umbral %s)\n",
-			humanDuration(st.Age), humanDuration(st.Threshold))
+		e.printf("frescura  : ⚠ la última atestación es de hace %s (umbral %s)%s\n",
+			humanDuration(st.Age), humanDuration(st.Threshold), st.qualifier())
 		e.printf("            %s, %s, %d bloques\n",
-			st.Record.Witness, st.Record.At.Format(time.RFC3339), st.Record.Size)
-	default:
-		e.printf("frescura  : ✔ atestación de hace %s, por %s\n",
+			st.Record.Witness, st.Record.At.UTC().Format(time.RFC3339), st.Record.Size)
+	case st.Verified:
+		e.printf("frescura  : ✔ atestación verificada de hace %s, por %s\n",
 			humanDuration(st.Age), st.Record.Witness)
+	default:
+		e.printf("frescura  : ◐ registro local de hace %s, por %s — NO verificado\n",
+			humanDuration(st.Age), st.Record.Witness)
+		e.printf("            Lo escribió el último `sync` en este disco; abre con --policy-file\n")
+		e.printf("            para que la frescura salga de la cosignature verificada.\n")
 	}
 }
 
@@ -149,7 +160,7 @@ func cmdVerify(e *env, args []string) error {
 		mode = "exhaustiva"
 	}
 
-	st, err := checkStaleness(s, now(), e.staleAfter, res.TreeSize)
+	st, err := checkStaleness(s, res, now(), e.staleAfter, res.TreeSize)
 	if err != nil {
 		return err
 	}

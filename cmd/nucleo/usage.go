@@ -132,9 +132,20 @@ ATESTACIÓN VIEJA
   atestiguado hasta el bloque 4.000 y llevar dos meses sin que nadie de fuera
   vea una raíz: las dos frases serían verdad, y solo la primera consuela.
 
-  status, seal y verify avisan por STDERR —también con --json— cuando la última
-  atestación verificada pasa del umbral, o cuando nunca hubo ninguna. En --json
-  el veredicto va además en el objeto "freshness", con el campo "stale".
+  status, seal, verify y reconcile avisan por STDERR —también con --json—
+  cuando la última atestación pasa del umbral, o cuando nunca hubo ninguna. En
+  --json el veredicto va además en el objeto "freshness", con el campo "stale".
+
+  La frescura está SUBORDINADA a la atestación. Con la política y la atestación
+  verificada, la fecha sale de la cosignature que se acaba de comprobar, y la
+  línea lleva ✔. Sin política, lo único que hay es el registro que dejó el
+  último sync en este mismo fichero —que cualquiera con la base puede escribir,
+  y una auditoría lo escribió—, y la línea lo dice: "registro local, NO
+  verificado". En --json, "freshness.verified" y "freshness.source"
+  ("attestation" | "local_record" | "none") dicen de dónde salió la fecha. Un
+  cron que mire "stale" sin mirar "verified" se está fiando del disco.
+
+  El contrato completo de la salida --json está en docs/CLI-JSON.md.
 
   El aviso sale por stderr a propósito: un cron con stdout a un fichero y
   stderr al correo del administrador hace sonar la alarma sin que nadie haya

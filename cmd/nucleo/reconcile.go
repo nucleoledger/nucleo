@@ -39,7 +39,7 @@ func cmdReconcile(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
-	s, _, err := e.openStoreWith(wp)
+	s, res, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
@@ -50,14 +50,36 @@ func cmdReconcile(e *env, args []string) error {
 		return usageErr("%v", err)
 	}
 
+	// Un cotejo que coincide sobre una historia SIN atestiguar dice menos de lo
+	// que parece: el sistema vivo coincide con un ledger que podría estar
+	// truncado. Por eso la atestación, el firmante y la frescura salen aquí con
+	// la misma semántica y los mismos campos que en status.
+	st, err := checkStaleness(s, res, now(), e.staleAfter, res.TreeSize)
+	if err != nil {
+		return err
+	}
+	st.warn(e)
 	if e.json {
 		raw, err := rep.JSON()
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(e.stdout, string(raw))
+		var data map[string]any
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return err
+		}
+		data["attestation"] = res.Attestation.String()
+		data["attested"] = res.Attested()
+		data["attested_size"] = res.AttestedSize
+		data["signer"] = signerJSON(res)
+		data["freshness"] = st.json()
+		data["ok"] = len(rep.Findings) == 0 && (rep.FullVerify == nil || rep.FullVerify.OK)
+		e.printJSON(data)
 	} else {
 		printReport(e, rep)
+		e.printf("\n")
+		printAttestation(e, res)
+		printFreshness(e, st)
 	}
 
 	// Una discrepancia NO es un error del programa: el cotejo hizo su trabajo.

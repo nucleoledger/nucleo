@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/store"
@@ -22,11 +23,22 @@ import (
 const DefaultStaleAfter = 72 * time.Hour
 
 // staleness es el veredicto sobre la frescura de la atestación.
+//
+// Tiene dos fuentes y no pesan lo mismo. Si la apertura VERIFICÓ la atestación
+// —política de testigos, cosignature comprobada—, la frescura sale del tiempo
+// demostrable de esa cosignature: nada de este fichero puede moverla. Si no, lo
+// único que hay es el registro local que `sync` dejó la última vez, y ese
+// registro lo escribe quien tenga la base: la segunda auditoría lo insertó a mano
+// con un testigo inventado y la frescura decía ✔. Ahora se dice de dónde sale.
 type staleness struct {
-	// Known es false cuando este despliegue nunca obtuvo una atestación
-	// verificada. Es el caso MÁS grave, no la ausencia de información.
+	// Known es false cuando no hay ni atestación verificada ni registro local.
+	// Es el caso MÁS grave, no la ausencia de información.
 	Known bool
-	// Record es el registro guardado, si Known.
+	// Verified es true cuando la frescura sale de la atestación verificada al
+	// abrir. Con false, Record es el registro local, y se dice así.
+	Verified bool
+	// Record es la atestación en que se apoya el veredicto, si Known: la
+	// verificada, o la del registro local.
 	Record store.AttestationRecord
 	// Age es lo que ha pasado desde el instante que afirmó el testigo.
 	Age time.Duration
@@ -49,28 +61,43 @@ type staleness struct {
 	Empty bool
 }
 
-// checkStaleness juzga la frescura de la última atestación verificada.
+// checkStaleness juzga la frescura de la última atestación.
 //
 // Usa el instante que afirmó el TESTIGO, no el reloj local del momento en que se
 // guardó. Los dos están en el registro y la diferencia importa: el reloj local
 // es el de la máquina que podría querer que la alarma no suene.
-func checkStaleness(s *store.Store, now time.Time, threshold time.Duration, treeSize uint64) (staleness, error) {
+//
+// treeSize va aparte de res porque `seal` juzga DESPUÉS de escribir el bloque: el
+// ledger que abrió vacío ya no lo está.
+func checkStaleness(s *store.Store, res store.OpenResult, now time.Time, threshold time.Duration, treeSize uint64) (staleness, error) {
 	out := staleness{Threshold: threshold, Empty: treeSize == 0}
-	r, ok, err := s.LastAttested()
-	if err != nil {
-		return out, err
+	if res.Attestation == store.AttestationVerified && !res.AttestedAt.IsZero() {
+		// La fuente buena: lo que la apertura acaba de verificar contra la
+		// clave del testigo. El registro local ni se mira.
+		out.Known, out.Verified = true, true
+		out.Record = store.AttestationRecord{
+			Witness: strings.Join(res.AttestedBy, ", "),
+			At:      res.AttestedAt,
+			Size:    res.AttestedSize,
+		}
+	} else {
+		r, ok, err := s.LastAttested()
+		if err != nil {
+			return out, err
+		}
+		if !ok {
+			// Sin registro, el veredicto es "viejo". Un despliegue que nunca
+			// obtuvo atestación está exactamente igual de desamparado que uno
+			// cuya última atestación es de hace un año, y tratar la ausencia
+			// como "sin datos, mejor callar" sería dejar en silencio el peor de
+			// los dos casos.
+			out.Stale = true
+			return out, nil
+		}
+		out.Known = true
+		out.Record = r
 	}
-	if !ok {
-		// Sin registro, el veredicto es "viejo". Un despliegue que nunca obtuvo
-		// atestación está exactamente igual de desamparado que uno cuya última
-		// atestación es de hace un año, y tratar la ausencia como "sin datos,
-		// mejor callar" sería dejar en silencio el peor de los dos casos.
-		out.Stale = true
-		return out, nil
-	}
-	out.Known = true
-	out.Record = r
-	out.Age = now.Sub(r.At)
+	out.Age = now.Sub(out.Record.At)
 	if out.Age < 0 {
 		out.Future = true
 		out.Age = 0
@@ -91,18 +118,49 @@ func (st staleness) json() map[string]any {
 		"stale":           st.Stale && !st.Empty,
 		"threshold_hours": st.Threshold.Hours(),
 		"attested_ever":   st.Known,
+		// verified dice de dónde sale la fecha: true, de la cosignature que la
+		// apertura verificó bajo la política; false, del registro local que
+		// cualquiera con la base puede escribir. Un cron que solo mire "stale"
+		// sin mirar "verified" se está fiando de este disco.
+		"verified": st.Verified,
+		"source":   st.source(),
 	}
 	if st.Known {
-		out["attested_at"] = st.Record.At.Format(time.RFC3339)
+		out["attested_at"] = st.Record.At.UTC().Format(time.RFC3339)
 		out["attested_size"] = st.Record.Size
 		out["witness"] = st.Record.Witness
 		out["age_hours"] = st.Age.Hours()
-		out["recorded_at"] = st.Record.RecordedAt.Format(time.RFC3339)
+		if !st.Verified {
+			out["recorded_at"] = st.Record.RecordedAt.UTC().Format(time.RFC3339)
+		}
 		if st.Future {
 			out["clock_skew"] = true
 		}
 	}
 	return out
+}
+
+// source nombra la fuente de la frescura para el JSON: "attestation" (verificada
+// al abrir), "local_record" (lo que dejó sync, sin verificar) o "none".
+func (st staleness) source() string {
+	switch {
+	case !st.Known:
+		return "none"
+	case st.Verified:
+		return "attestation"
+	default:
+		return "local_record"
+	}
+}
+
+// qualifier es la coletilla que acompaña a toda frase de frescura que se apoye en
+// el registro local. Va en la misma línea que el dato, no en una nota al pie, para
+// que no se pueda citar el uno sin el otro.
+func (st staleness) qualifier() string {
+	if st.Verified {
+		return ""
+	}
+	return " (registro local, NO verificado)"
 }
 
 // warn escribe el aviso en STDERR si procede, y dice si escribió algo.
@@ -127,19 +185,19 @@ func (st staleness) warn(e *env) bool {
 	}
 	if !st.Known {
 		fmt.Fprintf(e.stderr,
-			"AVISO: este ledger NUNCA ha obtenido una atestación verificada.\n"+
+			"AVISO: este ledger no tiene ninguna atestación verificada ni registro de haberla tenido.\n"+
 				"       Que la cadena sea localmente válida no dice que esté completa: un\n"+
 				"       prefijo truncado es indistinguible de la historia entera mientras\n"+
 				"       nadie de fuera haya visto una raíz. Ejecuta `nucleo sync`.\n")
 		return true
 	}
 	fmt.Fprintf(e.stderr,
-		"AVISO: la última atestación verificada es de hace %s (umbral: %s).\n"+
+		"AVISO: la última atestación es de hace %s (umbral: %s)%s.\n"+
 			"       %s la firmó el %s, cubriendo %d bloques. Desde entonces, lo\n"+
 			"       que respalda esta historia es solo este disco.\n"+
 			"       Si hay un `nucleo sync` en el cron, probablemente lleva %s roto.\n",
-		humanDuration(st.Age), humanDuration(st.Threshold),
-		st.Record.Witness, st.Record.At.Format(time.RFC3339), st.Record.Size,
+		humanDuration(st.Age), humanDuration(st.Threshold), st.qualifier(),
+		st.Record.Witness, st.Record.At.UTC().Format(time.RFC3339), st.Record.Size,
 		humanDuration(st.Age))
 	return true
 }
