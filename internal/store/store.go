@@ -74,6 +74,13 @@ func OpenWithWitnesses(path string, wp WitnessPolicy) (*Store, OpenResult, error
 }
 
 func open(path string, wp *WitnessPolicy) (*Store, OpenResult, error) {
+	// La política se valida ANTES de tocar el fichero: una política que no puede
+	// verificar nada no debe ni abrir la base, y menos concederle el atajo.
+	if wp != nil {
+		if err := wp.validate(); err != nil {
+			return nil, OpenResult{}, err
+		}
+	}
 	s, err := connect(path)
 	if err != nil {
 		return nil, OpenResult{}, err

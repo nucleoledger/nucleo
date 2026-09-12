@@ -137,6 +137,34 @@ type WitnessPolicy struct {
 	Quorum    int
 }
 
+// ErrPolicy indica una política de apertura que no puede verificar nada.
+var ErrPolicy = errors.New("store: política de testigos inválida")
+
+// validate rechaza una política que no exige NINGUNA cosignature. Es la frontera
+// que la segunda auditoría adversarial encontró abierta: OpenWithWitnesses con
+// WitnessPolicy{} —o con testigos y quórum 0— devolvía "verified" sobre un
+// ledger forjado, porque proof.Policy admite quórum 0 (correcto para un recibo
+// sin tiempo demostrable) y el almacén lo heredó sin preguntarse qué significa
+// aquí. Aquí significa conceder el atajo de ADR-009 sin que ningún tercero haya
+// firmado nada. Una política que no puede verificar nada no es una política: es
+// un error de quien llama, y se le dice.
+func (wp WitnessPolicy) validate() error {
+	switch {
+	case len(wp.Witnesses) == 0:
+		return fmt.Errorf("%w: sin testigos no hay nada que verificar; usa Open si no tienes política", ErrPolicy)
+	case wp.Quorum < 1:
+		return fmt.Errorf("%w: quórum %d; una atestación verificada exige al menos una cosignature", ErrPolicy, wp.Quorum)
+	case wp.Quorum > len(wp.Witnesses):
+		return fmt.Errorf("%w: quórum %d con %d testigos", ErrPolicy, wp.Quorum, len(wp.Witnesses))
+	}
+	for name, pub := range wp.Witnesses {
+		if name == "" || len(pub) != ed25519.PublicKeySize {
+			return fmt.Errorf("%w: testigo %q con clave de %d bytes", ErrPolicy, name, len(pub))
+		}
+	}
+	return nil
+}
+
 // Claves de vault_meta donde init deja, EN CLARO, la identidad pública del log.
 // Son públicas: verificar un recibo o abrir el ledger no debe exigir la
 // passphrase.
