@@ -3,15 +3,19 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,28 +46,108 @@ func newCLI(t *testing.T) *cli {
 	return &cli{t: t, dir: t.TempDir()}
 }
 
+// runTimeout es el tiempo que se le da a una invocación de la CLI antes de
+// declararla colgada.
+//
+// Es generoso a propósito: lo más lento que hace la CLI es derivar la KEK con
+// Argon2id, unas decenas de milisegundos, y un init encadena varias. Un minuto no
+// se alcanza ni con -race en el runner más lento. Lo que compra es que un bloqueo
+// futuro falle en un minuto con las pilas a la vista, en vez de consumir los diez
+// del timeout global de `go test` y dejar un panic que hay que descifrar.
+const runTimeout = 60 * time.Second
+
 // run invoca la CLI y devuelve stdout, stderr y el código de salida.
+//
+// Los dos pipes se drenan EN PARALELO, cada uno con su goroutine, arrancadas ANTES
+// de ejecutar la CLI. Drenarlos en secuencia —leer stdout hasta el final y solo
+// entonces stderr— es un abrazo mortal, y estuvo aquí hasta que lo cazó Windows:
+//
+//   - El lector de stdout no ve EOF hasta que la CLI termina y se cierran los
+//     extremos de escritura.
+//   - Si mientras tanto la CLI escribe en stderr más de lo que cabe en el buffer
+//     del pipe, la escritura se bloquea.
+//   - La CLI no puede terminar porque está bloqueada escribiendo; el test no puede
+//     leer stderr porque sigue esperando el EOF de stdout. Los dos esperan al otro.
+//
+// En Linux y macOS el buffer del pipe es de 64 KiB y nada se acercaba. En Windows
+// son 4 KiB, y el texto de ayuda —que sale por stderr en cualquier error de uso—
+// pasó de 4 KiB al crecer la ayuda del sprint 7. A partir de ahí, TestExitCodes se
+// colgaba en Windows los diez minutos enteros.
+//
+// La regla general, que es lo que conviene recordar: quien escribe en dos tuberías
+// y las lee de una en una ya tiene el abrazo mortal escrito; solo falta que alguien
+// llene la que no está leyendo.
 func (c *cli) run(args ...string) (string, string, int) {
 	c.t.Helper()
-	outR, outW, err := os.Pipe()
-	if err != nil {
-		c.t.Fatal(err)
-	}
-	errR, errW, err := os.Pipe()
-	if err != nil {
-		c.t.Fatal(err)
-	}
 	full := append([]string{"--dir", c.dir}, args...)
+	return capturar(c.t, "nucleo "+strings.Join(args, " "),
+		func(stdout, stderr *os.File) int { return run(full, stdout, stderr) })
+}
+
+// capturar ejecuta fn con dos pipes y devuelve lo que escribió en cada uno.
+//
+// Está separado de (*cli).run para que el propio arnés se pueda probar: con esto,
+// el abrazo mortal que solo aparecía en Windows se puede provocar en cualquier
+// sistema escribiendo lo bastante. Ver TestArnesDrenaLosDosPipesEnParalelo.
+func capturar(t *testing.T, etiqueta string, fn func(stdout, stderr *os.File) int) (string, string, int) {
+	t.Helper()
+	outR, outW := pipe(t)
+	errR, errW := pipe(t)
+
+	var stdout, stderr bytes.Buffer
+	var lectores sync.WaitGroup
+	lectores.Add(2)
+	drenar := func(dst *bytes.Buffer, src *os.File) {
+		defer lectores.Done()
+		defer src.Close()
+		// El error de io.Copy se ignora a propósito: el único que puede llegar aquí
+		// es el cierre del otro extremo, que es precisamente cómo termina.
+		_, _ = io.Copy(dst, src)
+	}
+	go drenar(&stdout, outR)
+	go drenar(&stderr, errR)
+
 	done := make(chan int, 1)
 	go func() {
-		code := run(full, outW, errW)
+		code := fn(outW, errW)
+		// Cerrar los extremos de escritura es lo que da el EOF a los lectores.
 		outW.Close()
 		errW.Close()
 		done <- code
 	}()
-	stdout := readAll(c.t, outR)
-	stderr := readAll(c.t, errR)
-	return stdout, stderr, <-done
+
+	var code int
+	select {
+	case code = <-done:
+	case <-time.After(runTimeout):
+		t.Fatalf("%q no terminó en %s: está colgado.\n"+
+			"Sospechosos, por orden: una escritura bloqueada en un pipe lleno "+
+			"(¿se drenan los dos en paralelo?) o una lectura de os.Stdin, que este "+
+			"arnés NO alimenta.\n\nPilas de todas las goroutines:\n%s",
+			etiqueta, runTimeout, pilas())
+	}
+	// Solo se espera a los lectores cuando la CLI terminó. Tras un timeout los
+	// extremos de escritura siguen abiertos y esperarlos colgaría el test otra vez,
+	// ahora sin diagnóstico.
+	lectores.Wait()
+	return stdout.String(), stderr.String(), code
+}
+
+// pipe crea un pipe o aborta el test.
+func pipe(t *testing.T) (*os.File, *os.File) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, w
+}
+
+// pilas vuelca las goroutines de todo el proceso. En un abrazo mortal, la pila de
+// la que escribe y la de la que lee dicen entre las dos qué pasó.
+func pilas() string {
+	buf := make([]byte, 1<<20)
+	return string(buf[:runtime.Stack(buf, true)])
 }
 
 // mustRun exige código 0.
@@ -75,20 +159,6 @@ func (c *cli) mustRun(args ...string) string {
 			strings.Join(args, " "), code, out, errOut)
 	}
 	return out
-}
-
-func readAll(t *testing.T, f *os.File) string {
-	t.Helper()
-	defer f.Close()
-	var sb strings.Builder
-	buf := make([]byte, 4096)
-	for {
-		n, err := f.Read(buf)
-		sb.Write(buf[:n])
-		if err != nil {
-			return sb.String()
-		}
-	}
 }
 
 // initLedger deja un despliegue listo.
