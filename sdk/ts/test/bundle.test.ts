@@ -168,30 +168,68 @@ describe("la advertencia legal", () => {
   });
 });
 
-// C.5 del Sprint 7c: la etiqueta "(firmado por el emisor)" solo puede aparecer
-// junto a un nombre cuya firma VERIFICÓ. La auditoría adversarial enseñó la fila
-// del destinatario con un nombre reescrito y esa etiqueta al lado, debajo de un
-// veredicto que decía lo contrario. Como la página compone la fila en JavaScript
-// inline, lo que se prueba aquí es el código de esa fila tal como está escrito.
-describe("la fila del destinatario en la página", () => {
-  const html = readFileSync(htmlPath, "utf8");
-  const fila = html.slice(html.indexOf('["destinatario"'), html.indexOf('["firma del recibo"'));
+// D.5 del Sprint 7d: con valid=false NINGUNA fila del dictamen muestra un ✔ sin
+// calificar. La segunda auditoría adversarial enseñó, bajo "✘ Recibo NO válido",
+// tres ✔: destinatario "(firmado por el emisor)", "firma del recibo ✔ verificada",
+// "firma del bloque ✔ verificada". Eran verdades LOCALES —unos bytes cuadran con
+// una clave— que no anclan nada si la cadena de atestación no verificó. Las filas
+// viven en web/verify/dictamen.js, que es exactamente el fichero que carga la
+// página, y este test las ejecuta sobre veredictos reales del bundle.
+describe("el dictamen de la página", () => {
+  const dictamenPath = join(here, "..", "..", "..", "web", "verify", "dictamen.js");
+  const filasDe = (r: unknown): Array<[string, string]> => {
+    const sandbox: Record<string, unknown> = {};
+    sandbox["window"] = sandbox;
+    runInNewContext(readFileSync(dictamenPath, "utf8"), sandbox, { filename: "dictamen.js" });
+    return (sandbox["NUCLEO_DICTAMEN"] as (r: unknown) => Array<[string, string]>)(r);
+  };
+  const v = readJSON<Vector>("receipt", "valido-1-cosignature.json");
+  const api = loadBundle();
+  const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<unknown>;
+  const pol = {
+    origin: v.policy.origin, logKey: v.policy.log_key, signerKey: v.policy.signer_key,
+    witnesses: v.policy.witnesses, quorum: v.policy.quorum,
+  };
 
-  it("condiciona la etiqueta a receiptSignatureVerified === true", () => {
-    expect(fila).toContain("receiptSignatureVerified === true");
-    expect(fila).toContain('"  (firmado por el emisor)"');
+  it("la página carga dictamen.js y lo usa", () => {
+    const html = readFileSync(htmlPath, "utf8");
+    expect(html).toContain('src="dictamen.js"');
+    expect(html).toContain("window.NUCLEO_DICTAMEN(r)");
   });
 
-  it("marca visualmente el nombre cuando la firma NO verifica", () => {
-    expect(fila).toContain("NO VERIFICADO");
-    expect(fila).toContain("✘");
+  it("con el recibo válido, las firmas y el destinatario llevan ✔ y la etiqueta", async () => {
+    const filas = filasDe(await verify(v.receipt, pol));
+    const f = Object.fromEntries(filas);
+    expect(f["destinatario"]).toContain("(firmado por el emisor)");
+    expect(f["firma del recibo"]).toMatch(/^✔/);
+    expect(f["firma del bloque"]).toMatch(/^✔/);
   });
 
-  it("no hay ninguna otra forma de pintar la etiqueta sin la condición", () => {
-    // Se cuenta el LITERAL que se concatena al nombre —con sus dos espacios y sus
-    // comillas—, no la frase suelta, que también aparece en comentarios. Si alguien
-    // añadiera una segunda concatenación incondicional, este test la vería.
-    const apariciones = html.split('"  (firmado por el emisor)"').length - 1;
-    expect(apariciones).toBe(1);
+  for (const [nombre, rota] of Object.entries({
+    "clave del log equivocada": { ...pol, logKey: "22".repeat(32) },
+    "clave de testigo equivocada": { ...pol, witnesses: { [Object.keys(pol.witnesses)[0]!]: "11".repeat(32) } },
+    "quórum no alcanzado": { ...pol, quorum: 2 },
+  })) {
+    it(`${nombre}: ninguna fila muestra ✔ sin calificar`, async () => {
+      const r = (await verify(v.receipt, rota)) as { valid: boolean; receiptSignatureVerified: boolean | null };
+      expect(r.valid).toBe(false);
+      // Las firmas locales SÍ cuadran en este caso: es justo lo que hay que calificar.
+      expect(r.receiptSignatureVerified).toBe(true);
+      const filas = filasDe(r);
+      for (const [k, texto] of filas) {
+        expect(texto.startsWith("✔"), `fila ${k}: ${texto}`).toBe(false);
+        expect(texto, `fila ${k}`).not.toContain("(firmado por el emisor)");
+      }
+      const f = Object.fromEntries(filas);
+      expect(f["firma del recibo"]).toContain("no ancla nada");
+      expect(f["destinatario"]).toContain("NO VERIFICADO");
+    });
+  }
+
+  it("el literal de la etiqueta aparece una sola vez, y en dictamen.js", () => {
+    const dictamen = readFileSync(dictamenPath, "utf8");
+    const html = readFileSync(htmlPath, "utf8");
+    expect(dictamen.split('"  (firmado por el emisor)"').length - 1).toBe(1);
+    expect(html.split('"  (firmado por el emisor)"').length - 1).toBe(0);
   });
 });
