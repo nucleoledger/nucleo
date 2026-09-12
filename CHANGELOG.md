@@ -11,6 +11,32 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Security: adversarial audit of 0.2-draft (Sprint 7c)
+
+A fourth-model adversarial audit, run against the public repository the day after
+0.2-draft landed, found one critical and one high finding — both in code written for
+0.2-draft, both with executed exploits. Fixed in order, each as its own commit:
+
+- **CRITICAL — the open path trusted unverified checkpoints.** See the amendment under
+  "Breaking" below and [ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md).
+  `status`, `verify`, `seal` and `reconcile` gain `--witness-name`/`--witness-key`;
+  without them the ledger opens but reports `attestation: "unverified"` and recomputes
+  every signature (~8 s at 10⁵ blocks instead of 0.45 s — the price of not lying).
+- **HIGH — receipt malleability and a Go/TS divergence.** Go verified the issuer
+  signature over a clean *re-render*, TypeScript over the *received bytes*; a `\r`
+  appended to base64 lines was accepted by Go and rejected by TS. `receipt.Parse` now
+  requires the received machine section to be byte-identical to its re-serialization,
+  and TS requires every base64 line to be canonical. A new CI job runs 212 mutations
+  of the golden receipt through both verifiers and fails on any verdict divergence —
+  it caught one more on its first run.
+- **MEDIUM** — the static page labelled a recipient "(firmado por el emisor)" even when
+  that signature had just failed. Now conditional, with a visible "NO VERIFICADO"
+  mark on the same row.
+- **MEDIUM/LOW** — `seal --tenant $'ACME\nS.A.'` produced a receipt no verifier could
+  read while reporting success. Tenants must fit on one line.
+- A test now pins the 76-vs-64-byte length check that stops a witness cosignature
+  from being pasted in as the issuer signature.
+
 ### ⚠ Breaking: the Merkle leaf and the receipt format changed (PROTOCOL 0.2-draft)
 
 **Every root, checkpoint and receipt produced before this release is incompatible, and
@@ -34,6 +60,20 @@ Two accepted ADRs, implemented together on purpose so the break happens once:
   have a witness cosign that — witnesses do not verify block signatures, it is not
   their job and they do not hold the keys. `verify --full` remains the route that
   catches it, naming the block.
+
+  > **Amended 2026-09-12 after the adversarial audit.** The paragraph above framed the
+  > residual gap as requiring "a dishonest issuer from the start, not an attacker who
+  > comes later". **That framing was wrong**, and it was shown wrong by an executed
+  > exploit: an attacker with write access, no keys and no witness rewrote a block,
+  > recomputed its hash, fabricated a checkpoint over the new root with a 76-byte
+  > signature blob of invented bytes, and `Open` reported `Attested=true`. The open
+  > path never verified the log signature on stored checkpoints — it accepted them on
+  > shape. Fixed by [ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md): a
+  > checkpoint counts as attestation only when *verified*, with the same machinery a
+  > receipt uses, and the witness policy must come from outside the file. Without it,
+  > `status` says "checkpoint present, NOT verified" and the open path takes no
+  > shortcut. The exploit is now a regression test. The paragraph is kept because this
+  > project records when a measurement contradicts a claim.
 
 - **[ADR-015](docs/adr/ADR-015-destinatario.md) — the issuer signs the receipt.** The
   issuer's Ed25519 signature now covers the **whole receipt**, recipient included, so

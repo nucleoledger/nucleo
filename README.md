@@ -134,19 +134,21 @@ This is a security product, so the process that built it is part of what you are
 
 **Limits we document rather than hide:**
 
-- A block's signature is not inside its Merkle leaf, so a cosigned root does not pin the `signature` column. `verify --full` catches corruption there; the fast path does not. ([ADR-009](docs/adr/ADR-009-store-schema.md))
-- A receipt's recipient is not covered by any signature — it is chosen at issue time. The name is an
-  address, not proof. The receipt says so on the same line as the name, and the label cannot be
-  removed without invalidating the receipt. Making it a real claim requires the issuer to sign the
-  whole receipt, which is useless until the issuer's key is published somewhere the issuer cannot
-  quietly change: see [ADR-015](docs/adr/ADR-015-destinatario.md).
-- **ML-DSA-44 is one additional signature, not a post-quantum deployment.** It covers the log's
-  checkpoint note through the `signed-note` `0xff` extension. Witness cosignatures are Ed25519,
-  which `tlog-witness` states as a SHOULD for new deployments, and block signatures are Ed25519
-  too. An adversary with a quantum computer that breaks Ed25519 breaks the block signatures and
-  the cosignatures; the ML-DSA signature would survive and prove only what the log itself
-  asserted. Read it as hygiene for the day the migration matters, not as protection today.
-  ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md))
+- **"Attested" is only ever a *verified* claim, and verification needs a key from
+  outside the file.** A stored checkpoint counts as attestation only if its log
+  signature and its witness cosignatures verify under a policy you supply
+  (`--witness-name`/`--witness-key`). Without it, `status` says "checkpoint present,
+  NOT verified" and the fast open path is off. An adversarial audit fabricated a
+  checkpoint that the old open path accepted on shape alone; the exploit is a
+  regression test. ([ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md))
+- An adversary who **also controls the witness your policy accepts** can still have
+  garbage cosigned: witnesses do not verify block signatures. `verify --full` catches
+  it; a witness the issuer does not control is the real defense, and it is still
+  product work. ([ADR-014](docs/adr/ADR-014-hoja-y-firma.md))
+- The issuer's signature on a receipt proves who produced *this* document for *this*
+  recipient. It does not prove delivery, and it does not stop the issuer from issuing
+  another receipt for the same record to someone else.
+  ([ADR-015](docs/adr/ADR-015-destinatario.md))
 - A network adversary can prevent detection (availability, and it is noisy) but cannot forge attestation (integrity). ([ADR-011](docs/adr/ADR-011-witness-http.md))
 - VRF commitments give third-party verifiability, **not** privacy: publishing a proof makes a low-entropy field brute-forceable. The ledger commitment is and stays HMAC. ([ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md), [ADR-012](docs/adr/ADR-012-vrf-library.md))
 

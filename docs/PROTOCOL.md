@@ -70,6 +70,28 @@ reported the history as attested. `verify --full` caught it, and nobody runs
 signatures, and a receipt holder can verify the block signature — under v1 they had
 no route to it at all, since the receipt did not carry the signature.
 
+> **Amendment 2026-09-12 (ADR-016), after the adversarial audit.** The sentence
+> above — *"the check that already happens on open covers the signatures"* — was
+> **falsified by measurement two days after it was written.** The open-path check
+> only covers the signatures *below a checkpoint it trusts*, and the audit showed
+> that the checkpoint it trusted could be **fabricated by the same adversary**: a
+> note with the recomputed root and a 76-byte signature blob of invented bytes,
+> which `IsCosigned` accepted on shape alone. The open path never verified the log
+> signature on stored checkpoints. So `leaf/v2` raised the bar only against an
+> adversary who could write `blocks` but not `checkpoints` — a division no real
+> adversary respects. The sentence is left in place, struck through in spirit,
+> because this project records when a measurement contradicts a claim rather than
+> rewriting the claim.
+>
+> What is true after ADR-016: a stored checkpoint counts as attestation **only if
+> verified** — its log signature against the key the ledger itself declares, AND
+> its witness cosignatures under a policy supplied by the caller *from outside the
+> file*. Without that policy the open path reports "checkpoint present, not
+> verified" and takes no shortcut. With it, `leaf/v2` delivers what the paragraph
+> above promised, because the boundary it trusts is now one the adversary cannot
+> draw. The regression test is the audit's exploit, verbatim
+> (`internal/store/exploit_test.go`).
+
 **What v2 does NOT buy.** Nothing changes for an adversary holding the tenant key,
 and nothing changes about truth of content. `signer_pubkey` lives inside the
 header, so it was already pinned by the root under v1.
