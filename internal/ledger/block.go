@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/nucleoledger/nucleo/internal/jcs"
 )
@@ -108,6 +109,16 @@ func (h Header) Validate() error {
 		return fmt.Errorf("%w: signer_pubkey no es Ed25519 hex", ErrInvalidHeader)
 	case strings.TrimSpace(h.Tenant) == "":
 		return fmt.Errorf("%w: tenant vacío", ErrInvalidHeader)
+	case !esUnaLinea(h.Tenant):
+		// El tenant viaja en una línea del recibo —"emisor (tenant)   : X" y
+		// "— X <firma>"— y un salto de línea o un carácter de control ahí produce
+		// un recibo que ningún verificador puede leer. La auditoría lo demostró con
+		// --tenant $'ACME\nS.A.': el sellado pasaba, receipt decía "✔ recibo
+		// escrito" y el verificador respondía "la firma del emisor dice ser de
+		// \"\"". Se rechaza al sellar, que es donde el error señala a quien lo
+		// puede corregir.
+		return fmt.Errorf("%w: el tenant tiene que caber en una línea: sin saltos de línea ni caracteres de control (%q)",
+			ErrInvalidHeader, h.Tenant)
 	case strings.TrimSpace(h.Type) == "":
 		return fmt.Errorf("%w: type vacío", ErrInvalidHeader)
 	case h.Index == 0 && h.PrevHash != GenesisPrevHash:
@@ -352,4 +363,16 @@ func (b *Block) LeafData() ([]byte, error) {
 		return nil, fmt.Errorf("%w: firma no es hex: %w", ErrLeafData, err)
 	}
 	return LeafData(hash, sig)
+}
+
+// esUnaLinea dice si una cadena puede ir en una línea de texto: sin \r, \n ni
+// ningún otro carácter de control, que es exactamente lo que un formato de líneas
+// no puede transportar.
+func esUnaLinea(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
 }

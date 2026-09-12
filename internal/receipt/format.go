@@ -27,6 +27,11 @@ const timeLayout = "2006-01-02T15:04:05Z07:00"
 // va a leer y creer: que su texto visible pueda contradecir sus bytes
 // verificables sería el peor defecto posible de este paquete.
 func Format(r *Receipt, p proof.Policy) ([]byte, error) {
+	// Un header que no valida no puede producir un recibo legible: el tenant va en
+	// líneas de texto, y Validate es quien sabe qué cabe en una línea (C.6).
+	if err := r.Header.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrFormat, err)
+	}
 	text, err := renderText(r, p)
 	if err != nil {
 		return nil, err
