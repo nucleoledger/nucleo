@@ -79,7 +79,56 @@ type OpenResult struct {
 	// Reason explica, cuando Attestation no es Verified pero había un checkpoint,
 	// por qué no se pudo verificar: sin política, o política que no cuadra.
 	Reason string
+	// Signer dice qué se sabe del firmante de los bloques (ADR-017).
+	Signer SignerState
+	// SignerKey es la clave, en hex, que firma TODA la cadena (la del bloque 0; la
+	// continuidad garantiza que es la misma en todos). Vacía si no hay bloques.
+	SignerKey string
 }
+
+// SignerState es lo que la apertura puede afirmar del firmante de bloques.
+//
+// La continuidad —todos los bloques firmados por la MISMA clave— se comprueba
+// siempre y no es un estado: si falla, la apertura falla. Lo que varía es la
+// identidad: si esa clave única es la que quien abre esperaba.
+type SignerState int
+
+const (
+	// SignerNone: no hay bloques, no hay firmante.
+	SignerNone SignerState = iota
+	// SignerUnverified: la cadena la firma una sola clave, pero nadie aportó una
+	// política que diga cuál tenía que ser. Una cadena reescrita ENTERA por otra
+	// clave, autoconsistente, está exactamente en este estado.
+	SignerUnverified
+	// SignerVerified: la clave única coincide con la que fija la política.
+	SignerVerified
+)
+
+// String nombra el estado, también para --json.
+func (st SignerState) String() string {
+	switch st {
+	case SignerVerified:
+		return "verified"
+	case SignerUnverified:
+		return "unverified"
+	default:
+		return "none"
+	}
+}
+
+// ErrSignerContinuity indica que la cadena cambia de firmante: un bloque no está
+// firmado por la misma clave que los anteriores. No hay rotación de la clave del
+// tenant, así que solo tiene una lectura.
+var ErrSignerContinuity = errors.New("store: la cadena cambia de firmante")
+
+// ErrSignerMismatch indica que la clave que firma la cadena no es la que la
+// política espera: una reescritura total autoconsistente, o una política de otro
+// ledger.
+var ErrSignerMismatch = errors.New("store: el firmante de la cadena no es el que la política espera")
+
+// ErrLogKeyMismatch indica que la clave del log de la política no es la que
+// vault_meta declara: alguien sustituyó una de las dos.
+var ErrLogKeyMismatch = errors.New("store: la clave del log de la política no coincide con la que declara el ledger")
 
 // Attestation es el estado de la atestación al abrir (ADR-016).
 //
@@ -135,6 +184,13 @@ func (r OpenResult) String() string {
 type WitnessPolicy struct {
 	Witnesses map[string]ed25519.PublicKey
 	Quorum    int
+	// SignerKey es la clave esperada del firmante de bloques (ADR-017). Opcional al
+	// abrir: sin ella la continuidad se comprueba igual, pero la IDENTIDAD del
+	// firmante queda "no verificada" y el resultado lo dice.
+	SignerKey ed25519.PublicKey
+	// LogKey, si se aporta, tiene que coincidir con la que vault_meta declara. Es
+	// la capa que detecta la sustitución de la clave del log que ADR-016 describió.
+	LogKey ed25519.PublicKey
 }
 
 // ErrPolicy indica una política de apertura que no puede verificar nada.
@@ -171,6 +227,10 @@ func (wp WitnessPolicy) validate() error {
 const (
 	MetaLogPubKey = "log/pubkey/v1"
 	MetaOriginKey = "log/origin/v1"
+	// MetaSignerPubKey es la clave pública del tenant que firma los bloques, en
+	// claro, para que status la publique y una política pueda construirse sin
+	// abrir el vault. Fuente de comparación, nunca raíz de confianza (ADR-017).
+	MetaSignerPubKey = "log/signer-pubkey/v1"
 )
 
 // ErrCheckpointSignature indica que un checkpoint almacenado no está firmado por
@@ -235,7 +295,7 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 		}
 	}
 
-	leaves, err := s.walk(signedFrom)
+	leaves, signer, err := s.walk(signedFrom)
 	if err != nil {
 		return OpenResult{}, err
 	}
@@ -243,7 +303,26 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 		return OpenResult{}, err
 	}
 
-	res := OpenResult{TreeSize: uint64(len(leaves)), Attestation: state, Reason: reason}
+	// IDENTIDAD del firmante (ADR-017): la continuidad ya garantizó que toda la
+	// cadena la firma UNA clave; aquí se decide si es la esperada. Con política y
+	// clave del firmante, una discrepancia es integridad rota: una cadena reescrita
+	// ENTERA por otra clave es autoconsistente y solo esto la distingue. Sin ella,
+	// el estado lo dice honesto en vez de dar por bueno lo que no se ha mirado.
+	signerState := SignerNone
+	if len(leaves) > 0 {
+		signerState = SignerUnverified
+		if s.witnesses != nil && len(s.witnesses.SignerKey) > 0 {
+			if want := hex.EncodeToString(s.witnesses.SignerKey); want != signer {
+				return OpenResult{}, &IntegrityError{Stage: "firmante", Index: -1,
+					Err: fmt.Errorf("%w: la cadena la firma %s… y la política espera %s…",
+						ErrSignerMismatch, signer[:16], want[:16])}
+			}
+			signerState = SignerVerified
+		}
+	}
+
+	res := OpenResult{TreeSize: uint64(len(leaves)), Attestation: state, Reason: reason,
+		Signer: signerState, SignerKey: signer}
 	if attested != nil {
 		// Llegar aquí significa que verifyAgainstCheckpoints contrastó la raíz
 		// de este checkpoint contra el árbol reconstruido y cuadró.
@@ -276,6 +355,13 @@ func (s *Store) logPolicy(c *storedCheckpoint) (proof.Policy, error) {
 	pub, err := s.GetMeta(MetaLogPubKey)
 	if err != nil {
 		return proof.Policy{}, fmt.Errorf("la base tiene checkpoints pero no declara la clave pública del log: %w", err)
+	}
+	// Si quien abre trae la clave del log, tiene que ser la que el ledger declara.
+	// Es la capa que detecta la sustitución de clave que ADR-016 describió y no
+	// tenía código: vault_meta es fuente de comparación, la política es la verdad.
+	if s.witnesses != nil && len(s.witnesses.LogKey) > 0 && !bytes.Equal(s.witnesses.LogKey, pub) {
+		return proof.Policy{}, fmt.Errorf("%w: el ledger declara %s… y la política trae %s…",
+			ErrLogKeyMismatch, hex.EncodeToString(pub)[:16], hex.EncodeToString(s.witnesses.LogKey)[:16])
 	}
 	origin := c.origin
 	if raw, err := s.GetMeta(MetaOriginKey); err == nil {
@@ -321,10 +407,10 @@ type storedCheckpoint struct {
 // Por debajo de signedFrom el trabajo por bloque es un SHA-256 sobre los bytes
 // que hay guardados; a partir de ahí se reconstruye el bloque y se verifican su
 // firma Ed25519 y su encadenamiento.
-func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
+func (s *Store) walk(signedFrom uint64) ([][]byte, string, error) {
 	rows, err := s.db.Query(`SELECT idx, hash, header_json, signature FROM blocks ORDER BY idx`)
 	if err != nil {
-		return nil, &IntegrityError{Stage: "lectura", Index: -1, Err: err}
+		return nil, "", &IntegrityError{Stage: "lectura", Index: -1, Err: err}
 	}
 	defer rows.Close()
 
@@ -332,6 +418,9 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
 		leaves [][]byte
 		prev   *ledger.Block
 		i      int64
+		// signer es la clave del bloque 0. La CONTINUIDAD exige que todos los
+		// demás la compartan, y se comprueba siempre, con o sin atajo (ADR-017).
+		signer string
 	)
 	for rows.Next() {
 		var (
@@ -341,10 +430,10 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
 			signature  string
 		)
 		if err := rows.Scan(&idx, &hash, &headerJSON, &signature); err != nil {
-			return nil, &IntegrityError{Stage: "lectura", Index: i, Err: err}
+			return nil, "", &IntegrityError{Stage: "lectura", Index: i, Err: err}
 		}
 		if idx != i {
-			return nil, &IntegrityError{
+			return nil, "", &IntegrityError{
 				Stage: "secuencia", Index: i,
 				Err: fmt.Errorf("%w: la fila %d contiene el bloque %d", ledger.ErrIndexSequence, i, idx),
 			}
@@ -357,15 +446,15 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
 		// reconstruiría desde una columna hash que nadie ató a su contenido, y
 		// el header_json sería sustituible a voluntad.
 		if sha256Hex(headerJSON) != hash {
-			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: ledger.ErrHashMismatch}
+			return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: ledger.ErrHashMismatch}
 		}
 		rawHash, err := decodeHash(hash)
 		if err != nil {
-			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+			return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: err}
 		}
 		rawSig, err := hex.DecodeString(signature)
 		if err != nil {
-			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+			return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: err}
 		}
 		// La hoja es hash ‖ signature (leaf/v2, PROTOCOL.md §2.1). Aquí está el
 		// cambio que da valor a ADR-014: bajo leaf/v1 esta pasada solo ataba
@@ -377,9 +466,26 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
 		// verificaciones Ed25519 se saltan a propósito por coste.
 		leaf, err := ledger.LeafData(rawHash, rawSig)
 		if err != nil {
-			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+			return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: err}
 		}
 		leaves = append(leaves, leaf)
+
+		// Continuidad del firmante, SIEMPRE, también por debajo del atajo. Es lo que
+		// cierra el exploit de la segunda auditoría tal cual se ejecutó: los
+		// bloques 1-4 re-firmados con otra clave, autoconsistentes, y nadie
+		// comparaba el signer_pubkey de un bloque con el del anterior. Se lee del
+		// header_json almacenado, cuyo hash ya se ató arriba.
+		sp, err := signerOf(headerJSON)
+		if err != nil {
+			return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+		}
+		if idx == 0 {
+			signer = sp
+		} else if sp != signer {
+			return nil, "", &IntegrityError{Stage: "firmante", Index: idx,
+				Err: fmt.Errorf("%w: el bloque 0 lo firma %s… y el bloque %d lo firma %s…",
+					ErrSignerContinuity, signer[:16], idx, sp[:16])}
+		}
 
 		// El último bloque cubierto por el checkpoint también se reconstruye,
 		// para poder comprobar el encadenamiento con el primero que no lo está.
@@ -389,15 +495,15 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
 		}
 		b, err := decodeBlock(idx, hash, headerJSON, signature)
 		if err != nil {
-			return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+			return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: err}
 		}
 		if uint64(idx) >= signedFrom {
 			if err := b.Verify(); err != nil {
-				return nil, &IntegrityError{Stage: "bloque", Index: idx, Err: err}
+				return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: err}
 			}
 			if prev != nil {
 				if err := ledger.VerifyLink(prev, b); err != nil {
-					return nil, &IntegrityError{Stage: "encadenamiento", Index: idx, Err: err}
+					return nil, "", &IntegrityError{Stage: "encadenamiento", Index: idx, Err: err}
 				}
 			}
 		}
@@ -405,9 +511,25 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, error) {
 		i++
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &IntegrityError{Stage: "lectura", Index: -1, Err: err}
+		return nil, "", &IntegrityError{Stage: "lectura", Index: -1, Err: err}
 	}
-	return leaves, nil
+	return leaves, signer, nil
+}
+
+// signerOf saca signer_pubkey del header canónico almacenado sin reconstruir el
+// bloque entero: es lo que permite comprobar la continuidad también por debajo
+// del atajo, donde los bloques no se decodifican.
+func signerOf(headerJSON string) (string, error) {
+	var h struct {
+		SignerPubKey string `json:"signer_pubkey"`
+	}
+	if err := json.Unmarshal([]byte(headerJSON), &h); err != nil {
+		return "", fmt.Errorf("header ilegible: %w", err)
+	}
+	if len(h.SignerPubKey) != 2*ed25519.PublicKeySize {
+		return "", fmt.Errorf("%w: signer_pubkey de %d caracteres", ledger.ErrInvalidHeader, len(h.SignerPubKey))
+	}
+	return h.SignerPubKey, nil
 }
 
 // sha256Hex devuelve el SHA-256 en hexadecimal de la cadena dada.

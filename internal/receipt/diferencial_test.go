@@ -94,6 +94,7 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 		Policy  struct {
 			Origin    string            `json:"origin"`
 			LogKey    string            `json:"log_key"`
+			SignerKey string            `json:"signer_key"`
 			Witnesses map[string]string `json:"witnesses"`
 			Quorum    int               `json:"quorum"`
 		} `json:"policy"`
@@ -104,6 +105,9 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 	pol := proof.Policy{Origin: v.Policy.Origin, Quorum: v.Policy.Quorum,
 		Witnesses: map[string]ed25519.PublicKey{}}
 	if pol.LogKey, err = hex.DecodeString(v.Policy.LogKey); err != nil {
+		t.Fatal(err)
+	}
+	if pol.SignerKey, err = hex.DecodeString(v.Policy.SignerKey); err != nil {
 		t.Fatal(err)
 	}
 	for n, h := range v.Policy.Witnesses {
@@ -146,7 +150,7 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 	}
 	enc, err := json.MarshalIndent(map[string]any{
 		"policy": map[string]any{
-			"origin": v.Policy.Origin, "logKey": v.Policy.LogKey,
+			"origin": v.Policy.Origin, "logKey": v.Policy.LogKey, "signerKey": v.Policy.SignerKey,
 			"witnesses": v.Policy.Witnesses, "quorum": v.Policy.Quorum,
 		},
 		"casos": casos,

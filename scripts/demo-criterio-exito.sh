@@ -210,6 +210,7 @@ st = json.load(sys.stdin)
 print(json.dumps({
     "origin": st["origin"],
     "logKey": st["log_pubkey"],
+    "signerKey": st["signer_pubkey"],
     "witnesses": {"witness.nucleoledger.com/w1": sys.argv[1]},
     "quorum": 1,
 }, indent=2))' "$WKEY" > "$POLITICA"

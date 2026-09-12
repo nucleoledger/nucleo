@@ -52,6 +52,11 @@ func cmdStatus(e *env, args []string) error {
 		"attested_size": res.AttestedSize,
 		"root":          hex.EncodeToString(root),
 		"freshness":     st.json(),
+		"signer":        signerJSON(res),
+		// La clave del firmante de bloques, para construir una política. Sale de
+		// la propia cadena cuando hay bloques —la continuidad garantiza que es una
+		// sola— y de vault_meta en un ledger vacío.
+		"signer_pubkey": signerPubkey(s, res),
 	}
 	// El aviso sale ANTES del volcado, y sale también en modo --json: va por
 	// stderr, así que no contamina la salida que alguien parsea. Es lo que hace
@@ -64,6 +69,7 @@ func cmdStatus(e *env, args []string) error {
 			e.printf("clave log : %s\n", logPub)
 		}
 		e.printf("regla hoja: %s\n", leafRule)
+		e.printf("clave firma: %s\n", signerPubkey(s, res))
 		e.printf("bloques   : %d\n", res.TreeSize)
 		e.printf("raíz      : %s\n", hex.EncodeToString(root))
 		printAttestation(e, res)
@@ -151,6 +157,7 @@ func cmdVerify(e *env, args []string) error {
 		"attestation":   res.Attestation.String(),
 		"attested_size": res.AttestedSize,
 		"freshness":     st.json(),
+		"signer":        signerJSON(res),
 	}, func() {
 		if *full {
 			e.printf("✔ verificación EXHAUSTIVA superada: %d bloques, todas las firmas recomputadas\n", res.TreeSize)
@@ -171,6 +178,7 @@ func cmdVerify(e *env, args []string) error {
 // lenguaje del PoC: la distinción entre "íntegra" y "completa" es la que cuesta
 // entender y la que más importa.
 func printAttestation(e *env, r store.OpenResult) {
+	printSigner(e, r)
 	switch {
 	case r.TreeSize == 0:
 		e.printf("estado    : base nueva, todavía sin historia que atestiguar\n")
@@ -199,4 +207,42 @@ func printAttestation(e *env, r store.OpenResult) {
 func witnessFlags(fs *flag.FlagSet) (name, key *string) {
 	return fs.String("witness-name", "", "nombre del testigo cuya cosignature avala el ledger"),
 		fs.String("witness-key", "", "clave pública de ese testigo, en hexadecimal")
+}
+
+// printSigner dice qué se sabe del firmante de los bloques (ADR-017).
+//
+// La continuidad —una sola clave en toda la cadena— ya se comprobó al abrir, o
+// no se habría llegado aquí. Lo que aquí se dice es si esa clave es la que quien
+// abre esperaba, y eso solo se sabe con una política. Una cadena reescrita ENTERA
+// por otra clave es autoconsistente: sin la clave esperada, lo honesto es decir
+// "no verificado" y publicar la clave, para que alguien la compare.
+func printSigner(e *env, r store.OpenResult) {
+	switch r.Signer {
+	case store.SignerVerified:
+		e.printf("firmante  : ✔ verificado contra la política\n")
+	case store.SignerUnverified:
+		e.printf("firmante  : ◐ una sola clave en toda la cadena, NO verificada contra ninguna política\n")
+		e.printf("            Pasa --signer-key o --policy-file para comprobar que es la tuya.\n")
+	}
+}
+
+// signerJSON es el objeto "signer" de --json.
+func signerJSON(r store.OpenResult) map[string]any {
+	return map[string]any{
+		"state":    r.Signer.String(),
+		"verified": r.Signer == store.SignerVerified,
+		"pubkey":   r.SignerKey,
+	}
+}
+
+// signerPubkey devuelve la clave del firmante: la de la cadena si hay bloques, la
+// de vault_meta si no.
+func signerPubkey(s *store.Store, r store.OpenResult) string {
+	if r.SignerKey != "" {
+		return r.SignerKey
+	}
+	if raw, err := s.GetMeta(store.MetaSignerPubKey); err == nil {
+		return hex.EncodeToString(raw)
+	}
+	return ""
 }

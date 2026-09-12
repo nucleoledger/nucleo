@@ -60,6 +60,15 @@ type Policy struct {
 	// LogKey es la clave pública del log. Debe estar siempre: si no se conoce
 	// ninguna clave que verifique, la nota ni siquiera se puede abrir.
 	LogKey ed25519.PublicKey
+	// SignerKey es la clave pública del tenant que firma los BLOQUES (ADR-017).
+	//
+	// Obligatoria para verificar un recibo. Sin ella, "firmado por el emisor"
+	// se comprobaría contra la clave que trae el propio recibo en su header, y
+	// eso es una afirmación del recibo sobre sí mismo: la segunda auditoría
+	// adversarial emitió un recibo de un bloque firmado por una clave ajena, bajo
+	// el checkpoint del log real, y los tres verificadores lo dieron por bueno.
+	// La clave del firmante tiene que venir de fuera, como la del log.
+	SignerKey ed25519.PublicKey
 	// Witnesses son los testigos aceptados, por nombre.
 	Witnesses map[string]ed25519.PublicKey
 	// Quorum es el número mínimo de cosignatures de testigos distintos.
@@ -228,6 +237,18 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 		return Result{}, fmt.Errorf("%w: %d de %d", ErrQuorum, len(res.Cosigners), p.Quorum)
 	}
 	return res, nil
+}
+
+// RequireSignerKey exige que la política traiga la clave del firmante de bloques.
+// Lo llama quien verifica un RECIBO: una nota de checkpoint no tiene firmante de
+// bloques, así que VerifyNote no lo pide, pero un recibo sin esta clave en la
+// política no puede afirmar autoría (ADR-017).
+func (p Policy) RequireSignerKey() error {
+	if len(p.SignerKey) != ed25519.PublicKeySize {
+		return fmt.Errorf("%w: falta la clave del firmante de bloques (signerKey), o no mide %d bytes",
+			ErrPolicy, ed25519.PublicKeySize)
+	}
+	return nil
 }
 
 // Verify comprueba el recibo contra la política, sin tocar el ledger.

@@ -29,6 +29,7 @@ window.NUCLEO_EJEMPLO = ` +
       policy: {
         origin: vector.policy.origin,
         logKey: vector.policy.log_key,
+        signerKey: vector.policy.signer_key,
         witnesses: vector.policy.witnesses,
         quorum: vector.policy.quorum,
       },

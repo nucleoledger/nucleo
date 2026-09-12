@@ -5,6 +5,7 @@
   "policy": {
     "origin": "nucleoledger.com/recibos",
     "log_key": "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628",
+    "signer_key": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664",
     "witnesses": {},
     "quorum": 0
   },

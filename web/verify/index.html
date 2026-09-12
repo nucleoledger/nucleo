@@ -261,7 +261,7 @@
   const EJEMPLO = window.NUCLEO_EJEMPLO ?? { receipt: "", policy: {} };
   if (!EJEMPLO.receipt) $("ejemplo").disabled = true;
   politica.value = JSON.stringify(
-    { origin: "nucleoledger.com/mi-empresa", logKey: "", witnesses: {}, quorum: 1 },
+    { origin: "nucleoledger.com/mi-empresa", logKey: "", signerKey: "", witnesses: {}, quorum: 1 },
     null, 2);
 })();
 </script>

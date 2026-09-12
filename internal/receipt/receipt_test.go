@@ -127,6 +127,7 @@ func newScene(t *testing.T, cosigners int) *scene {
 func (sc *scene) policy() proof.Policy {
 	return proof.Policy{
 		Origin: testOrigin, LogKey: sc.logPub,
+		SignerKey: sc.tenantPriv.Public().(ed25519.PublicKey),
 		Witnesses: sc.wits, Quorum: len(sc.wits),
 	}
 }

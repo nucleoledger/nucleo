@@ -223,6 +223,10 @@ func cmdReceipt(e *env, args []string) error {
 		return err
 	}
 	defer v.Close()
+	// La clave del firmante de la política del EMISOR sale del vault que acaba de
+	// abrir, no de vault_meta ni del ledger: es la única fuente que el propio
+	// emisor no puede haberse dejado manipular sin la passphrase (ADR-017).
+	pol.SignerKey = id.TenantPublic()
 
 	r, err := receipt.Issue(s, *recipient, uint64(*block), pol, id.Tenant)
 	if err != nil {

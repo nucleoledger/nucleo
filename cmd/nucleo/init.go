@@ -88,6 +88,12 @@ func cmdInit(e *env, args []string) error {
 	if err := s.PutMeta(metaOriginKey, []byte(id.Origin)); err != nil {
 		return err
 	}
+	// Y la del firmante de bloques, también en claro: status la publica para que
+	// una política se pueda escribir sin abrir el vault. Es fuente de comparación,
+	// no raíz de confianza —la raíz es la política que viene de fuera (ADR-017)—.
+	if err := s.PutMeta(store.MetaSignerPubKey, id.TenantPublic()); err != nil {
+		return err
+	}
 
 	kek, err := deriveKEKFor(s, pass)
 	if err != nil {

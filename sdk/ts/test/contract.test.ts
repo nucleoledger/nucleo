@@ -16,13 +16,15 @@ import { readJSON } from "./vectors.js";
 
 interface Vector {
   receipt: string;
-  policy: { origin: string; log_key: string; witnesses: Record<string, string>; quorum: number };
+  policy: { origin: string; log_key: string;
+  signer_key: string; witnesses: Record<string, string>; quorum: number };
 }
 
 const bueno = readJSON<Vector>("receipt", "valido-1-cosignature.json");
 const politicaBuena: Policy = {
   origin: bueno.policy.origin,
   logKey: bueno.policy.log_key,
+  signerKey: bueno.policy.signer_key,
   witnesses: bueno.policy.witnesses,
   quorum: bueno.policy.quorum,
 };

@@ -347,6 +347,10 @@ time ${timestamp.toString()}
     }
     if (typeof p.logKey !== "string") throw new Error("logKey no es una cadena");
     const logKey = clave(p.logKey, "logKey");
+    if (typeof p.signerKey !== "string") {
+      throw new Error("falta signerKey: la clave del firmante de bloques tiene que venir en la pol\xEDtica (ADR-017)");
+    }
+    const signerKey = clave(p.signerKey, "signerKey");
     const witnesses = [];
     const w = p.witnesses ?? {};
     if (typeof w !== "object" || w === null) throw new Error("witnesses no es un objeto");
@@ -357,7 +361,7 @@ time ${timestamp.toString()}
     if (p.quorum !== void 0 && (!Number.isInteger(p.quorum) || p.quorum < 0)) {
       throw new Error(`quorum inv\xE1lido: ${String(p.quorum)}`);
     }
-    return { logKey, witnesses };
+    return { logKey, signerKey, witnesses };
   }
   function clave(hex, cual) {
     let raw;
@@ -412,6 +416,9 @@ time ${timestamp.toString()}
     const leafData = concat(blockHash, p.blockSig);
     let blockSignatureVerified = null;
     let receiptSignatureVerified = null;
+    if ((p.header.signer_pubkey ?? "").toLowerCase() !== toHex(claves.signerKey)) {
+      reasons.push("el bloque no est\xE1 firmado por la clave del emisor que fija la pol\xEDtica (signerKey)");
+    }
     const signerPub = fromHex(p.header.signer_pubkey ?? "");
     if (signerPub === null || signerPub.length !== 32) {
       reasons.push("signer_pubkey del header no es una clave Ed25519");

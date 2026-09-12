@@ -116,6 +116,10 @@ var (
 	// verifica. Es el rechazo que protege al destinatario: sin él, la línea del
 	// destinatario la puede reescribir cualquiera que tenga el fichero.
 	ErrReceiptSignature = errors.New("receipt: la firma del emisor sobre el recibo no verifica")
+	// ErrUnexpectedSigner indica que el bloque lo firmó una clave distinta de la
+	// que la política espera. Las firmas pueden ser perfectas y aun así el
+	// documento no ser del emisor que la contraparte cree (ADR-017).
+	ErrUnexpectedSigner = errors.New("receipt: el bloque no está firmado por la clave del emisor que fija la política")
 	// ErrNoReceiptSignature indica un recibo sin firma del emisor. El formato la
 	// exige: un recibo sin ella es de una versión anterior.
 	ErrNoReceiptSignature = errors.New("receipt: el recibo no lleva firma del emisor")
@@ -326,6 +330,17 @@ func (r *Receipt) ProvableTime(p proof.Policy) (time.Time, bool, error) {
 // cubre el texto. Exigirla aquí haría imposible firmar. La comprueban Verify y
 // Parse, que son las dos puertas por las que entra un recibo ajeno.
 func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
+	// IDENTIDAD del firmante, contra la política y no contra el recibo (ADR-017).
+	// Va antes que todo lo demás porque es la pregunta que la contraparte hace en
+	// realidad: ¿es de quien creo que es? Una firma válida de otra clave no la
+	// responde.
+	if err := p.RequireSignerKey(); err != nil {
+		return proof.Result{}, err
+	}
+	if hex.EncodeToString(p.SignerKey) != r.Header.SignerPubKey {
+		return proof.Result{}, fmt.Errorf("%w: el header declara %s y la política espera %s",
+			ErrUnexpectedSigner, r.Header.SignerPubKey[:16], hex.EncodeToString(p.SignerKey)[:16])
+	}
 	// La firma del bloque se comprueba ANTES de la prueba de inclusión. El orden
 	// no cambia el veredicto, pero sí el mensaje de error que alguien va a leer:
 	// "la firma del emisor no verifica" dice qué pasa; "la entrada no está

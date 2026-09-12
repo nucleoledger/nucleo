@@ -7,7 +7,8 @@ interface Vector {
   name: string;
   description: string;
   receipt: string;
-  policy: { origin: string; log_key: string; witnesses: Record<string, string>; quorum: number };
+  policy: { origin: string; log_key: string;
+  signer_key: string; witnesses: Record<string, string>; quorum: number };
   // leaf_data es la hoja de leaf/v2 en hex: hash ‖ signature (PROTOCOL.md §2.1).
   leaf_data: string;
   leaf_rule: string;
@@ -23,6 +24,7 @@ function toPolicy(v: Vector): Policy {
   return {
     origin: v.policy.origin,
     logKey: v.policy.log_key,
+        signerKey: v.policy.signer_key,
     witnesses: v.policy.witnesses,
     quorum: v.policy.quorum,
   };

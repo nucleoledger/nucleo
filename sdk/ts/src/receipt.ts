@@ -75,6 +75,16 @@ export interface Policy {
   origin: string;
   /** logKey en hexadecimal: la pública Ed25519 del log. */
   logKey: string;
+  /**
+   * signerKey en hexadecimal: la pública Ed25519 del tenant que FIRMA LOS BLOQUES.
+   *
+   * Obligatoria (ADR-017). Sin ella, "firmado por el emisor" se comprobaría contra
+   * la clave que trae el propio recibo, que es una afirmación del recibo sobre sí
+   * mismo. La segunda auditoría adversarial emitió un recibo de un bloque firmado
+   * por una clave ajena, bajo el checkpoint real, y este verificador lo dio por
+   * bueno. La clave del firmante tiene que venir de fuera, como la del log.
+   */
+  signerKey: string;
   /** witnesses acepta nombre → pública en hexadecimal. */
   witnesses?: Record<string, string>;
   /** quorum es el mínimo de cosignatures válidas exigidas. */
@@ -202,6 +212,7 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
 /** ClavesDePolitica es la política ya convertida a bytes. */
 interface ClavesDePolitica {
   logKey: Uint8Array;
+  signerKey: Uint8Array;
   witnesses: Array<{ name: string; key: Uint8Array }>;
 }
 
@@ -226,6 +237,10 @@ function parsePolicy(p: Policy): ClavesDePolitica {
   }
   if (typeof p.logKey !== "string") throw new Error("logKey no es una cadena");
   const logKey = clave(p.logKey, "logKey");
+  if (typeof p.signerKey !== "string") {
+    throw new Error("falta signerKey: la clave del firmante de bloques tiene que venir en la política (ADR-017)");
+  }
+  const signerKey = clave(p.signerKey, "signerKey");
 
   const witnesses: Array<{ name: string; key: Uint8Array }> = [];
   const w = p.witnesses ?? {};
@@ -237,7 +252,7 @@ function parsePolicy(p: Policy): ClavesDePolitica {
   if (p.quorum !== undefined && (!Number.isInteger(p.quorum) || p.quorum < 0)) {
     throw new Error(`quorum inválido: ${String(p.quorum)}`);
   }
-  return { logKey, witnesses };
+  return { logKey, signerKey, witnesses };
 }
 
 /** clave convierte un hexadecimal de 32 bytes, o explica por qué no puede. */
@@ -316,6 +331,12 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   // veredicto merece saber cuál de las dos falló.
   let blockSignatureVerified: boolean | null = null;
   let receiptSignatureVerified: boolean | null = null;
+  // IDENTIDAD del firmante, contra la política y no contra el recibo (ADR-017).
+  // Es la pregunta que la contraparte hace en realidad —¿es de quien creo que
+  // es?— y una firma válida de OTRA clave no la responde.
+  if ((p.header.signer_pubkey ?? "").toLowerCase() !== toHex(claves.signerKey)) {
+    reasons.push("el bloque no está firmado por la clave del emisor que fija la política (signerKey)");
+  }
   const signerPub = fromHex(p.header.signer_pubkey ?? "");
   if (signerPub === null || signerPub.length !== 32) {
     reasons.push("signer_pubkey del header no es una clave Ed25519");

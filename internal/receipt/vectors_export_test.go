@@ -51,6 +51,7 @@ type vectorFile struct {
 type vectorPolicy struct {
 	Origin    string            `json:"origin"`
 	LogKey    string            `json:"log_key"`
+	SignerKey string            `json:"signer_key"`
 	Witnesses map[string]string `json:"witnesses"`
 	Quorum    int               `json:"quorum"`
 }
@@ -91,6 +92,7 @@ func TestExportReceiptVectors(t *testing.T) {
 	exported := vectorPolicy{
 		Origin:    pol.Origin,
 		LogKey:    hex.EncodeToString(pol.LogKey),
+		SignerKey: hex.EncodeToString(pol.SignerKey),
 		Witnesses: map[string]string{},
 		Quorum:    pol.Quorum,
 	}
@@ -132,7 +134,7 @@ func TestExportReceiptVectors(t *testing.T) {
 	untrusted.Valid = false
 	untrusted.Reason = "untrusted_cosignature"
 	untrusted.Policy = vectorPolicy{
-		Origin: exported.Origin, LogKey: exported.LogKey,
+		Origin: exported.Origin, LogKey: exported.LogKey, SignerKey: exported.SignerKey,
 		Witnesses: map[string]string{}, Quorum: 0,
 	}
 	untrusted.ProvableTime = ""
@@ -185,9 +187,14 @@ func policyFromVector(t *testing.T, v vectorPolicy) proof.Policy {
 	if err != nil {
 		t.Fatal(err)
 	}
+	signerKey, err := hex.DecodeString(v.SignerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
 	pol := proof.Policy{
 		Origin:    v.Origin,
 		LogKey:    ed25519.PublicKey(logKey),
+		SignerKey: ed25519.PublicKey(signerKey),
 		Quorum:    v.Quorum,
 		Witnesses: map[string]ed25519.PublicKey{},
 	}

@@ -22,7 +22,8 @@ const ejemploPath = join(here, "..", "..", "..", "web", "verify", "ejemplo.js");
 interface Vector {
   name: string;
   receipt: string;
-  policy: { origin: string; log_key: string; witnesses: Record<string, string>; quorum: number };
+  policy: { origin: string; log_key: string;
+  signer_key: string; witnesses: Record<string, string>; quorum: number };
   valid: boolean;
   provable_time?: string;
   block_index: number;
@@ -73,6 +74,7 @@ describe("el bundle que sirve la página web", () => {
       const result = await verify(v.receipt, {
         origin: v.policy.origin,
         logKey: v.policy.log_key,
+        signerKey: v.policy.signer_key,
         witnesses: v.policy.witnesses,
         quorum: v.policy.quorum,
       });
@@ -98,6 +100,7 @@ describe("el bundle que sirve la página web", () => {
     const pol = {
       origin: v.policy.origin,
       logKey: v.policy.log_key,
+        signerKey: v.policy.signer_key,
       witnesses: v.policy.witnesses,
       quorum: v.policy.quorum,
     };
