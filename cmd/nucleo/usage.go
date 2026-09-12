@@ -77,14 +77,42 @@ PERFILES DE DERIVACIÓN (init --kdf-profile)
   Los parámetros se guardan en el vault: se abre con los que se creó, no con los
   de la versión del binario. Cambiar de perfil exige crear un vault nuevo.
 
+LA POLÍTICA (--policy-file)
+  Todo lo que un verificador tiene que traer de FUERA del fichero, en un JSON
+  que es el mismo que usan el SDK de TypeScript y la página web:
+
+    {
+      "origin":    "nucleoledger.com/mi-empresa",
+      "logKey":    "<hex>",    clave pública del log
+      "signerKey": "<hex>",    clave pública del que firma los bloques
+      "witnesses": { "witness.ejemplo/w1": "<hex>" },
+      "quorum":    1
+    }
+
+  El subcomando sync la imprime lista para guardar al terminar. Se pasa con --policy-file a
+  status, verify, seal, reconcile, sync y receipt. Las banderas sueltas
+  (--witness-name, --witness-key, --signer-key) siguen valiendo; fichero Y
+  banderas a la vez es error: dos fuentes de verdad se contradicen en silencio.
+  Si una bandera se repite, gana la ÚLTIMA, que es lo que hace el paquete flag
+  de Go; no es un mecanismo para combinar valores.
+
+  Por qué la clave del firmante no puede salir del propio ledger: vive en el
+  fichero que un atacante escribe, y "verificarla" contra sí misma sube el
+  listón en un UPDATE. status la publica para que la COMPARES con tu política,
+  no para que la copies de ahí.
+
 QUÉ SIGNIFICA "ATESTIGUADA"
   Un checkpoint guardado en el ledger solo cuenta como atestación si se puede
   VERIFICAR, con la misma maquinaria que un recibo: la firma del log con la
   clave que el propio ledger declara, y la cosignature del testigo con una
   clave que viene de FUERA del fichero. Esa clave la aportas tú:
 
-    nucleo status --witness-name w/1 --witness-key HEX
-    (también verify, seal y reconcile; receipt y sync ya la llevan)
+    nucleo status --policy-file politica.json
+    (o --witness-name y --witness-key; también verify, seal y reconcile)
+
+  Con "signerKey" en la política, además se comprueba que la cadena la firma
+  quien tú dices: sin ella, status dice "firmante: NO verificado". La
+  continuidad —una sola clave en toda la cadena— se comprueba siempre.
 
   Sin ella, la apertura no puede afirmar nada sobre terceros y no lo afirma:
   dice "checkpoint presente, NO verificado". Y sin atestación verificada no

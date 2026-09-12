@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -26,7 +25,7 @@ func cmdSeal(e *env, args []string) error {
 	xmlFile := fs.String("xml", "", "fichero XML del comprobante (equivale a --payload con un perfil)")
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	clear := fs.Bool("no-encrypt", false, "no guarda el contenido cifrado; solo sella su hash")
-	wName, wKey := witnessFlags(fs)
+	pf := registerPolicyFlags(fs)
 	maxPayload := fs.Int64("max-payload", DefaultMaxPayload, "tamaño máximo del documento a sellar, en bytes")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
@@ -74,7 +73,11 @@ func cmdSeal(e *env, args []string) error {
 		return usageErr("seal necesita --tenant")
 	}
 
-	s, _, err := e.openStoreWith(*wName, *wKey)
+	wp, _, err := pf.resolve()
+	if err != nil {
+		return err
+	}
+	s, _, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
@@ -186,8 +189,7 @@ func cmdReceipt(e *env, args []string) error {
 	block := fs.Int64("block", -1, "índice del bloque")
 	recipient := fs.String("recipient", "", "a quién se entrega el recibo")
 	out := fs.String("out", "", "fichero de salida (por defecto, la pantalla)")
-	witnessName := fs.String("witness-name", "", "nombre del testigo aceptado")
-	witnessKey := fs.String("witness-key", "", "clave pública del testigo, en hexadecimal")
+	pf := registerPolicyFlags(fs)
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
@@ -199,15 +201,22 @@ func cmdReceipt(e *env, args []string) error {
 		return usageErr("receipt necesita --recipient \"Nombre\"")
 	}
 
-	s, _, err := e.openStoreWith(*witnessName, *witnessKey)
+	wp, file, err := pf.resolve()
+	if err != nil {
+		return err
+	}
+	if wp == nil {
+		return usageErr("receipt necesita la política del testigo: --policy-file, o --witness-name y --witness-key")
+	}
+	s, _, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
 	defer s.Close()
 
-	// La política del emisor. Las claves del log salen del propio ledger: el
-	// checkpoint guardado dice qué origin es, y el recibo se emite contra él.
-	pol, err := issuerPolicy(s, *witnessName, *witnessKey)
+	// La política del emisor. Origin y clave del log salen del propio ledger; los
+	// testigos, de la política; la clave del firmante, del vault que se abre abajo.
+	pol, err := issuerPolicy(s, wp)
 	if err != nil {
 		return err
 	}
@@ -227,6 +236,12 @@ func cmdReceipt(e *env, args []string) error {
 	// abrir, no de vault_meta ni del ledger: es la única fuente que el propio
 	// emisor no puede haberse dejado manipular sin la passphrase (ADR-017).
 	pol.SignerKey = id.TenantPublic()
+	// Si la política vino en fichero, tiene que ser la de ESTE ledger y ESTE vault.
+	if file != nil {
+		if err := checkPolicyMatchesLedger(file, pol.Origin, pol.LogKey, pol.SignerKey); err != nil {
+			return err
+		}
+	}
 
 	r, err := receipt.Issue(s, *recipient, uint64(*block), pol, id.Tenant)
 	if err != nil {
@@ -279,7 +294,7 @@ func cmdReceipt(e *env, args []string) error {
 }
 
 // issuerPolicy arma la política con la que se emite y se comprueba el recibo.
-func issuerPolicy(s *store.Store, witnessName, witnessKey string) (proof.Policy, error) {
+func issuerPolicy(s *store.Store, wp *store.WitnessPolicy) (proof.Policy, error) {
 	noteBytes, err := s.LastCheckpoint()
 	if err != nil {
 		return proof.Policy{}, usageErr("el ledger no tiene ningún checkpoint todavía; ejecuta `nucleo sync`")
@@ -296,16 +311,8 @@ func issuerPolicy(s *store.Store, witnessName, witnessKey string) (proof.Policy,
 	}
 	pol.LogKey = logKey
 
-	if witnessName != "" || witnessKey != "" {
-		if witnessName == "" || witnessKey == "" {
-			return proof.Policy{}, usageErr("--witness-name y --witness-key van juntos")
-		}
-		pub, err := hexKey(witnessKey)
-		if err != nil {
-			return proof.Policy{}, err
-		}
-		pol.Witnesses = map[string]ed25519.PublicKey{witnessName: pub}
-	}
+	pol.Witnesses = wp.Witnesses
+	pol.Quorum = wp.Quorum
 	return pol, nil
 }
 

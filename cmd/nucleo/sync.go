@@ -24,31 +24,38 @@ func cmdSync(e *env, args []string) error {
 	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	url := fs.String("witness", "", "URL del testigo")
-	name := fs.String("witness-name", "", "nombre del testigo")
-	key := fs.String("witness-key", "", "clave pública del testigo, en hexadecimal")
+	pf := registerPolicyFlags(fs)
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	timeout := fs.Duration("timeout", 30*time.Second, "tiempo máximo de espera")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	switch {
-	case *url == "":
+	if *url == "" {
 		return usageErr("sync necesita --witness URL")
-	case *name == "":
-		return usageErr("sync necesita --witness-name")
-	case *key == "":
-		return usageErr("sync necesita --witness-key HEX")
 	}
-	pub, err := hexKey(*key)
+	wp, file, err := pf.resolve()
 	if err != nil {
 		return err
 	}
-	client, err := witness.NewClient(*url, *name, pub)
+	if wp == nil {
+		return usageErr("sync necesita el testigo: --policy-file, o --witness-name y --witness-key")
+	}
+	// sync habla con UN testigo. Con un fichero de varios habría que elegir, y
+	// elegir en silencio es peor que pedirlo.
+	if len(wp.Witnesses) != 1 {
+		return usageErr("sync necesita exactamente un testigo en la política; este fichero trae %d", len(wp.Witnesses))
+	}
+	var name string
+	var pub ed25519.PublicKey
+	for n, k := range wp.Witnesses {
+		name, pub = n, k
+	}
+	client, err := witness.NewClient(*url, name, pub)
 	if err != nil {
 		return usageErr("%v", err)
 	}
 
-	s, _, err := e.openStoreWith(*name, *key)
+	s, _, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
@@ -57,6 +64,11 @@ func cmdSync(e *env, args []string) error {
 	v, id, err := e.unlock(s, *passFile, "Passphrase del vault: ")
 	if err != nil {
 		return err
+	}
+	if file != nil {
+		if err := checkPolicyMatchesLedger(file, id.Origin, id.LogPublic(), id.TenantPublic()); err != nil {
+			return err
+		}
 	}
 	defer v.Close()
 
@@ -106,7 +118,7 @@ func cmdSync(e *env, args []string) error {
 	// razón por la que ese chequeo no se haría nunca.
 	if res.Attested {
 		if err := s.PutLastAttested(store.AttestationRecord{
-			Witness:    *name,
+			Witness:    name,
 			At:         res.AttestedAt,
 			Size:       res.LocalSize,
 			RecordedAt: now(),
@@ -122,8 +134,12 @@ func cmdSync(e *env, args []string) error {
 		"attested":     res.Attested,
 		"attested_at":  res.AttestedAt.UTC().Format(time.RFC3339),
 		"first_time":   res.Fresh,
+		// La política lista para guardar: lo que hace falta para volver a abrir
+		// este ledger con atestación verificada, y lo mismo que la contraparte
+		// necesita para verificar sus recibos (ADR-017 c).
+		"policy": jsonPolicy(id.Origin, id.LogPublic(), id.TenantPublic(), name, pub),
 	}, func() {
-		e.printf("✔ atestación obtenida del testigo %s\n", *name)
+		e.printf("✔ atestación obtenida del testigo %s\n", name)
 		e.printf("  origin  : %s\n", res.Origin)
 		e.printf("  bloques : %d\n", res.LocalSize)
 		e.printf("  tiempo  : %s (lo afirma el testigo, no este reloj)\n",
@@ -132,6 +148,10 @@ func cmdSync(e *env, args []string) error {
 			e.printf("  (era el primer checkpoint de este log para ese testigo)\n")
 		} else if res.WitnessSize < res.LocalSize {
 			e.printf("  (extensión de %d a %d, con prueba de consistencia)\n", res.WitnessSize, res.LocalSize)
+		}
+		// Si ya vino de fichero, quien lo invocó ya lo tiene; si no, se le da hecho.
+		if file == nil {
+			policySnippet(e, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub)
 		}
 	})
 	return nil

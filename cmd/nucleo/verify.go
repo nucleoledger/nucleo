@@ -11,11 +11,15 @@ import (
 func cmdStatus(e *env, args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
-	wName, wKey := witnessFlags(fs)
+	pf := registerPolicyFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	s, res, err := e.openStoreWith(*wName, *wKey)
+	wp, _, err := pf.resolve()
+	if err != nil {
+		return err
+	}
+	s, res, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
@@ -122,11 +126,15 @@ func cmdVerify(e *env, args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	full := fs.Bool("full", false, "recomputa TODAS las firmas, sin apoyarse en ningún checkpoint")
-	wName, wKey := witnessFlags(fs)
+	pf := registerPolicyFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	s, res, err := e.openStoreWith(*wName, *wKey)
+	wp, _, err := pf.resolve()
+	if err != nil {
+		return err
+	}
+	s, res, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
@@ -200,13 +208,6 @@ func printAttestation(e *env, r store.OpenResult) {
 		e.printf("            un prefijo truncado es indistinguible de la historia entera.\n")
 		e.printf("            Ejecuta `nucleo sync` contra un testigo.\n")
 	}
-}
-
-// witnessFlags registra las dos banderas con las que un subcomando aporta la
-// política de testigos al abrir el ledger (ADR-016).
-func witnessFlags(fs *flag.FlagSet) (name, key *string) {
-	return fs.String("witness-name", "", "nombre del testigo cuya cosignature avala el ledger"),
-		fs.String("witness-key", "", "clave pública de ese testigo, en hexadecimal")
 }
 
 // printSigner dice qué se sabe del firmante de los bloques (ADR-017).

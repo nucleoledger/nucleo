@@ -272,6 +272,12 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 	if err != nil {
 		return OpenResult{}, &IntegrityError{Stage: "lectura", Index: -1, Err: err}
 	}
+	// La clave del log de la política se coteja SIEMPRE, haya o no checkpoints: la
+	// segunda auditoría la veía pasar en un ledger recién creado, sin sincronizar,
+	// porque la comparación vivía solo en el camino de las notas guardadas.
+	if err := s.checkLogKey(); err != nil {
+		return OpenResult{}, &IntegrityError{Stage: "log", Index: -1, Err: err}
+	}
 
 	// attested es el checkpoint cosignado que respalda la historia. En modo
 	// completo también se busca, aunque no se use para saltarse firmas: el
@@ -356,18 +362,34 @@ func (s *Store) logPolicy(c *storedCheckpoint) (proof.Policy, error) {
 	if err != nil {
 		return proof.Policy{}, fmt.Errorf("la base tiene checkpoints pero no declara la clave pública del log: %w", err)
 	}
-	// Si quien abre trae la clave del log, tiene que ser la que el ledger declara.
-	// Es la capa que detecta la sustitución de clave que ADR-016 describió y no
-	// tenía código: vault_meta es fuente de comparación, la política es la verdad.
-	if s.witnesses != nil && len(s.witnesses.LogKey) > 0 && !bytes.Equal(s.witnesses.LogKey, pub) {
-		return proof.Policy{}, fmt.Errorf("%w: el ledger declara %s… y la política trae %s…",
-			ErrLogKeyMismatch, hex.EncodeToString(pub)[:16], hex.EncodeToString(s.witnesses.LogKey)[:16])
+	if err := s.checkLogKey(); err != nil {
+		return proof.Policy{}, err
 	}
 	origin := c.origin
 	if raw, err := s.GetMeta(MetaOriginKey); err == nil {
 		origin = string(raw)
 	}
 	return proof.Policy{Origin: origin, LogKey: pub}, nil
+}
+
+// checkLogKey: si quien abre trae la clave del log, tiene que ser la que el ledger
+// declara. Es la capa que detecta la sustitución de clave que ADR-016 describió y
+// no tenía código: vault_meta es fuente de comparación, la política es la verdad.
+// Un ledger que no declara clave (anterior a init con vault_meta) no tiene con qué
+// compararse; el camino de los checkpoints ya lo rechaza si los hay.
+func (s *Store) checkLogKey() error {
+	if s.witnesses == nil || len(s.witnesses.LogKey) == 0 {
+		return nil
+	}
+	pub, err := s.GetMeta(MetaLogPubKey)
+	if err != nil {
+		return nil
+	}
+	if !bytes.Equal(s.witnesses.LogKey, pub) {
+		return fmt.Errorf("%w: el ledger declara %s… y la política trae %s…",
+			ErrLogKeyMismatch, hex.EncodeToString(pub)[:16], hex.EncodeToString(s.witnesses.LogKey)[:16])
+	}
+	return nil
 }
 
 // verifyLogSignature exige que la nota esté firmada por la clave del log que ESTE

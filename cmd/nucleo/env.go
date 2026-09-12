@@ -138,16 +138,16 @@ func parseGlobals(e *env, args []string) ([]string, error) {
 
 // openStore abre el ledger del directorio.
 func (e *env) openStore() (*store.Store, store.OpenResult, error) {
-	return e.openStoreWith("", "")
+	return e.openStoreWith(nil)
 }
 
-// openStoreWith abre el ledger aportando, si se dieron, el testigo y su clave.
+// openStoreWith abre el ledger aportando, si se dio, la política de apertura.
 //
-// Son lo único que el fichero no puede contener: la prueba de que un tercero
-// avala la historia tiene que venir de fuera del fichero, o no prueba nada
-// (ADR-016). Sin ellos la apertura es igual de válida, pero lo que afirma es
-// menos: "checkpoint presente, no verificado" en vez de "atestiguada".
-func (e *env) openStoreWith(witnessName, witnessKey string) (*store.Store, store.OpenResult, error) {
+// Es lo único que el fichero no puede contener: la prueba de que un tercero avala
+// la historia y de quién la firma tiene que venir de fuera, o no prueba nada
+// (ADR-016, ADR-017). Sin política la apertura es igual de válida, pero lo que
+// afirma es menos, y lo dice.
+func (e *env) openStoreWith(wp *store.WitnessPolicy) (*store.Store, store.OpenResult, error) {
 	if _, err := os.Stat(e.dbPath()); err != nil {
 		return nil, store.OpenResult{}, usageErr("no hay ledger en %q; ejecuta `nucleo init --dir %s`", e.dir, e.dir)
 	}
@@ -156,19 +156,10 @@ func (e *env) openStoreWith(witnessName, witnessKey string) (*store.Store, store
 		res store.OpenResult
 		err error
 	)
-	switch {
-	case witnessName == "" && witnessKey == "":
+	if wp == nil {
 		s, res, err = store.Open(e.dbPath())
-	case witnessName == "" || witnessKey == "":
-		return nil, store.OpenResult{}, usageErr("--witness-name y --witness-key van juntos")
-	default:
-		pub, kerr := hexKey(witnessKey)
-		if kerr != nil {
-			return nil, store.OpenResult{}, kerr
-		}
-		s, res, err = store.OpenWithWitnesses(e.dbPath(), store.WitnessPolicy{
-			Witnesses: map[string]ed25519.PublicKey{witnessName: pub}, Quorum: 1,
-		})
+	} else {
+		s, res, err = store.OpenWithWitnesses(e.dbPath(), *wp)
 	}
 	if err != nil {
 		// Abrir falla cuando la integridad no cuadra: eso es verificación, no uso.
