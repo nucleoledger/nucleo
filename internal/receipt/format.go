@@ -296,6 +296,24 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 	if !bytes.Equal(want, text) {
 		return nil, fmt.Errorf("%w:\nse leyó:\n%s\nla prueba dice:\n%s", ErrTextMismatch, text, want)
 	}
+	// La parte de MÁQUINA recibida tiene que ser byte a byte la que este mismo
+	// código volvería a producir. Es la regla que el fuzzer impuso al testigo, y
+	// aquí faltaba: la auditoría adversarial metió un \r al final de la línea de
+	// la firma del bloque y de cada nodo de la prueba, y Go los aceptaba —el
+	// decodificador base64 ignora \r y \n, y la firma del emisor se verificaba
+	// sobre un re-render limpio, no sobre lo recibido—. El verificador de
+	// TypeScript, que firma lo recibido, los rechazaba. Dos verificadores, dos
+	// veredictos, y un recibo con infinitas representaciones que "verifican":
+	// justo lo que impide archivar uno y compararlo años después.
+	canon, err := Format(r, p)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(canon, data) {
+		return nil, fmt.Errorf("%w: el recibo no está en su forma canónica: difiere de su "+
+			"re-serialización en el byte %d (¿un \\r, un espacio, base64 no canónico?)",
+			ErrFormat, firstDiff(canon, data))
+	}
 	// La firma del emisor se exige aquí, en Parse, y no solo en Verify. Es lo que la
 	// hace útil: si fuera opcional al leer, un recibo sin ella seguiría imprimiéndose
 	// igual de bien y la protección del destinatario dependería de que alguien se
@@ -345,4 +363,15 @@ func Text(data []byte) string {
 		return strings.TrimRight(string(data[:i]), "\n")
 	}
 	return ""
+}
+
+// firstDiff devuelve el primer índice en que dos slices difieren.
+func firstDiff(a, b []byte) int {
+	n := min(len(a), len(b))
+	for i := 0; i < n; i++ {
+		if a[i] != b[i] {
+			return i
+		}
+	}
+	return n
 }
