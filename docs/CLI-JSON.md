@@ -78,8 +78,13 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 | `recorded_at` | RFC 3339 | Solo con `source: "local_record"`: cuándo se escribió el registro, según el reloj local. |
 | `clock_skew` | bool | Presente y `true` si `attested_at` está en el futuro: un reloj mal puesto, no un ataque. |
 
-La frescura mide el **último contacto**; el tiempo demostrable de un recibo sigue siendo
-el **mínimo** de las cosignatures, que es la mejor prueba de antigüedad. Un log parado
+La frescura mide el **último contacto verificado**, que no es lo mismo que "la última vez
+que un tercero vio esta historia": mientras el log no crezca, una respuesta reproducida
+por la red trae una cosignature real y vieja, y esa es la fecha que se ve (H2 de la cuarta
+auditoría; `sync` avisa y publica `replay_suspect` cuando lo que recibe ya nace viejo).
+Lo que la fecha afirma con certeza es que un testigo firmó ESA raíz en ESE instante. El
+tiempo demostrable de un recibo sigue siendo el **mínimo** de las cosignatures, que es la
+mejor prueba de antigüedad. Un log parado
 con el cron vivo tiene las dos fechas separadas, y el JSON las publica por separado.
 
 **La frescura está subordinada a la atestación.** Un cron que mire `stale`

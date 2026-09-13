@@ -64,7 +64,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 
 **C2SP.** Signed checkpoints (`tlog-checkpoint`) · witness cosignatures (`tlog-cosignature@v1`) · **the full HTTP witness protocol** (`tlog-witness`: `add-checkpoint` and the monitoring endpoint, with the spec version pinned in [ADR-011](docs/adr/ADR-011-witness-http.md)) · offline-verifiable receipts (`tlog-proof`).
 
-**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob satisfies data-deletion rights while the chain and its receipts stay valid · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 (FIPS 204) as an *additional* signature on the log's own checkpoint note**, carried in the `0xff` extension of `signed-note` under a Núcleo identifier ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)). It is backward-compatible by construction — and that cuts both ways: a standard C2SP verifier ignores it. Witness cosignatures are still Ed25519. This is post-quantum hygiene on one signature, **not** a post-quantum chain end to end; see the limits below.
+**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob removes the content while the chain and its receipts stay valid — which is the technical half of a deletion right, not a legal opinion that one has been satisfied (see the limits) · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 (FIPS 204) as an *additional* signature on the log's own checkpoint note**, carried in the `0xff` extension of `signed-note` under a Núcleo identifier ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)). It is backward-compatible by construction — and that cuts both ways: a standard C2SP verifier ignores it. Witness cosignatures are still Ed25519. This is post-quantum hygiene on one signature, **not** a post-quantum chain end to end; see the limits below.
 
 **Ecuador profile.** `sri.factura.v1` with módulo-11 access-key validation, and `sas.acta.v1`. Each type declares which fields are guessable and must travel as HMAC commitments rather than bare hashes.
 
@@ -122,7 +122,7 @@ down in the [ADR-009 amendment](docs/adr/ADR-009-store-schema.md).
 
 ## Trust model, in one paragraph
 
-A locally sealed chain detects edits. Signed receipts held by counterparties survive destruction of the system. Witnesses cosign tree heads, which is what makes a full-history rewrite detectable — **a file cannot testify about its own completeness**, because whoever controls it controls any proof living inside it. Local timestamps are declared time; witness cosignature timestamps establish provable time. The ledger holds only commitments, never bare hashes of guessable values; sensitive payloads live in erasable encrypted blobs.
+A locally sealed chain detects edits. Signed receipts held by counterparties survive destruction of the system. Witnesses cosign tree heads, which is what makes a full-history rewrite detectable — **a file cannot testify about its own completeness**, because whoever controls it controls any proof living inside it. Local timestamps are declared time; witness cosignature timestamps establish provable time. The ledger holds **HMAC commitments instead of bare hashes for the fields a profile declares guessable** — a national ID, an amount — and the payload itself lives in an erasable encrypted blob. What the header does publish in clear is `payload_hash`, the SHA-256 of the whole sealed document: if someone can guess the document byte for byte, that hash confirms the guess. That is the price of being able to prove what was sealed without keeping the document, and it is a different statement from "never bare hashes of guessable values", which is what this paragraph used to claim (corrected 2026-09-13 after the fourth audit).
 
 ## Security & audits
 
@@ -164,7 +164,25 @@ This is a security product, so the process that built it is part of what you are
 | One policy file gave the CLI and the page two different `signerKey`s (`"signerKey"` + `"signerkey"`) | medium | the policy is a wire format: a strict parser in Go and TS, 64 hand-written vectors, and a third differential catalog (9,929 mutations) — [ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md) |
 | A policy with no witnesses gave "✔ Recibo válido" in all three verifiers | medium | receipt policies require at least one witness and `quorum ≥ 1` |
 
-**Anti-circularity is a project rule.** Every golden value — hashes, key IDs, signatures, canonical bytes — is computed *outside* the code under test: `sha256sum`, `openssl`, an independent Python implementation, a C program linked against the reference Argon2 library. A test that verifies a function using that same function verifies nothing, and this project learned that the hard way.
+**Anti-circularity is a project rule.** Every golden value — hashes, key IDs, signatures, canonical bytes, and the receipt vectors — is computed *outside* the code under test: `sha256sum`, `openssl`, an independent Python implementation, a C program linked against the reference Argon2 library. A test that verifies a function using that same function verifies nothing, and this project learned that the hard way.
+
+> **Amended 2026-09-13 after the fourth adversarial audit — the first external one.**
+> This sentence was **false where it mattered most**. The primitive vectors (RFC 6962,
+> RFC 8785, SLIP-0039, Argon2) were and are external, but the **receipt** vectors were
+> generated by `internal/receipt` — the package they are supposed to judge — and a test
+> in that package rewrote them on every run. A golden produced by the code under test
+> reproduces its bugs and adapts to its changes; it judges nothing. The claim was the
+> project's own epistemological rule, and it did not hold.
+>
+> Since Sprint 7f the receipt vectors come from
+> [`testdata/vectors/receipt/generar.py`](testdata/vectors/receipt/generar.py), an oracle
+> that implements the formats from the specification and imports no Go, and the Go suite
+> no longer writes them: `TestMain` takes a fingerprint of the directory before and after
+> and fails if anything changed. When the two implementations were first compared, they
+> agreed byte for byte on sixteen of seventeen vectors; the seventeenth exposed a field
+> Go was copying into an invalid vector. The single exception is
+> `valido-firma-mldsa-del-log`, which carries an ML-DSA-44 signature the oracle's toolchain
+> cannot produce: it is still generated by Go, and that is said where it lives.
 
 **Limits we document rather than hide:**
 
@@ -214,7 +232,15 @@ This is a security product, so the process that built it is part of what you are
   recipient. It does not prove delivery, and it does not stop the issuer from issuing
   another receipt for the same record to someone else.
   ([ADR-015](docs/adr/ADR-015-destinatario.md))
-- A network adversary can prevent detection (availability, and it is noisy) but cannot forge attestation (integrity). ([ADR-011](docs/adr/ADR-011-witness-http.md))
+- A network adversary cannot **forge** attestation (integrity), but "it is noisy" was too
+  broad. While the log has no new blocks, replaying a genuine older exchange — the GET and
+  the POST — makes `sync` succeed without the witness being contacted at all: the
+  cosignature is real and still covers the current tree. What it cannot do is produce a
+  **new** timestamp, so the only tell is that the attestation does not get any younger.
+  Since the fourth audit, `sync` says so where it happens (it warns, and `--json` carries
+  `replay_suspect`) instead of leaving it to the next `status`; and the moment a block is
+  sealed, the replay stops verifying.
+  ([ADR-011](docs/adr/ADR-011-witness-http.md), and the regression in `internal/logsync`)
 - VRF commitments give third-party verifiability, **not** privacy: publishing a proof makes a low-entropy field brute-forceable. The ledger commitment is and stays HMAC. ([ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md), [ADR-012](docs/adr/ADR-012-vrf-library.md))
 
 **A fifth round came from outside the project**, after `v0.1.0-alpha` was published: a

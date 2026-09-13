@@ -195,7 +195,12 @@ is the whole point, and it is why this required `leaf/v2` first. `signer_pubkey`
 inside the header, the header is inside the leaf, and the leaf is under a root that
 witnesses cosign — so the key a verifier should use is pinned by the same attestation
 that pins everything else. **A verifier needs nothing beyond the receipt and its
-policy: no key directory, no out-of-band exchange, no new PKI.**
+policy: no key directory, no new PKI.** What it does need is the policy itself, and the
+policy has to arrive authenticated by some other means — the counterparty must know it is
+yours. This sentence used to say "no out-of-band exchange", which was wrong in the part
+that matters: the exchange is not eliminated, it is reduced to one document that is the
+same for every receipt you will ever issue, instead of one per key or per record
+(corrected 2026-09-13, fourth audit).
 
 A `receipt@v2` MUST carry this line, and a verifier MUST reject a receipt that lacks
 it or whose signature does not verify. What it establishes: the issuer — and only the
@@ -280,7 +285,11 @@ Counting:
 - Externally signed documents (SRI XML with XAdES-BES, PDFs) are hashed **byte-for-byte, never re-canonicalized**.
 - JSON payloads authored by Núcleo profiles are canonicalized with JCS before hashing. Monetary amounts and identifiers MUST travel as strings.
 - Low-entropy / guessable values (IDs, amounts, statuses) MUST NOT be committed as bare hashes. Use a **VRF commitment** (`c2sp.org/vrf-r255`) when third-party verifiability without key disclosure is needed; HMAC-SHA-256 with a tenant secret otherwise. (Pending implementation; format fixed in ADR-003.)
-- The ledger stores only commitments. Sensitive payloads live in **erasable encrypted blobs**: XChaCha20-Poly1305, random 24-byte nonce, `AAD = tenant ‖ payload_hash`. Erasure of blob + key satisfies data-deletion rights while the chain stays intact.
+- The ledger stores only commitments. Sensitive payloads live in **erasable encrypted blobs**: XChaCha20-Poly1305, random 24-byte nonce, `AAD = tenant ‖ payload_hash`. Erasure of blob + key removes the content while the chain stays intact. Whether that
+satisfies a particular deletion right is a legal question about a particular regime and a
+particular deployment — what remains is the `payload_hash` and the commitments, which are
+data about the erased document. The protocol states the technical fact and takes no
+position on the legal one (corrected 2026-09-13, fourth audit).
 
 ## 6. Keys (normative, pending implementation)
 
