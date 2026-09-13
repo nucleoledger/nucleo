@@ -77,10 +77,7 @@ func TestArnesDrenaLosDosPipesEnParalelo(t *testing.T) {
 // este test se colgaría, y el guardián lo convertiría en un fallo en un minuto.
 func TestErrorDeUsoDevuelveLaAyudaEntera(t *testing.T) {
 	c := newCLI(t)
-	_, errOut, code := c.run("noexiste")
-	if code != exitUsage {
-		t.Fatalf("código = %d, want %d", code, exitUsage)
-	}
+	_, errOut := c.runWant(t, exitUsage, "noexiste")
 
 	ayuda := usageText()
 	if !strings.Contains(errOut, ayuda) {

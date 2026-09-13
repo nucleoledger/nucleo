@@ -48,10 +48,7 @@ func TestFrescuraNoSeFiaDelRegistroLocal(t *testing.T) {
 	forjarRegistroLocal(t, c, ahora.Add(-time.Minute))
 
 	// Sin política: la fecha forjada aparece, pero calificada, y sin ✔.
-	out, _, code := c.run("status")
-	if code != exitOK {
-		t.Fatalf("status salió con %d", code)
-	}
+	out, _ := c.runWant(t, exitOK, "status")
 	if strings.Contains(out, "frescura  : ✔") {
 		t.Errorf("EXPLOTADO: un registro local forjado compró un ✔:\n%s", out)
 	}
@@ -132,10 +129,7 @@ func TestFrescuraConPoliticaNoCaeAlRegistroLocal(t *testing.T) {
 		{"seal", "--policy-file", politica, "--tenant", testTenant, "--type", "sri.factura.v1", "--payload", c.writeTemp(t, `{"x":2}`)},
 	} {
 		t.Run(args[0], func(t *testing.T) {
-			out, errOut, code := c.run(append([]string{"--json"}, args...)...)
-			if code != exitOK {
-				t.Fatalf("código %d: la frescura no cambia el código:\n%s", code, errOut)
-			}
+			out, errOut := c.runWant(t, exitOK, append([]string{"--json"}, args...)...)
 			if !avisoDeFrescura(errOut) {
 				t.Errorf("EXPLOTADO: con política, el registro forjado silenció la alarma:\n%s", errOut)
 			}
@@ -214,10 +208,7 @@ func TestSealYReconcileExponenAtestacion(t *testing.T) {
 		{"reconcile con política", []string{"--json", "reconcile", "--witness-name", name, "--witness-key", key, "--source", live}, "verified"},
 	} {
 		t.Run(cs.nombre, func(t *testing.T) {
-			out, errOut, code := c.run(cs.args...)
-			if code != exitOK {
-				t.Fatalf("código %d:\n%s", code, errOut)
-			}
+			out, _ := c.runWant(t, exitOK, cs.args...)
 			var v map[string]any
 			if err := json.Unmarshal([]byte(out), &v); err != nil {
 				t.Fatalf("%v:\n%s", err, out)

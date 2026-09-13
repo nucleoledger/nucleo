@@ -113,10 +113,7 @@ func TestSealProfileRechazaDigitoVerificador(t *testing.T) {
 	}
 	xmlPath := c.facturaXML(t, malo)
 
-	out, stderr, code := c.run("seal", "--profile", "ecuador.sri.factura", "--xml", xmlPath)
-	if code != exitUsage {
-		t.Fatalf("código = %d, want %d\n%s", code, exitUsage, out)
-	}
+	_, stderr := c.runWant(t, exitUsage, "seal", "--profile", "ecuador.sri.factura", "--xml", xmlPath)
 	if !strings.Contains(stderr, "dígito verificador") || !strings.Contains(stderr, "módulo 11") {
 		t.Errorf("el mensaje no explica el problema:\n%s", stderr)
 	}
@@ -140,11 +137,8 @@ func TestSealProfileRechazaTenantQueNoCuadra(t *testing.T) {
 	c.initLedger()
 	xmlPath := c.facturaXML(t, claveDemo())
 
-	_, stderr, code := c.run("seal", "--profile", "ecuador.sri.factura",
+	_, stderr := c.runWant(t, exitUsage, "seal", "--profile", "ecuador.sri.factura",
 		"--xml", xmlPath, "--tenant", "0999999999001")
-	if code != exitUsage {
-		t.Errorf("código = %d, want %d", code, exitUsage)
-	}
 	if !strings.Contains(stderr, "el documento dice") {
 		t.Errorf("stderr = %q", stderr)
 	}

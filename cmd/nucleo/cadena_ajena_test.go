@@ -125,11 +125,8 @@ func TestSealSobreCadenaAjena(t *testing.T) {
 	c, _, _, _ := ledgerConPolitica(t)
 	reescribirCadena(t, c, 3)
 
-	out, errOut, code := c.run("--json", "seal", "--tenant", testTenant, "--type", "sri.factura.v1",
+	out, _ := c.runWant(t, exitVerify, "--json", "seal", "--tenant", testTenant, "--type", "sri.factura.v1",
 		"--payload", c.writeTemp(t, `{"x":4}`))
-	if code != exitVerify {
-		t.Fatalf("EXPLOTADO: seal sobre una cadena ajena salió con %d:\n%s\n%s", code, out, errOut)
-	}
 	if !strings.Contains(out, "no se sella") || !strings.Contains(out, "cadena entera fue reescrita") {
 		t.Errorf("el error no explica qué pasa:\n%s", out)
 	}
@@ -144,10 +141,7 @@ func TestSyncSobreCadenaAjenaNoContactaAlTestigo(t *testing.T) {
 
 	// Un testigo inalcanzable: si sync llegara a contactarlo, saldría con 3.
 	// Con 2, la comprobación ocurrió ANTES de enseñarle nada.
-	out, errOut, code := c.run("sync", "--witness", "http://127.0.0.1:1", "--witness-name", name, "--witness-key", key)
-	if code != exitVerify {
-		t.Fatalf("EXPLOTADO: sync sobre una cadena ajena salió con %d (3 = llegó a hablar con el testigo):\n%s\n%s", code, out, errOut)
-	}
+	_, errOut := c.runWant(t, exitVerify, "sync", "--witness", "http://127.0.0.1:1", "--witness-name", name, "--witness-key", key)
 	if !strings.Contains(errOut, "no se sincroniza") {
 		t.Errorf("el error no explica qué pasa:\n%s", errOut)
 	}
@@ -159,11 +153,11 @@ func TestCadenaMixtaAcusaAlIntrusoConPolitica(t *testing.T) {
 
 	_, errOut, code := c.run("status", "--policy-file", pol)
 	if code != exitVerify || !strings.Contains(errOut, "el bloque 0 lo firma") {
-		t.Errorf("con política el error tiene que señalar al bloque 0, el intruso (código %d):\n%s", code, errOut)
+		t.Errorf("con política el error tiene que señalar al bloque 0, el intruso (esperado código %d):\n%s", exitVerify, c.ultima())
 	}
 	_, errOut, code = c.run("status")
 	if code != exitVerify || !strings.Contains(errOut, "no se puede saber cuál de las dos es la legítima") ||
 		strings.Contains(errOut, "política espera") {
-		t.Errorf("sin política el error no debe acusar a nadie (código %d):\n%s", code, errOut)
+		t.Errorf("sin política el error no debe acusar a nadie (esperado código %d):\n%s", exitVerify, c.ultima())
 	}
 }

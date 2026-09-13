@@ -34,6 +34,35 @@ const (
 type cli struct {
 	t   *testing.T
 	dir string
+	// historial guarda cada invocación de este test: argumentos, código, stdout y
+	// stderr. Si el test falla, se vuelca entero (ver newCLI).
+	mu        sync.Mutex
+	historial []invocacion
+}
+
+// invocacion es una ejecución de la CLI tal como la vio el test.
+type invocacion struct {
+	args        []string
+	code        int
+	out, errOut string
+}
+
+// maxVolcado es lo que se enseña de cada flujo en un volcado. Hay tests que escriben
+// 256 KiB a propósito; un log de CI que no se puede leer no diagnostica nada.
+const maxVolcado = 16 << 10
+
+func recorte(s string) string {
+	if len(s) <= maxVolcado {
+		return s
+	}
+	return s[:maxVolcado] + fmt.Sprintf("\n… (%d bytes más sin mostrar)", len(s)-maxVolcado)
+}
+
+// volcado formatea una invocación con TODO lo que hace falta para diagnosticarla
+// desde el log del CI, sin reproducirla: argumentos, código, stdout y stderr.
+func (v invocacion) volcado() string {
+	return fmt.Sprintf("`nucleo %s` → código %d\n--- stdout ---\n%s\n--- stderr ---\n%s",
+		strings.Join(v.args, " "), v.code, recorte(v.out), recorte(v.errOut))
 }
 
 func newCLI(t *testing.T) *cli {
@@ -43,7 +72,51 @@ func newCLI(t *testing.T) *cli {
 	t.Setenv(envSeed, strings.Repeat("07", 32))
 	t.Setenv(envClock, testClockRFC)
 	t.Setenv(envPassphrase, testPassphrase)
-	return &cli{t: t, dir: t.TempDir()}
+	c := &cli{t: t, dir: t.TempDir()}
+	// La red de seguridad del diagnóstico. Un fallo en windows-latest dijo "código
+	// 1" y enseñó solo stderr —el banner de testhooks—, porque con --json el error
+	// va en el JSON de stdout y la aserción no lo imprimía. Cada aserción imprime lo
+	// que a su autor se le ocurrió; esto imprime, SIEMPRE que el test falle, todas
+	// las invocaciones que hizo, con los dos flujos. Un fallo que no se puede leer
+	// desde el CI es un fallo que no se puede arreglar desde el CI.
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		var b strings.Builder
+		fmt.Fprintf(&b, "volcado de las %d invocaciones de la CLI en este test:", len(c.historial))
+		for i, v := range c.historial {
+			fmt.Fprintf(&b, "\n\n[%d] %s", i+1, v.volcado())
+		}
+		t.Log(b.String())
+	})
+	return c
+}
+
+// runWant ejecuta la CLI y exige un código de salida. Si no coincide, el fallo lleva
+// los argumentos, el código esperado y el obtenido, stdout y stderr. Recibe el t del
+// subtest para que el fallo se atribuya a él.
+func (c *cli) runWant(t *testing.T, want int, args ...string) (string, string) {
+	t.Helper()
+	out, errOut, code := c.run(args...)
+	if code != want {
+		t.Fatalf("código %d, esperado %d\n%s", code, want,
+			invocacion{args: args, code: code, out: out, errOut: errOut}.volcado())
+	}
+	return out, errOut
+}
+
+// ultima devuelve el volcado de la última invocación, para las aserciones que
+// comprueban algo más que el código.
+func (c *cli) ultima() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.historial) == 0 {
+		return "(ninguna invocación)"
+	}
+	return c.historial[len(c.historial)-1].volcado()
 }
 
 // runTimeout es el tiempo que se le da a una invocación de la CLI antes de
@@ -80,8 +153,12 @@ const runTimeout = 60 * time.Second
 func (c *cli) run(args ...string) (string, string, int) {
 	c.t.Helper()
 	full := append([]string{"--dir", c.dir}, args...)
-	return capturar(c.t, "nucleo "+strings.Join(args, " "),
+	out, errOut, code := capturar(c.t, "nucleo "+strings.Join(args, " "),
 		func(stdout, stderr *os.File) int { return run(full, stdout, stderr) })
+	c.mu.Lock()
+	c.historial = append(c.historial, invocacion{args: append([]string{}, args...), code: code, out: out, errOut: errOut})
+	c.mu.Unlock()
+	return out, errOut, code
 }
 
 // capturar ejecuta fn con dos pipes y devuelve lo que escribió en cada uno.
@@ -155,8 +232,8 @@ func (c *cli) mustRun(args ...string) string {
 	c.t.Helper()
 	out, errOut, code := c.run(args...)
 	if code != exitOK {
-		c.t.Fatalf("`nucleo %s` salió con %d\nstdout:\n%s\nstderr:\n%s",
-			strings.Join(args, " "), code, out, errOut)
+		c.t.Fatalf("código %d, esperado %d\n%s", code, exitOK,
+			invocacion{args: args, code: code, out: out, errOut: errOut}.volcado())
 	}
 	return out
 }
@@ -244,10 +321,7 @@ func keyLine(t *testing.T, out string) string {
 func TestInitRefusesToOverwrite(t *testing.T) {
 	c := newCLI(t)
 	c.initLedger()
-	_, stderr, code := c.run("init", "--origin", testOrigin, "--assume-confirmed")
-	if code != exitUsage {
-		t.Errorf("código = %d, want %d", code, exitUsage)
-	}
+	_, stderr := c.runWant(t, exitUsage, "init", "--origin", testOrigin, "--assume-confirmed")
 	if !strings.Contains(stderr, "no sobrescribe nada") {
 		t.Errorf("stderr = %q", stderr)
 	}
@@ -284,10 +358,7 @@ func TestJSONOutputIsPureJSON(t *testing.T) {
 	c.sealFile(`{"factura":1}`)
 
 	for _, args := range [][]string{{"status"}, {"verify"}, {"verify", "--full"}} {
-		out, _, code := c.run(append([]string{"--json"}, args...)...)
-		if code != exitOK {
-			t.Fatalf("%v salió con %d", args, code)
-		}
+		out, _ := c.runWant(t, exitOK, append([]string{"--json"}, args...)...)
 		var v map[string]any
 		if err := json.Unmarshal([]byte(out), &v); err != nil {
 			t.Errorf("%v no produjo JSON limpio: %v\n%s", args, err, out)
@@ -306,9 +377,7 @@ func TestExitCodes(t *testing.T) {
 	c.sealFile(`{"factura":1,"importe":"10000.00"}`)
 
 	t.Run("0 — todo correcto", func(t *testing.T) {
-		if _, _, code := c.run("verify"); code != exitOK {
-			t.Errorf("código = %d, want 0", code)
-		}
+		c.runWant(t, exitOK, "verify")
 	})
 
 	t.Run("1 — error de uso", func(t *testing.T) {
@@ -319,9 +388,7 @@ func TestExitCodes(t *testing.T) {
 			{"reconcile"},
 			{"sync", "--witness", "http://x"},
 		} {
-			if _, _, code := c.run(args...); code != exitUsage {
-				t.Errorf("%v: código = %d, want 1", args, code)
-			}
+			c.runWant(t, exitUsage, args...)
 		}
 	})
 
@@ -332,23 +399,17 @@ func TestExitCodes(t *testing.T) {
 		if err := os.WriteFile(live, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		out, _, code := c.run("reconcile", "--source", live)
-		if code != exitVerify {
-			t.Errorf("código = %d, want 2", code)
-		}
+		out, _ := c.runWant(t, exitVerify, "reconcile", "--source", live)
 		if !strings.Contains(out, "REGISTRO ALTERADO DESPUÉS DE SELLARSE") {
 			t.Errorf("no se explicó el hallazgo:\n%s", out)
 		}
 	})
 
 	t.Run("3 — la sincronización falló", func(t *testing.T) {
-		out, stderr, code := c.run("sync",
+		_, stderr := c.runWant(t, exitSyncFail, "sync",
 			"--witness", "http://127.0.0.1:1",
 			"--witness-name", "witness.example/w1",
 			"--witness-key", strings.Repeat("11", 32))
-		if code != exitSyncFail {
-			t.Errorf("código = %d, want 3\n%s", code, out)
-		}
 		// Y el mensaje dice que repetido es un incidente, no un aviso.
 		if !strings.Contains(stderr, "INCIDENTE") {
 			t.Errorf("el mensaje no explica la gravedad:\n%s", stderr)
@@ -407,10 +468,7 @@ func TestFullCycleWithWitness(t *testing.T) {
 // esa salida se rompiera, el test lo notaría.
 func (c *cli) logPubKey(t *testing.T) string {
 	t.Helper()
-	out, _, code := c.run("--json", "status")
-	if code != exitOK {
-		t.Fatalf("status --json salió con %d", code)
-	}
+	out, _ := c.runWant(t, exitOK, "--json", "status")
 	var v map[string]any
 	if err := json.Unmarshal([]byte(out), &v); err != nil {
 		t.Fatal(err)
@@ -524,9 +582,7 @@ func TestWitnessKeyIsReadable(t *testing.T) {
 		t.Errorf("la clave del testigo cambió entre llamadas: %q vs %q", first, second)
 	}
 
-	if _, _, code := c.run("witness", "key"); code != exitUsage {
-		t.Errorf("sin --db: código = %d, want %d", code, exitUsage)
-	}
+	c.runWant(t, exitUsage, "witness", "key")
 }
 
 // openStoreAt abre el ledger de un directorio sin pasar por env. Vive aquí, en
@@ -552,7 +608,7 @@ func TestJSONEnHelpEInit(t *testing.T) {
 	// Con --json el error va en el objeto de stdout, no en stderr.
 	errJSON, _, code := c.run("--json", "init", "--origin", testOrigin)
 	if code != exitUsage || !strings.Contains(errJSON, "--assume-confirmed") {
-		t.Errorf("init --json sin --assume-confirmed: código %d\n%s", code, errJSON)
+		t.Errorf("init --json sin --assume-confirmed: esperado código %d y el mensaje en el JSON\n%s", exitUsage, c.ultima())
 	}
 	if _, err := os.Stat(filepath.Join(c.dir, "nucleo.db")); err == nil {
 		t.Errorf("init --json rechazado dejó un ledger creado")

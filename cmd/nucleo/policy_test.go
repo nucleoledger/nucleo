@@ -98,10 +98,7 @@ func TestPolicyFileRechazaLoAmbiguoYLoRoto(t *testing.T) {
 			if cs.contenido != "" {
 				escribe(cs.contenido)
 			}
-			_, errOut, code := c.run(append([]string{"status"}, cs.args...)...)
-			if code != exitUsage {
-				t.Errorf("código = %d, want %d (uso)", code, exitUsage)
-			}
+			_, errOut := c.runWant(t, exitUsage, append([]string{"status"}, cs.args...)...)
 			if !strings.Contains(errOut, cs.quiero) {
 				t.Errorf("stderr no contiene %q:\n%s", cs.quiero, errOut)
 			}
@@ -113,7 +110,7 @@ func TestPolicyFileRechazaLoAmbiguoYLoRoto(t *testing.T) {
 	c.sealFile(`{"x":1}`)
 	_, errOut, code := c.run("status", "--policy-file", path)
 	if code != exitVerify || !strings.Contains(errOut, "clave del log de la política no coincide") {
-		t.Errorf("otra clave del log: código=%d stderr=%s", code, errOut)
+		t.Errorf("otra clave del log: esperado código %d\n%s", exitVerify, c.ultima())
 	}
 }
 
@@ -164,7 +161,7 @@ func TestPolicyFileEsFormatoDeCable(t *testing.T) {
 			escribe(cs.texto, 0o600)
 			_, errOut, code := c.run("status", "--policy-file", path)
 			if code != cs.codigo || !strings.Contains(errOut, cs.quiero) {
-				t.Errorf("código %d (want %d), stderr sin %q:\n%s", code, cs.codigo, cs.quiero, errOut)
+				t.Errorf("esperado código %d y stderr con %q\n%s", cs.codigo, cs.quiero, c.ultima())
 			}
 		})
 	}
@@ -172,7 +169,7 @@ func TestPolicyFileEsFormatoDeCable(t *testing.T) {
 	t.Run("--policy-file vacío es error de uso, no 'sin política'", func(t *testing.T) {
 		_, errOut, code := c.run("status", "--policy-file", "")
 		if code != exitUsage || !strings.Contains(errOut, "--policy-file vacío") {
-			t.Errorf("código %d:\n%s", code, errOut)
+			t.Errorf("esperado código %d y stderr con \"--policy-file vacío\"\n%s", exitUsage, c.ultima())
 		}
 	})
 
@@ -181,9 +178,9 @@ func TestPolicyFileEsFormatoDeCable(t *testing.T) {
 			t.Skip("los bits de permiso no significan lo mismo en Windows")
 		}
 		escribe(string(buena), 0o666)
-		out, errOut, code := c.run("status", "--policy-file", path)
+		_, errOut, code := c.run("status", "--policy-file", path)
 		if code != exitOK || !strings.Contains(errOut, "tiene permisos 0666") {
-			t.Errorf("código %d, stderr sin el aviso de permisos:\n%s\n%s", code, out, errOut)
+			t.Errorf("esperado código %d y el aviso de permisos\n%s", exitOK, c.ultima())
 		}
 		escribe(string(buena), 0o644)
 		if _, errOut, _ := c.run("status", "--policy-file", path); strings.Contains(errOut, "permisos") {

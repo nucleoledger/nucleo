@@ -25,11 +25,8 @@ func TestReadLimits(t *testing.T) {
 	}
 
 	t.Run("el documento a sellar respeta --max-payload", func(t *testing.T) {
-		_, stderr, code := c.run("seal", "--tenant", testTenant, "--type", "x",
+		_, stderr := c.runWant(t, exitUsage, "seal", "--tenant", testTenant, "--type", "x",
 			"--payload", grande, "--max-payload", "1024")
-		if code != exitUsage {
-			t.Fatalf("código = %d, want %d", code, exitUsage)
-		}
 		// El mensaje dice el tamaño real y cómo subirlo: quien se equivocó de
 		// fichero necesita saber cuál cogió.
 		for _, quiero := range []string{"MiB", "--max-payload", "comprueba la ruta"} {
@@ -52,10 +49,8 @@ func TestReadLimits(t *testing.T) {
 
 	t.Run("--max-payload no puede ser cero ni negativo", func(t *testing.T) {
 		for _, v := range []string{"0", "-1"} {
-			if _, _, code := c.run("seal", "--tenant", testTenant, "--type", "x",
-				"--payload", grande, "--max-payload", v); code != exitUsage {
-				t.Errorf("--max-payload=%s: código = %d", v, code)
-			}
+			c.runWant(t, exitUsage, "seal", "--tenant", testTenant, "--type", "x",
+				"--payload", grande, "--max-payload", v)
 		}
 	})
 
@@ -72,7 +67,7 @@ func TestReadLimits(t *testing.T) {
 		_, stderr, code = c.run("seal", "--tenant", testTenant, "--type", "x",
 			"--payload", filepath.Join(c.dir, "pequeno.json"), "--passphrase-file", enorme)
 		if code != exitUsage {
-			t.Errorf("código = %d, want %d", code, exitUsage)
+			t.Errorf("esperado código %d\n%s", exitUsage, c.ultima())
 		}
 		if !strings.Contains(stderr, "fichero de passphrase") {
 			t.Errorf("el mensaje no nombra el fichero:\n%s", stderr)

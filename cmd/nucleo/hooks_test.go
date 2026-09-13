@@ -76,7 +76,8 @@ func TestProductionBinaryRefusesHooks(t *testing.T) {
 				t.Fatalf("el binario de producción aceptó %s:\n%s", v, out)
 			}
 			if code := cmd.ProcessState.ExitCode(); code != exitUsage {
-				t.Errorf("código = %d, want %d", code, exitUsage)
+				t.Errorf("`%s --dir %s status` con %s=x: código %d, esperado %d\n--- stdout+stderr ---\n%s",
+					bin, dir, v, code, exitUsage, out)
 			}
 			if !strings.Contains(string(out), "no lo admite") {
 				t.Errorf("el mensaje no explica el rechazo:\n%s", out)

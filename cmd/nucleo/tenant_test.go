@@ -18,10 +18,7 @@ func TestSealRechazaTenantMultilinea(t *testing.T) {
 	payload := c.writeTemp(t, `{"a":1}`)
 
 	for _, tenant := range []string{"ACME\nS.A.", "ACME\rS.A.", "ACME\tS.A."} {
-		_, errOut, code := c.run("seal", "--tenant", tenant, "--type", "t.v1", "--payload", payload)
-		if code != exitUsage {
-			t.Errorf("tenant %q: código = %d, want %d", tenant, code, exitUsage)
-		}
+		_, errOut := c.runWant(t, exitUsage, "seal", "--tenant", tenant, "--type", "t.v1", "--payload", payload)
 		if !strings.Contains(errOut, "una línea") {
 			t.Errorf("tenant %q: el error no explica que tiene que caber en una línea:\n%s", tenant, errOut)
 		}

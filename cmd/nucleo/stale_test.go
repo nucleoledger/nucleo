@@ -68,10 +68,7 @@ func TestStaleSinAtestacionNunca(t *testing.T) {
 	c.initLedger()
 	c.sealFile(`{"x":1}`)
 
-	out, errOut, code := c.run("status")
-	if code != exitOK {
-		t.Fatalf("status salió con %d", code)
-	}
+	out, errOut := c.runWant(t, exitOK, "status")
 	// El código de salida NO cambia: "la historia está íntegra" y "alguien de
 	// fuera la vio hace poco" son preguntas distintas, y mezclarlas en un solo
 	// código dejaría sin forma de distinguirlas a quien automatiza.
@@ -109,10 +106,7 @@ func TestStaleTrasElUmbral(t *testing.T) {
 
 	// Pasan cuatro días sin que nadie sincronice.
 	avanzaReloj(t, 100*time.Hour)
-	out, errOut, code := c.run("status")
-	if code != exitOK {
-		t.Fatalf("status salió con %d; la frescura no debe cambiar el código", code)
-	}
+	out, errOut = c.runWant(t, exitOK, "status")
 	for _, want := range []string{"4 días", "umbral: 3 días", name, "lleva 4 días roto"} {
 		if !strings.Contains(errOut, want) {
 			t.Errorf("stderr no contiene %q:\n%s", want, errOut)
@@ -149,10 +143,7 @@ func TestStaleEnJSONYPorStderrALaVez(t *testing.T) {
 	c.mustRun("sync", "--witness", url, "--witness-name", name, "--witness-key", key)
 	avanzaReloj(t, 100*time.Hour)
 
-	out, errOut, code := c.run("--json", "status")
-	if code != exitOK {
-		t.Fatalf("código %d", code)
-	}
+	out, errOut := c.runWant(t, exitOK, "--json", "status")
 	// En modo --json el aviso SIGUE saliendo, porque va por stderr: es lo que
 	// hace que un cron avise solo sin que nadie programe nada.
 	if !avisoDeFrescura(errOut) {
@@ -200,11 +191,8 @@ func TestStaleSealAvisaAlSellar(t *testing.T) {
 	if !strings.Contains(out, "registro sellado") {
 		t.Fatalf("el sellado debe seguir funcionando:\n%s", out)
 	}
-	_, errOut, code := c.run("seal", "--tenant", testTenant, "--type", "sri.factura.v1",
+	_, errOut := c.runWant(t, exitOK, "seal", "--tenant", testTenant, "--type", "sri.factura.v1",
 		"--payload", c.writeTemp(t, `{"x":3}`))
-	if code != exitOK {
-		t.Errorf("seal salió con %d; la frescura no debe impedir sellar", code)
-	}
 	if !avisoDeFrescura(errOut) {
 		t.Errorf("seal no avisó de la atestación vieja:\n%s", errOut)
 	}
@@ -218,10 +206,7 @@ func TestStaleVerifyLoReporta(t *testing.T) {
 	c.mustRun("sync", "--witness", url, "--witness-name", name, "--witness-key", key)
 	avanzaReloj(t, 100*time.Hour)
 
-	out, errOut, code := c.run("--json", "verify")
-	if code != exitOK {
-		t.Fatalf("verify salió con %d: la verificación pasó, la frescura es otra cosa", code)
-	}
+	out, errOut := c.runWant(t, exitOK, "--json", "verify")
 	if !avisoDeFrescura(errOut) {
 		t.Errorf("verify no avisó:\n%s", errOut)
 	}
@@ -241,10 +226,7 @@ func TestStaleRelojDescuadrado(t *testing.T) {
 	// ataque, es un reloj mal puesto, y callarlo convertiría un reloj roto en
 	// una atestación eternamente fresca.
 	avanzaReloj(t, -48*time.Hour)
-	out, errOut, code := c.run("--json", "status")
-	if code != exitOK {
-		t.Fatalf("código %d", code)
-	}
+	out, errOut := c.runWant(t, exitOK, "--json", "status")
 	if !strings.Contains(errOut, "del futuro") {
 		t.Errorf("no avisó del desfase de reloj:\n%s", errOut)
 	}
@@ -262,10 +244,7 @@ func TestStaleAfterRechazaValoresAbsurdos(t *testing.T) {
 	c := newCLI(t)
 	c.initLedger()
 	for _, v := range []string{"0", "-1h", "ayer", ""} {
-		_, _, code := c.run("--stale-after", v, "status")
-		if code != exitUsage {
-			t.Errorf("--stale-after %q salió con %d, want %d", v, code, exitUsage)
-		}
+		c.runWant(t, exitUsage, "--stale-after", v, "status")
 	}
 }
 
@@ -332,11 +311,8 @@ func TestKDFProfileEnInit(t *testing.T) {
 
 	t.Run("un perfil inventado es error de uso, no un vault sorpresa", func(t *testing.T) {
 		c := newCLI(t)
-		_, errOut, code := c.run("init", "--origin", testOrigin,
+		_, errOut := c.runWant(t, exitUsage, "init", "--origin", testOrigin,
 			"--assume-confirmed", "--kdf-profile", "barato")
-		if code != exitUsage {
-			t.Errorf("código = %d, want %d", code, exitUsage)
-		}
 		if !strings.Contains(errOut, "kdf-profile") {
 			t.Errorf("stderr = %q", errOut)
 		}
@@ -354,10 +330,7 @@ func TestStaleLedgerVacioNoGrita(t *testing.T) {
 	c := newCLI(t)
 	c.initLedger()
 
-	out, errOut, code := c.run("--json", "status")
-	if code != exitOK {
-		t.Fatalf("código %d", code)
-	}
+	out, errOut := c.runWant(t, exitOK, "--json", "status")
 	if avisoDeFrescura(errOut) {
 		t.Errorf("avisó sobre un ledger sin un solo bloque:\n%s", errOut)
 	}
