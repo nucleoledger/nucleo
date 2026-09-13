@@ -55,7 +55,7 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 
 ```json
 "freshness": {
-  "stale": false, "threshold_hours": 72, "attested_ever": true,
+  "stale": false, "threshold_hours": 72, "attested_ever": true, "policy": true,
   "verified": true, "source": "attestation",
   "attested_at": "2026-09-12T18:20:07Z", "attested_size": 3,
   "witness": "witness.nucleoledger.com/w1", "age_hours": 0.02
@@ -66,7 +66,7 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 |---|---|---|
 | `stale` | bool | La última atestación es más vieja que el umbral, o nunca hubo. `false` en un ledger vacío. |
 | `threshold_hours` | número | `--stale-after`, por omisión 72. |
-| `attested_ever` | bool | Hay alguna fecha que juzgar: atestación verificada o registro local. |
+| `attested_ever` | bool | `true` **solo** si la fecha sale de una atestación verificada (`source: "attestation"`). Hasta el Sprint 7e también era `true` con el registro local, y un INSERT forjado lo ponía a `true` (tercera auditoría, BAJO #9). Para saber si hay *alguna* fecha, mira `source != "none"`. |
 | `verified` | bool | **De dónde sale la fecha.** `true`: de la cosignature que la apertura acaba de verificar bajo la política. `false`: del registro local que dejó el último `sync` en `log_state` — lo escribe quien tenga la base, y la segunda auditoría adversarial lo escribió con un testigo inventado. |
 | `source` | `"attestation"` \| `"local_record"` \| `"none"` | Lo mismo, con nombre. Con `policy: true` solo puede ser `"attestation"` o `"none"`. |
 | `policy` | bool | Se abrió con política (`--policy-file` o banderas sueltas). Con política, el registro local **nunca** alimenta la frescura. |

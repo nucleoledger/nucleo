@@ -65,6 +65,10 @@ func TestFrescuraNoSeFiaDelRegistroLocal(t *testing.T) {
 	if f["verified"] != false || f["source"] != "local_record" || f["witness"] != "testigo.inventado/w9" {
 		t.Errorf("freshness JSON = %v, want verified:false source:local_record", f)
 	}
+	// BAJO #9 de la tercera auditoría: el registro forjado ponía attested_ever a true.
+	if f["attested_ever"] != false {
+		t.Errorf("EXPLOTADO: attested_ever = %v con un registro local forjado", f["attested_ever"])
+	}
 
 	// Con la política de un testigo REAL que nunca vio este log: la atestación no
 	// verifica, y con política el registro local ni se lee (E.2): la alarma suena.

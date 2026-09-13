@@ -133,7 +133,11 @@ func (st staleness) json() map[string]any {
 		// automatice no tenga que distinguir el caso.
 		"stale":           st.Stale && !st.Empty,
 		"threshold_hours": st.Threshold.Hours(),
-		"attested_ever":   st.Known,
+		// attested_ever solo es true si la fecha sale de una atestación VERIFICADA.
+		// Valía lo mismo que "hay alguna fecha", incluida la del registro local, y la
+		// tercera auditoría lo leyó como afirmación: tras un INSERT forjado, un cron
+		// que filtrara por attested_ever veía true (BAJO #9).
+		"attested_ever": st.Verified,
 		// verified dice de dónde sale la fecha: true, de la cosignature que la
 		// apertura verificó bajo la política; false, del registro local que
 		// cualquiera con la base puede escribir. Un cron que solo mire "stale"

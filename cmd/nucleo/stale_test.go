@@ -162,8 +162,14 @@ func TestStaleEnJSONYPorStderrALaVez(t *testing.T) {
 	if f["stale"] != true {
 		t.Errorf("freshness.stale = %v, want true", f["stale"])
 	}
-	if f["attested_ever"] != true {
-		t.Errorf("freshness.attested_ever = %v, want true", f["attested_ever"])
+	// Sin política la fecha sale del registro local: attested_ever es false (E.6).
+	if f["attested_ever"] != false || f["source"] != "local_record" {
+		t.Errorf("sin política: attested_ever = %v source = %v, want false/local_record", f["attested_ever"], f["source"])
+	}
+	// Con la política, de la cosignature verificada: true.
+	con, _, _ := c.run("--json", "status", "--witness-name", name, "--witness-key", key)
+	if g := freshness(t, con); g["attested_ever"] != true || g["source"] != "attestation" {
+		t.Errorf("con política: attested_ever = %v source = %v, want true/attestation", g["attested_ever"], g["source"])
 	}
 	if f["witness"] != name {
 		t.Errorf("freshness.witness = %v, want %q", f["witness"], name)
