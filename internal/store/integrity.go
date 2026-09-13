@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
@@ -599,20 +600,46 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, string, error) {
 	return leaves, signer, nil
 }
 
+// miembroSigner es el miembro tal como aparece en la forma canónica JCS del header.
+const miembroSigner = `"signer_pubkey":"`
+
 // signerOf saca signer_pubkey del header canónico almacenado sin reconstruir el
-// bloque entero: es lo que permite comprobar la continuidad también por debajo
-// del atajo, donde los bloques no se decodifican.
+// bloque entero: es lo que permite comprobar la continuidad también por debajo del
+// atajo, donde los bloques no se decodifican.
+//
+// Lo busca en los bytes, sin json.Unmarshal (E.9 del Sprint 7e). Con Unmarshal
+// costaba 1,9 µs por bloque —unos 190 ms en 10^5, un 35 % de la apertura rápida—, y
+// este es el único trabajo por bloque que queda por debajo del atajo.
+//
+// Es la misma respuesta que daría decodificar el JSON, y no por casualidad. Por
+// encima del atajo, walk exige sha256(header_json) == hash y Block.Verify exige
+// sha256(JCS(header decodificado)) == hash: el header_json de un bloque que se
+// acepta ES su forma canónica. En JCS el miembro "signer_pubkey" aparece una sola vez
+// y no puede aparecer dentro de un valor, porque las comillas de un valor van
+// escapadas. Por debajo del atajo los bytes los ata la raíz cosignada, como las
+// firmas. La regla —exactamente una aparición, seguida de 64 hexadecimales en
+// minúsculas y comilla— es además más estricta que Unmarshal, que se quedaba en
+// silencio con el último de dos miembros repetidos. Vectores golden, calculados
+// fuera de este código: testdata/signer/.
 func signerOf(headerJSON string) (string, error) {
-	var h struct {
-		SignerPubKey string `json:"signer_pubkey"`
+	i := strings.Index(headerJSON, miembroSigner)
+	if i < 0 {
+		return "", fmt.Errorf("%w: el header no trae signer_pubkey en forma canónica", ledger.ErrInvalidHeader)
 	}
-	if err := json.Unmarshal([]byte(headerJSON), &h); err != nil {
-		return "", fmt.Errorf("header ilegible: %w", err)
+	if strings.Contains(headerJSON[i+len(miembroSigner):], miembroSigner) {
+		return "", fmt.Errorf("%w: signer_pubkey repetido en el header", ledger.ErrInvalidHeader)
 	}
-	if len(h.SignerPubKey) != 2*ed25519.PublicKeySize {
-		return "", fmt.Errorf("%w: signer_pubkey de %d caracteres", ledger.ErrInvalidHeader, len(h.SignerPubKey))
+	v := headerJSON[i+len(miembroSigner):]
+	const n = 2 * ed25519.PublicKeySize
+	if len(v) < n+1 || v[n] != '"' {
+		return "", fmt.Errorf("%w: signer_pubkey no mide %d caracteres", ledger.ErrInvalidHeader, n)
 	}
-	return h.SignerPubKey, nil
+	for k := 0; k < n; k++ {
+		if c := v[k]; (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return "", fmt.Errorf("%w: signer_pubkey no es hexadecimal en minúsculas", ledger.ErrInvalidHeader)
+		}
+	}
+	return v[:n], nil
 }
 
 // sha256Hex devuelve el SHA-256 en hexadecimal de la cadena dada.

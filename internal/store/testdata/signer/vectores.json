@@ -1,0 +1,77 @@
+[
+  {
+    "name": "canonico",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "signer": "57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a"
+  },
+  {
+    "name": "canonico-otra-clave",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"fc947730f49eb01427a66e050733294d9e520e545c7a27125a780634e0860a27\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "signer": "fc947730f49eb01427a66e050733294d9e520e545c7a27125a780634e0860a27"
+  },
+  {
+    "name": "tenant-imita-el-miembro",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"tenant\":\"x\\\",\\\"signer_pubkey\\\":\\\"fc947730f49eb01427a66e050733294d9e520e545c7a27125a780634e0860a27\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "signer": "57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a"
+  },
+  {
+    "name": "type-con-unicode",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1 — núcleo\"}",
+    "signer": "57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a"
+  },
+  {
+    "name": "tenant-con-barra-invertida",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"tenant\":\"ACME\\\\S.A.\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "signer": "57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a"
+  },
+  {
+    "name": "indice-grande",
+    "header_json": "{\"index\":9007199254740993,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "signer": "57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a"
+  },
+  {
+    "name": "miembro-repetido",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"signer_pubkey\":\"fc947730f49eb01427a66e050733294d9e520e545c7a27125a780634e0860a27\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "repetido"
+  },
+  {
+    "name": "sin-miembro",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "ausente"
+  },
+  {
+    "name": "nombre-con-escape",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer\\u005fpubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "ausente"
+  },
+  {
+    "name": "hex-mayusculas",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857F0ED34D9AB44AAD8F122F890075BD60CA3BD9142F787CF91B80A4854F2A\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "hex"
+  },
+  {
+    "name": "hex-63",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "hex"
+  },
+  {
+    "name": "hex-65",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":\"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a0\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "hex"
+  },
+  {
+    "name": "valor-no-cadena",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\":12345,\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "hex"
+  },
+  {
+    "name": "espacio-tras-dos-puntos",
+    "header_json": "{\"index\":3,\"payload_cid\":\"blob://c5b0e7f1\",\"payload_hash\":\"c5b0e7f18d0d1829df5d6895d1fbac063c5e09af3c5276a9a43d461ef1f8754b\",\"prev_hash\":\"e29d362566c75076f5388a1c905b2e116cc78bc338b8f2d0931746c2a67ce354\",\"signer_pubkey\": \"57857f0ed34d9ab44aad8f122f890075bd60ca3bd9142f787cf91b80a4854f2a\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-07T10:00:00Z\",\"type\":\"sri.factura.v1\"}",
+    "error": "hex"
+  },
+  {
+    "name": "vacio",
+    "header_json": "",
+    "error": "ausente"
+  }
+]
