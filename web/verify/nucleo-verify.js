@@ -182,19 +182,171 @@ time ${timestamp.toString()}
   }
 
   // src/jcs.ts
-  function jsonKeysAreSorted(raw) {
-    let obj;
+  function isCanonicalJCS(raw) {
     try {
-      obj = JSON.parse(raw);
+      const l = new Lector(raw);
+      const valor = l.valor(0);
+      l.finDeTexto();
+      if (valor.t !== "o") return false;
+      return serializar(valor) === raw;
     } catch {
       return false;
     }
-    if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return false;
-    const keys = Object.keys(obj);
-    for (let i = 1; i < keys.length; i++) {
-      if (compareUTF16(keys[i - 1], keys[i]) >= 0) return false;
+  }
+  var Lector = class {
+    constructor(s) {
+      this.s = s;
     }
-    return true;
+    i = 0;
+    finDeTexto() {
+      if (this.i !== this.s.length) throw new Error("sobra texto");
+    }
+    valor(prof) {
+      if (prof > 32) throw new Error("demasiada anidaci\xF3n");
+      const c = this.s[this.i];
+      if (c === '"') return { t: "s", v: this.cadena() };
+      if (c === "{") return this.objeto(prof);
+      if (c === "[") return this.array(prof);
+      if (c === "-" || c !== void 0 && c >= "0" && c <= "9") return { t: "n", v: this.numero() };
+      for (const lit of ["true", "false", "null"]) {
+        if (this.s.startsWith(lit, this.i)) {
+          this.i += lit.length;
+          return { t: "lit", v: lit };
+        }
+      }
+      throw new Error("valor no reconocido");
+    }
+    objeto(prof) {
+      this.i++;
+      const out = [];
+      const vistas = /* @__PURE__ */ new Set();
+      if (this.s[this.i] === "}") {
+        this.i++;
+        return { t: "o", v: out };
+      }
+      for (; ; ) {
+        if (this.s[this.i] !== '"') throw new Error("nombre de miembro");
+        const k = this.cadena();
+        if (vistas.has(k)) throw new Error("miembro repetido");
+        vistas.add(k);
+        if (this.s[this.i] !== ":") throw new Error("falta ':'");
+        this.i++;
+        out.push({ k, v: this.valor(prof + 1) });
+        const c = this.s[this.i];
+        if (c === ",") {
+          this.i++;
+          continue;
+        }
+        if (c === "}") {
+          this.i++;
+          return { t: "o", v: out };
+        }
+        throw new Error("falta ',' o '}'");
+      }
+    }
+    array(prof) {
+      this.i++;
+      const out = [];
+      if (this.s[this.i] === "]") {
+        this.i++;
+        return { t: "a", v: out };
+      }
+      for (; ; ) {
+        out.push(this.valor(prof + 1));
+        const c = this.s[this.i];
+        if (c === ",") {
+          this.i++;
+          continue;
+        }
+        if (c === "]") {
+          this.i++;
+          return { t: "a", v: out };
+        }
+        throw new Error("falta ',' o ']'");
+      }
+    }
+    cadena() {
+      this.i++;
+      let out = "";
+      for (; ; ) {
+        const c = this.s[this.i];
+        if (c === void 0) throw new Error("cadena sin cerrar");
+        if (c === '"') {
+          this.i++;
+          return out;
+        }
+        if (c.charCodeAt(0) < 32) throw new Error("control sin escapar");
+        if (c !== "\\") {
+          out += c;
+          this.i++;
+          continue;
+        }
+        this.i++;
+        const e = this.s[this.i];
+        this.i++;
+        const simples = { '"': '"', "\\": "\\", "/": "/", b: "\b", f: "\f", n: "\n", r: "\r", t: "	" };
+        if (e !== void 0 && e in simples) {
+          out += simples[e];
+          continue;
+        }
+        if (e !== "u") throw new Error("escape desconocido");
+        const h = this.s.slice(this.i, this.i + 4);
+        if (!/^[0-9a-fA-F]{4}$/.test(h)) throw new Error("escape \\u inv\xE1lido");
+        this.i += 4;
+        out += String.fromCharCode(parseInt(h, 16));
+      }
+    }
+    numero() {
+      const ini = this.i;
+      if (this.s[this.i] === "-") this.i++;
+      while (this.i < this.s.length && this.s[this.i] >= "0" && this.s[this.i] <= "9") this.i++;
+      if (this.i === ini) throw new Error("n\xFAmero vac\xEDo");
+      if (this.s[this.i] === ".") {
+        this.i++;
+        while (this.i < this.s.length && this.s[this.i] >= "0" && this.s[this.i] <= "9") this.i++;
+      }
+      if (this.s[this.i] === "e" || this.s[this.i] === "E") {
+        this.i++;
+        if (this.s[this.i] === "+" || this.s[this.i] === "-") this.i++;
+        while (this.i < this.s.length && this.s[this.i] >= "0" && this.s[this.i] <= "9") this.i++;
+      }
+      return this.s.slice(ini, this.i);
+    }
+  };
+  function serializar(v) {
+    switch (v.t) {
+      case "s":
+        return escapar(v.v);
+      case "n":
+        if (!/^-?(0|[1-9][0-9]*)$/.test(v.v) || !Number.isSafeInteger(Number(v.v))) {
+          throw new Error("n\xFAmero no canonicalizable aqu\xED");
+        }
+        return v.v;
+      case "lit":
+        return v.v;
+      case "a":
+        return "[" + v.v.map(serializar).join(",") + "]";
+      case "o": {
+        const miembros = [...v.v].sort((a, b) => compareUTF16(a.k, b.k));
+        return "{" + miembros.map((m) => escapar(m.k) + ":" + serializar(m.v)).join(",") + "}";
+      }
+    }
+  }
+  function escapar(s) {
+    let out = '"';
+    for (const ch of s) {
+      const c = ch.codePointAt(0);
+      if (ch === '"') out += '\\"';
+      else if (ch === "\\") out += "\\\\";
+      else if (ch === "\b") out += "\\b";
+      else if (ch === "\f") out += "\\f";
+      else if (ch === "\n") out += "\\n";
+      else if (ch === "\r") out += "\\r";
+      else if (ch === "	") out += "\\t";
+      else if (c < 32) out += "\\u" + c.toString(16).padStart(4, "0");
+      else out += ch;
+    }
+    return out + '"';
   }
   function compareUTF16(a, b) {
     const n = Math.min(a.length, b.length);
@@ -377,7 +529,7 @@ time ${timestamp.toString()}
         throw new Error("la pol\xEDtica no es Unicode v\xE1lido");
       }
     }
-    const p = new Lector(text);
+    const p = new Lector2(text);
     p.espacios();
     if (p.s[p.i] !== "{") throw new Error("el documento tiene que ser un objeto JSON");
     const obj = p.objeto(1);
@@ -385,7 +537,7 @@ time ${timestamp.toString()}
     if (p.i !== p.s.length) throw new Error(`hay contenido despu\xE9s del objeto (posici\xF3n ${p.i})`);
     return construir(obj);
   }
-  var Lector = class {
+  var Lector2 = class {
     constructor(s) {
       this.s = s;
     }
@@ -712,7 +864,7 @@ time ${timestamp.toString()}
         `el recibo es del log ${JSON.stringify(p.checkpoint.origin)} y la pol\xEDtica espera ${JSON.stringify(policy.origin)}`
       );
     }
-    if (!jsonKeysAreSorted(p.headerJSON)) {
+    if (!isCanonicalJCS(p.headerJSON)) {
       reasons.push("el header del bloque no est\xE1 en forma can\xF3nica JCS");
     }
     const blockHash = await sha256(utf8(p.headerJSON));

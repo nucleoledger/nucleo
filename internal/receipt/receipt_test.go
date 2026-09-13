@@ -621,3 +621,34 @@ func TestFirmaDelEmisorAdversarial(t *testing.T) {
 		}
 	})
 }
+
+// TestIndiceDeLaPruebaContraElHeader es H4.3 de la cuarta auditoría: una hoja bien
+// firmada presentada en una posición del árbol distinta de la que declara su header.
+// TypeScript ya lo comprobaba; Go llegaba a la prueba de inclusión y respondía "la
+// entrada no está incluida", que manda a mirar el árbol cuando lo que no cuadra es el
+// documento.
+func TestIndiceDeLaPruebaContraElHeader(t *testing.T) {
+	sc := newScene(t, 1)
+	pol := sc.policy()
+	r, err := sc.issue(t, "María Pérez", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Verify(pol); err != nil {
+		t.Fatalf("el recibo intacto debe verificar: %v", err)
+	}
+
+	otro := *r
+	otro.Proof.Index = 3
+	if _, err := otro.Verify(pol); !errors.Is(err, ErrIndexMismatch) {
+		t.Errorf("err = %v, want ErrIndexMismatch", err)
+	}
+	// Y con el índice del header movido, tampoco: el header entra en la hoja, así que
+	// esto además rompe la firma; lo que se comprueba es que el rechazo llegue por el
+	// índice, antes y con un mensaje que señale al documento.
+	otro = *r
+	otro.Header.Index = 3
+	if _, err := otro.Verify(pol); !errors.Is(err, ErrIndexMismatch) {
+		t.Errorf("con el header movido: err = %v, want ErrIndexMismatch", err)
+	}
+}

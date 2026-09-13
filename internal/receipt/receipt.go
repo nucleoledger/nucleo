@@ -116,6 +116,9 @@ var (
 	// verifica. Es el rechazo que protege al destinatario: sin él, la línea del
 	// destinatario la puede reescribir cualquiera que tenga el fichero.
 	ErrReceiptSignature = errors.New("receipt: la firma del emisor sobre el recibo no verifica")
+	// ErrIndexMismatch indica que el índice de la prueba no es el que declara el
+	// header: la misma hoja presentada en otra posición del árbol.
+	ErrIndexMismatch = errors.New("receipt: el índice de la prueba no es el del header")
 	// ErrUnexpectedSigner indica que el bloque lo firmó una clave distinta de la
 	// que la política espera. Las firmas pueden ser perfectas y aun así el
 	// documento no ser del emisor que la contraparte cree (ADR-017).
@@ -342,6 +345,15 @@ func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
 	if hex.EncodeToString(p.SignerKey) != r.Header.SignerPubKey {
 		return proof.Result{}, fmt.Errorf("%w: el header declara %s y la política espera %s",
 			ErrUnexpectedSigner, r.Header.SignerPubKey[:16], hex.EncodeToString(p.SignerKey)[:16])
+	}
+	// El índice de la prueba tiene que ser el que declara el header (H4.3 de la
+	// cuarta auditoría). Sin esto, una hoja bien firmada presentada en otra posición
+	// se rechazaba por "la entrada no está incluida", que manda a mirar el árbol
+	// cuando lo que no cuadra es el documento; TypeScript ya lo comprobaba y Go no,
+	// así que además era una asimetría entre verificadores.
+	if r.Proof.Index != r.Header.Index {
+		return proof.Result{}, fmt.Errorf("%w: la prueba dice el índice %d y el header %d",
+			ErrIndexMismatch, r.Proof.Index, r.Header.Index)
 	}
 	// La firma del bloque se comprueba ANTES de la prueba de inclusión. El orden
 	// no cambia el veredicto, pero sí el mensaje de error que alguien va a leer:

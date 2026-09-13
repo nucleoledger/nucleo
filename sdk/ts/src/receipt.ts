@@ -9,7 +9,7 @@ import { concat, equal, fromBase64, fromHex, toBase64, toHex, utf8 } from "./byt
 import { parseCheckpoint, type Checkpoint } from "./checkpoint.js";
 import { cosignedMessage, parseCosignature, COSIGNATURE_SIZE } from "./cosignature.js";
 import { sha256, verifyEd25519 } from "./crypto.js";
-import { jsonKeysAreSorted } from "./jcs.js";
+import { isCanonicalJCS } from "./jcs.js";
 import { leafHash, verifyInclusion } from "./merkle.js";
 import { ALG_COSIGNATURE_V1, ALG_ED25519, keyId, parseNote, type Note } from "./note.js";
 import { parseProof, type TlogProof } from "./proof.js";
@@ -301,7 +301,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   }
 
   // 2. El header tiene que estar en forma canónica JCS: es lo que se firmó.
-  if (!jsonKeysAreSorted(p.headerJSON)) {
+  if (!isCanonicalJCS(p.headerJSON)) {
     reasons.push("el header del bloque no está en forma canónica JCS");
   }
 
