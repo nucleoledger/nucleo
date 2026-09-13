@@ -109,6 +109,10 @@ página web:
 
 ### `init`
 
+Con `--json` hay que pasar `--assume-confirmed` explícitamente: no hay terminal en
+la que teclear la palabra de la tarjeta, y hasta el Sprint 7e `--json` se saltaba la
+confirmación en silencio. Sin la bandera, error de uso antes de crear nada.
+
 | campo | tipo |
 |---|---|
 | `origin`, `dir` | string |
@@ -187,6 +191,10 @@ El informe de `internal/reconcile` más el estado de la historia:
 
 Con rollback detectado: `{"ok": false, "rollback": true, "local_size": N,
 "witness_size": M}` y código `2`. Sin poder llegar al testigo: error con código `3`.
+
+### `help`
+
+`{"ok": true, "usage": "<el texto de la ayuda>"}`.
 
 ### `witness key`
 

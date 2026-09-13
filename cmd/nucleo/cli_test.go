@@ -535,3 +535,26 @@ func TestWitnessKeyIsReadable(t *testing.T) {
 func openStoreAt(dir string) (*store.Store, store.OpenResult, error) {
 	return store.Open(filepath.Join(dir, "nucleo.db"))
 }
+
+// TestJSONEnHelpEInit: los dos incumplimientos del contrato --json que encontró la
+// tercera auditoría (INFO #11).
+func TestJSONEnHelpEInit(t *testing.T) {
+	c := newCLI(t)
+	out := c.mustRun("--json", "help")
+	var v map[string]any
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatalf("help --json no es JSON: %v\n%s", err, out)
+	}
+	if v["ok"] != true || !strings.Contains(v["usage"].(string), "USO") {
+		t.Errorf("help --json = %v", v)
+	}
+
+	// Con --json el error va en el objeto de stdout, no en stderr.
+	errJSON, _, code := c.run("--json", "init", "--origin", testOrigin)
+	if code != exitUsage || !strings.Contains(errJSON, "--assume-confirmed") {
+		t.Errorf("init --json sin --assume-confirmed: código %d\n%s", code, errJSON)
+	}
+	if _, err := os.Stat(filepath.Join(c.dir, "nucleo.db")); err == nil {
+		t.Errorf("init --json rechazado dejó un ledger creado")
+	}
+}

@@ -121,10 +121,12 @@ func Sign(r *Receipt, p proof.Policy, priv ed25519.PrivateKey) error {
 
 // VerifyReceiptSignature comprueba la firma del emisor sobre el recibo completo.
 //
-// La clave sale del header del propio recibo, y eso es lo que hace que esto no
-// necesite PKI nueva: signer_pubkey está dentro del header, el header entra en la
-// hoja desde leaf/v2, y la hoja está bajo una raíz que los testigos cosignan. La
-// contraparte no tiene que pedirle la clave a nadie ni confiar en un directorio.
+// Verifica con signer_pubkey del header: la raíz cosignada ata esa clave al bloque.
+// Pero atarla no dice que sea la del emisor que la contraparte espera —una cadena
+// reescrita con otra clave también se ata a sí misma—, así que QUIÉN es lo decide la
+// política: verify exige antes que signer_pubkey sea el signerKey de la política
+// (ADR-017). La contraparte sí necesita esa clave, y la recibe en la política, no
+// en el recibo.
 func VerifyReceiptSignature(r *Receipt, p proof.Policy) error {
 	if len(r.ReceiptSig) == 0 {
 		return ErrNoReceiptSignature

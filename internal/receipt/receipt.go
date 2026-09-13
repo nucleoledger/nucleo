@@ -137,12 +137,11 @@ type Ledger interface {
 type Receipt struct {
 	// Recipient es a quién se entrega.
 	//
-	// NO está cubierto por ninguna firma, y no puede estarlo: se elige al emitir
-	// el recibo, mucho después de sellar el bloque. Quien reciba un recibo puede
-	// cambiar este nombre y la prueba seguirá verificando. Lo que el recibo
-	// demuestra —que este contenido estaba en el log en ese momento— no depende
-	// del destinatario; el nombre es dirección, no prueba, y presentarlo como
-	// prueba sería falso.
+	// Lo cubre la firma del emisor sobre el recibo entero (ADR-015): cambiarlo
+	// invalida el recibo. Se elige al emitir, mucho después de sellar el bloque, así
+	// que NO lo cubre la firma del bloque ni la raíz cosignada. Y lo que la firma del
+	// emisor afirma es "yo produje este documento para este nombre", no que se le
+	// entregara, ni que no haya otro recibo del mismo registro para otra persona.
 	Recipient string
 	// Header es el header del bloque en su forma canónica JCS, tal cual se
 	// firmó. Va entero porque es lo que permite al destinatario recomputar el

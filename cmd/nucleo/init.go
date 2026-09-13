@@ -37,6 +37,14 @@ func cmdInit(e *env, args []string) error {
 	if *origin == "" {
 		return usageErr("init necesita --origin")
 	}
+	// Con --json no hay a quién pedirle que teclee la palabra de la tarjeta, y
+	// antes se saltaba la confirmación en silencio: la salida para máquinas se
+	// convertía en una forma de no copiar las tarjetas sin haberlo decidido. Ahora
+	// hay que decirlo, y se comprueba ANTES de crear nada.
+	if e.json && !*yes {
+		return usageErr("init --json no puede pedir que se teclee la confirmación de las tarjetas: " +
+			"pasa --assume-confirmed explícitamente (y guarda las tarjetas que salen en el JSON)")
+	}
 	if err := os.MkdirAll(e.dir, 0o700); err != nil {
 		return usageErr("no se pudo crear %q: %v", e.dir, err)
 	}
@@ -138,7 +146,7 @@ func cmdInit(e *env, args []string) error {
 		printCards(e, cards, *threshold)
 	})
 
-	if e.json || *yes {
+	if *yes {
 		return nil
 	}
 	return confirmCard(e, cards, *threshold)

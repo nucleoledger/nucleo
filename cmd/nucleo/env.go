@@ -74,6 +74,13 @@ func dispatch(e *env, args []string) error {
 	}
 	name := rest[0]
 	if name == "help" || name == "-h" || name == "--help" {
+		// También la ayuda respeta --json: "salida para máquinas en vez de para
+		// personas" es un contrato de TODOS los subcomandos (docs/CLI-JSON.md), y
+		// la tercera auditoría encontró que este lo incumplía.
+		if e.json {
+			e.printJSON(map[string]any{"ok": true, "usage": usageText()})
+			return nil
+		}
 		fmt.Fprint(e.stdout, usageText())
 		return nil
 	}
