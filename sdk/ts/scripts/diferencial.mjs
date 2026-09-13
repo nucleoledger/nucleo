@@ -51,6 +51,14 @@ for (const c of catalogo.casos) {
 }
 
 const goAcepta = catalogo.casos.filter((c) => c.go_valid).length;
+// Los catálogos se distinguen por el prefijo del vector: "refirmado/…" son las
+// mutaciones de nota que el emisor volvió a firmar (ADR-018 E).
+const porCatalogo = new Map();
+for (const c of catalogo.casos) {
+  const k = c.vector.startsWith("refirmado/") ? "re-firmadas por el emisor" : "bytes del recibo";
+  porCatalogo.set(k, (porCatalogo.get(k) ?? 0) + 1);
+}
+for (const [k, n] of porCatalogo) console.log(`  catálogo ${k}: ${n}`);
 console.log(`mutaciones: ${catalogo.casos.length}   Go acepta: ${goAcepta}   TS acepta: ${tsAcepta}`);
 console.log(`divergencias de veredicto: ${divergencias.length}   excepciones en TS: ${lanzo}`);
 for (const d of divergencias) {

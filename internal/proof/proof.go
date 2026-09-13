@@ -301,7 +301,9 @@ func signatureLines(msg []byte) ([]byte, []sigLine, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("%w: línea de firma sin nombre y firma", ErrFormat)
 		}
-		blob, err := base64.StdEncoding.DecodeString(b64)
+		// Strict: base64 CANÓNICO (regla 4). x/mod usa el decodificador no estricto, y
+		// dos textos para los mismos bytes son dos recibos para una sola firma.
+		blob, err := base64.StdEncoding.Strict().DecodeString(b64)
 		if err != nil || len(blob) < 5 {
 			return nil, nil, fmt.Errorf("%w: firma de %q ilegible", ErrFormat, name)
 		}

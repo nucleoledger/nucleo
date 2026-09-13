@@ -234,28 +234,81 @@ time ${timestamp.toString()}
 
   // src/note.ts
   var SIG_PREFIX = "\u2014 ";
+  var MAX_SIGS = 100;
+  var ESPACIOS = /* @__PURE__ */ new Set([
+    9,
+    10,
+    11,
+    12,
+    13,
+    32,
+    133,
+    160,
+    5760,
+    8192,
+    8193,
+    8194,
+    8195,
+    8196,
+    8197,
+    8198,
+    8199,
+    8200,
+    8201,
+    8202,
+    8232,
+    8233,
+    8239,
+    8287,
+    12288
+  ]);
+  function nombreValido(name) {
+    if (name === "" || name.includes("+")) return false;
+    for (const ch of name) {
+      if (ESPACIOS.has(ch.codePointAt(0))) return false;
+    }
+    return true;
+  }
+  function base64Canonico(s) {
+    if (s === "" || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) {
+      throw new Error("base64 no est\xE1ndar");
+    }
+    const b = fromBase64(s);
+    if (toBase64(b) !== s) throw new Error("base64 no can\xF3nico");
+    return b;
+  }
   function parseNote(msg) {
+    for (const ch of msg) {
+      const cp = ch.codePointAt(0);
+      if (cp < 32 && cp !== 10 || cp >= 55296 && cp <= 57343) {
+        throw new Error("la nota contiene caracteres de control o UTF-16 inv\xE1lido");
+      }
+    }
     const at = msg.lastIndexOf("\n\n");
     if (at < 0) throw new Error("la nota no separa cuerpo y firmas");
     const text = msg.slice(0, at + 1);
     const sigBlock = msg.slice(at + 2);
+    if (sigBlock === "" || !sigBlock.endsWith("\n")) {
+      throw new Error("el bloque de firmas est\xE1 vac\xEDo o no termina en salto de l\xEDnea");
+    }
     const sigs = [];
-    for (const line of sigBlock.split("\n")) {
-      if (!line.startsWith(SIG_PREFIX)) continue;
-      const sp = line.lastIndexOf(" ");
-      if (sp < 0) continue;
-      const name = line.slice(SIG_PREFIX.length, sp);
+    for (const line of sigBlock.slice(0, -1).split("\n")) {
+      if (!line.startsWith(SIG_PREFIX)) throw new Error("l\xEDnea de firma sin el prefijo de signed-note");
+      const rest = line.slice(SIG_PREFIX.length);
+      const sp = rest.indexOf(" ");
+      if (sp < 0) throw new Error("l\xEDnea de firma sin nombre y firma");
+      const name = rest.slice(0, sp);
+      if (!nombreValido(name)) throw new Error(`nombre de firma inv\xE1lido: ${JSON.stringify(name)}`);
       let blob;
       try {
-        blob = fromBase64(line.slice(sp + 1));
-      } catch {
-        continue;
+        blob = base64Canonico(rest.slice(sp + 1));
+      } catch (e) {
+        throw new Error(`firma de ${name}: ${e instanceof Error ? e.message : String(e)}`);
       }
-      if (blob.length < 5) continue;
-      const keyId2 = uint32BE(blob, 0);
-      sigs.push({ name, keyId: keyId2, signature: blob.slice(4), line });
+      if (blob.length < 5) throw new Error(`firma de ${name}: menos de 5 bytes`);
+      if (sigs.length === MAX_SIGS) throw new Error(`m\xE1s de ${MAX_SIGS} l\xEDneas de firma`);
+      sigs.push({ name, keyId: uint32BE(blob, 0), signature: blob.slice(4), line });
     }
-    if (sigs.length === 0) throw new Error("la nota no trae ninguna l\xEDnea de firma");
     return { text, textBytes: utf8(text), sigs };
   }
   async function keyId(sha2562, name, alg, publicKey) {

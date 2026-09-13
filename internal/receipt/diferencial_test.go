@@ -167,6 +167,10 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 		}
 	}
 
+	// Segundo catálogo: las mutaciones de nota re-firmadas por el emisor.
+	refirmados := catalogoRefirmado(t)
+	catalogo = append(catalogo, refirmados...)
+
 	out := os.Getenv("NUCLEO_DIFERENCIAL_OUT")
 	if out == "" {
 		t.Logf("%d mutaciones sobre %d vectores; NUCLEO_DIFERENCIAL_OUT no está definido, no se escribe el catálogo",
