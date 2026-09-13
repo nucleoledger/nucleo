@@ -247,21 +247,41 @@ func (c *cli) initLedger() {
 // sealFile sella un contenido y devuelve el índice del bloque.
 func (c *cli) sealFile(content string) string {
 	c.t.Helper()
-	path := filepath.Join(c.dir, fmt.Sprintf("payload-%d.json", time.Now().UnixNano()))
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		c.t.Fatal(err)
+	return c.mustRun("seal", "--tenant", testTenant, "--type", "sri.factura.v1", "--payload", ficheroUnico(c.t, c.dir, "payload-*.json", content))
+}
+
+// ficheroUnico escribe content en un fichero nuevo de dir con un nombre que el
+// sistema operativo garantiza único (os.CreateTemp).
+//
+// Antes el nombre salía de time.Now().UnixNano(). En Linux dos llamadas seguidas dan
+// valores distintos; en Windows el reloj de pared avanza a golpes de tick, y
+// TestSealYReconcileExponenAtestacion construía TRES ficheros en la misma expresión:
+// los tres recibieron el mismo nombre y cada uno pisó al anterior. El segundo seal
+// sellaba otra vez el mismo contenido —UNIQUE constraint en blobs, código 1— y los dos
+// reconcile leían un payload como si fuera el JSONL del sistema vivo —código 2—. Solo
+// fallaba en windows-latest, y solo en ese test porque es el único que pedía varios
+// ficheros sin nada entre medias. El nombre de un fichero de test no puede depender de
+// la resolución del reloj.
+func ficheroUnico(t *testing.T, dir, patron, content string) string {
+	t.Helper()
+	f, err := os.CreateTemp(dir, patron)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return c.mustRun("seal", "--tenant", testTenant, "--type", "sri.factura.v1", "--payload", path)
+	if _, err := f.WriteString(content); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return f.Name()
 }
 
 // writeTemp escribe un payload temporal y devuelve su ruta.
 func (c *cli) writeTemp(t *testing.T, content string) string {
 	t.Helper()
-	path := filepath.Join(c.dir, fmt.Sprintf("tmp-%d.json", time.Now().UnixNano()))
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return ficheroUnico(t, c.dir, "tmp-*.json", content)
 }
 
 // TestInitIsDeterministicWithTestHooks fija las piezas de la salida de init.
@@ -612,5 +632,23 @@ func TestJSONEnHelpEInit(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(c.dir, "nucleo.db")); err == nil {
 		t.Errorf("init --json rechazado dejó un ledger creado")
+	}
+}
+
+// TestFicherosDeTestUnicos: el defecto que solo se veía en windows-latest, fijado en
+// cualquier plataforma. Muchas llamadas seguidas, sin nada entre medias, tienen que dar
+// ficheros distintos con su propio contenido.
+func TestFicherosDeTestUnicos(t *testing.T) {
+	c := newCLI(t)
+	vistos := map[string]bool{}
+	for i := 0; i < 200; i++ {
+		p := c.writeTemp(t, fmt.Sprint(i))
+		if vistos[p] {
+			t.Fatalf("writeTemp repitió el nombre %s en la llamada %d", p, i)
+		}
+		vistos[p] = true
+		if raw, err := os.ReadFile(p); err != nil || string(raw) != fmt.Sprint(i) {
+			t.Fatalf("%s contiene %q, want %q (%v)", p, raw, fmt.Sprint(i), err)
+		}
 	}
 }
