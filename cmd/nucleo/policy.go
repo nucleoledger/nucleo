@@ -206,5 +206,20 @@ func checkChainSigner(res store.OpenResult, id *identity.Identity, accion string
 	return verifyErr("no se %s: los %d bloques de este ledger los firma %s… y la clave de este vault es %s…. "+
 		"O la cadena entera fue reescrita con otra clave, o este vault no es el de este ledger; "+
 		"en ninguno de los dos casos se escribe encima ni se pide a un testigo que la avale",
-		accion, res.TreeSize, res.SignerKey[:16], own[:16])
+		accion, res.TreeSize, prefijoClave(res.SignerKey), prefijoClave(own))
+}
+
+// prefijoClave recorta una clave en hexadecimal para un mensaje de error.
+//
+// Existe porque el recorte directo —clave[:16]— es un PÁNICO en cuanto la clave viene
+// más corta, y esas claves vienen de un recibo ajeno o de una base que el modelo de
+// amenaza da por manipulable. La cuarta auditoría lo señaló (H3) y era alcanzable:
+// Parse de un recibo con signer_pubkey de cuatro caracteres tumbaba el proceso. Un
+// pánico es una caída provocable; un rechazo con mensaje es un rechazo.
+func prefijoClave(s string) string {
+	const n = 16
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }

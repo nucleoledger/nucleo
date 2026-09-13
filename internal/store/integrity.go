@@ -349,7 +349,7 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 			if want := hex.EncodeToString(s.witnesses.SignerKey); want != signer {
 				return OpenResult{}, &IntegrityError{Stage: "firmante", Index: -1,
 					Err: fmt.Errorf("%w: la cadena la firma %s… y la política espera %s…",
-						ErrSignerMismatch, signer[:16], want[:16])}
+						ErrSignerMismatch, prefijoClave(signer), prefijoClave(want))}
 			}
 			signerState = SignerVerified
 		}
@@ -430,7 +430,7 @@ func (s *Store) checkLogKey() error {
 	}
 	if !bytes.Equal(s.witnesses.LogKey, pub) {
 		return fmt.Errorf("%w: el ledger declara %s… y la política trae %s…",
-			ErrLogKeyMismatch, hex.EncodeToString(pub)[:16], hex.EncodeToString(s.witnesses.LogKey)[:16])
+			ErrLogKeyMismatch, prefijoClave(hex.EncodeToString(pub)), prefijoClave(hex.EncodeToString(s.witnesses.LogKey)))
 	}
 	return nil
 }
@@ -557,7 +557,7 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, string, error) {
 		if expected != "" && sp != expected {
 			return nil, "", &IntegrityError{Stage: "firmante", Index: idx,
 				Err: fmt.Errorf("%w: el bloque %d lo firma %s… y la política espera %s…",
-					ErrSignerMismatch, idx, sp[:16], expected[:16])}
+					ErrSignerMismatch, idx, prefijoClave(sp), prefijoClave(expected))}
 		}
 		if idx == 0 {
 			signer = sp
@@ -568,7 +568,7 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, string, error) {
 				Err: fmt.Errorf("%w: los bloques 0–%d los firma %s… y el bloque %d lo firma %s…; "+
 					"sin la clave del firmante en la política no se puede saber cuál de las dos es la legítima "+
 					"(ábrelo con --policy-file)",
-					ErrSignerContinuity, idx-1, signer[:16], idx, sp[:16])}
+					ErrSignerContinuity, idx-1, prefijoClave(signer), idx, prefijoClave(sp))}
 		}
 
 		// El último bloque cubierto por el checkpoint también se reconstruye,
@@ -816,4 +816,19 @@ func (s *Store) LeafRule() (string, error) {
 		return "", err
 	}
 	return string(raw), nil
+}
+
+// prefijoClave recorta una clave en hexadecimal para un mensaje de error.
+//
+// Existe porque el recorte directo —clave[:16]— es un PÁNICO en cuanto la clave viene
+// más corta, y esas claves vienen de un recibo ajeno o de una base que el modelo de
+// amenaza da por manipulable. La cuarta auditoría lo señaló (H3) y era alcanzable:
+// Parse de un recibo con signer_pubkey de cuatro caracteres tumbaba el proceso. Un
+// pánico es una caída provocable; un rechazo con mensaje es un rechazo.
+func prefijoClave(s string) string {
+	const n = 16
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }

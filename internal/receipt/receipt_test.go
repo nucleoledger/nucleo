@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"golang.org/x/mod/sumdb/note"
@@ -650,5 +651,53 @@ func TestIndiceDeLaPruebaContraElHeader(t *testing.T) {
 	otro.Header.Index = 3
 	if _, err := otro.Verify(pol); !errors.Is(err, ErrIndexMismatch) {
 		t.Errorf("con el header movido: err = %v, want ErrIndexMismatch", err)
+	}
+}
+
+// TestSinPanicoConClavesCortas es H3 de la cuarta auditoría. El recorte del mensaje de
+// error —SignerPubKey[:16]— tumbaba el proceso con un recibo ajeno cuyo signer_pubkey
+// midiera menos: "slice bounds out of range [:16] with length 4". Quien parsea recibos
+// de terceros —un servidor que acepta subidas— se cae en vez de rechazar.
+func TestSinPanicoConClavesCortas(t *testing.T) {
+	sc := newScene(t, 1)
+	pol := sc.policy()
+	r, err := sc.issue(t, "María Pérez", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := Format(r, pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := strings.Index(string(data), separator+"\n") + len(separator) + 1
+	linea := strings.SplitN(string(data)[i:], "\n", 2)[0]
+
+	for _, corta := range []string{"", "ab", "abcd", strings.Repeat("a", 15), strings.Repeat("a", 63)} {
+		t.Run(fmt.Sprintf("signer_pubkey de %d caracteres", len(corta)), func(t *testing.T) {
+			var h map[string]any
+			if err := json.Unmarshal([]byte(linea), &h); err != nil {
+				t.Fatal(err)
+			}
+			h["signer_pubkey"] = corta
+			nuevo, err := json.Marshal(h) // json.Marshal ordena las claves: sigue canónico
+			if err != nil {
+				t.Fatal(err)
+			}
+			roto := strings.Replace(string(data), linea, string(nuevo), 1)
+			// Sin recover: un pánico aquí hace fallar el test con su traza, que es
+			// exactamente lo que se quiere ver si vuelve.
+			if _, err := Parse([]byte(roto), pol); err == nil {
+				t.Error("un recibo con signer_pubkey imposible debe rechazarse")
+			}
+			// Y por las otras dos puertas que llegan al mismo mensaje.
+			otro := *r
+			otro.Header.SignerPubKey = corta
+			if _, _, err := otro.ProvableTime(pol); err == nil {
+				t.Error("ProvableTime debe rechazar")
+			}
+			if _, err := Format(&otro, pol); err == nil {
+				t.Error("Format debe rechazar")
+			}
+		})
 	}
 }

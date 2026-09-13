@@ -344,7 +344,7 @@ func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
 	}
 	if hex.EncodeToString(p.SignerKey) != r.Header.SignerPubKey {
 		return proof.Result{}, fmt.Errorf("%w: el header declara %s y la política espera %s",
-			ErrUnexpectedSigner, r.Header.SignerPubKey[:16], hex.EncodeToString(p.SignerKey)[:16])
+			ErrUnexpectedSigner, prefijoClave(r.Header.SignerPubKey), prefijoClave(hex.EncodeToString(p.SignerKey)))
 	}
 	// El índice de la prueba tiene que ser el que declara el header (H4.3 de la
 	// cuarta auditoría). Sin esto, una hoja bien firmada presentada en otra posición
@@ -367,4 +367,19 @@ func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
 		return proof.Result{}, err
 	}
 	return r.Proof.Verify(leafData, p)
+}
+
+// prefijoClave recorta una clave en hexadecimal para un mensaje de error.
+//
+// Existe porque el recorte directo —clave[:16]— es un PÁNICO en cuanto la clave viene
+// más corta, y esas claves vienen de un recibo ajeno o de una base que el modelo de
+// amenaza da por manipulable. La cuarta auditoría lo señaló (H3) y era alcanzable:
+// Parse de un recibo con signer_pubkey de cuatro caracteres tumbaba el proceso. Un
+// pánico es una caída provocable; un rechazo con mensaje es un rechazo.
+func prefijoClave(s string) string {
+	const n = 16
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }
