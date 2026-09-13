@@ -74,9 +74,13 @@ func NewHeader(prev *Block, tenant, typ string, payload []byte, payloadCID strin
 		return Header{}, fmt.Errorf("%w: clave pública de %d bytes", ErrInvalidHeader, len(signer))
 	}
 	h := Header{
-		Index:        0,
-		PrevHash:     GenesisPrevHash,
-		Timestamp:    now.UTC().Format(time.RFC3339Nano),
+		Index:    0,
+		PrevHash: GenesisPrevHash,
+		// Resolución de SEGUNDO, truncando (ADR-019). Con RFC3339Nano el header
+		// firmado llevaba la fracción, el texto del recibo la borraba al
+		// reformatearlo y TypeScript reimprimía el literal: un recibo real, emitido
+		// por la CLI, lo aceptaba Go y lo rechazaban el SDK y la página.
+		Timestamp:    now.UTC().Truncate(time.Second).Format(time.RFC3339),
 		Tenant:       tenant,
 		Type:         typ,
 		PayloadHash:  hashHex(payload),
@@ -144,6 +148,13 @@ func (h Header) Time() (time.Time, error) {
 	return t, nil
 }
 
+// fraccion dice si un timestamp RFC 3339 trae fracción de segundo. Se mira el texto,
+// no el time.Time: un instante parseado no recuerda cómo venía escrito, y lo que
+// importa es lo que se firma.
+func fraccion(ts string) bool {
+	return strings.Contains(ts, ".")
+}
+
 // Canonical devuelve los bytes JCS del header: es lo que se hashea.
 func (h Header) Canonical() ([]byte, error) {
 	b, err := jcs.Marshal(h)
@@ -172,6 +183,14 @@ func Seal(h Header, priv ed25519.PrivateKey) (*Block, error) {
 	}
 	if err := h.Validate(); err != nil {
 		return nil, err
+	}
+	// Material NUEVO: resolución de segundo, sin fracción (ADR-019 C). Va aquí y no
+	// en Validate porque Validate también corre al VERIFICAR —Block.Verify, el
+	// renderizado del recibo— y los recibos ya emitidos llevan fracción: rechazarlos
+	// al verificar mataría documentos correctos en manos de terceros.
+	if fraccion(h.Timestamp) {
+		return nil, fmt.Errorf("%w: el timestamp lleva fracción de segundo (%s); Núcleo firma con resolución de segundo (ADR-019)",
+			ErrInvalidHeader, h.Timestamp)
 	}
 	pub, ok := priv.Public().(ed25519.PublicKey)
 	if !ok || hex.EncodeToString(pub) != h.SignerPubKey {

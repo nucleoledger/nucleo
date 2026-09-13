@@ -1,6 +1,6 @@
 # Núcleo Protocol Specification
 
-**Version: 0.3-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; wire formats stabilize at v1.0)**
+**Version: 0.4-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; wire formats stabilize at v1.0)**
 
 > **0.3-draft changes what a verifier ACCEPTS, not what an issuer emits**
 > ([ADR-018](adr/ADR-018-politica-formato-de-cable.md)). Every receipt produced under
@@ -28,7 +28,7 @@ A **block** is `{header, hash, signature}`. The **header** is the signed part:
 |---|---|---|
 | `index` | uint64 | Sequential from 0 (genesis). MUST be ≤ 2^53 − 1 |
 | `prev_hash` | hex(32B) | SHA-256 hex of previous block; genesis uses 64 zeros |
-| `timestamp` | string | RFC 3339 with nanoseconds, MUST be UTC (`Z` suffix), non-decreasing |
+| `timestamp` | string | RFC 3339, **one-second resolution, no fractional part**, MUST be UTC (`Z` suffix), non-decreasing |
 | `tenant` | string | Organization identifier (e.g. RUC). Non-empty |
 | `type` | string | Record type, e.g. `sri.factura.v1`. Non-empty |
 | `payload_hash` | hex(32B) | SHA-256 of the exact payload bytes (see §5) |
@@ -39,6 +39,8 @@ A **block** is `{header, hash, signature}`. The **header** is the signed part:
 - `signature = Ed25519(sk, hash)` — the 32-byte digest is signed, not the JSON, so a verifier holding only hashes can check signatures.
 - The signature MUST be deterministic. Ed25519 (RFC 8032) is, and §2.1 depends on it: the leaf commits to the signature bytes, so a signature that varied between runs would change the tree. Any future signature algorithm for blocks MUST use its deterministic variant.
 - Chain rules: `index` consecutive, `prev_hash` matches, timestamps non-decreasing, and full-chain verification MUST enforce an expected signer key.
+- **Time resolution** ([ADR-019](adr/ADR-019-resolucion-temporal.md)). An implementation MUST NOT sign a header whose `timestamp` carries a fractional second: the signed domain is the same one the attestation uses, since `tlog-cosignature@v1` timestamps are whole Unix seconds (§4). A verifier MUST accept a fractional `timestamp` — receipts issued before this rule carry one, inside the signature and inside the leaf — and MUST NOT reformat it (§3.1). A `timestamp` with a UTC offset instead of `Z` MUST be rejected in both cases: one instant, one text.
+- Ordering is `index` with `prev_hash`, never the clock. Two blocks sealed in the same second are ordered by the chain, and `timestamp` is declared time (§4).
 
 ## 2. Merkle tree (implemented)
 
@@ -140,7 +142,13 @@ rule it is verified under**, so a verifier never has to guess:
 | `nucleo.org/receipt@v2` | `leaf/v2` | **current** |
 
 The human-readable section is **derived** from the machine section, never authored:
-a verifier MUST re-render it and require byte equality. It carries the recipient, the
+a verifier MUST re-render it and require byte equality. Fields that come from the header
+are carried **verbatim**: a verifier MUST NOT parse and reformat them, `timestamp`
+included ([ADR-019](adr/ADR-019-resolucion-temporal.md)). Reformatting a signed field
+invents a second representation of it, and two representations end in two verifiers
+that disagree — which is exactly what happened: Go printed the declared time without its
+fractional second and TypeScript printed the header's literal, so a genuine receipt was
+accepted by one and rejected by the other. It carries the recipient, the
 issuer, the record type, the payload hash, the block index, both clocks labelled
 separately (§4), and a legal notice. The notice and the recipient label are inside
 that byte-equality check on purpose: a receipt with either one removed does not
@@ -263,7 +271,7 @@ Counting:
 
 ## 4. Time (normative)
 
-- The block `timestamp` is **declared time** (local clock; can lie).
+- The block `timestamp` is **declared time** (local clock; can lie), at one-second resolution (§1).
 - **Provable time** of an entry = the earliest external attestation covering it: minimum of witness cosignature timestamps, and RFC 3161 TSA tokens if configured.
 - Receipts MUST label both values separately. Documentation MUST NOT present declared time as proof.
 

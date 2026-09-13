@@ -154,8 +154,9 @@ func VerifyReceiptSignature(r *Receipt, p proof.Policy) error {
 // suya al parsearlo, y si no coinciden, el recibo no se acepta. Es incómodo a
 // propósito: enseñar una fecha que quien mira no puede verificar sería peor.
 func renderText(r *Receipt, p proof.Policy) ([]byte, error) {
-	declared, err := r.DeclaredTime()
-	if err != nil {
+	// Se parsea aunque se imprima el literal: un timestamp ilegible o sin Z no puede
+	// producir un recibo, y el error tiene que salir aquí y no en la contraparte.
+	if _, err := r.DeclaredTime(); err != nil {
 		return nil, err
 	}
 	var b strings.Builder
@@ -166,8 +167,12 @@ func renderText(r *Receipt, p proof.Policy) ([]byte, error) {
 	fmt.Fprintf(&b, "hash del contenido: %s\n", r.Header.PayloadHash)
 	fmt.Fprintf(&b, "bloque            : %d\n", r.Header.Index)
 	b.WriteString("\n")
-	fmt.Fprintf(&b, "TIEMPO DECLARADO  : %s  (declarado por el sistema emisor)\n",
-		declared.UTC().Format(timeLayout))
+	// El literal del header, sin reformatear (ADR-019 B). Antes se imprimía
+	// declared.Format(timeLayout), que borraba la fracción de segundo: el texto que
+	// Go componía dejaba de ser el que TypeScript deriva del mismo header, y un
+	// recibo real de la CLI lo aceptaba Go y lo rechazaban el SDK y la página. No se
+	// normaliza lo que se compara: se compara lo que llegó.
+	fmt.Fprintf(&b, "TIEMPO DECLARADO  : %s  (declarado por el sistema emisor)\n", r.Header.Timestamp)
 	provable, ok, err := r.ProvableTime(p)
 	if err != nil {
 		return nil, err

@@ -39,8 +39,8 @@ describe("entorno", () => {
 describe("vectores de recibo generados por Go", () => {
   const files = listVectors("receipt");
 
-  it("hay dieciséis vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo y la firma ML-DSA del log", () => {
-    expect(files).toHaveLength(16);
+  it("hay diecisiete vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo y la firma ML-DSA del log y el timestamp con fracción", () => {
+    expect(files).toHaveLength(17);
   });
 
   for (const file of files) {

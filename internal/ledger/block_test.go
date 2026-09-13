@@ -495,3 +495,67 @@ func rootOf(t *testing.T, chain []*Block) string {
 	}
 	return hex.EncodeToString(Root(leaves))
 }
+
+// TestResolucionTemporal fija ADR-019: Núcleo firma con resolución de segundo, el
+// sellado rechaza la fracción y la verificación la acepta —los recibos ya emitidos la
+// llevan—. Los bordes son los del formato, no los del reloj.
+func TestResolucionTemporal(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("NewHeader trunca al segundo", func(t *testing.T) {
+		for _, ns := range []time.Duration{1, 999999999, 500000000} {
+			h, err := NewHeader(nil, "1790012345001", "t.v1", []byte("x"), "blob://x", pub,
+				time.Date(2026, 9, 13, 20, 2, 35, int(ns), time.UTC))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = err
+			if h.Timestamp != "2026-09-13T20:02:35Z" {
+				t.Errorf("con %d ns: timestamp = %q, want 2026-09-13T20:02:35Z", ns, h.Timestamp)
+			}
+		}
+	})
+
+	t.Run("bordes del formato", func(t *testing.T) {
+		for _, ts := range []string{
+			"2026-01-01T00:00:00Z", "2026-12-31T23:59:59Z", "2026-09-13T20:02:35.000000001Z",
+			"2026-09-13T20:02:35.999999999Z", "2026-09-13T20:02:35.1Z",
+		} {
+			h, err := NewHeader(nil, "1790012345001", "t.v1", []byte("x"), "blob://x", pub, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.Timestamp = ts
+			// Verificar acepta la fracción: un recibo ya emitido la lleva dentro de la
+			// firma y de la hoja.
+			if err := h.Validate(); err != nil {
+				t.Errorf("Validate(%q) = %v, want nil", ts, err)
+			}
+			// Sellar, no: sería material nuevo fuera de la especificación.
+			_, err = Seal(h, priv)
+			conFraccion := strings.Contains(ts, ".")
+			if conFraccion && err == nil {
+				t.Errorf("Seal aceptó %q, que lleva fracción", ts)
+			}
+			if !conFraccion && err != nil {
+				t.Errorf("Seal(%q) = %v, want nil", ts, err)
+			}
+		}
+	})
+
+	t.Run("sin Z no se acepta ni al verificar", func(t *testing.T) {
+		h, err := NewHeader(nil, "1790012345001", "t.v1", []byte("x"), "blob://x", pub, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ts := range []string{"2026-09-13T20:02:35+02:00", "2026-09-13T20:02:35", "2026-09-13 20:02:35Z"} {
+			h.Timestamp = ts
+			if err := h.Validate(); err == nil {
+				t.Errorf("Validate(%q) = nil: un desplazamiento horario o un formato ajeno son otra representación", ts)
+			}
+		}
+	})
+}

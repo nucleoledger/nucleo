@@ -3,6 +3,7 @@ package receipt
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"golang.org/x/mod/sumdb/note"
@@ -61,6 +62,11 @@ func newSceneN(t *testing.T, cosigners, n int) *scene {
 
 // newSceneConFirmas es newSceneN con firmantes ADICIONALES del log en la nota, como
 // la firma ML-DSA-44 que añade la CLI (ADR-007).
+// fraccionEnBloque, si no está vacío, sustituye el timestamp del PRIMER bloque de la
+// escena por ese literal y lo firma a mano. Es la única forma de fabricar hoy un bloque
+// como los que la CLI emitía antes de ADR-019: ledger.Seal ya no admite fracción.
+var fraccionEnBloque string
+
 func newSceneConFirmas(t *testing.T, cosigners, n int, extra ...note.Signer) *scene {
 	t.Helper()
 	s, _, err := store.Open(filepath.Join(t.TempDir(), "nucleo.db"))
@@ -79,8 +85,16 @@ func newSceneConFirmas(t *testing.T, cosigners, n int, extra ...note.Signer) *sc
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := ledger.Seal(h, tenantPriv)
-		if err != nil {
+		var b *ledger.Block
+		if i == 0 && fraccionEnBloque != "" {
+			h.Timestamp = fraccionEnBloque
+			digest, err := h.Digest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			b = &ledger.Block{Header: h, Hash: hex.EncodeToString(digest),
+				Signature: hex.EncodeToString(ed25519.Sign(tenantPriv, digest))}
+		} else if b, err = ledger.Seal(h, tenantPriv); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.AppendBlock(b); err != nil {

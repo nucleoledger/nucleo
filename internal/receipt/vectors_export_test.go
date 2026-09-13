@@ -81,8 +81,7 @@ func TestExportReceiptVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	declared, err := r.DeclaredTime()
-	if err != nil {
+	if _, err := r.DeclaredTime(); err != nil {
 		t.Fatal(err)
 	}
 	provable, hasProvable, err := r.ProvableTime(pol)
@@ -113,7 +112,7 @@ func TestExportReceiptVectors(t *testing.T) {
 		LeafRule:     ledger.LeafRule,
 		BlockSig:     hex.EncodeToString(r.BlockSig),
 		Valid:        true,
-		DeclaredTime: declared.UTC().Format(timeLayout),
+		DeclaredTime: r.Header.Timestamp,
 		ProvableTime: provable.UTC().Format(timeLayout),
 		BlockIndex:   r.Proof.Index,
 	}
@@ -177,6 +176,17 @@ func TestExportReceiptVectors(t *testing.T) {
 			}
 		}
 	}
+	// El recibo YA EMITIDO: header con fracción de segundo, como los que la CLI
+	// produjo hasta ADR-019. Los tres verificadores tienen que aceptarlo, porque la
+	// parte B del ADR hace que los tres impriman el literal del header.
+	func() {
+		fraccionEnBloque = "2026-09-06T14:30:00.123456789Z"
+		defer func() { fraccionEnBloque = "" }()
+		exportValid(t, dir, newSceneN(t, 1, 5), "valido-timestamp-con-fraccion",
+			"header con fracción de segundo, como los recibos emitidos antes de ADR-019: el texto lleva el literal del header y los tres verificadores lo aceptan",
+			"María Pérez (cédula 1712345678)", 0)
+	}()
+
 	exportDuplicateCosignature(t, dir)
 	exportTwoCosignaturesSameWitness(t, dir)
 
@@ -236,7 +246,6 @@ func exportDuplicateCosignature(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	declared, _ := r.DeclaredTime()
 	w2 := key(91).Public().(ed25519.PublicKey)
 	v := vectorFile{
 		Name: "invalido-cosignature-duplicada",
@@ -250,7 +259,7 @@ func exportDuplicateCosignature(t *testing.T, dir string) {
 		},
 		LeafData: hex.EncodeToString(leafData), LeafRule: ledger.LeafRule, BlockSig: hex.EncodeToString(r.BlockSig),
 		Valid: false, Reason: "duplicate_cosignature",
-		DeclaredTime: declared.UTC().Format(timeLayout), BlockIndex: 2,
+		DeclaredTime: r.Header.Timestamp, BlockIndex: 2,
 	}
 	raw, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -338,7 +347,6 @@ func exportTwoCosignaturesSameWitness(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	declared, _ := r.DeclaredTime()
 	v := vectorFile{
 		Name: "valido-dos-cosignatures-mismo-testigo",
 		Description: "El mismo testigo cosigna dos veces, la línea tardía primero. Un testigo cuenta una vez " +
@@ -349,7 +357,7 @@ func exportTwoCosignaturesSameWitness(t *testing.T, dir string) {
 			Witnesses: map[string]string{w1: hex.EncodeToString(sc.wits[w1])}, Quorum: 1,
 		},
 		LeafData: hex.EncodeToString(leafData), LeafRule: ledger.LeafRule, BlockSig: hex.EncodeToString(r.BlockSig),
-		Valid: true, DeclaredTime: declared.UTC().Format(timeLayout),
+		Valid: true, DeclaredTime: r.Header.Timestamp,
 		ProvableTime: temprana.UTC().Format(timeLayout), BlockIndex: 2,
 	}
 	raw, err := json.MarshalIndent(v, "", "  ")
@@ -378,7 +386,6 @@ func exportValid(t *testing.T, dir string, sc *scene, name, desc, recipient stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	declared, _ := r.DeclaredTime()
 	provable, _, _ := r.ProvableTime(pol)
 	exported := vectorPolicy{
 		Origin: pol.Origin, LogKey: hex.EncodeToString(pol.LogKey),
@@ -391,7 +398,7 @@ func exportValid(t *testing.T, dir string, sc *scene, name, desc, recipient stri
 		Name: name, Description: desc, Receipt: string(data), Policy: exported,
 		LeafData: hex.EncodeToString(leafData), LeafRule: ledger.LeafRule,
 		BlockSig: hex.EncodeToString(r.BlockSig), Valid: true,
-		DeclaredTime: declared.UTC().Format(timeLayout), ProvableTime: provable.UTC().Format(timeLayout),
+		DeclaredTime: r.Header.Timestamp, ProvableTime: provable.UTC().Format(timeLayout),
 		BlockIndex: idx,
 	}
 	raw, err := json.MarshalIndent(v, "", "  ")
