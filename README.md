@@ -125,10 +125,17 @@ This is a security product, so the process that built it is part of what you are
 | A compiled `nucleo.exe` was committed to the tree — 17.6 MiB, 99% of the repo | high | removed; history left intact because the `v0.1.0-alpha` signature pins it |
 | The witness `add-checkpoint` parser decoded base64 non-strictly, so two different request bodies produced the same request | medium | found by the new wire-format fuzzer; every other parser already used `.Strict()` |
 | A receipt said nothing about what it is worth in front of a judge | medium | legal notice inside the receipt, covered by the byte-for-byte text check |
-| The recipient line read as proof of delivery | medium | labelled in-line; the full fix is [ADR-015](docs/adr/ADR-015-destinatario.md), undecided |
+| The recipient line read as proof of delivery | medium | labelled in-line, and since [ADR-015](docs/adr/ADR-015-destinatario.md) the issuer signs the whole receipt, recipient included |
 | Stale attestation was nobody's incident: "nobody looks at `status`" | medium | fail-stale policy — `status`, `seal` and `verify` warn on stderr unprompted |
 | Argon2id at 64 MiB × 4 lanes contradicts the shared-hosting target ADR-005 chose | medium | measured `--kdf-profile constrained`; the cost to an attacker is stated, not hidden |
 | Process docs had drifted: PLAN.md still promised SQLite "next sprint" | low | PLAN/CLAUDE/AGENTS/TODO rewritten to the real state |
+| **The open path trusted checkpoints nobody verified**: a hand-written cosigned note bought the fast path and "atestiguada" | **critical** | [ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md) — attestation is `none`/`unverified`/`verified`; the exploit is a regression test |
+| Receipt malleability and a Go/TS divergence: Go verified a clean re-render, TS the received bytes | high | byte-canonical machine section in both; a Go↔TS differential (2,269 mutations) runs in CI |
+| **Nothing pinned the block signer**: blocks 1–4 re-signed with the attacker's key passed `verify --full` | **high** | [ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md) — signer continuity on every open, identity against the policy's `signerKey` |
+| An empty `WitnessPolicy{}` (or quorum 0) reported "verified" on a forged ledger | high | a policy that cannot verify anything is rejected before the file is opened |
+| `status` read freshness from a local record anyone with the file can write, and said ✔ | medium | freshness is derived from the *verified* cosignature, or labelled "registro local, NO verificado" — in text and in `--json` (`freshness.verified`, `freshness.source`) |
+| The static page showed ✔ rows under a ✘ verdict | medium | no unqualified ✔ when `valid == false` |
+| A policy file with another ledger's log key opened a freshly created ledger without complaint | medium | the log key is checked against `vault_meta` on every open, with or without stored checkpoints |
 
 **Anti-circularity is a project rule.** Every golden value — hashes, key IDs, signatures, canonical bytes — is computed *outside* the code under test: `sha256sum`, `openssl`, an independent Python implementation, a C program linked against the reference Argon2 library. A test that verifies a function using that same function verifies nothing, and this project learned that the hard way.
 
@@ -142,9 +149,34 @@ This is a security product, so the process that built it is part of what you are
   checkpoint that the old open path accepted on shape alone; the exploit is a
   regression test. ([ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md))
 - An adversary who **also controls the witness your policy accepts** can still have
-  garbage cosigned: witnesses do not verify block signatures. `verify --full` catches
-  it; a witness the issuer does not control is the real defense, and it is still
-  product work. ([ADR-014](docs/adr/ADR-014-hoja-y-firma.md))
+  garbage cosigned: witnesses do not verify block signatures. A witness the issuer
+  does not control is the real defense, and it is still product work.
+  ([ADR-014](docs/adr/ADR-014-hoja-y-firma.md))
+
+  > **Amended 2026-09-12 after the second adversarial audit.** This bullet used to
+  > end with *"`verify --full` catches it"*. **It did not.** The audit rewrote blocks
+  > 1–4 signed with its own key — self-consistent signatures, `signer_pubkey` pointing
+  > at that key — and `verify --full` reported "verificación EXHAUSTIVA superada".
+  > Nothing pinned the block signer: not the chain, not the policy. What actually
+  > catches a rewrite is **the witness's memory on the next `sync`** (same height,
+  > different root → 422) and **receipts already in other people's hands**. Since
+  > [ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md), signer continuity is
+  > enforced on every open — a partial re-signing is rejected always — and the policy
+  > carries `signerKey`, so a total self-consistent rewrite is rejected whenever a
+  > policy is supplied and reported as "signer NOT verified" when it is not.
+- **Freshness is only as good as its source.** With a policy and a verified attestation,
+  "hace cuánto vio un tercero esta historia" comes from the witness's cosignature
+  timestamp. Without a policy, the only thing available is the record the last `sync`
+  left *in the same file* — the second audit inserted one by hand with an invented
+  witness — so the CLI labels it "registro local, NO verificado" on the same line, and
+  `--json` carries `freshness.verified` and `freshness.source`. A cron that reads `stale`
+  without reading `verified` is trusting the disk. ([docs/CLI-JSON.md](docs/CLI-JSON.md))
+- **The policy is the single trust root, and it has to be supplied.** `origin`, `logKey`,
+  `signerKey`, `witnesses`, `quorum` — one JSON file, shared verbatim by the CLI
+  (`--policy-file`), the TypeScript SDK and the static page. `status` publishes the
+  keys the file *declares* so you can compare them against your policy, not copy them
+  from there. A policy that cannot verify anything, or that names another ledger's
+  log key, is rejected. ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md))
 - The issuer's signature on a receipt proves who produced *this* document for *this*
   recipient. It does not prove delivery, and it does not stop the issuer from issuing
   another receipt for the same record to someone else.
@@ -157,12 +189,21 @@ model with no internal context, working only from what is public. Its most usefu
 findings were not cryptographic — they were about the product around the theorem: who
 witnesses for a small business, how a PHP ERP seals in the same transaction, what the
 receipt says in front of a judge, and what happens when somebody restores yesterday's
-backup. Two of its findings became ADRs that are still **undecided**:
-[ADR-014](docs/adr/ADR-014-hoja-y-firma.md) (put the block signature inside the Merkle
-leaf) and [ADR-015](docs/adr/ADR-015-destinatario.md).
+backup. Two of its findings became ADRs, both accepted and implemented in
+PROTOCOL 0.2-draft: [ADR-014](docs/adr/ADR-014-hoja-y-firma.md) (the block signature
+goes inside the Merkle leaf, `leaf/v2`) and [ADR-015](docs/adr/ADR-015-destinatario.md)
+(the issuer signs the whole receipt).
 
-The full record of who audited what, across four rounds, is in
-[ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md).
+**Then two adversarial audits of 0.2-draft itself**, each run with executed exploits
+against the tree as it stood. The first found that the open path trusted checkpoints
+nobody verified ([ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md)) and a Go/TS
+receipt divergence; the second, that nothing pinned the block signer and that an empty
+policy "verified" a forged ledger ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md)).
+Both are in the findings table above; every exploit is now a regression test.
+
+The record of the pre-publication rounds is in
+[ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md); the two post-publication audits
+are in ADR-016 and ADR-017 and in the CHANGELOG.
 
 **No external security audit has been performed.** The reviews above were model-driven and thorough, but they are not a substitute for a professional audit, and this software has not been used in production by anyone. Treat it accordingly.
 
