@@ -11,6 +11,72 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Security: third adversarial audit (Sprint 7e)
+
+The third pass found nothing new in the receipt bytes — 2,269 CI mutations and 132
+more of its own, zero divergences — and everything next to them: the policy file and
+the note's signature block, which Go and TypeScript read differently. The sprint's
+thesis is [ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md): **the policy is a
+wire format** and gets the same treatment as the others — a strict grammar in
+PROTOCOL.md, shared vectors, and a differential.
+
+- **HIGH — a duplicated cosignature line met the quorum in TypeScript and on the page.**
+  An issuer with one colluding witness duplicated its line, re-signed the receipt and
+  passed a 2-of-2 policy (`cosigners: ["w1","w1"]`); Go rejected it, because x/mod drops
+  repeated signatures. A witness now counts once. The class is closed with a **second
+  differential catalog of mutations re-signed by the issuer** — duplicate, reorder, graft
+  and remove note lines, then `receipt.Sign` — which found **38 more divergences** on its
+  first run: the TS note parser skipped malformed lines Go rejected. Both now apply
+  PROTOCOL.md §3.3 line by line, and both reject non-canonical base64 in a signature
+  line, which *both* had accepted.
+- **HIGH — the fail-stale alarm could be silenced with `--policy-file`.** Delete the
+  checkpoints and insert a fresh local record: attestation fell to `none`, freshness fell
+  to the forged record, and `status`, `seal` and `verify` stayed quiet with exit 0. With a
+  policy, the local record never feeds freshness now (`stale: true`, `source: "none"`,
+  `policy: true`, warning on stderr). The docs/CLI-JSON.md sentence the audit falsified
+  is amended in place.
+- **MEDIUM — `seal` and `sync` never compared the chain signer with the vault key.** On a
+  chain rewritten with another key, `seal` appended a legitimate block and said `ok`,
+  and a first `sync` got the witness to cosign the foreign history. Both refuse now
+  (exit 2) before writing or contacting the witness, and with a `signerKey` the open
+  error names the first **intruding** block instead of the legitimate one.
+- **MEDIUM — one policy file, two `signerKey`s.** `{"signerKey": A, "signerkey": B}` gave B
+  to the CLI (case-insensitive matching, last wins) and A to the page. Policies are now
+  read by a strict parser of our own in both languages: exact members, no duplicates or
+  case variants, lower-case hex, integer-literal `quorum`, nothing after the object, no
+  lone surrogates. 64 hand-written vectors in `testdata/vectors/policy/`, and a **third
+  differential catalog** of 9,929 policy mutations, 0 divergences.
+- **MEDIUM — a policy with no witnesses gave "✔ Recibo válido"** in Go, TS and the page.
+  Receipt policies require at least one witness and `quorum ≥ 1`.
+- **LOW** — two genuine cosignatures of one witness: Go took the first line, TS the
+  earliest; the earliest verifying one now counts in both (PROTOCOL.md §3.3), with a
+  vector. The same key under two witness names is a policy error. `--policy-file ""` is
+  a usage error, a policy file with permissions other than 0600/0644 warns, and the open
+  checks the policy's `origin`. `freshness.attested_ever` is true only with a verified
+  attestation.
+- **INFO** — `help --json` emits JSON; `init --json` requires an explicit
+  `--assume-confirmed`; the page recognizes the log's own ML-DSA-44 signature instead of
+  listing it under "keys you do not know"; two code comments that contradicted ADR-015
+  and ADR-017 corrected.
+
+#### ⚠ Breaking for verifiers: PROTOCOL 0.3-draft
+
+What an issuer emits does not change; every receipt the CLI produces still verifies.
+What a verifier **accepts** does: policies without `quorum`, with `quorum: 0`, without
+witnesses, with upper-case hex, with duplicated or case-variant members, or with trailing
+data are rejected; `Policy.quorum` and `witnesses` are required in the TypeScript type;
+and a note signature block that 0.2-draft verifiers read leniently is invalid.
+
+#### Performance
+
+- The signer-continuity cost measured in 7d is recovered. `signer_pubkey` is read from
+  the canonical header bytes instead of `json.Unmarshal`, backed by golden vectors
+  computed in Python: **1.72–1.78 µs → 0.35–0.37 µs per block, 0 allocations**; opening
+  10⁵ attested blocks **643–729 ms → 478–575 ms** (alternating runs, same machine).
+- `scripts/bench-readme.sh` refuses a dirty tree and reports the median and range of N
+  samples; the README table is regenerated with it from a clean checkout of the commit
+  it cites.
+
 ### Security: second adversarial audit (Sprint 7d)
 
 A second adversarial pass, run against the tree after Sprint 7c, looked for what the

@@ -96,6 +96,13 @@ LA POLÍTICA (--policy-file)
   Si una bandera se repite, gana la ÚLTIMA, que es lo que hace el paquete flag
   de Go; no es un mecanismo para combinar valores.
 
+  El fichero es un formato estricto (PROTOCOL.md §3.2): exactamente esos
+  miembros, sin repetir ninguno ni escribirlo con otras mayúsculas, claves en
+  hexadecimal en MINÚSCULAS, al menos un testigo, ninguna clave bajo dos nombres,
+  quorum entero entre 1 y el número de testigos, y nada detrás del objeto. Un
+  --policy-file vacío es error, y unos permisos distintos de 0600 o 0644 avisan:
+  quien pueda escribir la política decide qué se verifica.
+
   Por qué la clave del firmante no puede salir del propio ledger: vive en el
   fichero que un atacante escribe, y "verificarla" contra sí misma sube el
   listón en un UPDATE. status la publica para que la COMPARES con tu política,
