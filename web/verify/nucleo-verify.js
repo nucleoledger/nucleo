@@ -440,10 +440,13 @@ time ${timestamp.toString()}
     const logKey = claves.logKey;
     const logId = await keyId(sha256, policy.origin, ALG_ED25519, logKey);
     let logSigned = false;
+    const idDe = (name, id) => `${name}
+${id}`;
     const witnesses = /* @__PURE__ */ new Map();
     for (const w of claves.witnesses) {
-      witnesses.set(await keyId(sha256, w.name, ALG_COSIGNATURE_V1, w.key), w);
+      witnesses.set(idDe(w.name, await keyId(sha256, w.name, ALG_COSIGNATURE_V1, w.key)), w);
     }
+    const contados = /* @__PURE__ */ new Set();
     let earliest = null;
     for (const sig of p.note.sigs) {
       if (sig.name === policy.origin && sig.keyId === logId) {
@@ -454,8 +457,8 @@ time ${timestamp.toString()}
         logSigned = true;
         continue;
       }
-      const w = witnesses.get(sig.keyId);
-      if (!w || w.name !== sig.name) {
+      const w = witnesses.get(idDe(sig.name, sig.keyId));
+      if (!w) {
         ignored.push(sig.name);
         continue;
       }
@@ -471,7 +474,10 @@ time ${timestamp.toString()}
         reasons.push(`la cosignature de ${sig.name} no verifica`);
         continue;
       }
-      cosigners.push(sig.name);
+      if (!contados.has(idDe(sig.name, sig.keyId))) {
+        contados.add(idDe(sig.name, sig.keyId));
+        cosigners.push(sig.name);
+      }
       if (earliest === null || cs.timestamp < earliest) earliest = cs.timestamp;
     }
     if (!logSigned) reasons.push("el checkpoint no est\xE1 firmado por la clave del log");

@@ -171,10 +171,78 @@ func TestExportReceiptVectors(t *testing.T) {
 			}
 		}
 	}
+	exportDuplicateCosignature(t, dir)
+
 	sc2 := newScene(t, 1)
 	exportValid(t, dir, sc2, "valido-destinatario-imita-firma",
 		"el destinatario es un texto con la forma de una línea de firma; tiene que viajar como nombre y nada más",
 		"— 1790012345001 AAAA", 2)
+}
+
+// exportDuplicateCosignature es el hallazgo ALTO #1 de la tercera auditoría como
+// vector compartido (ADR-018 C). Un solo testigo cosigna; el emisor duplica su
+// línea en la nota y VUELVE A FIRMAR el recibo, así que la firma del emisor verifica
+// y lo único que queda por decidir es cuántas veces cuenta ese testigo. La política
+// exige dos testigos distintos: tiene que rechazarse en los tres verificadores.
+func exportDuplicateCosignature(t *testing.T, dir string) {
+	t.Helper()
+	sc := newScene(t, 1)
+	pol1 := sc.policy()
+	r, err := sc.issue(t, "María Pérez (cédula 1712345678)", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const w1 = "witness.example/w1"
+	var line string
+	for _, l := range strings.Split(string(r.Proof.CheckpointNote), "\n") {
+		if strings.HasPrefix(l, "— "+w1+" ") {
+			line = l
+		}
+	}
+	if line == "" {
+		t.Fatal("la nota no trae la línea del testigo: el vector no probaría nada")
+	}
+	r.Proof.CheckpointNote = append(append([]byte{}, r.Proof.CheckpointNote...), []byte(line+"\n")...)
+	if err := Sign(r, pol1, sc.tenantPriv); err != nil {
+		t.Fatal(err)
+	}
+	data, err := Format(r, pol1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leafData, err := r.LeafData()
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared, _ := r.DeclaredTime()
+	w2 := key(91).Public().(ed25519.PublicKey)
+	v := vectorFile{
+		Name: "invalido-cosignature-duplicada",
+		Description: "Un solo testigo cosigna y su línea aparece DOS veces; el emisor re-firmó el recibo. " +
+			"La política exige 2 de 2 testigos: un testigo cuenta una vez (PROTOCOL.md §3.3). Debe rechazarse.",
+		Receipt: string(data),
+		Policy: vectorPolicy{
+			Origin: pol1.Origin, LogKey: hex.EncodeToString(pol1.LogKey), SignerKey: hex.EncodeToString(pol1.SignerKey),
+			Witnesses: map[string]string{w1: hex.EncodeToString(sc.wits[w1]), "witness.example/w2": hex.EncodeToString(w2)},
+			Quorum:    2,
+		},
+		LeafData: hex.EncodeToString(leafData), LeafRule: ledger.LeafRule, BlockSig: hex.EncodeToString(r.BlockSig),
+		Valid: false, Reason: "duplicate_cosignature",
+		DeclaredTime: declared.UTC().Format(timeLayout), BlockIndex: 2,
+	}
+	raw, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, v.Name+".json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	assertVector(t, v)
+	// Y la misma nota con la política 1-de-1 SÍ verifica: lo que se rechaza es el
+	// quórum inflado, no la línea repetida en sí.
+	if _, err := r.Verify(pol1); err != nil {
+		t.Fatalf("con la política 1-de-1 la nota con la línea repetida debía verificar: %v", err)
+	}
 }
 
 // exportValid emite, exporta y comprueba un vector válido.

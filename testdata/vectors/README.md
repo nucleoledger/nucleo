@@ -45,3 +45,11 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              signer_pubkey, que ya viaja en el header: cero claves nuevas que
              repartir.
 
+             Sprint 7d (D.6): valido-n{1,2,4,8,9}-i{0,último} y
+             valido-destinatario-imita-firma.
+
+             Sprint 7e (ADR-018, adición autorizada por el dev):
+             invalido-cosignature-duplicada — un testigo, su línea DOS veces en la
+             nota, recibo re-firmado por el emisor, política 2-de-2. Un testigo
+             cuenta una vez (PROTOCOL.md §3.3): los tres verificadores lo rechazan.
+

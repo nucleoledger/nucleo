@@ -365,10 +365,20 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   const logId = await keyId(sha256, policy.origin, ALG_ED25519, logKey);
   let logSigned = false;
 
-  const witnesses = new Map<number, { name: string; key: Uint8Array }>();
+  // Indexado por (nombre, key ID), que es lo que identifica una clave en
+  // signed-note. Por key ID solo, dos testigos cuyos IDs de 4 bytes colisionaran
+  // se pisarían en el mapa.
+  const idDe = (name: string, id: number): string => `${name}\n${id}`;
+  const witnesses = new Map<string, { name: string; key: Uint8Array }>();
   for (const w of claves.witnesses) {
-    witnesses.set(await keyId(sha256, w.name, ALG_COSIGNATURE_V1, w.key), w);
+    witnesses.set(idDe(w.name, await keyId(sha256, w.name, ALG_COSIGNATURE_V1, w.key)), w);
   }
+  // Un testigo cuenta UNA vez para el quórum, tenga las líneas que tenga
+  // (PROTOCOL.md §3.3, ADR-018). Antes cada línea contaba: la tercera auditoría
+  // duplicó la cosignature de un único testigo, re-firmó el recibo y cumplió un
+  // quórum 2-de-2 en la página. Go no lo aceptaba —x/mod descarta las repeticiones—
+  // y el diferencial no lo veía porque ninguna de sus mutaciones re-firmaba.
+  const contados = new Set<string>();
 
   let earliest: bigint | null = null;
   for (const sig of p.note.sigs) {
@@ -382,8 +392,8 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
       logSigned = true;
       continue;
     }
-    const w = witnesses.get(sig.keyId);
-    if (!w || w.name !== sig.name) {
+    const w = witnesses.get(idDe(sig.name, sig.keyId));
+    if (!w) {
       // Firmas de claves desconocidas: ML-DSA-44 del log, cosignatures de
       // otros testigos. Se IGNORAN, como manda c2sp.org/signed-note. Es lo que
       // permite que un mismo recibo circule entre partes que confían en
@@ -403,7 +413,10 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
       reasons.push(`la cosignature de ${sig.name} no verifica`);
       continue;
     }
-    cosigners.push(sig.name);
+    if (!contados.has(idDe(sig.name, sig.keyId))) {
+      contados.add(idDe(sig.name, sig.keyId));
+      cosigners.push(sig.name);
+    }
     if (earliest === null || cs.timestamp < earliest) earliest = cs.timestamp;
   }
 
