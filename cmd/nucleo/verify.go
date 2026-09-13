@@ -210,8 +210,9 @@ func printAttestation(e *env, r store.OpenResult) {
 		// fabricó una nota con forma de cosignada y el programa la daba por buena.
 		e.printf("estado    : ◐ checkpoint presente hasta el bloque %d, NO verificado\n", r.AttestedSize)
 		e.printf("            %s.\n", r.Reason)
-		e.printf("            Para comprobar que un testigo lo avala, pasa --witness-name y\n")
-		e.printf("            --witness-key: la prueba tiene que venir de fuera de este fichero.\n")
+		e.printf("            Para comprobar que un testigo lo avala, pasa --policy-file (o\n")
+		e.printf("            --witness-name y --witness-key): la prueba tiene que venir de\n")
+		e.printf("            fuera de este fichero.\n")
 	default:
 		e.printf("estado    : ⚠ SIN ATESTIGUAR (%d bloques)\n", r.TreeSize)
 		e.printf("            La cadena es localmente válida, pero que esté COMPLETA no\n")
