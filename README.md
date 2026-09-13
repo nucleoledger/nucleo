@@ -84,35 +84,39 @@ With no accepted witness, the receipt says `SIN TIEMPO DEMOSTRABLE` in full. Sta
 Measured with Go 1.27.1 on linux/amd64. Every figure below comes from one run of
 [`scripts/bench-readme.sh`](scripts/bench-readme.sh), pasted verbatim: the date, the
 commit and the CPU are in the table's own footer, because a number without them is a
-memory, not a measurement.
+memory, not a measurement. Each time is the **median of five samples with the range
+beside it** — two runs of the same code on the same machine have differed by a third —
+and the script refuses to run on a tree with uncommitted changes, so the commit it
+cites is exactly the code it measured.
 
-<!-- generado por scripts/bench-readme.sh · 2026-09-12 · commit 2d8ca6c · AMD Ryzen 7 5700U with Radeon Graphics -->
-| what | figure | how it was measured |
+<!-- generado por scripts/bench-readme.sh · 2026-09-13 · commit 7b367b1 (árbol limpio) · AMD Ryzen 7 5700U with Radeon Graphics · go1.27.1 · n=5 -->
+| what | figure (median, range) | how it was measured |
 |---|---|---|
-| block sealing (JCS + SHA-256 + Ed25519), in memory | **24,047 blocks/s** — 42 µs/op | `BenchmarkSeal` |
-| durable append (`synchronous=FULL`, one fsync each) | **646 blocks/s** | `BenchmarkAppendBlock` |
-| open, 10⁵ blocks, attestation **verified** (fast path) | **548 ms** | `BenchmarkOpen`, policy supplied, 3x |
-| open, 10⁵ blocks, no policy (every signature recomputed) | **7.85 s** | `BenchmarkOpenUnattested`, 3x |
-| `verify --full`, 10⁵ blocks | **9.21 s** | `BenchmarkVerifyFull`, 3x |
-| Merkle root, 10⁵ leaves | **201 ms** | `BenchmarkRoot` |
-| unlock the vault, `default` KDF profile (64 MiB) | **61 ms** | `BenchmarkUnlockDefault` |
-| unlock the vault, `constrained` KDF profile (19 MiB) | **27 ms** | `BenchmarkUnlockConstrained` |
-| one receipt, 1 witness, 1-block log, with legal notice and both signatures | **4907 bytes** | emitted by the CLI and measured with `wc -c` |
-| inclusion proof section alone (`tlog-proof`), 10⁵-entry log | **1,124 bytes** | `BenchmarkReceipt`; the proof grows with log₂(n), the rest of the receipt does not |
+| block sealing (JCS + SHA-256 + Ed25519), in memory | **24,339** (21,905–24,806, n=5) blocks/s | `BenchmarkSeal`, 1 s per sample |
+| durable append (`synchronous=FULL`, one fsync each) | **388** (326–484, n=5) blocks/s | `BenchmarkAppendBlock`, 1 s per sample |
+| open, 10⁵ blocks, attestation **verified** (fast path) | **515 ms** (444 ms–652 ms, n=5) | `BenchmarkOpen`, policy supplied, 1 open per sample |
+| open, 10⁵ blocks, no policy (every signature recomputed) | **8.87 s** (8.14 s–9.25 s, n=5) | `BenchmarkOpenUnattested`, 1 open per sample |
+| `verify --full`, 10⁵ blocks | **8.94 s** (8.46 s–9.43 s, n=5) | `BenchmarkVerifyFull`, 1 run per sample |
+| Merkle root, 10⁵ leaves | **159 ms** (117 ms–183 ms, n=5) | `BenchmarkRoot`, 1 s per sample |
+| unlock the vault, `default` KDF profile (64 MiB) | **62 ms** (60 ms–66 ms, n=5) | `BenchmarkUnlockDefault`, 10 unlocks per sample |
+| unlock the vault, `constrained` KDF profile (19 MiB) | **28 ms** (26 ms–31 ms, n=5) | `BenchmarkUnlockConstrained`, 10 unlocks per sample |
+| one receipt, 1 witness, 1-block log: legal notice, block and issuer signatures, the log's Ed25519 and ML-DSA-44 signatures | **4907 bytes** | emitted by the CLI and measured with `wc -c` (deterministic) |
+| inclusion proof section alone (`tlog-proof`), 10⁵-entry log | **1,124** (1,124–1,124, n=5) bytes | `BenchmarkReceipt`; the proof grows with log₂(n), the rest of the receipt does not |
 
-Measured 2026-09-12 on commit `2d8ca6c` (AMD Ryzen 7 5700U with Radeon Graphics). Regenerate with `./scripts/bench-readme.sh`.
+Measured 2026-09-13 on commit `7b367b1`, clean tree (AMD Ryzen 7 5700U with Radeon Graphics, go1.27.1). Each time is the median of 5 samples with the range beside it. Regenerate with `./scripts/bench-readme.sh`; it refuses to run on a dirty tree.
 
 **The receipt is about 5 KB, not "~1 KB".** An earlier version of this table reported
 1,124 bytes for a 10⁵-entry log and called it the receipt; that was the `tlog-proof`
 section alone. A receipt the CLI actually issues also carries the human-readable text,
-the legal notice, the recipient and two signatures (the block's and, since ADR-015, the
-issuer's over the whole document). Only the proof grows with the log — logarithmically —
+the legal notice, the recipient, the block's and the issuer's Ed25519 signatures, and
+the checkpoint note with the log's **ML-DSA-44** signature — 2,420 bytes, some 3.2 KB in
+base64, which is most of the total (ADR-007). Only the proof grows with the log — logarithmically —
 so a hundred-thousand-entry log adds about a kilobyte to the one-block figure. Still an
 email attachment or a PDF page, not a QR code.
 
 The durable rate, not the in-memory one, is what sizes a real deployment. Opening a
-ledger whose attestation **verifies** under your policy is ~14× faster than opening it
-without one, because signatures below a cosigned checkpoint are already vouched for;
+ledger whose attestation **verifies** under your policy is ~17× faster than opening it
+without one (medians), because signatures below a cosigned checkpoint are already vouched for;
 without a policy there is no shortcut, by design (ADR-016). The trade-off is written
 down in the [ADR-009 amendment](docs/adr/ADR-009-store-schema.md).
 
@@ -154,6 +158,11 @@ This is a security product, so the process that built it is part of what you are
 | `status` read freshness from a local record anyone with the file can write, and said ✔ | medium | freshness is derived from the *verified* cosignature, or labelled "registro local, NO verificado" — in text and in `--json` (`freshness.verified`, `freshness.source`) |
 | The static page showed ✔ rows under a ✘ verdict | medium | no unqualified ✔ when `valid == false` |
 | A policy file with another ledger's log key opened a freshly created ledger without complaint | medium | the log key is checked against `vault_meta` on every open, with or without stored checkpoints |
+| **TS and the page counted a duplicated cosignature line twice**: one real witness met a 2-of-2 quorum (Go rejected) | **high** | a witness counts once; a shared vector; and a second differential catalog of mutations **re-signed by the issuer**, which found 38 more parser divergences on its first run — [ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md) |
+| **The fail-stale alarm could be silenced with `--policy-file`**: delete the checkpoints, insert a fresh local record | **high** | with a policy, the local record never feeds freshness |
+| `seal` and `sync` held the legitimate key and never compared it to the chain: `sync` got a witness to cosign a history rewritten with another key | medium | both check the chain signer against the vault key before writing or asking; the error names the intruding block |
+| One policy file gave the CLI and the page two different `signerKey`s (`"signerKey"` + `"signerkey"`) | medium | the policy is a wire format: a strict parser in Go and TS, 64 hand-written vectors, and a third differential catalog (9,929 mutations) — [ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md) |
+| A policy with no witnesses gave "✔ Recibo válido" in all three verifiers | medium | receipt policies require at least one witness and `quorum ≥ 1` |
 
 **Anti-circularity is a project rule.** Every golden value — hashes, key IDs, signatures, canonical bytes — is computed *outside* the code under test: `sha256sum`, `openssl`, an independent Python implementation, a C program linked against the reference Argon2 library. A test that verifies a function using that same function verifies nothing, and this project learned that the hard way.
 
@@ -188,13 +197,19 @@ This is a security product, so the process that built it is part of what you are
   left *in the same file* — the second audit inserted one by hand with an invented
   witness — so the CLI labels it "registro local, NO verificado" on the same line, and
   `--json` carries `freshness.verified` and `freshness.source`. A cron that reads `stale`
-  without reading `verified` is trusting the disk. ([docs/CLI-JSON.md](docs/CLI-JSON.md))
+  without reading `verified` is trusting the disk. **With** a policy, the local record
+  is never used: no verified attestation means `stale: true` and a warning — the third
+  audit silenced the alarm by deleting the checkpoints until that was so.
+  ([docs/CLI-JSON.md](docs/CLI-JSON.md))
 - **The policy is the single trust root, and it has to be supplied.** `origin`, `logKey`,
   `signerKey`, `witnesses`, `quorum` — one JSON file, shared verbatim by the CLI
   (`--policy-file`), the TypeScript SDK and the static page. `status` publishes the
   keys the file *declares* so you can compare them against your policy, not copy them
   from there. A policy that cannot verify anything, or that names another ledger's
-  log key, is rejected. ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md))
+  origin or log key, is rejected — in the CLI, the SDK and the page alike, because
+  since [ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md) the policy is a wire
+  format with one strict grammar, shared vectors and its own differential.
+  ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md))
 - The issuer's signature on a receipt proves who produced *this* document for *this*
   recipient. It does not prove delivery, and it does not stop the issuer from issuing
   another receipt for the same record to someone else.
@@ -212,16 +227,19 @@ PROTOCOL 0.2-draft: [ADR-014](docs/adr/ADR-014-hoja-y-firma.md) (the block signa
 goes inside the Merkle leaf, `leaf/v2`) and [ADR-015](docs/adr/ADR-015-destinatario.md)
 (the issuer signs the whole receipt).
 
-**Then two adversarial audits of 0.2-draft itself**, each run with executed exploits
+**Then three adversarial audits of 0.2-draft itself**, each run with executed exploits
 against the tree as it stood. The first found that the open path trusted checkpoints
 nobody verified ([ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md)) and a Go/TS
 receipt divergence; the second, that nothing pinned the block signer and that an empty
-policy "verified" a forged ledger ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md)).
-Both are in the findings table above; every exploit is now a regression test.
+policy "verified" a forged ledger ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md));
+the third found nothing new in the receipt bytes and everything *next to* them — the
+policy file and the note's signature block, read differently by Go and TypeScript
+([ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md), PROTOCOL 0.3-draft). All are
+in the findings table above; every exploit is now a regression test.
 
 The record of the pre-publication rounds is in
-[ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md); the two post-publication audits
-are in ADR-016 and ADR-017 and in the CHANGELOG.
+[ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md); the post-publication audits are in
+ADR-016, ADR-017 and ADR-018 and in the CHANGELOG.
 
 **No external security audit has been performed.** The reviews above were model-driven and thorough, but they are not a substitute for a professional audit, and this software has not been used in production by anyone. Treat it accordingly.
 
