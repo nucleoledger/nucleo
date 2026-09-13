@@ -33,14 +33,27 @@ tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 go test -run='^$' -bench='BenchmarkOpen(Unattested)?/bloques=1e5|BenchmarkVerifyFull/bloques=1e5|BenchmarkUnlock' \
   -benchtime="$veces" -benchmem ./internal/store ./internal/vault 2>/dev/null > "$tmp"
+# Los de la propia cadena y el recibo van por tiempo, no por repeticiones: sellar un
+# bloque en memoria son microsegundos y 3x no mediría nada.
+go test -run='^$' -bench='BenchmarkSeal$|BenchmarkAppendBlock$|BenchmarkRoot/hojas=100000|BenchmarkReceipt/hojas=100000' \
+  -benchtime=2s -benchmem ./internal/ledger ./internal/store 2>/dev/null >> "$tmp"
 
+# valor saca la columna N de la línea del benchmark; métrica, la cifra que precede a
+# una unidad reportada con ReportMetric (p.ej. "bloques/s").
 valor() { grep -E "^$1" "$tmp" | awk '{print $3}' | head -1; }
+metrica() { grep -E "^$1" "$tmp" | grep -oE "[0-9.]+ $2" | awk '{print $1}' | head -1; }
+entero() { python3 -c 'import sys; print(f"{float(sys.argv[1]):,.0f}")' "$1"; }
 
 open_att="$(humano "$(valor 'BenchmarkOpen/bloques=1e5')")"
 open_un="$(humano "$(valor 'BenchmarkOpenUnattested/bloques=1e5')")"
 full="$(humano "$(valor 'BenchmarkVerifyFull/bloques=1e5')")"
 unlock_def="$(humano "$(valor 'BenchmarkUnlockDefault')")"
 unlock_con="$(humano "$(valor 'BenchmarkUnlockConstrained')")"
+seal_ps="$(entero "$(metrica 'BenchmarkSeal' 'bloques/s')")"
+seal_op="$(humano "$(valor 'BenchmarkSeal')")"
+append_ps="$(entero "$(metrica 'BenchmarkAppendBlock' 'bloques/s')")"
+root="$(humano "$(valor 'BenchmarkRoot/hojas=100000')")"
+proof_bytes="$(entero "$(metrica 'BenchmarkReceipt/hojas=100000' 'bytes/recibo')")"
 
 # Tamaño real de un recibo: se emite uno con el criterio de éxito y se mide.
 recibo="$(bash -c '
@@ -66,12 +79,16 @@ cat <<EOF
 <!-- generado por scripts/bench-readme.sh · $fecha · commit $commit · $cpu -->
 | what | figure | how it was measured |
 |---|---|---|
+| block sealing (JCS + SHA-256 + Ed25519), in memory | **$seal_ps blocks/s** — $seal_op/op | \`BenchmarkSeal\` |
+| durable append (\`synchronous=FULL\`, one fsync each) | **$append_ps blocks/s** | \`BenchmarkAppendBlock\` |
 | open, 10⁵ blocks, attestation **verified** (fast path) | **$open_att** | \`BenchmarkOpen\`, policy supplied, $veces |
 | open, 10⁵ blocks, no policy (every signature recomputed) | **$open_un** | \`BenchmarkOpenUnattested\`, $veces |
 | \`verify --full\`, 10⁵ blocks | **$full** | \`BenchmarkVerifyFull\`, $veces |
+| Merkle root, 10⁵ leaves | **$root** | \`BenchmarkRoot\` |
 | unlock the vault, \`default\` KDF profile (64 MiB) | **$unlock_def** | \`BenchmarkUnlockDefault\` |
 | unlock the vault, \`constrained\` KDF profile (19 MiB) | **$unlock_con** | \`BenchmarkUnlockConstrained\` |
 | one receipt, 1 witness, 1-block log, with legal notice and both signatures | **$recibo bytes** | emitted by the CLI and measured with \`wc -c\` |
+| inclusion proof section alone (\`tlog-proof\`), 10⁵-entry log | **$proof_bytes bytes** | \`BenchmarkReceipt\`; the proof grows with log₂(n), the rest of the receipt does not |
 
 Measured $fecha on commit \`$commit\` ($cpu). Regenerate with \`./scripts/bench-readme.sh\`.
 EOF

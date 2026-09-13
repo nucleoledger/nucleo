@@ -81,22 +81,40 @@ With no accepted witness, the receipt says `SIN TIEMPO DEMOSTRABLE` in full. Sta
 
 ## Benchmarks
 
-Measured on Go 1.27.1, linux/amd64, AMD Ryzen 7 5700U (16 threads).
-Reproduce with `go test ./internal/... -bench=. -run=XXX`.
+Measured with Go 1.27.1 on linux/amd64. Every figure below comes from one run of
+[`scripts/bench-readme.sh`](scripts/bench-readme.sh), pasted verbatim: the date, the
+commit and the CPU are in the table's own footer, because a number without them is a
+memory, not a measurement.
 
-| Measurement | Result |
-|---|---|
-| Block sealing (JCS + SHA-256 + Ed25519), in memory | **20,983 blocks/s** — 47.7 µs/op |
-| Durable append (`synchronous=FULL`, one fsync each) | **826 blocks/s** |
-| Open a 10⁵-block ledger, witness-attested | **412 ms** |
-| Open a 10⁵-block ledger, no witness (verifies every signature) | 8.04 s |
-| Merkle root, 10⁵ leaves | 195 ms |
-| **Receipt size**, 5-entry log | **485 bytes** |
-| **Receipt size**, 10⁵-entry log | **1,124 bytes** |
+<!-- generado por scripts/bench-readme.sh · 2026-09-12 · commit 2d8ca6c · AMD Ryzen 7 5700U with Radeon Graphics -->
+| what | figure | how it was measured |
+|---|---|---|
+| block sealing (JCS + SHA-256 + Ed25519), in memory | **24,047 blocks/s** — 42 µs/op | `BenchmarkSeal` |
+| durable append (`synchronous=FULL`, one fsync each) | **646 blocks/s** | `BenchmarkAppendBlock` |
+| open, 10⁵ blocks, attestation **verified** (fast path) | **548 ms** | `BenchmarkOpen`, policy supplied, 3x |
+| open, 10⁵ blocks, no policy (every signature recomputed) | **7.85 s** | `BenchmarkOpenUnattested`, 3x |
+| `verify --full`, 10⁵ blocks | **9.21 s** | `BenchmarkVerifyFull`, 3x |
+| Merkle root, 10⁵ leaves | **201 ms** | `BenchmarkRoot` |
+| unlock the vault, `default` KDF profile (64 MiB) | **61 ms** | `BenchmarkUnlockDefault` |
+| unlock the vault, `constrained` KDF profile (19 MiB) | **27 ms** | `BenchmarkUnlockConstrained` |
+| one receipt, 1 witness, 1-block log, with legal notice and both signatures | **4907 bytes** | emitted by the CLI and measured with `wc -c` |
+| inclusion proof section alone (`tlog-proof`), 10⁵-entry log | **1,124 bytes** | `BenchmarkReceipt`; the proof grows with log₂(n), the rest of the receipt does not |
 
-The receipt is what matters commercially: it grows logarithmically, so a log with a hundred thousand entries still issues a self-contained, offline-verifiable receipt of roughly one kilobyte — small enough for an email footer or a PDF attachment.
+Measured 2026-09-12 on commit `2d8ca6c` (AMD Ryzen 7 5700U with Radeon Graphics). Regenerate with `./scripts/bench-readme.sh`.
 
-The durable rate, not the in-memory one, is what sizes a real deployment. Opening an attested ledger is 20× faster than opening an unattested one because signatures below a cosigned checkpoint are already attested; the trade-off is written down in the [ADR-009 amendment](docs/adr/ADR-009-store-schema.md).
+**The receipt is about 5 KB, not "~1 KB".** An earlier version of this table reported
+1,124 bytes for a 10⁵-entry log and called it the receipt; that was the `tlog-proof`
+section alone. A receipt the CLI actually issues also carries the human-readable text,
+the legal notice, the recipient and two signatures (the block's and, since ADR-015, the
+issuer's over the whole document). Only the proof grows with the log — logarithmically —
+so a hundred-thousand-entry log adds about a kilobyte to the one-block figure. Still an
+email attachment or a PDF page, not a QR code.
+
+The durable rate, not the in-memory one, is what sizes a real deployment. Opening a
+ledger whose attestation **verifies** under your policy is ~14× faster than opening it
+without one, because signatures below a cosigned checkpoint are already vouched for;
+without a policy there is no shortcut, by design (ADR-016). The trade-off is written
+down in the [ADR-009 amendment](docs/adr/ADR-009-store-schema.md).
 
 ## Trust model, in one paragraph
 
