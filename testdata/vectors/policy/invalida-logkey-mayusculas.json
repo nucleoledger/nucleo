@@ -1,0 +1,7 @@
+{
+  "name": "invalida-logkey-mayusculas",
+  "description": "logKey en mayúsculas: segunda representación.",
+  "text": "{\"origin\":\"nucleoledger.com/mi-empresa\",\"logKey\":\"5E423033044F56A13A686799487BCBFA63DD1E39204CEC27DD39A26DAA615628\",\"witnesses\":{\"witness.nucleoledger.com/w1\":\"dd7e84d010aed28a416e928f50c4c09ac0f94a8f5b346548168bddb61cdb7263\"},\"quorum\":1}",
+  "valid": false,
+  "reason": "hex"
+}

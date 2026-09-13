@@ -15,7 +15,7 @@ func cmdStatus(e *env, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	wp, _, err := pf.resolve()
+	wp, _, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func cmdVerify(e *env, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	wp, _, err := pf.resolve()
+	wp, _, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}

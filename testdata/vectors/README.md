@@ -56,3 +56,10 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              veces y la línea TARDÍA va primero; vale la más temprana, que es el
              tiempo demostrable que el vector declara.
 
+- policy/    vectores de la POLÍTICA de verificación (PROTOCOL.md §3.2, ADR-018):
+             el texto EXACTO de cada documento y su veredicto. Escritos a mano por
+             policy/generar.py leyendo la tabla de PROTOCOL.md —ninguna línea del
+             generador usa internal/policy ni sdk/ts/src/policy.ts—, que se versiona
+             para que cualquiera repita el cálculo. Los leen el parser de Go, el del
+             SDK y el del bundle de la página, y los tres tienen que dar el mismo
+             veredicto. Adición autorizada por el dev (Sprint 7e).

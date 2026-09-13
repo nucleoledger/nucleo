@@ -1,0 +1,7 @@
+{
+  "name": "invalida-solo-espacios",
+  "description": "Solo espacio en blanco.",
+  "text": " \n",
+  "valid": false,
+  "reason": "syntax"
+}

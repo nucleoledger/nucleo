@@ -73,7 +73,7 @@ func cmdSeal(e *env, args []string) error {
 		return usageErr("seal necesita --tenant")
 	}
 
-	wp, _, err := pf.resolve()
+	wp, _, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func cmdReceipt(e *env, args []string) error {
 		return usageErr("receipt necesita --recipient \"Nombre\"")
 	}
 
-	wp, file, err := pf.resolve()
+	wp, file, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}

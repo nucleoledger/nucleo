@@ -1,0 +1,7 @@
+{
+  "name": "valida-surrogate-par",
+  "description": "Un par de surrogates UTF-16 bien formado dentro de una cadena.",
+  "text": "{\"origin\":\"log\\ud83d\\ude00\",\"logKey\":\"5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628\",\"witnesses\":{\"witness.nucleoledger.com/w1\":\"dd7e84d010aed28a416e928f50c4c09ac0f94a8f5b346548168bddb61cdb7263\"},\"quorum\":1}",
+  "valid": true,
+  "reason": ""
+}

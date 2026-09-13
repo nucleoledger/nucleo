@@ -1,0 +1,7 @@
+{
+  "name": "invalida-vacia",
+  "description": "Documento vacío.",
+  "text": "",
+  "valid": false,
+  "reason": "syntax"
+}

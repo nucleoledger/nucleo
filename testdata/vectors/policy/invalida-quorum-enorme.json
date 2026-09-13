@@ -1,0 +1,7 @@
+{
+  "name": "invalida-quorum-enorme",
+  "description": "quorum de 20 dígitos.",
+  "text": "{\"origin\":\"nucleoledger.com/mi-empresa\",\"logKey\":\"5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628\",\"witnesses\":{\"witness.nucleoledger.com/w1\":\"dd7e84d010aed28a416e928f50c4c09ac0f94a8f5b346548168bddb61cdb7263\"},\"quorum\":99999999999999999999}",
+  "valid": false,
+  "reason": "quorum"
+}

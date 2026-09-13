@@ -136,6 +136,10 @@ var ErrSignerContinuity = errors.New("store: la cadena cambia de firmante")
 // ledger.
 var ErrSignerMismatch = errors.New("store: el firmante de la cadena no es el que la política espera")
 
+// ErrOriginMismatch indica que el origin de la política no es el que el ledger
+// declara (PROTOCOL.md §3.2).
+var ErrOriginMismatch = errors.New("store: el origin de la política no es el del ledger")
+
 // ErrLogKeyMismatch indica que la clave del log de la política no es la que
 // vault_meta declara: alguien sustituyó una de las dos.
 var ErrLogKeyMismatch = errors.New("store: la clave del log de la política no coincide con la que declara el ledger")
@@ -201,6 +205,10 @@ type WitnessPolicy struct {
 	// LogKey, si se aporta, tiene que coincidir con la que vault_meta declara. Es
 	// la capa que detecta la sustitución de la clave del log que ADR-016 describió.
 	LogKey ed25519.PublicKey
+	// Origin, si se aporta, tiene que coincidir con el que vault_meta declara
+	// (PROTOCOL.md §3.2). La tercera auditoría abrió con "verified" un ledger usando
+	// una política con el origin de OTRO log: el campo del fichero no se miraba.
+	Origin string
 }
 
 // ErrPolicy indica una política de apertura que no puede verificar nada.
@@ -223,10 +231,18 @@ func (wp WitnessPolicy) validate() error {
 	case wp.Quorum > len(wp.Witnesses):
 		return fmt.Errorf("%w: quórum %d con %d testigos", ErrPolicy, wp.Quorum, len(wp.Witnesses))
 	}
+	porClave := map[string]string{}
 	for name, pub := range wp.Witnesses {
 		if name == "" || len(pub) != ed25519.PublicKeySize {
 			return fmt.Errorf("%w: testigo %q con clave de %d bytes", ErrPolicy, name, len(pub))
 		}
+		// La misma clave bajo dos nombres cuenta dos veces para el quórum: la
+		// cosignature no incluye el nombre del testigo, así que se copia bajo el
+		// otro con solo recalcular el key ID (tercera auditoría, BAJO #7).
+		if otro, ok := porClave[string(pub)]; ok {
+			return fmt.Errorf("%w: la misma clave está bajo dos nombres (%q y %q)", ErrPolicy, otro, name)
+		}
+		porClave[string(pub)] = name
 	}
 	return nil
 }
@@ -396,7 +412,15 @@ func (s *Store) logPolicy(c *storedCheckpoint) (proof.Policy, error) {
 // Un ledger que no declara clave (anterior a init con vault_meta) no tiene con qué
 // compararse; el camino de los checkpoints ya lo rechaza si los hay.
 func (s *Store) checkLogKey() error {
-	if s.witnesses == nil || len(s.witnesses.LogKey) == 0 {
+	if s.witnesses == nil {
+		return nil
+	}
+	if s.witnesses.Origin != "" {
+		if origin, err := s.GetMeta(MetaOriginKey); err == nil && string(origin) != s.witnesses.Origin {
+			return fmt.Errorf("%w: el ledger es %q y la política es de %q", ErrOriginMismatch, origin, s.witnesses.Origin)
+		}
+	}
+	if len(s.witnesses.LogKey) == 0 {
 		return nil
 	}
 	pub, err := s.GetMeta(MetaLogPubKey)

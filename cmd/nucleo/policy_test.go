@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -114,4 +115,79 @@ func TestPolicyFileRechazaLoAmbiguoYLoRoto(t *testing.T) {
 	if code != exitVerify || !strings.Contains(errOut, "clave del log de la política no coincide") {
 		t.Errorf("otra clave del log: código=%d stderr=%s", code, errOut)
 	}
+}
+
+// TestPolicyFileEsFormatoDeCable: los hallazgos #4 y #8 de la tercera auditoría a
+// través de la CLI (ADR-018 A y D). La gramática entera la cubren los vectores de
+// testdata/vectors/policy/; aquí se comprueba que la CLI usa ese parser y no otro.
+func TestPolicyFileEsFormatoDeCable(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+	c.sealFile(`{"x":1}`)
+	url, name, key := startTestWitness(t, c.logPubKey(t))
+	js := c.mustRun("--json", "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+	var v struct {
+		Policy map[string]any `json:"policy"`
+	}
+	if err := json.Unmarshal([]byte(js), &v); err != nil {
+		t.Fatal(err)
+	}
+	buena, _ := json.Marshal(v.Policy)
+	signer := v.Policy["signerKey"].(string)
+	path := filepath.Join(c.dir, "p.json")
+	escribe := func(s string, perm os.FileMode) {
+		if err := os.WriteFile(path, []byte(s), perm); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, perm); err != nil {
+			t.Fatal(err)
+		}
+	}
+	otra := strings.Repeat("ab", 32)
+	inyecta := func(extra string) string { return strings.TrimSuffix(string(buena), "}") + "," + extra + "}" }
+
+	for _, cs := range []struct {
+		nombre, texto string
+		codigo        int
+		quiero        string
+	}{
+		{"el ataque #4: signerKey y signerkey", strings.Replace(inyecta(`"signerkey":"`+signer+`"`), signer, otra, 1),
+			exitUsage, "variante de mayúsculas"},
+		{"basura detrás del objeto", string(buena) + `{"signerKey":"` + otra + `"} esto no es JSON`, exitUsage, "después del objeto"},
+		{"clave en mayúsculas", strings.Replace(string(buena), signer, strings.ToUpper(signer), 1), exitUsage, "minúsculas"},
+		{"sin quorum", strings.Replace(string(buena), `,"quorum":1`, "", 1), exitUsage, `falta el miembro "quorum"`},
+		{"la misma clave bajo dos nombres",
+			strings.Replace(string(buena), `"witnesses":{`, `"witnesses":{"alias.example/w":"`+key+`",`, 1), exitUsage, "dos nombres"},
+		{"origin de otro log", strings.Replace(string(buena), testOrigin, "otro.example/log", 1), exitVerify, "origin de la política no es el del ledger"},
+	} {
+		t.Run(cs.nombre, func(t *testing.T) {
+			escribe(cs.texto, 0o600)
+			_, errOut, code := c.run("status", "--policy-file", path)
+			if code != cs.codigo || !strings.Contains(errOut, cs.quiero) {
+				t.Errorf("código %d (want %d), stderr sin %q:\n%s", code, cs.codigo, cs.quiero, errOut)
+			}
+		})
+	}
+
+	t.Run("--policy-file vacío es error de uso, no 'sin política'", func(t *testing.T) {
+		_, errOut, code := c.run("status", "--policy-file", "")
+		if code != exitUsage || !strings.Contains(errOut, "--policy-file vacío") {
+			t.Errorf("código %d:\n%s", code, errOut)
+		}
+	})
+
+	t.Run("permisos distintos de 0600 y 0644 avisan", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("los bits de permiso no significan lo mismo en Windows")
+		}
+		escribe(string(buena), 0o666)
+		out, errOut, code := c.run("status", "--policy-file", path)
+		if code != exitOK || !strings.Contains(errOut, "tiene permisos 0666") {
+			t.Errorf("código %d, stderr sin el aviso de permisos:\n%s\n%s", code, out, errOut)
+		}
+		escribe(string(buena), 0o644)
+		if _, errOut, _ := c.run("status", "--policy-file", path); strings.Contains(errOut, "permisos") {
+			t.Errorf("0644 no debería avisar:\n%s", errOut)
+		}
+	})
 }

@@ -33,7 +33,7 @@ func cmdSync(e *env, args []string) error {
 	if *url == "" {
 		return usageErr("sync necesita --witness URL")
 	}
-	wp, file, err := pf.resolve()
+	wp, file, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}

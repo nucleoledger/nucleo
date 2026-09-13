@@ -1,0 +1,7 @@
+{
+  "name": "invalida-witnesses-vacio",
+  "description": "Sin testigos: una política que no verifica nada.",
+  "text": "{\"origin\":\"nucleoledger.com/mi-empresa\",\"logKey\":\"5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628\",\"witnesses\":{},\"quorum\":1}",
+  "valid": false,
+  "reason": "no_witnesses"
+}

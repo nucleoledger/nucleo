@@ -1,0 +1,7 @@
+{
+  "name": "invalida-testigo-mayusculas",
+  "description": "Clave de testigo en mayúsculas.",
+  "text": "{\"origin\":\"nucleoledger.com/mi-empresa\",\"logKey\":\"5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628\",\"witnesses\":{\"witness.nucleoledger.com/w1\":\"DD7E84D010AED28A416E928F50C4C09AC0F94A8F5B346548168BDDB61CDB7263\"},\"quorum\":1}",
+  "valid": false,
+  "reason": "hex"
+}

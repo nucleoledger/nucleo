@@ -35,7 +35,7 @@ func cmdReconcile(e *env, args []string) error {
 			"  y el ledger nunca selló.")
 	}
 
-	wp, _, err := pf.resolve()
+	wp, _, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}
