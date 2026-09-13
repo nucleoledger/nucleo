@@ -27,6 +27,7 @@ const sandbox = { crypto, console, TextEncoder, TextDecoder, atob, btoa };
 sandbox.globalThis = sandbox;
 runInNewContext(bundle, sandbox, { filename: "nucleo-verify.js" });
 const { verifyReceipt } = sandbox.NucleoVerify;
+const NucleoVerify = sandbox.NucleoVerify;
 
 const catalogo = JSON.parse(readFileSync(catalogoPath, "utf8"));
 const divergencias = [];
@@ -48,6 +49,30 @@ for (const c of catalogo.casos) {
   if (tsValid !== c.go_valid) {
     divergencias.push({ nombre: `${c.vector}: ${c.nombre}`, go: c.go_valid, ts: tsValid, goErr: c.go_err ?? "", tsErr });
   }
+}
+
+// Tercer catálogo: la POLÍTICA como formato de cable (ADR-018 E). Mismo texto por
+// internal/policy (Go, ya anotado) y por parsePolicyText del bundle.
+const politicas = catalogo.politicas ?? [];
+let polTsAcepta = 0;
+for (const c of politicas) {
+  let ok = false;
+  let err = "";
+  try {
+    NucleoVerify.parsePolicyText(c.texto);
+    ok = true;
+  } catch (e) {
+    err = e && e.message;
+  }
+  if (ok) polTsAcepta++;
+  if (ok !== c.go_valid) {
+    divergencias.push({ nombre: `política: ${c.nombre}`, go: c.go_valid, ts: ok, goErr: c.go_err ?? "", tsErr: err });
+  }
+}
+console.log(`  catálogo de políticas: ${politicas.length} (Go acepta ${politicas.filter((c) => c.go_valid).length}, TS acepta ${polTsAcepta})`);
+if (politicas.length === 0) {
+  console.error("✘ el catálogo no trae políticas: el generador de Go no está escribiendo el tercer catálogo");
+  process.exit(1);
 }
 
 const goAcepta = catalogo.casos.filter((c) => c.go_valid).length;

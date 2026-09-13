@@ -177,7 +177,10 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 			len(catalogo), len(files))
 		return
 	}
-	enc, err := json.MarshalIndent(map[string]any{"casos": catalogo}, "", " ")
+	salida := map[string]any{"casos": catalogo}
+	// Tercer catálogo: mutaciones de la política (ADR-018 E).
+	escribirCatalogoDePoliticas(t, salida)
+	enc, err := json.MarshalIndent(salida, "", " ")
 	if err != nil {
 		t.Fatal(err)
 	}
