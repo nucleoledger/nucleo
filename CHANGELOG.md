@@ -11,6 +11,73 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Security: second adversarial audit (Sprint 7d)
+
+A second adversarial pass, run against the tree after Sprint 7c, looked for what the
+first one had not: the block signer, the policy's edges, the freshness record, the
+page, and the receipt vectors. Every finding below has its exploit as a regression
+test; the differential and the two new exploit tests run in CI.
+
+- **HIGH — nothing pinned the block signer.** Blocks 1–4 re-signed with the attacker's
+  own key — self-consistent signatures, `signer_pubkey` pointing at that key — passed
+  `verify --full`. [ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md) makes
+  the policy the single trust root: signer **continuity** (one key for the whole chain)
+  is enforced on every open, policy or not; signer **identity** is checked against the
+  policy's `signerKey`, which is required in receipt policies and optional when opening
+  a ledger. Continuity has a measured price: the signer is read from every stored
+  header, 1.9 µs per block, which is ~190 ms on a 10⁵-block open and makes the
+  attested fast path ~35 % slower (alternating runs: 443–504 ms at the end of 7c,
+  627–658 ms after). `status`/`verify` gain `firmante : ✔ verificado` / `◐ NO verificada`, and
+  `--json` a `signer` object (`state`, `verified`, `pubkey`). The README sentence
+  "`verify --full` catches it" is amended in place; it did not.
+- **HIGH — an empty policy verified a forged ledger.** `OpenWithWitnesses(path,
+  WitnessPolicy{})` and quorum 0 returned `verified` and took the fast path. A policy
+  that cannot verify anything — no witnesses, quorum 0 or above the witness count, a
+  bad key — is now rejected with `ErrPolicy` before the file is opened.
+- **MEDIUM — freshness trusted a local record.** An `INSERT` into `log_state` with an
+  invented witness and a fresh date made `status` print `frescura : ✔`. Freshness is now
+  subordinated to the attestation: with a verified attestation it is the cosignature's
+  own timestamp and the local record is not read; otherwise every sentence that leans
+  on the record says so on the same line — "registro local, NO verificado" — and
+  `--json` carries `freshness.verified` and `freshness.source` (`attestation` |
+  `local_record` | `none`). `seal --json` and `reconcile --json` now expose
+  `attestation`, `attested`, `attested_size`, `signer` and `freshness` with the same
+  semantics as `status`.
+- **MEDIUM — the page showed ✔ rows under a ✘ verdict.** No row is an unqualified ✔
+  when `valid` is false; rows that are only *locally* true — a signature that checks
+  against some key — are qualified as such.
+- **MEDIUM — a policy file with another ledger's log key opened a fresh ledger.** The
+  check lived only on the stored-checkpoint path. It now runs at the start of every
+  open, with or without checkpoints.
+
+#### Added
+
+- **`--policy-file`** on `status`, `verify`, `seal`, `receipt`, `reconcile` and `sync`:
+  one JSON file — `{origin, logKey, signerKey, witnesses, quorum}` — in exactly the
+  format the TypeScript SDK and the static page already consume. `--signer-key` joins
+  the loose flags. File and flags together is a usage error, not a merge; a repeated
+  flag keeps its last value (standard `flag` semantics) and is documented as such.
+- **`sync` prints the policy ready to save** after a verified attestation, and emits it
+  as `policy` in `--json`. The test saves it verbatim and reopens with attestation *and*
+  signer verified.
+- **`docs/CLI-JSON.md`**: the contract of every `--json` output — conventions, shared
+  objects (`signer`, `attestation`, `freshness`, `policy`) and fields per subcommand.
+- **`scripts/bench-readme.sh`** regenerates the README benchmark table with date, commit
+  and CPU. The table was refreshed with it; the old "~1 KB receipt" figure was for the
+  proof section alone — a full receipt with legal notice and both signatures is ~5 KB.
+- Receipt golden vectors at tree sizes 1, 2, 4, 8 and 9 (first and last index), plus a
+  recipient that imitates a signature line; the differential iterates all of them.
+
+#### Documentation
+
+- `docs/TUTORIAL-es.md` re-executed end to end with the current binary. Step 5 is now
+  built around the policy file `sync` prints; Step 7's policy carries `signerKey` (the
+  old one is rejected by the page and the SDK); the "no keys to distribute" paragraph
+  is replaced by why a counterparty needs your policy.
+- `status` without a policy pointed to `--witness-name`/`--witness-key` for the
+  attestation and to `--policy-file` for the signer on the same screen. Both now point
+  to `--policy-file` first.
+
 ### Security: adversarial audit of 0.2-draft (Sprint 7c)
 
 A fourth-model adversarial audit, run against the public repository the day after
