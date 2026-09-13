@@ -228,6 +228,17 @@ describe("el dictamen de la página", () => {
     });
   }
 
+  it("la firma ML-DSA del log tiene su fila y no aparece entre las ignoradas", async () => {
+    const m = readJSON<Vector>("receipt", "valido-firma-mldsa-del-log.json");
+    const r = await verify(m.receipt, {
+      origin: m.policy.origin, logKey: m.policy.log_key, signerKey: m.policy.signer_key,
+      witnesses: m.policy.witnesses, quorum: m.policy.quorum,
+    });
+    const f = Object.fromEntries(filasDe(r));
+    expect(f["firma adicional del log"]).toContain("ML-DSA-44");
+    expect(f["firmas ignoradas"]).toBeUndefined();
+  });
+
   it("el literal de la etiqueta aparece una sola vez, y en dictamen.js", () => {
     const dictamen = readFileSync(dictamenPath, "utf8");
     const html = readFileSync(htmlPath, "utf8");

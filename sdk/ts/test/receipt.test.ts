@@ -39,8 +39,8 @@ describe("entorno", () => {
 describe("vectores de recibo generados por Go", () => {
   const files = listVectors("receipt");
 
-  it("hay quince vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada y las dos cosignatures del mismo testigo", () => {
-    expect(files).toHaveLength(15);
+  it("hay dieciséis vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo y la firma ML-DSA del log", () => {
+    expect(files).toHaveLength(16);
   });
 
   for (const file of files) {
@@ -109,6 +109,16 @@ describe("razones de rechazo", () => {
     const broken = valid.receipt.replace("c2sp.org/tlog-proof@v1", "c2sp.org/tlog-proof@v2");
     const r = await verifyReceipt(broken, toPolicy(valid));
     expect(r.valid).toBe(false);
+  });
+});
+
+describe("la firma ML-DSA-44 del propio log (ADR-007)", () => {
+  it("no se lista como clave desconocida: se cuenta como firma adicional del log", async () => {
+    const v = readJSON<Vector>("receipt", "valido-firma-mldsa-del-log.json");
+    const r = await verifyReceipt(v.receipt, toPolicy(v));
+    expect(r.valid, r.reasons.join(" | ")).toBe(true);
+    expect(r.ignoredSignatures).toEqual([]);
+    expect(r.logAdditionalSignatures).toBe(1);
   });
 });
 

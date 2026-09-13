@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
 	"github.com/nucleoledger/nucleo/internal/witness"
@@ -178,6 +179,21 @@ func TestExportReceiptVectors(t *testing.T) {
 	}
 	exportDuplicateCosignature(t, dir)
 	exportTwoCosignaturesSameWitness(t, dir)
+
+	// La nota con la firma ML-DSA-44 del propio log, como la emite la CLI (ADR-007).
+	// Los verificadores no la comprueban —WebCrypto no tiene ML-DSA— pero la página
+	// tiene que reconocerla como del log y no listarla como "clave que no conoces".
+	seed := make([]byte, checkpoint.MLDSASeedSize)
+	for i := range seed {
+		seed[i] = byte(200 + i)
+	}
+	mldsa, err := checkpoint.NewMLDSASigner(testOrigin, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exportValid(t, dir, newSceneConFirmas(t, 1, 5, mldsa), "valido-firma-mldsa-del-log",
+		"la nota trae además la firma ML-DSA-44 del log (ADR-007): se ignora al verificar y la página la reconoce como del log",
+		"María Pérez (cédula 1712345678)", 2)
 
 	sc2 := newScene(t, 1)
 	exportValid(t, dir, sc2, "valido-destinatario-imita-firma",

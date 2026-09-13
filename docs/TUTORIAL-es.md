@@ -596,13 +596,14 @@ firma del recibo        ✔ verificada — el destinatario y el texto están fir
 firma del bloque        ✔ verificada contra la clave del emisor de la política
 log                     nucleoledger.com/mi-empresa
 testigos que verifican  witness.nucleoledger.com/w1
-firmas ignoradas        nucleoledger.com/mi-empresa (claves que no conoces)
+firma adicional del log 1 ML-DSA-44 (ADR-007) — no se comprueba en este navegador y no cuenta para el veredicto
 ```
 
-La última fila no es un error. `nucleoledger.com/mi-empresa` es tu propio log, que
-firma su checkpoint dos veces: con Ed25519, que es la que el verificador comprueba,
-y con ML-DSA-44 en una extensión que los verificadores C2SP ignoran por diseño
-(ADR-007). Esa segunda firma es la que aparece como ignorada.
+La última fila es tu propio log, que firma su checkpoint dos veces: con Ed25519, que
+es la que el verificador comprueba, y con ML-DSA-44 en una extensión que los
+verificadores C2SP ignoran por diseño (ADR-007). El navegador no puede comprobar
+ML-DSA —WebCrypto no lo tiene—, y la página lo dice en vez de listarla, como hacía
+antes, entre las "claves que no conoces".
 
 Si alguien retoca una sola letra del texto visible del recibo —el nombre del
 destinatario incluido—, verás ✘ y la razón, y **ninguna** fila del detalle quedará

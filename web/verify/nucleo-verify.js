@@ -616,6 +616,7 @@ time ${timestamp.toString()}
   // src/receipt.ts
   var MAGIC2 = "nucleo.org/receipt@v2";
   var MAGIC_V1 = "nucleo.org/receipt@v1";
+  var MLDSA44_SIGNATURE_SIZE = 2420;
   var BLOCK_SIG_SIZE = 64;
   var SEPARATOR = "--- prueba verificable ---";
   var NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
@@ -641,6 +642,7 @@ time ${timestamp.toString()}
         recipient: null,
         cosigners: [],
         ignoredSignatures: [],
+        logAdditionalSignatures: 0,
         reasons: [`error inesperado al verificar: ${mensaje(e)}`],
         checkpoint: null
       };
@@ -687,6 +689,7 @@ time ${timestamp.toString()}
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
+      logAdditionalSignatures: 0,
       reasons: [...reasons, why],
       checkpoint: null
     });
@@ -747,6 +750,7 @@ ${id}`;
       witnesses.set(idDe(w.name, await keyId(sha256, w.name, ALG_COSIGNATURE_V1, w.key)), w);
     }
     const contados = /* @__PURE__ */ new Set();
+    let firmasAdicionalesDelLog = 0;
     let earliest = null;
     for (const sig of p.note.sigs) {
       if (sig.name === policy.origin && sig.keyId === logId) {
@@ -758,6 +762,10 @@ ${id}`;
         continue;
       }
       const w = witnesses.get(idDe(sig.name, sig.keyId));
+      if (!w && sig.name === policy.origin && sig.signature.length === MLDSA44_SIGNATURE_SIZE) {
+        firmasAdicionalesDelLog++;
+        continue;
+      }
       if (!w) {
         ignored.push(sig.name);
         continue;
@@ -816,6 +824,7 @@ ${id}`;
       recipient: p.recipient,
       cosigners,
       ignoredSignatures: ignored,
+      logAdditionalSignatures: firmasAdicionalesDelLog,
       reasons,
       checkpoint: {
         origin: p.checkpoint.origin,

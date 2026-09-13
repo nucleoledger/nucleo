@@ -58,6 +58,9 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              cosignature-no-confiable REGENERADO: su política ya no es "sin
              testigos" —desde ADR-018 esa política no existe—, sino una que acepta a
              un testigo que no cosignó; el rechazo pasa a ser por quórum.
+             valido-firma-mldsa-del-log — la nota trae la firma ML-DSA-44 del log
+             (ADR-007), como la emite la CLI: los verificadores la ignoran y la
+             página la reconoce como del log.
 
 - policy/    vectores de la POLÍTICA de verificación (PROTOCOL.md §3.2, ADR-018):
              el texto EXACTO de cada documento y su veredicto. Escritos a mano por

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"golang.org/x/mod/sumdb/note"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,6 +56,13 @@ func newScene(t *testing.T, cosigners int) *scene { return newSceneN(t, cosigner
 // que no dejan nodo suelto, y el 9 es el primero con un nodo colgando a la derecha.
 func newSceneN(t *testing.T, cosigners, n int) *scene {
 	t.Helper()
+	return newSceneConFirmas(t, cosigners, n)
+}
+
+// newSceneConFirmas es newSceneN con firmantes ADICIONALES del log en la nota, como
+// la firma ML-DSA-44 que añade la CLI (ADR-007).
+func newSceneConFirmas(t *testing.T, cosigners, n int, extra ...note.Signer) *scene {
+	t.Helper()
 	s, _, err := store.Open(filepath.Join(t.TempDir(), "nucleo.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +100,7 @@ func newSceneN(t *testing.T, cosigners, n int) *scene {
 	}
 	msg, err := checkpoint.Sign(checkpoint.Checkpoint{
 		Origin: testOrigin, Size: uint64(n), RootHash: root,
-	}, logSigner)
+	}, append([]note.Signer{logSigner}, extra...)...)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -28,6 +28,15 @@ window.NUCLEO_DICTAMEN = function (r) {
     ["log", r.checkpoint?.origin ?? "—"],
     ["testigos que verifican", r.cosigners.length ? r.cosigners.join(", ") : "ninguno"],
   ];
+  // La firma ML-DSA-44 del propio log (ADR-007) no es "una clave que no conoces":
+  // la página la listaba así, con el nombre del log. Se dice qué es y que aquí no se
+  // comprueba —WebCrypto no tiene ML-DSA—, sin ✔.
+  if (r.logAdditionalSignatures) {
+    filas.push([
+      "firma adicional del log",
+      `${r.logAdditionalSignatures} ML-DSA-44 (ADR-007) — no se comprueba en este navegador y no cuenta para el veredicto`,
+    ]);
+  }
   if (r.ignoredSignatures.length) {
     filas.push(["firmas ignoradas", r.ignoredSignatures.join(", ") + " (claves que no conoces)"]);
   }

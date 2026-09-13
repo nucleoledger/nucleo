@@ -26,6 +26,9 @@ export const MAGIC = "nucleo.org/receipt@v2";
 /** MAGIC_V1 es el magic histórico, para reconocerlo y dar un error que lo explique. */
 export const MAGIC_V1 = "nucleo.org/receipt@v1";
 
+/** MLDSA44_SIGNATURE_SIZE es lo que mide una firma ML-DSA-44 (FIPS 204). */
+const MLDSA44_SIGNATURE_SIZE = 2420;
+
 /** BLOCK_SIG_SIZE es lo que mide una firma Ed25519. */
 export const BLOCK_SIG_SIZE = 64;
 
@@ -112,6 +115,14 @@ export interface Result {
   cosigners: string[];
   /** ignoredSignatures son las firmas de claves desconocidas, que se ignoran. */
   ignoredSignatures: string[];
+  /**
+   * logAdditionalSignatures cuenta las firmas ADICIONALES del propio log: líneas
+   * con el nombre del origin que no son la firma Ed25519 de la política y miden lo
+   * que mide una firma ML-DSA-44 (ADR-007). No se verifican —WebCrypto no tiene
+   * ML-DSA— y no afectan al veredicto, pero no son "claves que no conoces": la
+   * página las listaba así, con el nombre del propio log.
+   */
+  logAdditionalSignatures: number;
   /** reasons explica, en español, por qué falla. Vacío si valid. */
   reasons: string[];
   /** checkpoint es el que respalda el recibo, si se pudo leer. */
@@ -184,6 +195,7 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
+      logAdditionalSignatures: 0,
       reasons: [`error inesperado al verificar: ${mensaje(e)}`],
       checkpoint: null,
     };
@@ -254,6 +266,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     recipient: null,
     cosigners: [],
     ignoredSignatures: [],
+    logAdditionalSignatures: 0,
     reasons: [...reasons, why],
     checkpoint: null,
   });
@@ -352,6 +365,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   // quórum 2-de-2 en la página. Go no lo aceptaba —x/mod descarta las repeticiones—
   // y el diferencial no lo veía porque ninguna de sus mutaciones re-firmaba.
   const contados = new Set<string>();
+  let firmasAdicionalesDelLog = 0;
 
   let earliest: bigint | null = null;
   for (const sig of p.note.sigs) {
@@ -366,6 +380,10 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
       continue;
     }
     const w = witnesses.get(idDe(sig.name, sig.keyId));
+    if (!w && sig.name === policy.origin && sig.signature.length === MLDSA44_SIGNATURE_SIZE) {
+      firmasAdicionalesDelLog++;
+      continue;
+    }
     if (!w) {
       // Firmas de claves desconocidas: ML-DSA-44 del log, cosignatures de
       // otros testigos. Se IGNORAN, como manda c2sp.org/signed-note. Es lo que
@@ -437,6 +455,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     recipient: p.recipient,
     cosigners,
     ignoredSignatures: ignored,
+    logAdditionalSignatures: firmasAdicionalesDelLog,
     reasons,
     checkpoint: {
       origin: p.checkpoint.origin,
