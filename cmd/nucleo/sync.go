@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -122,6 +123,21 @@ func cmdSync(e *env, args []string) error {
 	// del testigo. Guardarlo es lo que permite que `status` y `seal` respondan
 	// "hace cuánto" sin volver a pedir la clave en cada invocación, que es la
 	// razón por la que ese chequeo no se haría nunca.
+	// Una cosignature que el testigo emitió hace mucho no prueba contacto con él
+	// AHORA (H2 de la cuarta auditoría): con el log parado, reproducir la respuesta
+	// del POST da una sincronización que termina en ✔ sin que nadie haya hablado con
+	// el testigo. Lo único que la delata es este instante, que no avanza. Aquí se
+	// dice, en vez de esperar a que la frescura lo note en el siguiente status: es lo
+	// que convierte un ataque silencioso en uno ruidoso.
+	vieja := res.Attested && now().Sub(res.AttestedAt) > e.staleAfter
+	if vieja {
+		fmt.Fprintf(e.stderr,
+			"AVISO: el testigo devolvió una cosignature de hace %s (umbral: %s).\n"+
+				"       Una cosignature vieja no prueba contacto con el testigo ahora: una\n"+
+				"       respuesta reproducida por la red se ve exactamente así mientras el\n"+
+				"       log no crezca. Comprueba que llegas al testigo de verdad.\n",
+			humanDuration(now().Sub(res.AttestedAt)), humanDuration(e.staleAfter))
+	}
 	if res.Attested {
 		if err := s.PutLastAttested(store.AttestationRecord{
 			Witness:    name,
@@ -140,6 +156,8 @@ func cmdSync(e *env, args []string) error {
 		"attested":     res.Attested,
 		"attested_at":  res.AttestedAt.UTC().Format(time.RFC3339),
 		"first_time":   res.Fresh,
+		// replay_suspect: la cosignature que devolvió el testigo ya nacía vieja.
+		"replay_suspect": vieja,
 		// La política lista para guardar: lo que hace falta para volver a abrir
 		// este ledger con atestación verificada, y lo mismo que la contraparte
 		// necesita para verificar sus recibos (ADR-017 c).

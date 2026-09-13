@@ -230,3 +230,44 @@ func TestSealYReconcileExponenAtestacion(t *testing.T) {
 		})
 	}
 }
+
+// TestSyncAvisaDeUnaCosignatureVieja es la mitigación de H2: una respuesta reproducida
+// se ve como una sincronización correcta, y lo único que la distingue es que la
+// cosignature no es de ahora. sync lo dice en el momento, no en el siguiente status.
+func TestSyncAvisaDeUnaCosignatureVieja(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+	c.sealFile(`{"x":1}`)
+	// El testigo firma con el reloj cuatro días atrasado: es lo que ve el cliente
+	// cuando alguien le sirve una cosignature guardada hace cuatro días.
+	url, name, key := startTestWitnessAt(t, c.logPubKey(t), -100*time.Hour)
+
+	out, errOut := c.runWant(t, exitOK, "--json", "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+	if !strings.Contains(errOut, "no prueba contacto con el testigo ahora") {
+		t.Errorf("sync no avisó de la cosignature vieja:\n%s", errOut)
+	}
+	var v map[string]any
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v["replay_suspect"] != true || v["attested"] != true {
+		t.Errorf("sync --json: replay_suspect = %v, attested = %v", v["replay_suspect"], v["attested"])
+	}
+
+	// Con el testigo en hora, ni aviso ni sospecha.
+	c2 := newCLI(t)
+	c2.initLedger()
+	c2.sealFile(`{"x":1}`)
+	url2, name2, key2 := startTestWitness(t, c2.logPubKey(t))
+	out2, errOut2 := c2.runWant(t, exitOK, "--json", "sync", "--witness", url2, "--witness-name", name2, "--witness-key", key2)
+	if strings.Contains(errOut2, "no prueba contacto") {
+		t.Errorf("avisó con una cosignature recién emitida:\n%s", errOut2)
+	}
+	var v2 map[string]any
+	if err := json.Unmarshal([]byte(out2), &v2); err != nil {
+		t.Fatal(err)
+	}
+	if v2["replay_suspect"] != false {
+		t.Errorf("replay_suspect = %v con el testigo en hora", v2["replay_suspect"])
+	}
+}

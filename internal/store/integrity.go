@@ -713,7 +713,16 @@ func (s *Store) verifyAgainstCheckpoints(leaves [][]byte, attested *storedCheckp
 	if err := verifyRootAt(leaves, last); err != nil {
 		return err
 	}
-	if attested != nil && attested.size != last.Size {
+	// La raíz ATESTIGUADA se comprueba SIEMPRE, no solo cuando su tamaño difiere del
+	// de la última nota (H1 de la cuarta auditoría). Aquella condición infería "es la
+	// misma nota" de "tiene el mismo tree_size", y eso solo es cierto mientras la
+	// clave primaria de la tabla lo garantice: quien puede escribir el fichero puede
+	// rehacer la tabla, y un log que ha firmado un fork —restaurar un backup y seguir
+	// sellando— tiene dos notas legítimas del mismo tamaño con raíces distintas. Con
+	// la honesta como última y la mentirosa como cosignada, la apertura concedía
+	// "verified" sin haber mirado nunca la raíz que respalda el atajo. Es la forma de
+	// error que ADR-016 cerró para las firmas: inferir en vez de comprobar.
+	if attested != nil {
 		return verifyRootAt(leaves, checkpoint.Checkpoint{
 			Origin: attested.origin, Size: attested.size, RootHash: attested.root,
 		})

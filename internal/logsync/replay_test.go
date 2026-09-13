@@ -215,3 +215,98 @@ func itoa(n int) string {
 	}
 	return string(b)
 }
+
+// proxyTotal reproduce una respuesta guardada en TODOS los caminos: el GET de
+// monitorización y el POST de add-checkpoint. Nunca habla con el testigo.
+//
+// Es el adversario de H2 de la cuarta auditoría, y es el que faltaba: el proxy del test
+// anterior solo falseaba el GET, así que el POST seguía llegando al testigo de verdad y
+// era él quien delataba el rollback. Aquí no hay contacto con nadie.
+type proxyTotal struct {
+	// nota es la nota cosignada genuina que se reproduce en el GET; linea es su
+	// línea de cosignature, que es lo que responde el POST según c2sp.org/tlog-witness
+	// (el cliente la pega a la nota que él mismo envió).
+	nota, linea []byte
+	get, pos    int
+}
+
+func (p *proxyTotal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if r.Method == http.MethodPost {
+		p.pos++
+		w.Write(p.linea)
+		return
+	}
+	p.get++
+	w.Write(p.nota)
+}
+
+// cosignatureDe saca la línea de cosignature del testigo de una nota.
+func cosignatureDe(t *testing.T, nota []byte, testigo string) []byte {
+	t.Helper()
+	for _, l := range strings.Split(string(nota), "\n") {
+		if strings.HasPrefix(l, "— "+testigo+" ") {
+			return []byte(l + "\n")
+		}
+	}
+	t.Fatalf("la nota no trae la cosignature de %s", testigo)
+	return nil
+}
+
+// TestPostReproducidoNoPruebaContactoActual es H2. Una cosignature auténtica y vieja,
+// servida como respuesta al POST, pasa por respuesta del testigo: la firma verifica y
+// cubre el estado local, porque el log NO ha crecido desde entonces. La sincronización
+// termina en éxito sin que nadie haya hablado con el testigo.
+//
+// Lo que la distingue de una atestación real es el INSTANTE: la nota reproducida trae el
+// de entonces, no el de ahora. Por eso la frescura —que usa ese instante y no el reloj
+// local— sigue contando desde la última cosignature de verdad, y por eso la alarma acaba
+// sonando. Este test fija las dos mitades: el éxito es indistinguible, el instante no.
+func TestPostReproducidoNoPruebaContactoActual(t *testing.T) {
+	sc := newScene(t, 6)
+	ctx := context.Background()
+
+	primera, err := SyncWithWitness(ctx, sc.adapter, sc.client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !primera.Attested {
+		t.Fatal("la primera sincronización no quedó atestiguada")
+	}
+	vieja := append([]byte(nil), primera.Cosigned...)
+
+	// El log NO crece: es la condición que hace utilizable el replay.
+	proxy := &proxyTotal{nota: vieja, linea: cosignatureDe(t, vieja, "witness.example/w1")}
+	front := httptest.NewServer(proxy)
+	t.Cleanup(front.Close)
+	client, err := witness.NewClient(front.URL, "witness.example/w1",
+		keyFrom(90).Public().(ed25519.PublicKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	segunda, err := SyncWithWitness(ctx, sc.adapter, client)
+	if err != nil {
+		t.Fatalf("con el log parado, una nota vieja cubre el estado local y la sincronización termina: %v", err)
+	}
+	if proxy.pos == 0 {
+		t.Fatal("el escenario no se montó: el POST no pasó por el proxy")
+	}
+	if !segunda.Attested {
+		t.Error("Attested = false: el resultado es indistinguible de una atestación real, y eso es lo que se documenta")
+	}
+	// LO QUE SÍ LA DELATA: el instante no avanza.
+	if !segunda.AttestedAt.Equal(primera.AttestedAt) {
+		t.Errorf("AttestedAt = %s, want el de la primera (%s): la nota reproducida no puede traer un instante nuevo",
+			segunda.AttestedAt, primera.AttestedAt)
+	}
+
+	// Y en cuanto el log crece, el replay deja de servir: la cosignature vieja cubre
+	// otro cuerpo, así que ni siquiera verifica contra la nota que el cliente acaba de
+	// enviar. El rechazo llega del cliente, antes de que logsync mire el contenido.
+	sc.appendMore(t, 1)
+	res, err := SyncWithWitness(ctx, sc.adapter, client)
+	if err == nil {
+		t.Errorf("con un bloque nuevo la nota reproducida no puede valer: %+v", res)
+	}
+}

@@ -510,6 +510,13 @@ func (c *cli) logPubKey(t *testing.T) string {
 // startTestWitness levanta un testigo de verdad, con su propia base y su propia
 // clave, y lo sirve por HTTP. El log y el testigo solo se hablan por la red.
 func startTestWitness(t *testing.T, logPubHex string) (url, name, keyHex string) {
+	return startTestWitnessAt(t, logPubHex, 0)
+}
+
+// startTestWitnessAt levanta el testigo con el reloj DESPLAZADO respecto al de la CLI.
+// Con un desplazamiento negativo, sus cosignatures nacen viejas, que es lo que se ve
+// cuando alguien reproduce una respuesta antigua (H2 de la cuarta auditoría).
+func startTestWitnessAt(t *testing.T, logPubHex string, desfase time.Duration) (url, name, keyHex string) {
 	t.Helper()
 	name = "witness.example/w1"
 
@@ -529,6 +536,7 @@ func startTestWitness(t *testing.T, logPubHex string) (url, name, keyHex string)
 	if err != nil {
 		t.Fatal(err)
 	}
+	clock = clock.Add(desfase)
 	w, err := witness.NewWithState(name, priv, func() time.Time { return clock }, st)
 	if err != nil {
 		t.Fatal(err)
