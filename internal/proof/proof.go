@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
@@ -41,6 +42,9 @@ var (
 	ErrInclusion = errors.New("proof: la entrada no está incluida en el checkpoint")
 	// ErrIndex indica un índice incoherente con el tamaño del checkpoint.
 	ErrIndex = errors.New("proof: índice fuera del árbol del checkpoint")
+	// ErrSignature indica que una línea de firma de una clave que la política
+	// conoce no verifica (PROTOCOL.md §3.3).
+	ErrSignature = errors.New("proof: una firma de una clave conocida no verifica")
 )
 
 // Receipt es el recibo serializable: el índice de la entrada, su camino de
@@ -185,16 +189,19 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 		return Result{}, err
 	}
 	verifiers := []note.Verifier{logVerifier}
-	witnessNames := make(map[uint32]string, len(p.Witnesses))
+	witnessVerifiers := make(map[string]*witness.Verifier, len(p.Witnesses))
 	for name, pub := range p.Witnesses {
 		v, err := witness.NewVerifier(name, pub)
 		if err != nil {
 			return Result{}, fmt.Errorf("%w: testigo %q: %w", ErrPolicy, name, err)
 		}
 		verifiers = append(verifiers, v)
-		witnessNames[v.KeyHash()] = name
+		witnessVerifiers[name] = v
 	}
 
+	// x/mod abre la nota, comprueba su estructura y la firma del log. NO basta
+	// para contar: descarta sin verificarlas las firmas repetidas de una clave
+	// conocida y se queda con la primera. Por eso las líneas se leen aquí.
 	c, n, err := checkpoint.Verify(noteBytes, verifiers...)
 	if err != nil {
 		return Result{}, err
@@ -202,24 +209,45 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 	if c.Origin != p.Origin {
 		return Result{}, fmt.Errorf("%w: %q != %q", ErrOrigin, c.Origin, p.Origin)
 	}
+	text, lines, err := signatureLines(noteBytes)
+	if err != nil {
+		return Result{}, err
+	}
 
+	// Reglas de PROTOCOL.md §3.3 (ADR-018 C):
+	//   - toda línea de una clave conocida verifica, o la nota es inválida;
+	//   - un testigo cuenta una vez;
+	//   - su tiempo es el de su cosignature MÁS TEMPRANA entre las que verifican.
+	// La tercera auditoría dio con las dos formas de fallar esto: con la primera
+	// línea como fecha, el orden de las líneas —que elige el emisor— decidía el
+	// tiempo demostrable, y Go y TypeScript daban veredictos opuestos.
 	res := Result{Checkpoint: c}
 	logSigned := false
 	var earliest time.Time
-	for _, sig := range n.Sigs {
-		if sig.Name == logVerifier.Name() && sig.Hash == logVerifier.KeyHash() {
+	counted := make(map[string]bool, len(witnessVerifiers))
+	for _, l := range lines {
+		if l.name == logVerifier.Name() && l.hash == logVerifier.KeyHash() {
+			if !logVerifier.Verify(text, l.sig) {
+				return Result{}, fmt.Errorf("%w: una línea de la firma del log", ErrSignature)
+			}
 			logSigned = true
 			continue
 		}
-		name, isWitness := witnessNames[sig.Hash]
-		if !isWitness || name != sig.Name {
+		v, ok := witnessVerifiers[l.name]
+		if !ok || v.KeyHash() != l.hash {
 			continue
 		}
-		ts, err := cosignatureTime(sig.Base64)
-		if err != nil {
-			return Result{}, fmt.Errorf("%w: testigo %q: %w", ErrFormat, sig.Name, err)
+		if !v.Verify(text, l.sig) {
+			return Result{}, fmt.Errorf("%w: una cosignature del testigo %q", ErrSignature, l.name)
 		}
-		res.Cosigners = append(res.Cosigners, sig.Name)
+		ts, err := witness.Timestamp(l.sig)
+		if err != nil {
+			return Result{}, fmt.Errorf("%w: testigo %q: %w", ErrFormat, l.name, err)
+		}
+		if !counted[l.name] {
+			counted[l.name] = true
+			res.Cosigners = append(res.Cosigners, l.name)
+		}
 		if earliest.IsZero() || ts.Before(earliest) {
 			earliest = ts
 		}
@@ -237,6 +265,52 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 		return Result{}, fmt.Errorf("%w: %d de %d", ErrQuorum, len(res.Cosigners), p.Quorum)
 	}
 	return res, nil
+}
+
+// sigLine es una línea del bloque de firmas de una nota, sin interpretar.
+type sigLine struct {
+	name string
+	hash uint32
+	// sig es la firma sin los 4 bytes del key ID.
+	sig []byte
+}
+
+// maxSigLines es el máximo de líneas de firma de una nota (PROTOCOL.md §3.3).
+const maxSigLines = 100
+
+// signatureLines separa el texto firmado de sus líneas de firma con las reglas de
+// PROTOCOL.md §3.3. Se llama DESPUÉS de checkpoint.Verify, así que la estructura
+// ya la validó x/mod; lo que aquí se añade es tener TODAS las líneas, repetidas
+// incluidas.
+func signatureLines(msg []byte) ([]byte, []sigLine, error) {
+	split := bytes.LastIndex(msg, []byte("\n\n"))
+	if split < 0 {
+		return nil, nil, fmt.Errorf("%w: la nota no separa cuerpo y firmas", ErrFormat)
+	}
+	text, block := msg[:split+1], msg[split+2:]
+	if len(block) == 0 || block[len(block)-1] != '\n' {
+		return nil, nil, fmt.Errorf("%w: el bloque de firmas no termina en salto de línea", ErrFormat)
+	}
+	var out []sigLine
+	for _, raw := range strings.Split(string(block[:len(block)-1]), "\n") {
+		rest, ok := strings.CutPrefix(raw, "— ")
+		if !ok {
+			return nil, nil, fmt.Errorf("%w: línea de firma sin el prefijo de signed-note", ErrFormat)
+		}
+		name, b64, ok := strings.Cut(rest, " ")
+		if !ok {
+			return nil, nil, fmt.Errorf("%w: línea de firma sin nombre y firma", ErrFormat)
+		}
+		blob, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil || len(blob) < 5 {
+			return nil, nil, fmt.Errorf("%w: firma de %q ilegible", ErrFormat, name)
+		}
+		out = append(out, sigLine{name: name, hash: binary.BigEndian.Uint32(blob[:4]), sig: blob[4:]})
+		if len(out) > maxSigLines {
+			return nil, nil, fmt.Errorf("%w: más de %d líneas de firma", ErrFormat, maxSigLines)
+		}
+	}
+	return text, out, nil
 }
 
 // RequireSignerKey exige que la política traiga la clave del firmante de bloques.
@@ -307,18 +381,6 @@ func (p Policy) validate() error {
 			ErrPolicy, p.Quorum, len(p.Witnesses))
 	}
 	return nil
-}
-
-// cosignatureTime extrae el instante de una cosignature ya verificada.
-func cosignatureTime(b64 string) (time.Time, error) {
-	raw, err := base64.StdEncoding.Strict().DecodeString(b64)
-	if err != nil {
-		return time.Time{}, err
-	}
-	if len(raw) < 4 {
-		return time.Time{}, witness.ErrCosignature
-	}
-	return witness.Timestamp(raw[4:]) // los 4 primeros bytes son el key hash
 }
 
 // cutPrefixLine consume una línea concreta al principio de data.

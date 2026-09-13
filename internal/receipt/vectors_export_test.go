@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
+	"github.com/nucleoledger/nucleo/internal/witness"
 )
 
 // Estos vectores son LA VARA del verificador de TypeScript.
@@ -172,6 +174,7 @@ func TestExportReceiptVectors(t *testing.T) {
 		}
 	}
 	exportDuplicateCosignature(t, dir)
+	exportTwoCosignaturesSameWitness(t, dir)
 
 	sc2 := newScene(t, 1)
 	exportValid(t, dir, sc2, "valido-destinatario-imita-firma",
@@ -243,6 +246,101 @@ func exportDuplicateCosignature(t *testing.T, dir string) {
 	if _, err := r.Verify(pol1); err != nil {
 		t.Fatalf("con la política 1-de-1 la nota con la línea repetida debía verificar: %v", err)
 	}
+}
+
+// exportTwoCosignaturesSameWitness es el hallazgo BAJO #6 de la tercera auditoría
+// (ADR-018 C, E.5). El mismo testigo cosigna el mismo checkpoint dos veces, en
+// instantes distintos, y la línea TARDÍA va primero. Vale la más temprana: el orden
+// de las líneas lo elige el emisor y no puede decidir la fecha. Antes Go se quedaba
+// con la primera línea —la tardía— y TS con la más temprana, y un verificador
+// aceptaba lo que el otro rechazaba.
+func exportTwoCosignaturesSameWitness(t *testing.T, dir string) {
+	t.Helper()
+	sc := newScene(t, 1)
+	pol := sc.policy()
+	r, err := sc.issue(t, "María Pérez (cédula 1712345678)", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const w1 = "witness.example/w1"
+	temprana := sc.provable
+	tardia := testBase.Add(5 * time.Hour)
+
+	var sinTestigo, lineaTemprana []string
+	for _, l := range strings.Split(string(r.Proof.CheckpointNote), "\n") {
+		if strings.HasPrefix(l, "— "+w1+" ") {
+			lineaTemprana = append(lineaTemprana, l)
+			continue
+		}
+		sinTestigo = append(sinTestigo, l)
+	}
+	if len(lineaTemprana) != 1 {
+		t.Fatalf("la escena debía traer una línea de %s", w1)
+	}
+	w, err := witness.New(w1, key(90), func() time.Time { return tardia })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.AddLog(testOrigin, sc.logPub); err != nil {
+		t.Fatal(err)
+	}
+	cosignada, err := w.Cosign([]byte(strings.Join(sinTestigo, "\n")), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lineaTardia string
+	for _, l := range strings.Split(string(cosignada), "\n") {
+		if strings.HasPrefix(l, "— "+w1+" ") {
+			lineaTardia = l
+		}
+	}
+	if lineaTardia == "" || lineaTardia == lineaTemprana[0] {
+		t.Fatal("la segunda cosignature no se obtuvo o es idéntica: el vector no probaría nada")
+	}
+	// Nota: firma del log, línea TARDÍA, línea temprana.
+	body := strings.TrimSuffix(string(r.Proof.CheckpointNote), "\n")
+	body = strings.Replace(body, lineaTemprana[0], lineaTardia+"\n"+lineaTemprana[0], 1)
+	r.Proof.CheckpointNote = []byte(body + "\n")
+	if err := Sign(r, pol, sc.tenantPriv); err != nil {
+		t.Fatal(err)
+	}
+	data, err := Format(r, pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provable, ok, err := r.ProvableTime(pol)
+	if err != nil || !ok {
+		t.Fatalf("tiempo demostrable: %v", err)
+	}
+	if !provable.Equal(temprana) {
+		t.Fatalf("tiempo demostrable = %s, want la cosignature más temprana %s", provable, temprana)
+	}
+	leafData, err := r.LeafData()
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared, _ := r.DeclaredTime()
+	v := vectorFile{
+		Name: "valido-dos-cosignatures-mismo-testigo",
+		Description: "El mismo testigo cosigna dos veces, la línea tardía primero. Un testigo cuenta una vez " +
+			"y vale su cosignature más temprana (PROTOCOL.md §3.3). Debe verificar con el tiempo temprano.",
+		Receipt: string(data),
+		Policy: vectorPolicy{
+			Origin: pol.Origin, LogKey: hex.EncodeToString(pol.LogKey), SignerKey: hex.EncodeToString(pol.SignerKey),
+			Witnesses: map[string]string{w1: hex.EncodeToString(sc.wits[w1])}, Quorum: 1,
+		},
+		LeafData: hex.EncodeToString(leafData), LeafRule: ledger.LeafRule, BlockSig: hex.EncodeToString(r.BlockSig),
+		Valid: true, DeclaredTime: declared.UTC().Format(timeLayout),
+		ProvableTime: temprana.UTC().Format(timeLayout), BlockIndex: 2,
+	}
+	raw, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, v.Name+".json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	assertVector(t, v)
 }
 
 // exportValid emite, exporta y comprueba un vector válido.

@@ -52,4 +52,7 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              invalido-cosignature-duplicada — un testigo, su línea DOS veces en la
              nota, recibo re-firmado por el emisor, política 2-de-2. Un testigo
              cuenta una vez (PROTOCOL.md §3.3): los tres verificadores lo rechazan.
+             valido-dos-cosignatures-mismo-testigo — el mismo testigo cosigna dos
+             veces y la línea TARDÍA va primero; vale la más temprana, que es el
+             tiempo demostrable que el vector declara.
 

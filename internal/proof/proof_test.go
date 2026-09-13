@@ -3,6 +3,7 @@ package proof
 import (
 	"bytes"
 	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -379,4 +380,60 @@ func TestFormatRejectsInvalidReceipt(t *testing.T) {
 			t.Errorf("%s: Format aceptó un recibo inválido", c.name)
 		}
 	}
+}
+
+// TestLineasRepetidasDeUnaClaveConocida fija PROTOCOL.md §3.3 (ADR-018 C) en Go.
+// x/mod descarta SIN VERIFICAR la segunda firma de una clave que conoce, así que
+// una línea basura detrás de la buena pasaba en Go y no en TypeScript. Ahora toda
+// línea de una clave conocida verifica, sea la primera o la décima.
+func TestLineasRepetidasDeUnaClaveConocida(t *testing.T) {
+	e := newEnv(t)
+	note := string(e.receipt.CheckpointNote)
+	var lineaTestigo, lineaLog string
+	for _, l := range strings.Split(note, "\n") {
+		switch {
+		case strings.HasPrefix(l, "— "+witnessOne+" "):
+			lineaTestigo = l
+		case strings.HasPrefix(l, "— "+testOrigin+" "):
+			lineaLog = l
+		}
+	}
+	if lineaTestigo == "" || lineaLog == "" {
+		t.Fatal("la nota no trae las líneas esperadas")
+	}
+	// basura conserva el key ID y cambia la firma: misma clave, firma que no verifica.
+	basura := func(linea string) string {
+		i := strings.LastIndex(linea, " ")
+		blob, err := base64.StdEncoding.DecodeString(linea[i+1:])
+		if err != nil {
+			t.Fatal(err)
+		}
+		blob[len(blob)-1] ^= 0xff
+		return linea[:i+1] + base64.StdEncoding.EncodeToString(blob)
+	}
+	con := func(extra string) Receipt {
+		r := e.receipt
+		r.CheckpointNote = []byte(note + extra + "\n")
+		return r
+	}
+
+	t.Run("la misma cosignature dos veces: vale, y el testigo cuenta una", func(t *testing.T) {
+		res, err := con(lineaTestigo).Verify(e.entry, e.policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Cosigners) != 1 {
+			t.Errorf("cosigners = %v, want uno solo", res.Cosigners)
+		}
+	})
+	t.Run("una cosignature buena y otra basura del MISMO testigo: inválida", func(t *testing.T) {
+		if _, err := con(basura(lineaTestigo)).Verify(e.entry, e.policy); !errors.Is(err, ErrSignature) {
+			t.Errorf("err = %v, want ErrSignature", err)
+		}
+	})
+	t.Run("una firma del log buena y otra basura: inválida", func(t *testing.T) {
+		if _, err := con(basura(lineaLog)).Verify(e.entry, e.policy); !errors.Is(err, ErrSignature) {
+			t.Errorf("err = %v, want ErrSignature", err)
+		}
+	})
 }
