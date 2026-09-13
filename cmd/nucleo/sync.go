@@ -55,7 +55,7 @@ func cmdSync(e *env, args []string) error {
 		return usageErr("%v", err)
 	}
 
-	s, _, err := e.openStoreWith(wp)
+	s, apertura, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
@@ -63,6 +63,12 @@ func cmdSync(e *env, args []string) error {
 
 	v, id, err := e.unlock(s, *passFile, "Passphrase del vault: ")
 	if err != nil {
+		return err
+	}
+	// Antes de hablar con el testigo: una vez cosignada, su memoria protege la
+	// historia que se le enseñó, sea la propia o una ajena.
+	if err := checkChainSigner(apertura, id, "sincroniza"); err != nil {
+		v.Close()
 		return err
 	}
 	if file != nil {

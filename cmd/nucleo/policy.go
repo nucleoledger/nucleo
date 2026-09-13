@@ -7,6 +7,7 @@ import (
 	"flag"
 	"strings"
 
+	"github.com/nucleoledger/nucleo/internal/identity"
 	"github.com/nucleoledger/nucleo/internal/store"
 )
 
@@ -198,4 +199,25 @@ func checkPolicyMatchesLedger(f *policyFile, origin string, logKey, signerKey ed
 		return usageErr("la clave del firmante de la política no es la de este vault")
 	}
 	return nil
+}
+
+// checkChainSigner exige que la cadena la firme la clave de ESTE vault antes de
+// escribir en ella o de pedir a un testigo que la cosigne (E.3).
+//
+// seal y sync son los dos únicos procesos que tienen la clave legítima en la mano
+// —acaban de desbloquear el vault— y no la comparaban con la cadena. La tercera
+// auditoría reescribió la cadena entera con otra clave: seal añadía un bloque
+// legítimo encima y respondía ok:true, y el primer sync con banderas sueltas hacía
+// que el testigo cosignara la historia ajena, que a partir de ahí su memoria
+// protegía frente a la legítima. Sin política no hay forma de distinguir una
+// cadena ajena de la propia; con el vault abierto, sí.
+func checkChainSigner(res store.OpenResult, id *identity.Identity, accion string) error {
+	own := hex.EncodeToString(id.TenantPublic())
+	if res.SignerKey == "" || res.SignerKey == own {
+		return nil
+	}
+	return verifyErr("no se %s: los %d bloques de este ledger los firma %s… y la clave de este vault es %s…. "+
+		"O la cadena entera fue reescrita con otra clave, o este vault no es el de este ledger; "+
+		"en ninguno de los dos casos se escribe encima ni se pide a un testigo que la avale",
+		accion, res.TreeSize, res.SignerKey[:16], own[:16])
 }

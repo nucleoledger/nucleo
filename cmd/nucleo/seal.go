@@ -88,6 +88,9 @@ func cmdSeal(e *env, args []string) error {
 		return err
 	}
 	defer v.Close()
+	if err := checkChainSigner(res, id, "sella"); err != nil {
+		return err
+	}
 
 	prev, err := s.LastBlock()
 	if err != nil && !errors.Is(err, store.ErrNotFound) {

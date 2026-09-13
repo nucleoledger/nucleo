@@ -461,7 +461,12 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, string, error) {
 		// signer es la clave del bloque 0. La CONTINUIDAD exige que todos los
 		// demás la compartan, y se comprueba siempre, con o sin atajo (ADR-017).
 		signer string
+		// expected es la clave del firmante que trae la política, en hex, o "".
+		expected string
 	)
+	if s.witnesses != nil && len(s.witnesses.SignerKey) > 0 {
+		expected = hex.EncodeToString(s.witnesses.SignerKey)
+	}
 	for rows.Next() {
 		var (
 			idx        int64
@@ -519,12 +524,26 @@ func (s *Store) walk(signedFrom uint64) ([][]byte, string, error) {
 		if err != nil {
 			return nil, "", &IntegrityError{Stage: "bloque", Index: idx, Err: err}
 		}
+		// Con la clave del firmante en la política, cada bloque se compara con ELLA
+		// y el error señala al primer bloque INTRUSO. Antes se comparaba siempre con
+		// el bloque 0, y la tercera auditoría enseñó el precio: sobre una cadena
+		// reescrita entera con otra clave, el operador sellaba un bloque legítimo y
+		// el error acusaba a ese bloque —el único bueno— de cambiar de firmante.
+		if expected != "" && sp != expected {
+			return nil, "", &IntegrityError{Stage: "firmante", Index: idx,
+				Err: fmt.Errorf("%w: el bloque %d lo firma %s… y la política espera %s…",
+					ErrSignerMismatch, idx, sp[:16], expected[:16])}
+		}
 		if idx == 0 {
 			signer = sp
 		} else if sp != signer {
+			// Sin política no hay forma de saber cuál de las dos claves es la buena,
+			// y el mensaje no finge saberlo.
 			return nil, "", &IntegrityError{Stage: "firmante", Index: idx,
-				Err: fmt.Errorf("%w: el bloque 0 lo firma %s… y el bloque %d lo firma %s…",
-					ErrSignerContinuity, signer[:16], idx, sp[:16])}
+				Err: fmt.Errorf("%w: los bloques 0–%d los firma %s… y el bloque %d lo firma %s…; "+
+					"sin la clave del firmante en la política no se puede saber cuál de las dos es la legítima "+
+					"(ábrelo con --policy-file)",
+					ErrSignerContinuity, idx-1, signer[:16], idx, sp[:16])}
 		}
 
 		// El último bloque cubierto por el checkpoint también se reconstruye,
