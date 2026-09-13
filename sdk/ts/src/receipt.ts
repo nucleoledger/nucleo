@@ -116,6 +116,12 @@ export interface Result {
   /** ignoredSignatures son las firmas de claves desconocidas, que se ignoran. */
   ignoredSignatures: string[];
   /**
+   * signerPubKey es la clave que el header declara como firmante del bloque, en
+   * hexadecimal. Es un campo AUTENTICADO —entra en la hoja— y quien verifica necesita
+   * poder enseñarlo: es lo que se compara con el signerKey de la política.
+   */
+  signerPubKey: string | null;
+  /**
    * logAdditionalSignatures cuenta las firmas ADICIONALES del propio log: líneas
    * con el nombre del origin que no son la firma Ed25519 de la política y miden lo
    * que mide una firma ML-DSA-44 (ADR-007). No se verifican —WebCrypto no tiene
@@ -195,6 +201,7 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
+      signerPubKey: null,
       logAdditionalSignatures: 0,
       reasons: [`error inesperado al verificar: ${mensaje(e)}`],
       checkpoint: null,
@@ -266,6 +273,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     recipient: null,
     cosigners: [],
     ignoredSignatures: [],
+    signerPubKey: null,
     logAdditionalSignatures: 0,
     reasons: [...reasons, why],
     checkpoint: null,
@@ -455,6 +463,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     recipient: p.recipient,
     cosigners,
     ignoredSignatures: ignored,
+    signerPubKey: p.header.signer_pubkey ?? null,
     logAdditionalSignatures: firmasAdicionalesDelLog,
     reasons,
     checkpoint: {

@@ -797,6 +797,7 @@ time ${timestamp.toString()}
         recipient: null,
         cosigners: [],
         ignoredSignatures: [],
+        signerPubKey: null,
         logAdditionalSignatures: 0,
         reasons: [`error inesperado al verificar: ${mensaje(e)}`],
         checkpoint: null
@@ -844,6 +845,7 @@ time ${timestamp.toString()}
       recipient: null,
       cosigners: [],
       ignoredSignatures: [],
+      signerPubKey: null,
       logAdditionalSignatures: 0,
       reasons: [...reasons, why],
       checkpoint: null
@@ -979,6 +981,7 @@ ${id}`;
       recipient: p.recipient,
       cosigners,
       ignoredSignatures: ignored,
+      signerPubKey: p.header.signer_pubkey ?? null,
       logAdditionalSignatures: firmasAdicionalesDelLog,
       reasons,
       checkpoint: {

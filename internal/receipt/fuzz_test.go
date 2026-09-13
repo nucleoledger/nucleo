@@ -2,6 +2,10 @@ package receipt
 
 import (
 	"crypto/ed25519"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -16,15 +20,31 @@ import (
 // un documento fiable para una persona, y un parser que la dejara pasar a medias
 // produciría papeles que dicen una cosa y demuestran otra.
 //
-// Se fuzzea con una política CON claves: sin ellas casi todo se rechazaría
-// temprano y el fuzzer no llegaría nunca a la parte interesante.
+// Se fuzzea con la política REAL de un vector golden y con ese recibo en el corpus.
+//
+// Antes la política eran claves de ceros y sin signerKey, así que desde ADR-017 Parse
+// rechazaba en la primera línea —falta la clave del firmante— y ni la rama de aceptación
+// ni la propiedad de canonicidad de más abajo se ejecutaban NUNCA. El fuzzer subía el
+// contador de casos sin poder encontrar nada, que es la peor clase de test: el que
+// tranquiliza. Lo señaló la cuarta auditoría.
+//
+// El canario de abajo impide que vuelva a pasar en silencio: si el recibo del vector deja
+// de aceptarse con esta política, el fuzzer falla en el arranque en vez de seguir
+// mutando basura.
 func FuzzParseReceipt(f *testing.F) {
-	pol := proof.Policy{
-		Origin:    "nucleoledger.com/log",
-		LogKey:    make([]byte, ed25519.PublicKeySize),
-		Witnesses: map[string]ed25519.PublicKey{"w/1": make([]byte, ed25519.PublicKeySize)},
-		Quorum:    1,
+	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "vectors", "receipt", "valido-1-cosignature.json"))
+	if err != nil {
+		f.Fatal(err)
 	}
+	var v vectorFile
+	if err := json.Unmarshal(raw, &v); err != nil {
+		f.Fatal(err)
+	}
+	pol := policyFromVectorF(f, v.Policy)
+	if _, err := Parse([]byte(v.Receipt), pol); err != nil {
+		f.Fatalf("CANARIO: el recibo del vector golden no se acepta con su política, así que este fuzz no probaría la rama que importa: %v", err)
+	}
+	f.Add([]byte(v.Receipt))
 
 	f.Add([]byte(Magic + "\ndestinatario      : X" + RecipientNote + "\n"))
 	f.Add([]byte(Magic + "\n" + separator + "\n{}\n"))
@@ -77,4 +97,27 @@ func FuzzTextoLegible(f *testing.F) {
 		// reventar, porque se llama sobre bytes que todavía no se han verificado.
 		_ = Text(data)
 	})
+}
+
+// policyFromVectorF es policyFromVector para un *testing.F.
+func policyFromVectorF(f *testing.F, v vectorPolicy) proof.Policy {
+	f.Helper()
+	logKey, err := hex.DecodeString(v.LogKey)
+	if err != nil {
+		f.Fatal(err)
+	}
+	signerKey, err := hex.DecodeString(v.SignerKey)
+	if err != nil {
+		f.Fatal(err)
+	}
+	pol := proof.Policy{Origin: v.Origin, LogKey: logKey, SignerKey: signerKey,
+		Quorum: v.Quorum, Witnesses: map[string]ed25519.PublicKey{}}
+	for name, h := range v.Witnesses {
+		k, err := hex.DecodeString(h)
+		if err != nil {
+			f.Fatal(err)
+		}
+		pol.Witnesses[name] = k
+	}
+	return pol
 }

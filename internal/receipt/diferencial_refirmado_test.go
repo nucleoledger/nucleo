@@ -248,7 +248,7 @@ func catalogoRefirmado(t *testing.T) []mutacionConPolitica {
 			polJSON["witnesses"] = ws
 			for _, m := range mutacionesDeNota(t, e) {
 				rec := refirmar(t, e.recibo, testTenant, e.priv, m[1])
-				c := mutacion{Nombre: pn + ": " + m[0], Receipt: rec}
+				c := mutacion{Nombre: pn + ": " + m[0], Receipt: rec, Dictamen: dictamenDe([]byte(rec), pol)}
 				r, err := Parse([]byte(rec), pol)
 				if err == nil {
 					_, err = r.Verify(pol)

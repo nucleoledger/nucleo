@@ -4,9 +4,11 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -38,6 +40,86 @@ type mutacion struct {
 	Receipt string `json:"receipt"`
 	GoValid bool   `json:"go_valid"`
 	GoErr   string `json:"go_err,omitempty"`
+	// Dictamen es lo que Go AFIRMA del recibo, no solo si lo acepta. Comparar el
+	// booleano acreditaba "los dos aceptan o los dos rechazan"; no acreditaba que los
+	// dos lean la misma política, cuenten los mismos testigos o den la misma fecha
+	// (cuarta auditoría). Dos verificadores que aceptan el mismo recibo y difieren en
+	// el tiempo demostrable son dos verificadores distintos.
+	Dictamen dictamen `json:"go_dictamen"`
+}
+
+// dictamen es el veredicto estructurado, con la forma que el script de TypeScript
+// reconstruye desde su Result.
+type dictamen struct {
+	Valid bool `json:"valid"`
+	// Categoria clasifica el MOTIVO del rechazo con un vocabulario compartido.
+	Categoria    string   `json:"categoria,omitempty"`
+	DeclaredTime string   `json:"declared_time,omitempty"`
+	ProvableTime string   `json:"provable_time,omitempty"`
+	BlockIndex   string   `json:"block_index,omitempty"`
+	Recipient    string   `json:"recipient,omitempty"`
+	SignerPubKey string   `json:"signer_pubkey,omitempty"`
+	Cosigners    []string `json:"cosigners"`
+	Ignored      []string `json:"ignored"`
+	Checkpoint   string   `json:"checkpoint,omitempty"`
+}
+
+// categoriaDe traduce un error de Go al vocabulario compartido del diferencial.
+func categoriaDe(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, proof.ErrPolicy):
+		return "policy"
+	case errors.Is(err, ErrTextMismatch):
+		return "text"
+	case errors.Is(err, ErrUnexpectedSigner):
+		return "signer"
+	case errors.Is(err, ErrIndexMismatch), errors.Is(err, proof.ErrIndex):
+		return "index"
+	case errors.Is(err, proof.ErrQuorum):
+		return "quorum"
+	case errors.Is(err, proof.ErrInclusion):
+		return "inclusion"
+	case errors.Is(err, proof.ErrOrigin):
+		return "origin"
+	case errors.Is(err, ErrBlockSignature), errors.Is(err, ErrReceiptSignature),
+		errors.Is(err, ErrNoReceiptSignature), errors.Is(err, proof.ErrSignature):
+		return "signature"
+	case errors.Is(err, ErrFormat), errors.Is(err, proof.ErrFormat):
+		return "format"
+	default:
+		return "other"
+	}
+}
+
+// dictamenDe construye el veredicto estructurado de un recibo bajo una política.
+func dictamenDe(data []byte, pol proof.Policy) dictamen {
+	d := dictamen{Cosigners: []string{}, Ignored: []string{}}
+	r, err := Parse(data, pol)
+	if err != nil {
+		d.Categoria = categoriaDe(err)
+		return d
+	}
+	res, err := r.Verify(pol)
+	if err != nil {
+		d.Categoria = categoriaDe(err)
+		return d
+	}
+	d.Valid = true
+	d.DeclaredTime = r.Header.Timestamp
+	d.BlockIndex = strconv.FormatUint(r.Header.Index, 10)
+	d.Recipient = r.Recipient
+	d.SignerPubKey = r.Header.SignerPubKey
+	if len(res.Cosigners) > 0 {
+		d.ProvableTime = res.ProvableTime.UTC().Format(timeLayout)
+		d.Cosigners = res.Cosigners
+	}
+	if len(res.IgnoredSigs) > 0 {
+		d.Ignored = res.IgnoredSigs
+	}
+	d.Checkpoint = fmt.Sprintf("%s/%d/%x", res.Checkpoint.Origin, res.Checkpoint.Size, res.Checkpoint.RootHash)
+	return d
 }
 
 // catalogoDeMutaciones aplica al recibo base todas las transformaciones que un
@@ -142,6 +224,7 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 		casos := catalogoDeMutaciones(v.Receipt)
 		aceptados := 0
 		for i := range casos {
+			casos[i].Dictamen = dictamenDe([]byte(casos[i].Receipt), pol)
 			r, err := Parse([]byte(casos[i].Receipt), pol)
 			if err == nil {
 				_, err = r.Verify(pol)

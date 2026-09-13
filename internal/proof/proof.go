@@ -90,6 +90,13 @@ type Result struct {
 	// IgnoredSigs son las firmas de claves ajenas a la política, que no
 	// invalidan el recibo: es la regla de las notas firmadas.
 	IgnoredSigs []string
+	// LogExtraSigs son las firmas ADICIONALES del propio log: líneas con el nombre
+	// del origin que no son su firma Ed25519 y miden lo que una ML-DSA-44 (ADR-007).
+	// No se verifican aquí y no cuentan para nada, pero tampoco son "claves que no
+	// conoces": llevan el nombre del log. TypeScript las separó en el Sprint 7e y Go
+	// no, y el diferencial —al comparar el dictamen entero y no solo el veredicto—
+	// encontró la asimetría en su primera ejecución.
+	LogExtraSigs []string
 }
 
 // Format serializa el recibo. El separador es la primera línea en blanco: todo
@@ -254,6 +261,10 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 	}
 	// Las firmas de claves que la política no conoce se ignoran sin romper nada.
 	for _, sig := range n.UnverifiedSigs {
+		if sig.Name == p.Origin && esFirmaMLDSA(sig.Base64) {
+			res.LogExtraSigs = append(res.LogExtraSigs, sig.Name)
+			continue
+		}
 		res.IgnoredSigs = append(res.IgnoredSigs, sig.Name)
 	}
 	res.ProvableTime = earliest
@@ -265,6 +276,18 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 		return Result{}, fmt.Errorf("%w: %d de %d", ErrQuorum, len(res.Cosigners), p.Quorum)
 	}
 	return res, nil
+}
+
+// mldsaSignatureSize es lo que mide una firma ML-DSA-44 (FIPS 204). Se compara el
+// tamaño porque el key ID de una clave desconocida no se puede recomputar: es lo mismo
+// que hace el verificador de TypeScript, y con el mismo número.
+const mldsaSignatureSize = 2420
+
+// esFirmaMLDSA dice si el blob de una firma tiene el tamaño de una ML-DSA-44, sin los
+// 4 bytes del key ID.
+func esFirmaMLDSA(b64 string) bool {
+	raw, err := base64.StdEncoding.Strict().DecodeString(b64)
+	return err == nil && len(raw) == 4+mldsaSignatureSize
 }
 
 // sigLine es una línea del bloque de firmas de una nota, sin interpretar.
