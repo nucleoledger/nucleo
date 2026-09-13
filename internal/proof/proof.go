@@ -315,6 +315,20 @@ func signatureLines(msg []byte) ([]byte, []sigLine, error) {
 	return text, out, nil
 }
 
+// RequireWitnesses exige que la política pueda verificar algo: al menos un testigo y
+// quórum de al menos uno. Lo llama quien verifica un RECIBO (PROTOCOL.md §3.2,
+// ADR-018). validate admite quórum 0 porque lo usan piezas que solo comprueban la
+// firma del log; un recibo con esa política daba "válido" sin que ningún tercero
+// hubiera firmado nada —la tercera auditoría lo enseñó en los tres verificadores—,
+// y la ausencia de testigos no es un modo: es un campo olvidado.
+func (p Policy) RequireWitnesses() error {
+	if len(p.Witnesses) == 0 || p.Quorum < 1 {
+		return fmt.Errorf("%w: una política de recibos exige al menos un testigo y quórum de al menos 1 "+
+			"(trae %d testigos y quórum %d)", ErrPolicy, len(p.Witnesses), p.Quorum)
+	}
+	return nil
+}
+
 // RequireSignerKey exige que la política traiga la clave del firmante de bloques.
 // Lo llama quien verifica un RECIBO: una nota de checkpoint no tiene firmante de
 // bloques, así que VerifyNote no lo pide, pero un recibo sin esta clave en la
@@ -381,6 +395,15 @@ func (p Policy) validate() error {
 	if p.Quorum > len(p.Witnesses) {
 		return fmt.Errorf("%w: quórum de %d con %d testigos configurados",
 			ErrPolicy, p.Quorum, len(p.Witnesses))
+	}
+	// La misma clave bajo dos nombres contaría dos veces: la cosignature no lleva el
+	// nombre del testigo, así que se copia bajo el otro recalculando el key ID.
+	porClave := make(map[string]string, len(p.Witnesses))
+	for name, pub := range p.Witnesses {
+		if otro, ok := porClave[string(pub)]; ok {
+			return fmt.Errorf("%w: la misma clave está bajo dos nombres (%q y %q)", ErrPolicy, otro, name)
+		}
+		porClave[string(pub)] = name
 	}
 	return nil
 }

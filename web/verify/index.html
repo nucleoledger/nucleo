@@ -195,11 +195,15 @@
 
   $("verificar").addEventListener("click", async () => {
     salida.innerHTML = '<div class="tarjeta">Verificando…</div>';
+    // La política se lee con el parser estricto del SDK (PROTOCOL.md §3.2), no con
+    // JSON.parse: JSON.parse se queda con el último de dos miembros repetidos en
+    // silencio, y la tercera auditoría usó eso para que la CLI y esta página leyeran
+    // dos claves distintas del mismo fichero.
     let pol;
     try {
-      pol = JSON.parse(politica.value);
+      pol = NucleoVerify.parsePolicyText(politica.value);
     } catch (e) {
-      salida.innerHTML = `<div class="tarjeta"><p class="veredicto mal">✘ La política no es JSON válido</p><p>${escapa(e.message)}</p></div>`;
+      salida.innerHTML = `<div class="tarjeta"><p class="veredicto mal">✘ La política no es válida</p><p>${escapa(e.message)}</p></div>`;
       return;
     }
     try {

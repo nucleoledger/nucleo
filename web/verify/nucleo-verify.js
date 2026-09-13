@@ -24,6 +24,7 @@ var NucleoVerify = (() => {
     ALG_COSIGNATURE_V1: () => ALG_COSIGNATURE_V1,
     ALG_ED25519: () => ALG_ED25519,
     MAGIC: () => MAGIC2,
+    MAX_POLICY_BYTES: () => MAX_POLICY_BYTES,
     NO_PROVABLE_TIME: () => NO_PROVABLE_TIME,
     SEPARATOR: () => SEPARATOR,
     ed25519Available: () => ed25519Available,
@@ -35,6 +36,7 @@ var NucleoVerify = (() => {
     nodeHash: () => nodeHash,
     parseCheckpoint: () => parseCheckpoint,
     parseNote: () => parseNote,
+    parsePolicyText: () => parsePolicyText,
     parseProof: () => parseProof,
     parseReceipt: () => parseReceipt,
     receiptText: () => receiptText,
@@ -42,6 +44,7 @@ var NucleoVerify = (() => {
     toBase64: () => toBase64,
     toHex: () => toHex,
     utf8: () => utf8,
+    validatePolicy: () => validatePolicy,
     verifyEd25519: () => verifyEd25519,
     verifyInclusion: () => verifyInclusion,
     verifyReceipt: () => verifyReceipt
@@ -356,6 +359,260 @@ time ${timestamp.toString()}
     return { index, inclusionProof, checkpointNote };
   }
 
+  // src/policy.ts
+  var MAX_POLICY_BYTES = 65536;
+  var MIEMBROS = ["origin", "logKey", "signerKey", "witnesses", "quorum"];
+  function parsePolicyText(text) {
+    if (utf8(text).length > MAX_POLICY_BYTES) {
+      throw new Error(`la pol\xEDtica mide m\xE1s de ${MAX_POLICY_BYTES} bytes`);
+    }
+    if (text.charCodeAt(0) === 65279) throw new Error("la pol\xEDtica empieza con BOM");
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      if (c >= 55296 && c <= 56319) {
+        const d = text.charCodeAt(i + 1);
+        if (!(d >= 56320 && d <= 57343)) throw new Error("la pol\xEDtica no es Unicode v\xE1lido");
+        i++;
+      } else if (c >= 56320 && c <= 57343) {
+        throw new Error("la pol\xEDtica no es Unicode v\xE1lido");
+      }
+    }
+    const p = new Lector(text);
+    p.espacios();
+    if (p.s[p.i] !== "{") throw new Error("el documento tiene que ser un objeto JSON");
+    const obj = p.objeto(1);
+    p.espacios();
+    if (p.i !== p.s.length) throw new Error(`hay contenido despu\xE9s del objeto (posici\xF3n ${p.i})`);
+    return construir(obj);
+  }
+  var Lector = class {
+    constructor(s) {
+      this.s = s;
+    }
+    i = 0;
+    err(msg) {
+      return new Error(`${msg} (posici\xF3n ${this.i})`);
+    }
+    espacios() {
+      while (this.i < this.s.length) {
+        const c = this.s[this.i];
+        if (c === " " || c === "	" || c === "\n" || c === "\r") this.i++;
+        else return;
+      }
+    }
+    objeto(profundidad) {
+      if (profundidad > 2) throw this.err("objeto anidado donde la pol\xEDtica no admite ninguno");
+      this.i++;
+      const out = [];
+      const vistos = /* @__PURE__ */ new Set();
+      this.espacios();
+      if (this.s[this.i] === "}") {
+        this.i++;
+        return out;
+      }
+      for (; ; ) {
+        this.espacios();
+        if (this.s[this.i] !== '"') throw this.err("se esperaba el nombre de un miembro");
+        const nombre = this.cadena();
+        if (vistos.has(nombre)) throw this.err(`el miembro ${JSON.stringify(nombre)} est\xE1 repetido`);
+        vistos.add(nombre);
+        this.espacios();
+        if (this.s[this.i] !== ":") throw this.err("se esperaba ':'");
+        this.i++;
+        this.espacios();
+        out.push({ nombre, valor: this.valor(profundidad) });
+        this.espacios();
+        const c = this.s[this.i];
+        if (c === ",") this.i++;
+        else if (c === "}") {
+          this.i++;
+          return out;
+        } else if (c === void 0) throw this.err("objeto sin cerrar");
+        else throw this.err("se esperaba ',' o '}'");
+      }
+    }
+    valor(profundidad) {
+      const c = this.s[this.i];
+      if (c === void 0) throw this.err("falta un valor");
+      if (c === '"') return { tipo: "s", cadena: this.cadena() };
+      if (c === "{") return { tipo: "o", miembros: this.objeto(profundidad + 1) };
+      if (c === "-" || c >= "0" && c <= "9") return { tipo: "n", numero: this.numero() };
+      throw this.err("valor no admitido en una pol\xEDtica (solo cadenas, n\xFAmeros y el objeto de testigos)");
+    }
+    /** cadena lee una cadena JSON; rechaza surrogates sueltos escritos con \u. */
+    cadena() {
+      this.i++;
+      let out = "";
+      for (; ; ) {
+        if (this.i >= this.s.length) throw this.err("cadena sin cerrar");
+        const c = this.s[this.i];
+        const code = c.charCodeAt(0);
+        if (c === '"') {
+          this.i++;
+          return out;
+        }
+        if (code < 32) throw this.err("car\xE1cter de control sin escapar dentro de una cadena");
+        if (c !== "\\") {
+          out += c;
+          this.i++;
+          continue;
+        }
+        this.i++;
+        const e = this.s[this.i];
+        this.i++;
+        switch (e) {
+          case '"':
+          case "\\":
+          case "/":
+            out += e;
+            break;
+          case "b":
+            out += "\b";
+            break;
+          case "f":
+            out += "\f";
+            break;
+          case "n":
+            out += "\n";
+            break;
+          case "r":
+            out += "\r";
+            break;
+          case "t":
+            out += "	";
+            break;
+          case "u": {
+            const u = this.hex4();
+            if (u >= 55296 && u <= 56319) {
+              if (this.s[this.i] !== "\\" || this.s[this.i + 1] !== "u") {
+                throw this.err("surrogate UTF-16 alto sin su pareja");
+              }
+              this.i += 2;
+              const bajo = this.hex4();
+              if (bajo < 56320 || bajo > 57343) throw this.err("surrogate UTF-16 alto sin su pareja");
+              out += String.fromCharCode(u, bajo);
+            } else if (u >= 56320 && u <= 57343) {
+              throw this.err("surrogate UTF-16 bajo suelto");
+            } else {
+              out += String.fromCharCode(u);
+            }
+            break;
+          }
+          default:
+            throw this.err(`escape desconocido \\${e ?? ""}`);
+        }
+      }
+    }
+    hex4() {
+      const h = this.s.slice(this.i, this.i + 4);
+      if (!/^[0-9a-fA-F]{4}$/.test(h)) throw this.err("escape \\u con d\xEDgitos no hexadecimales");
+      this.i += 4;
+      return parseInt(h, 16);
+    }
+    /** numero lee un número con la gramática de RFC 8259 y devuelve el literal. */
+    numero() {
+      const ini = this.i;
+      const digitos = () => {
+        let n = 0;
+        while (this.i < this.s.length && this.s[this.i] >= "0" && this.s[this.i] <= "9") {
+          this.i++;
+          n++;
+        }
+        return n;
+      };
+      if (this.s[this.i] === "-") this.i++;
+      if (this.s[this.i] === "0") this.i++;
+      else if (digitos() === 0) throw this.err("n\xFAmero mal formado");
+      if (this.s[this.i] === ".") {
+        this.i++;
+        if (digitos() === 0) throw this.err("n\xFAmero mal formado");
+      }
+      if (this.s[this.i] === "e" || this.s[this.i] === "E") {
+        this.i++;
+        if (this.s[this.i] === "+" || this.s[this.i] === "-") this.i++;
+        if (digitos() === 0) throw this.err("n\xFAmero mal formado");
+      }
+      return this.s.slice(ini, this.i);
+    }
+  };
+  var HEX_CLAVE = /^[0-9a-f]{64}$/;
+  function construir(obj) {
+    const tiene = /* @__PURE__ */ new Set();
+    let origin = "";
+    let logKey = "";
+    let signerKey;
+    const witnesses = {};
+    let quorum = "";
+    let nTestigos = 0;
+    for (const { nombre, valor } of obj) {
+      if (!MIEMBROS.includes(nombre)) {
+        const variante = MIEMBROS.find((k) => k.toLowerCase() === asciiMinusculas(nombre));
+        if (variante) throw new Error(`el miembro ${JSON.stringify(nombre)} es una variante de may\xFAsculas de ${JSON.stringify(variante)}`);
+        throw new Error(`miembro desconocido ${JSON.stringify(nombre)}`);
+      }
+      tiene.add(nombre);
+      switch (nombre) {
+        case "origin":
+          if (valor.tipo !== "s" || valor.cadena === "") throw new Error("origin tiene que ser una cadena no vac\xEDa");
+          origin = valor.cadena;
+          break;
+        case "logKey":
+        case "signerKey":
+          if (valor.tipo !== "s" || !HEX_CLAVE.test(valor.cadena)) {
+            throw new Error(`${nombre} tiene que ser una clave de 64 caracteres hexadecimales en min\xFAsculas`);
+          }
+          if (nombre === "logKey") logKey = valor.cadena;
+          else signerKey = valor.cadena;
+          break;
+        case "witnesses": {
+          if (valor.tipo !== "o") throw new Error("witnesses tiene que ser un objeto");
+          if (valor.miembros.length === 0) throw new Error("no trae ning\xFAn testigo; sin testigos no verifica nada");
+          const porClave = /* @__PURE__ */ new Map();
+          for (const w of valor.miembros) {
+            if (w.nombre === "") throw new Error("un testigo sin nombre");
+            if (w.valor.tipo !== "s" || !HEX_CLAVE.test(w.valor.cadena)) {
+              throw new Error(`la clave del testigo ${JSON.stringify(w.nombre)} tiene que ser de 64 caracteres hexadecimales en min\xFAsculas`);
+            }
+            const otro = porClave.get(w.valor.cadena);
+            if (otro !== void 0) {
+              throw new Error(`la misma clave est\xE1 bajo dos nombres (${JSON.stringify(otro)} y ${JSON.stringify(w.nombre)})`);
+            }
+            porClave.set(w.valor.cadena, w.nombre);
+            witnesses[w.nombre] = w.valor.cadena;
+          }
+          nTestigos = valor.miembros.length;
+          break;
+        }
+        case "quorum":
+          if (valor.tipo !== "n") throw new Error("quorum tiene que ser un n\xFAmero entero");
+          quorum = valor.numero;
+          break;
+      }
+    }
+    for (const req of ["origin", "logKey", "witnesses", "quorum"]) {
+      if (!tiene.has(req)) throw new Error(`falta el miembro ${JSON.stringify(req)}`);
+    }
+    if (!/^(0|[1-9][0-9]*)$/.test(quorum)) throw new Error(`quorum ${quorum} no es un entero sin fracci\xF3n ni exponente`);
+    const q = quorum.length > 9 ? Infinity : Number(quorum);
+    if (q < 1 || q > nTestigos) throw new Error(`quorum ${quorum} con ${nTestigos} testigos`);
+    const out = { origin, logKey, witnesses, quorum: q };
+    if (signerKey !== void 0) out.signerKey = signerKey;
+    return out;
+  }
+  function validatePolicy(p) {
+    if (typeof p !== "object" || p === null || Array.isArray(p)) throw new Error("la pol\xEDtica no es un objeto");
+    let texto;
+    try {
+      texto = JSON.stringify(p);
+    } catch (e) {
+      throw new Error(`la pol\xEDtica no se puede serializar: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return parsePolicyText(texto);
+  }
+  function asciiMinusculas(s) {
+    return s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+  }
+
   // src/receipt.ts
   var MAGIC2 = "nucleo.org/receipt@v2";
   var MAGIC_V1 = "nucleo.org/receipt@v1";
@@ -394,27 +651,17 @@ time ${timestamp.toString()}
     return String(e);
   }
   function parsePolicy(p) {
-    if (typeof p !== "object" || p === null) throw new Error("no es un objeto");
-    if (typeof p.origin !== "string" || p.origin === "") {
-      throw new Error("falta el origin");
-    }
-    if (typeof p.logKey !== "string") throw new Error("logKey no es una cadena");
-    const logKey = clave(p.logKey, "logKey");
-    if (typeof p.signerKey !== "string") {
+    const v = validatePolicy(p);
+    if (v.signerKey === void 0) {
       throw new Error("falta signerKey: la clave del firmante de bloques tiene que venir en la pol\xEDtica (ADR-017)");
     }
-    const signerKey = clave(p.signerKey, "signerKey");
-    const witnesses = [];
-    const w = p.witnesses ?? {};
-    if (typeof w !== "object" || w === null) throw new Error("witnesses no es un objeto");
-    for (const [name, hex] of Object.entries(w)) {
-      if (typeof hex !== "string") throw new Error(`la clave del testigo ${name} no es una cadena`);
-      witnesses.push({ name, key: clave(hex, `la clave del testigo ${name}`) });
-    }
-    if (p.quorum !== void 0 && (!Number.isInteger(p.quorum) || p.quorum < 0)) {
-      throw new Error(`quorum inv\xE1lido: ${String(p.quorum)}`);
-    }
-    return { logKey, signerKey, witnesses };
+    return {
+      origin: v.origin,
+      logKey: clave(v.logKey, "logKey"),
+      signerKey: clave(v.signerKey, "signerKey"),
+      witnesses: Object.entries(v.witnesses).map(([name, hex]) => ({ name, key: clave(hex, `la clave del testigo ${name}`) })),
+      quorum: v.quorum
+    };
   }
   function clave(hex, cual) {
     let raw;
@@ -534,7 +781,7 @@ ${id}`;
       if (earliest === null || cs.timestamp < earliest) earliest = cs.timestamp;
     }
     if (!logSigned) reasons.push("el checkpoint no est\xE1 firmado por la clave del log");
-    const quorum = policy.quorum ?? 0;
+    const quorum = claves.quorum;
     if (cosigners.length < quorum) {
       reasons.push(`qu\xF3rum de testigos no alcanzado: ${cosigners.length} de ${quorum}`);
     }

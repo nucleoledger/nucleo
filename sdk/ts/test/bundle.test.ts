@@ -208,7 +208,9 @@ describe("el dictamen de la página", () => {
   for (const [nombre, rota] of Object.entries({
     "clave del log equivocada": { ...pol, logKey: "22".repeat(32) },
     "clave de testigo equivocada": { ...pol, witnesses: { [Object.keys(pol.witnesses)[0]!]: "11".repeat(32) } },
-    "quórum no alcanzado": { ...pol, quorum: 2 },
+    // Quórum 2 con un solo testigo es una política INVÁLIDA desde ADR-018; el caso
+    // que se quiere es un quórum válido que el recibo no alcanza.
+    "quórum no alcanzado": { ...pol, witnesses: { ...pol.witnesses, "otro.example/w9": "cd".repeat(32) }, quorum: 2 },
   })) {
     it(`${nombre}: ninguna fila muestra ✔ sin calificar`, async () => {
       const r = (await verify(v.receipt, rota)) as { valid: boolean; receiptSignatureVerified: boolean | null };

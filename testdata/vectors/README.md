@@ -55,6 +55,9 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              valido-dos-cosignatures-mismo-testigo — el mismo testigo cosigna dos
              veces y la línea TARDÍA va primero; vale la más temprana, que es el
              tiempo demostrable que el vector declara.
+             cosignature-no-confiable REGENERADO: su política ya no es "sin
+             testigos" —desde ADR-018 esa política no existe—, sino una que acepta a
+             un testigo que no cosignó; el rechazo pasa a ser por quórum.
 
 - policy/    vectores de la POLÍTICA de verificación (PROTOCOL.md §3.2, ADR-018):
              el texto EXACTO de cada documento y su veredicto. Escritos a mano por

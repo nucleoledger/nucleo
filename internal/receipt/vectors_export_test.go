@@ -133,12 +133,15 @@ func TestExportReceiptVectors(t *testing.T) {
 	// Caso 3: la cosignature es de una clave que la política NO acepta.
 	untrusted := valid
 	untrusted.Name = "cosignature-no-confiable"
-	untrusted.Description = "El mismo recibo verificado con una política que no acepta a ese testigo. La firma del log verifica, pero el tiempo demostrable que muestra no lo respalda nadie aceptado: debe rechazarse."
+	untrusted.Description = "El mismo recibo verificado con una política que acepta a OTRO testigo, que no cosignó. La firma del log verifica, pero ningún testigo aceptado respalda la nota: quórum no alcanzado, debe rechazarse."
 	untrusted.Valid = false
 	untrusted.Reason = "untrusted_cosignature"
+	// Desde ADR-018 no existe la política sin testigos: la del vector acepta a un
+	// testigo que NO cosignó, y el motivo del rechazo es el quórum.
 	untrusted.Policy = vectorPolicy{
 		Origin: exported.Origin, LogKey: exported.LogKey, SignerKey: exported.SignerKey,
-		Witnesses: map[string]string{}, Quorum: 0,
+		Witnesses: map[string]string{"otro.example/w9": hex.EncodeToString(key(99).Public().(ed25519.PublicKey))},
+		Quorum:    1,
 	}
 	untrusted.ProvableTime = ""
 

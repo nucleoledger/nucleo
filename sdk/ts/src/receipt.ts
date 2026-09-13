@@ -13,6 +13,7 @@ import { jsonKeysAreSorted } from "./jcs.js";
 import { leafHash, verifyInclusion } from "./merkle.js";
 import { ALG_COSIGNATURE_V1, ALG_ED25519, keyId, parseNote, type Note } from "./note.js";
 import { parseProof, type TlogProof } from "./proof.js";
+import { validatePolicy, type Policy } from "./policy.js";
 
 /** MAGIC es la primera línea de un recibo. */
 /**
@@ -69,27 +70,7 @@ export const LEGAL_NOTICE = [
   "autoridad. Su valor probatorio lo determina un perito o un juez.",
 ];
 
-/** Policy es lo que quien verifica debe conocer de antemano. */
-export interface Policy {
-  /** origin del log que se espera. */
-  origin: string;
-  /** logKey en hexadecimal: la pública Ed25519 del log. */
-  logKey: string;
-  /**
-   * signerKey en hexadecimal: la pública Ed25519 del tenant que FIRMA LOS BLOQUES.
-   *
-   * Obligatoria (ADR-017). Sin ella, "firmado por el emisor" se comprobaría contra
-   * la clave que trae el propio recibo, que es una afirmación del recibo sobre sí
-   * mismo. La segunda auditoría adversarial emitió un recibo de un bloque firmado
-   * por una clave ajena, bajo el checkpoint real, y este verificador lo dio por
-   * bueno. La clave del firmante tiene que venir de fuera, como la del log.
-   */
-  signerKey: string;
-  /** witnesses acepta nombre → pública en hexadecimal. */
-  witnesses?: Record<string, string>;
-  /** quorum es el mínimo de cosignatures válidas exigidas. */
-  quorum?: number;
-}
+export type { Policy } from "./policy.js";
 
 /** Header es el header del bloque tal como viaja en el recibo. */
 export interface BlockHeader {
@@ -210,49 +191,41 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
 }
 
 /** ClavesDePolitica es la política ya convertida a bytes. */
-interface ClavesDePolitica {
-  logKey: Uint8Array;
-  signerKey: Uint8Array;
-  witnesses: Array<{ name: string; key: Uint8Array }>;
-}
-
 /** mensaje saca un texto legible de cualquier cosa que se haya lanzado. */
 function mensaje(e: unknown): string {
   if (e instanceof Error) return e.message;
   return String(e);
 }
 
+interface ClavesDePolitica {
+  origin: string;
+  logKey: Uint8Array;
+  signerKey: Uint8Array;
+  witnesses: Array<{ name: string; key: Uint8Array }>;
+  quorum: number;
+}
+
 /**
- * parsePolicy valida la política y la convierte a bytes.
+ * parsePolicy valida la política con las reglas de PROTOCOL.md §3.2 —las mismas que
+ * aplica parsePolicyText al texto, y el parser de Go— y la convierte a bytes. Un
+ * recibo exige además signerKey (ADR-017).
  *
- * Comprueba los tamaños además del hexadecimal: una clave Ed25519 mide 32 bytes
- * exactos, y una de 31 no es "casi válida", es otra cosa. Detectarlo aquí da un
- * mensaje que dice qué clave está mal; dejarlo pasar daría un "la firma no
- * verifica" que manda a buscar el problema al sitio equivocado.
+ * Antes quorum era opcional y valía 0 por omisión, y witnesses también: una política
+ * {origin, logKey, signerKey} daba "✔ Recibo válido" a un recibo que no respaldaba
+ * ningún tercero (tercera auditoría, MEDIO #5). Olvidar un campo no es un modo.
  */
 function parsePolicy(p: Policy): ClavesDePolitica {
-  if (typeof p !== "object" || p === null) throw new Error("no es un objeto");
-  if (typeof p.origin !== "string" || p.origin === "") {
-    throw new Error("falta el origin");
-  }
-  if (typeof p.logKey !== "string") throw new Error("logKey no es una cadena");
-  const logKey = clave(p.logKey, "logKey");
-  if (typeof p.signerKey !== "string") {
+  const v = validatePolicy(p);
+  if (v.signerKey === undefined) {
     throw new Error("falta signerKey: la clave del firmante de bloques tiene que venir en la política (ADR-017)");
   }
-  const signerKey = clave(p.signerKey, "signerKey");
-
-  const witnesses: Array<{ name: string; key: Uint8Array }> = [];
-  const w = p.witnesses ?? {};
-  if (typeof w !== "object" || w === null) throw new Error("witnesses no es un objeto");
-  for (const [name, hex] of Object.entries(w)) {
-    if (typeof hex !== "string") throw new Error(`la clave del testigo ${name} no es una cadena`);
-    witnesses.push({ name, key: clave(hex, `la clave del testigo ${name}`) });
-  }
-  if (p.quorum !== undefined && (!Number.isInteger(p.quorum) || p.quorum < 0)) {
-    throw new Error(`quorum inválido: ${String(p.quorum)}`);
-  }
-  return { logKey, signerKey, witnesses };
+  return {
+    origin: v.origin,
+    logKey: clave(v.logKey, "logKey"),
+    signerKey: clave(v.signerKey, "signerKey"),
+    witnesses: Object.entries(v.witnesses).map(([name, hex]) => ({ name, key: clave(hex, `la clave del testigo ${name}`) })),
+    quorum: v.quorum,
+  };
 }
 
 /** clave convierte un hexadecimal de 32 bytes, o explica por qué no puede. */
@@ -422,7 +395,7 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
 
   if (!logSigned) reasons.push("el checkpoint no está firmado por la clave del log");
 
-  const quorum = policy.quorum ?? 0;
+  const quorum = claves.quorum;
   if (cosigners.length < quorum) {
     reasons.push(`quórum de testigos no alcanzado: ${cosigners.length} de ${quorum}`);
   }

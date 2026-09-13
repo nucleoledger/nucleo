@@ -197,29 +197,23 @@ func TestReceiptShowsBothClocks(t *testing.T) {
 	}
 }
 
-// TestReceiptWithoutCosignatures comprueba que la ausencia de tiempo demostrable
-// se dice con todas las letras. Callarse y mostrar solo el declarado sería
-// presentarlo como prueba, que es justo lo que PROTOCOL.md §4 prohíbe.
+// TestReceiptWithoutCosignatures: un recibo sin ninguna cosignature NO se emite ni
+// se verifica con una política sin testigos (PROTOCOL.md §3.2, ADR-018). Hasta el
+// Sprint 7e "verificaba" y decía SIN TIEMPO DEMOSTRABLE; la tercera auditoría enseñó
+// que eso daba "✔ Recibo válido" en los tres verificadores con una política que no
+// verifica nada. Y con una política que SÍ trae testigo, un recibo sin su
+// cosignature no alcanza el quórum.
 func TestReceiptWithoutCosignatures(t *testing.T) {
 	sc := newScene(t, 0)
-	r, err := sc.issue(t, "Contraparte S.A.", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok, err := r.ProvableTime(sc.policy()); err != nil || ok {
-		t.Fatalf("hay tiempo demostrable sin ninguna cosignature: %v %v", ok, err)
-	}
-	data, err := Format(r, sc.policy())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(Text(data), "TIEMPO DEMOSTRABLE: "+NoProvableTime) {
-		t.Errorf("no se anuncia la ausencia de tiempo demostrable:\n%s", Text(data))
+	if _, err := sc.issue(t, "Contraparte S.A.", 1); !errors.Is(err, proof.ErrPolicy) {
+		t.Fatalf("emitir con una política sin testigos: err = %v, want ErrPolicy", err)
 	}
 
-	// Y sigue verificando: un recibo sin testigos prueba inclusión, no tiempo.
-	if _, err := r.Verify(sc.policy()); err != nil {
-		t.Errorf("un recibo sin cosignatures debe verificar igual: %v", err)
+	con := sc.policy()
+	con.Witnesses = map[string]ed25519.PublicKey{"witness.example/w1": key(90).Public().(ed25519.PublicKey)}
+	con.Quorum = 1
+	if _, err := Issue(sc.store, "Contraparte S.A.", 1, con, sc.tenantPriv); !errors.Is(err, proof.ErrQuorum) {
+		t.Errorf("sin la cosignature del testigo de la política: err = %v, want ErrQuorum", err)
 	}
 }
 
@@ -282,21 +276,18 @@ func TestUntrustedCosignatureGivesNoProvableTime(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Política sin ningún testigo aceptado: la nota TRAE dos cosignatures, pero
-	// ninguna cuenta.
+	// Política que acepta a un testigo que NO cosignó: la nota TRAE dos
+	// cosignatures, pero ninguna cuenta. Sin testigos aceptados no hay tiempo ni
+	// recibo (antes de ADR-018 la política era "sin testigos" y el recibo decía
+	// SIN TIEMPO DEMOSTRABLE; esa política ya no existe).
 	none := sc.policy()
-	none.Witnesses = nil
-	none.Quorum = 0
-
-	if _, ok, err := r.ProvableTime(none); err != nil || ok {
+	none.Witnesses = map[string]ed25519.PublicKey{"otro.example/w9": key(99).Public().(ed25519.PublicKey)}
+	none.Quorum = 1
+	if _, ok, err := r.ProvableTime(none); !errors.Is(err, proof.ErrQuorum) || ok {
 		t.Fatalf("cosignatures no confiables aportaron tiempo: ok=%v err=%v", ok, err)
 	}
-	data, err := Format(r, none)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(Text(data), "TIEMPO DEMOSTRABLE: "+NoProvableTime) {
-		t.Errorf("se imprimió una fecha sin testigo que la respalde:\n%s", Text(data))
+	if _, err := Format(r, none); err == nil {
+		t.Errorf("se formateó un recibo cuyo tiempo no respalda ningún testigo aceptado")
 	}
 
 	// Política que solo acepta al testigo MÁS TARDÍO: el mínimo cambia, y el

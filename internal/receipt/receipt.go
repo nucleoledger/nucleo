@@ -337,6 +337,9 @@ func (r *Receipt) verify(p proof.Policy) (proof.Result, error) {
 	if err := p.RequireSignerKey(); err != nil {
 		return proof.Result{}, err
 	}
+	if err := p.RequireWitnesses(); err != nil {
+		return proof.Result{}, err
+	}
 	if hex.EncodeToString(p.SignerKey) != r.Header.SignerPubKey {
 		return proof.Result{}, fmt.Errorf("%w: el header declara %s y la política espera %s",
 			ErrUnexpectedSigner, r.Header.SignerPubKey[:16], hex.EncodeToString(p.SignerKey)[:16])
