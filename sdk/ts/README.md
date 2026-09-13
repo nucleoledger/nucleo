@@ -23,14 +23,24 @@ from `localhost`, because `crypto.subtle` is unavailable otherwise.
 ## Usage
 
 ```ts
-import { verifyReceipt } from "@nucleoledger/verify";
+import { readFile } from "node:fs/promises";
+import { parsePolicyText, verifyReceipt } from "@nucleoledger/verify";
 
-const result = await verifyReceipt(receiptText, {
-  origin: "example.com/my-company",
-  logKey: "9ad2d5b3…",                       // hex, 32 bytes
-  witnesses: { "witness.example/w1": "dd7e84d0…" },
-  quorum: 1,
-});
+// The policy is the file `nucleo sync` prints — the same file the issuer uses
+// with --policy-file. Read it with parsePolicyText, NOT JSON.parse: JSON.parse
+// silently keeps the last of two duplicated members, which is exactly how a
+// third audit made the CLI and this library read two different keys from one
+// file (PROTOCOL.md §3.2, ADR-018).
+const policy = parsePolicyText(await readFile("politica.json", "utf8"));
+// {
+//   "origin": "example.com/my-company",
+//   "logKey": "9ad2d5b3…",                       lower-case hex, 32 bytes
+//   "signerKey": "57857f0e…",                    required to verify a receipt (ADR-017)
+//   "witnesses": { "witness.example/w1": "dd7e84d0…" },
+//   "quorum": 1                                  required, 1 ≤ quorum ≤ witnesses
+// }
+
+const result = await verifyReceipt(receiptText, policy);
 
 if (!result.valid) {
   console.error("invalid receipt:", result.reasons);
@@ -66,9 +76,10 @@ different questions:
   that verify **under the policy you passed**. An independent third party stated
   it saw that tree at that moment.
 
-If no witness in your policy signed it, `provableTime` is `null`. That is not a
-degraded result: it means the receipt proves *that* the record is in the log, not
-*when* it existed.
+A policy without witnesses, or without `quorum`, is **rejected** rather than
+treated as "quorum 0": a receipt that no third party vouches for is not valid under
+0.3-draft (ADR-018). A witness counts once toward the quorum however many lines it
+has in the note, and its time is its earliest verifying cosignature.
 
 ## Why `bigint`
 
@@ -109,6 +120,7 @@ interface Result {
   recipient: string | null;
   cosigners: string[];
   ignoredSignatures: string[];
+  logAdditionalSignatures: number;  // the log's own ML-DSA-44 signature (ADR-007), not verified here
   reasons: string[];        // in Spanish, meant to be shown to a person
   checkpoint: { origin: string; size: string; rootHash: string } | null;
 }
@@ -116,10 +128,15 @@ interface Result {
 
 ## What gets checked
 
-1. The receipt parses and its header is in canonical form.
+0. The policy itself follows PROTOCOL.md §3.2: exact members, no duplicates or
+   case variants, lower-case hex, at least one witness, `quorum` an integer literal.
+1. The receipt parses, its header is in canonical form, and the note's signature
+   block follows PROTOCOL.md §3.3 line by line.
 2. The checkpoint is signed by the log key in your policy.
-3. Cosignatures verify against the witness keys in your policy, and the quorum is
-   met.
+3. Cosignatures verify against the witness keys in your policy — every line of a known
+   key must verify — and the quorum of distinct witnesses is met.
+3b. The block is signed by the `signerKey` of your policy, and the issuer's signature
+   covers the whole receipt, recipient included.
 4. The RFC 9162 inclusion path leads from the record to the checkpoint root.
 5. **The human-readable header matches the proof, byte for byte.** A receipt with
    a flawless proof and a doctored visible text is rejected. This one matters:

@@ -735,6 +735,11 @@ Conviene decirlo para que nadie construya sobre una expectativa falsa.
 | `frescura : ◐ registro local … NO verificado` | abres sin política: la fecha sale de tu propio disco, no del testigo |
 | `la clave del log de la política no coincide` | esa política es de **otro** ledger, o alguien sustituyó la clave en este: investígalo |
 | `--policy-file no se combina` | pasaste el fichero y banderas sueltas a la vez: elige uno |
+| `--policy-file vacío` | la variable con la ruta de la política no está definida en ese entorno (típico en cron) |
+| `la política … no es válida: … variante de mayúsculas` o `… repetido` | alguien editó el fichero: la política es un formato estricto (PROTOCOL.md §3.2). Vuelve a copiar la que imprime `sync` |
+| `AVISO: la política … tiene permisos 0666` | quien pueda escribir ese fichero decide qué se verifica: `chmod 644 politica.json` |
+| `frescura : ⚠ ninguna atestación verifica bajo la política` | con política, el registro local de `sync` no cuenta: faltan los checkpoints cosignados o no los avala tu testigo. Ejecuta `sync` |
+| `no se sella: los N bloques de este ledger los firma …` | la cadena la firma otra clave que la de tu vault: o la reescribieron entera, o ese vault no es el de ese ledger. **No sigas sellando**: abre con `--policy-file` e investiga |
 
 Y si perdiste la passphrase pero tienes las tarjetas:
 
