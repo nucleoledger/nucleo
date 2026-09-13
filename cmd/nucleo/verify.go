@@ -110,6 +110,13 @@ func printFreshness(e *env, st staleness) {
 	case st.Verified:
 		e.printf("frescura  : ✔ atestación verificada de hace %s, por %s\n",
 			humanDuration(st.Age), st.Record.Witness)
+		if !st.Primera.IsZero() {
+			// Dos fechas, dos preguntas: desde cuándo consta y cuándo se vio por
+			// última vez. Con el log parado se separan, y callar la primera haría
+			// pensar que la historia es más nueva de lo que es.
+			e.printf("            consta desde %s; esta es la última vez que un tercero la vio\n",
+				st.Primera.UTC().Format(time.RFC3339))
+		}
 	default:
 		e.printf("frescura  : ◐ registro local de hace %s, por %s — NO verificado\n",
 			humanDuration(st.Age), st.Record.Witness)

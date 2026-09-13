@@ -55,6 +55,10 @@ type staleness struct {
 	// registro local NUNCA alimenta la frescura (ADR-018, E.2): o la fecha sale de
 	// una atestación que verifica bajo ella, o no hay fecha y la alarma suena.
 	Policy bool
+	// Primera es el instante de la PRIMERA cosignature verificada que cubre la
+	// historia atestiguada: desde cuándo consta. Es cero si coincide con Record.At.
+	// Frescura y antigüedad son dos preguntas y el JSON las publica por separado (H6).
+	Primera time.Time
 	// Empty es true cuando el ledger no tiene ni un bloque.
 	//
 	// Con cero bloques no hay nada que atestiguar, así que avisar sería gritar
@@ -85,10 +89,22 @@ func checkStaleness(s *store.Store, res store.OpenResult, withPolicy bool, now t
 		// La fuente buena: lo que la apertura acaba de verificar contra la
 		// clave del testigo. El registro local ni se mira.
 		out.Known, out.Verified = true, true
+		// La frescura pregunta "cuándo vio un tercero esta historia por ÚLTIMA vez", y
+		// el checkpoint guardado responde a la primera vez: es la nota más antigua de
+		// ese tamaño, porque el tiempo demostrable es el mínimo. Con el log parado, esa
+		// fecha no avanza aunque el cron sincronice cada hora, y status acababa diciendo
+		// que el cron llevaba días roto mientras funcionaba (H6). Si hay una cosignature
+		// más reciente que TAMBIÉN verifica bajo la política y cubre el árbol actual,
+		// esa es la respuesta.
+		at, by, size := res.AttestedAt, res.AttestedBy, res.AttestedSize
+		if !res.LastContactAt.IsZero() && res.LastContactAt.After(at) {
+			at, by, size = res.LastContactAt, res.LastContactBy, res.TreeSize
+			out.Primera = res.AttestedAt
+		}
 		out.Record = store.AttestationRecord{
-			Witness: strings.Join(res.AttestedBy, ", "),
-			At:      res.AttestedAt,
-			Size:    res.AttestedSize,
+			Witness: strings.Join(by, ", "),
+			At:      at,
+			Size:    size,
 		}
 	} else if withPolicy {
 		// Hay política y nada verifica bajo ella: checkpoints ausentes, borrados o
@@ -153,6 +169,10 @@ func (st staleness) json() map[string]any {
 		out["attested_size"] = st.Record.Size
 		out["witness"] = st.Record.Witness
 		out["age_hours"] = st.Age.Hours()
+		// Desde cuándo consta, cuando no es lo mismo que el último contacto.
+		if !st.Primera.IsZero() {
+			out["first_attested_at"] = st.Primera.UTC().Format(time.RFC3339)
+		}
 		if !st.Verified {
 			out["recorded_at"] = st.Record.RecordedAt.UTC().Format(time.RFC3339)
 		}

@@ -95,6 +95,13 @@ type OpenResult struct {
 	// AttestedBy son los testigos cuyas cosignatures verificaron, en orden de
 	// aparición en la nota. Vacío si Attestation no es Verified.
 	AttestedBy []string
+	// LastContactAt es el instante de la ÚLTIMA cosignature verificada que cubre el
+	// estado actual: la respuesta a "cuándo vio un tercero esta historia por última
+	// vez" (H6). AttestedAt responde a la otra pregunta, "desde cuándo consta", y por
+	// eso sale de la nota más antigua. Cero si no hay evidencia reciente que verifique.
+	LastContactAt time.Time
+	// LastContactBy son los testigos de esa cosignature.
+	LastContactBy []string
 }
 
 // SignerState es lo que la apertura puede afirmar del firmante de bloques.
@@ -365,8 +372,39 @@ func (s *Store) verify(mode verifyMode) (OpenResult, error) {
 	if verified != nil {
 		res.AttestedAt = verified.ProvableTime
 		res.AttestedBy = verified.Cosigners
+		// Y la evidencia de contacto RECIENTE, que es otra pregunta (H6). Se verifica
+		// con la misma política y se exige que cubra el estado actual: una cosignature
+		// de otro árbol, o de un tamaño que ya no es el de este ledger, no dice nada
+		// de lo que hay hoy en disco.
+		if at, by, ok := s.ultimoContacto(leaves); ok {
+			res.LastContactAt, res.LastContactBy = at, by
+		}
 	}
 	return res, nil
+}
+
+// ultimoContacto verifica la última cosignature guardada bajo la política y comprueba
+// que cubra exactamente el árbol actual.
+func (s *Store) ultimoContacto(leaves [][]byte) (time.Time, []string, bool) {
+	note, err := s.LastCosignature()
+	if err != nil {
+		return time.Time{}, nil, false
+	}
+	c, err := checkpoint.ParseNote(note)
+	if err != nil || c.Size != uint64(len(leaves)) || !bytes.Equal(c.RootHash, ledger.Root(leaves)) {
+		return time.Time{}, nil, false
+	}
+	pol, err := s.logPolicy(&storedCheckpoint{note: note, origin: c.Origin, size: c.Size, root: c.RootHash})
+	if err != nil {
+		return time.Time{}, nil, false
+	}
+	pol.Witnesses = s.witnesses.Witnesses
+	pol.Quorum = s.witnesses.Quorum
+	res, err := proof.VerifyNote(note, pol)
+	if err != nil {
+		return time.Time{}, nil, false
+	}
+	return res.ProvableTime, res.Cosigners, true
 }
 
 // attestationState decide qué es un checkpoint cosignado guardado: verificado,

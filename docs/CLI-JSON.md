@@ -70,12 +70,17 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 | `verified` | bool | **De dónde sale la fecha.** `true`: de la cosignature que la apertura acaba de verificar bajo la política. `false`: del registro local que dejó el último `sync` en `log_state` — lo escribe quien tenga la base, y la segunda auditoría adversarial lo escribió con un testigo inventado. |
 | `source` | `"attestation"` \| `"local_record"` \| `"none"` | Lo mismo, con nombre. Con `policy: true` solo puede ser `"attestation"` o `"none"`. |
 | `policy` | bool | Se abrió con política (`--policy-file` o banderas sueltas). Con política, el registro local **nunca** alimenta la frescura. |
-| `attested_at` | RFC 3339 | El instante que afirmó el testigo (nunca el reloj local). |
+| `attested_at` | RFC 3339 | El instante que afirmó el testigo (nunca el reloj local). Es el del **último contacto** verificado: la cosignature más reciente que verifica bajo la política y cubre el árbol actual. |
+| `first_attested_at` | RFC 3339 | Solo cuando difiere de `attested_at`: **desde cuándo consta** la historia, el instante de la primera cosignature del checkpoint guardado. Con el log parado y el cron vivo, `attested_at` avanza y este no. Son dos preguntas distintas (H6 de la cuarta auditoría). |
 | `attested_size` | entero | Bloques cubiertos por esa atestación. |
 | `witness` | string | Testigo(s) de esa atestación, separados por `", "` si son varios. |
 | `age_hours` | número | `ahora − attested_at`; `0` si está en el futuro. |
 | `recorded_at` | RFC 3339 | Solo con `source: "local_record"`: cuándo se escribió el registro, según el reloj local. |
 | `clock_skew` | bool | Presente y `true` si `attested_at` está en el futuro: un reloj mal puesto, no un ataque. |
+
+La frescura mide el **último contacto**; el tiempo demostrable de un recibo sigue siendo
+el **mínimo** de las cosignatures, que es la mejor prueba de antigüedad. Un log parado
+con el cron vivo tiene las dos fechas separadas, y el JSON las publica por separado.
 
 **La frescura está subordinada a la atestación.** Un cron que mire `stale`
 sin mirar `verified` se está fiando de este disco.

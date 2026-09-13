@@ -194,6 +194,58 @@ type AttestationRecord struct {
 	RecordedAt time.Time `json:"recorded_at"`
 }
 
+// LastCosignatureKey es la clave de log_state donde se guarda la ÚLTIMA cosignature
+// verificada que cubre el estado actual.
+//
+// No sustituye al checkpoint guardado, que es la PRIMERA nota de cada tamaño y de donde
+// sale el tiempo demostrable —el mínimo, la mejor prueba de antigüedad—. Esta es la otra
+// pregunta, la que H6 de la cuarta auditoría separó de aquella: "¿cuándo vio un tercero
+// esta historia por última vez?". Con el log parado, un cron que sincroniza cada hora
+// recibe cosignatures nuevas del mismo tamaño, y sin guardar ninguna la frescura seguía
+// contando desde la primera: status decía que el cron llevaba días roto mientras
+// funcionaba.
+//
+// Se guarda la NOTA entera, no una fecha: así la evidencia se vuelve a verificar contra
+// la política al abrir, como el checkpoint. Una fecha suelta sería otra vez un dato
+// local que cualquiera con el fichero puede escribir (D.4 del Sprint 7d).
+const LastCosignatureKey = "log/last-cosignature/v1"
+
+// PutLastCosignature guarda la última cosignature verificada. Va en log_state, que es
+// mutable por diseño: avanza con cada sincronización.
+func (s *Store) PutLastCosignature(note []byte) error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	if len(note) == 0 {
+		return fmt.Errorf("store: cosignature vacía")
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if _, err := s.db.Exec(
+		`INSERT INTO log_state (k, v) VALUES (?, ?)
+		 ON CONFLICT(k) DO UPDATE SET v = excluded.v`,
+		LastCosignatureKey, string(note)); err != nil {
+		return fmt.Errorf("store: escritura de la última cosignature: %w", err)
+	}
+	return nil
+}
+
+// LastCosignature devuelve la última cosignature guardada, o ErrNotFound.
+func (s *Store) LastCosignature() ([]byte, error) {
+	if s.db == nil {
+		return nil, ErrClosed
+	}
+	var v string
+	err := s.db.QueryRow(`SELECT v FROM log_state WHERE k = ?`, LastCosignatureKey).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: lectura de la última cosignature: %w", err)
+	}
+	return []byte(v), nil
+}
+
 // PutLastAttested guarda el registro de la última atestación verificada.
 //
 // Solo debe llamarse cuando la cosignature se ha VERIFICADO contra la clave del

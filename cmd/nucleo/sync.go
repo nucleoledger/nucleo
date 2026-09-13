@@ -139,6 +139,12 @@ func cmdSync(e *env, args []string) error {
 			humanDuration(now().Sub(res.AttestedAt)), humanDuration(e.staleAfter))
 	}
 	if res.Attested {
+		// La nota entera como evidencia verificable de contacto reciente (H6): el
+		// checkpoint guardado es el PRIMERO de su tamaño —el tiempo demostrable es el
+		// mínimo— y con el log parado no avanza nunca.
+		if err := s.PutLastCosignature(res.Cosigned); err != nil {
+			return err
+		}
 		if err := s.PutLastAttested(store.AttestationRecord{
 			Witness:    name,
 			At:         res.AttestedAt,

@@ -532,12 +532,12 @@ func startTestWitnessAt(t *testing.T, logPubHex string, desfase time.Duration) (
 	}
 	t.Cleanup(func() { st.Close() })
 
-	clock, err := time.Parse(time.RFC3339, testClockRFC)
-	if err != nil {
-		t.Fatal(err)
-	}
-	clock = clock.Add(desfase)
-	w, err := witness.NewWithState(name, priv, func() time.Time { return clock }, st)
+	// El reloj del testigo SIGUE al de la CLI —el mismo gancho de prueba—, con el
+	// desfase que se le pida. Antes se congelaba en el instante del arranque, y con eso
+	// no se podía probar nada que dependiera de que el testigo firme AHORA: una segunda
+	// sincronización tras avanzar el reloj devolvía una cosignature con la fecha vieja,
+	// que es justo lo que H6 confunde con un cron roto.
+	w, err := witness.NewWithState(name, priv, func() time.Time { return now().Add(desfase) }, st)
 	if err != nil {
 		t.Fatal(err)
 	}
