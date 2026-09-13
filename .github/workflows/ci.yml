@@ -3,16 +3,20 @@ on: [push, pull_request]
 jobs:
   test:
     strategy:
+      # Sin fail-fast: un fallo en un sistema no cancela los demás. En el run
+      # 34767866217 cayó windows-latest y GitHub canceló macos-latest, y se perdió
+      # justo la señal que decía si el fallo era de Windows o de todos.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      # setup-go se queda en v5 a propósito: v6 declara un cambio de ruptura en
-      # la selección de toolchain que interactúa con el `go 1.27.1` de go.mod, y
-      # no se puede comprobar sin ejecutar el CI. Subirla es un cambio de una
-      # línea cuando alguien pueda mirar el resultado.
-      - uses: actions/setup-go@v5
+      # setup-go v7 (runtime node24). Estuvo en v5 porque v6 cambió la selección
+      # de toolchain, que interactúa con el `go 1.27.1` de go.mod, y eso solo se
+      # comprueba ejecutando el CI: se subió junto con fail-fast: false, y el run
+      # de ese push es la comprobación.
+      - uses: actions/setup-go@v7
         with:
           go-version: 'stable'
       - name: Format
@@ -82,7 +86,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: 'stable'
       - name: Fuzz de los formatos de cable
@@ -128,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: 'stable'
       - uses: actions/setup-node@v7
@@ -151,10 +155,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: 'stable'
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
       # Segunda pasada con el tag, para que el código de los ganchos de prueba
