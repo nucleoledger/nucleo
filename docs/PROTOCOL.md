@@ -1,6 +1,13 @@
 # Núcleo Protocol Specification
 
-**Version: 0.2-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; wire formats stabilize at v1.0)**
+**Version: 0.3-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; wire formats stabilize at v1.0)**
+
+> **0.3-draft changes what a verifier ACCEPTS, not what an issuer emits**
+> ([ADR-018](adr/ADR-018-politica-formato-de-cable.md)). Every receipt produced under
+> 0.2-draft by the reference implementation still verifies. What is now rejected:
+> verification policies without witnesses, without `quorum` or with `quorum: 0`, with
+> upper-case hex, with duplicated or case-variant keys (§3.2); and signed-note
+> signature blocks that 0.2-draft verifiers read leniently (§3.3).
 
 > **0.2-draft is a BREAKING change to the Merkle leaf and to the receipt format**
 > ([ADR-014](adr/ADR-014-hoja-y-firma.md), [ADR-015](adr/ADR-015-destinatario.md)).
@@ -193,6 +200,66 @@ The signed bytes depend on the issuer's verification policy, because the rendere
 contains the provable time and that only exists relative to a set of witnesses. A
 recipient whose policy differs already rejected such a receipt on the text
 byte-equality rule; the signature inherits that constraint rather than adding one.
+
+### 3.2 Verification policy (normative)
+
+The policy is everything a verifier brings from OUTSIDE the artifact it verifies
+(ADR-017). It is a wire format: the CLI (`--policy-file`), the TypeScript SDK and the
+static verifier MUST accept and reject exactly the same documents.
+
+A policy document is RFC 8259 JSON, UTF-8 without BOM, at most 65536 bytes, whose only
+value is an object with these members:
+
+| member | type | rule |
+|---|---|---|
+| `origin` | string | REQUIRED, non-empty |
+| `logKey` | string | REQUIRED, exactly 64 characters from `[0-9a-f]` |
+| `signerKey` | string | OPTIONAL in the format; REQUIRED to verify a receipt |
+| `witnesses` | object | REQUIRED, at least one member; every name non-empty; every value exactly 64 characters from `[0-9a-f]`; no public key under two names |
+| `quorum` | integer | REQUIRED; a JSON number literal matching `-?(0\|[1-9][0-9]*)` (no fraction, no exponent); `1 ≤ quorum ≤ count(witnesses)` |
+
+A document MUST be rejected if, at any depth:
+
+- an object has two members whose names are equal after unescaping;
+- a member name is not one of the above — including a name that differs from one of
+  them only in letter case;
+- any value is `null`;
+- anything other than JSON whitespace follows the top-level object.
+
+There is no witness-less receipt policy. A verifier MUST NOT treat a missing `quorum`
+as zero. If a witness-less mode is ever introduced it will be an explicit, separately
+named member, never a default.
+
+When a ledger is opened with a policy, `origin` and `logKey` MUST equal the values the
+ledger declares, and `signerKey`, when present, MUST equal the key that signs every
+block (ADR-017).
+
+### 3.3 Signed-note signature block and cosignature counting (normative)
+
+A Núcleo verifier MUST read the signature lines of a checkpoint note itself, with
+these rules, and MUST NOT rely on a signed-note library's leniency:
+
+1. The note is valid UTF-8 containing no control character other than `\n` (U+0000–U+001F).
+   Text and signatures are split at the LAST `\n\n`; the signature block is
+   non-empty and ends with `\n`.
+2. EVERY line of the signature block has the form `— <name> <base64>` (U+2014, space,
+   name, space, base64). A line that does not is a malformed note.
+3. `<name>` is non-empty, contains no `+`, and contains none of: U+0009–U+000D, U+0020,
+   U+0085, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000.
+4. `<base64>` is RFC 4648 §4 standard base64, canonically encoded, decoding to at
+   least 5 bytes; the first 4 are the key ID.
+5. At most 100 signature lines.
+
+Counting:
+
+- A line whose (name, key ID) belongs to a key of the policy — the log key or a
+  witness key — MUST verify. If any such line fails, the note is invalid, even if
+  another line for the same key verifies.
+- A witness counts ONCE toward the quorum, however many lines it has.
+- A witness's time is the EARLIEST timestamp among its cosignature lines that verify;
+  the provable time (§4) is the minimum across counted witnesses. The order of the
+  lines, which the issuer chooses, MUST NOT affect the result.
+- Lines of keys the policy does not know are ignored (c2sp.org/signed-note).
 
 ## 4. Time (normative)
 
