@@ -68,6 +68,11 @@ func newSceneN(t *testing.T, cosigners, n int) *scene {
 // como los que la CLI emitía antes de ADR-019: ledger.Seal ya no admite fracción.
 var fraccionEnBloque string
 
+// nombreDelTestigo, si no está vacío, sustituye el nombre del ÚNICO testigo de la
+// escena. Sirve para fabricar vectores con nombres que en algún lenguaje son especiales,
+// como "__proto__" en JavaScript (H5 de la cuarta auditoría).
+var nombreDelTestigo string
+
 func newSceneConFirmas(t *testing.T, cosigners, n int, extra ...note.Signer) *scene {
 	t.Helper()
 	s, _, err := store.Open(filepath.Join(t.TempDir(), "nucleo.db"))
@@ -128,6 +133,9 @@ func newSceneConFirmas(t *testing.T, cosigners, n int, extra ...note.Signer) *sc
 	// que el mínimo no sea trivialmente el primero que se procesa.
 	for i := 0; i < cosigners; i++ {
 		name := fmt.Sprintf("witness.example/w%d", i+1)
+		if nombreDelTestigo != "" && cosigners == 1 {
+			name = nombreDelTestigo
+		}
 		priv := key(byte(90 + i))
 		at := testBase.Add(time.Duration(30-10*i) * time.Minute)
 		w, err := witness.New(name, priv, func() time.Time { return at })

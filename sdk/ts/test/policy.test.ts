@@ -78,3 +78,38 @@ describe("validatePolicy con objetos", () => {
     }
   });
 });
+
+// H5 de la cuarta auditoría: "__proto__" es un nombre de testigo válido para
+// c2sp.org/signed-note y una trampa clásica de JavaScript. Asignarlo a un objeto normal
+// no crea un miembro: cambia el prototipo. El testigo desaparecía del mapa sin un solo
+// error, y una política de dos testigos pasaba a tener uno.
+describe("un testigo llamado __proto__", () => {
+  const K1 = "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628";
+  const K2 = "dd7e84d010aed28a416e928f50c4c09ac0f94a8f5b346548168bddb61cdb7263";
+  // El texto se escribe a mano: un literal de objeto con __proto__: ... también cambia
+  // el prototipo, así que JSON.stringify jamás produciría este documento. Lo produce
+  // cualquiera que escriba la política con un editor, que es de donde viene.
+  const texto =
+    `{"origin":"nucleoledger.com/mi-empresa","logKey":"${K1}",` +
+    `"witnesses":{"__proto__":"${K2}","witness.example/w1":"${K1}"},"quorum":2}`;
+
+  it("sobrevive al parseo, con su clave y sin tocar el prototipo", () => {
+    const p = parsePolicyText(texto);
+    expect(Object.keys(p.witnesses).sort()).toEqual(["__proto__", "witness.example/w1"]);
+    expect(p.witnesses["__proto__"]).toBe(K2);
+    expect(Object.getPrototypeOf(p.witnesses)).toBeNull();
+    expect(({} as Record<string, unknown>)["x"]).toBeUndefined();
+  });
+
+  it("sobrevive al round-trip por texto", () => {
+    const ida = parsePolicyText(texto);
+    // Se vuelve a serializar a mano por la misma razón.
+    const wit = Object.entries(ida.witnesses).map(([k, v]) => `${JSON.stringify(k)}:${JSON.stringify(v)}`).join(",");
+    const vuelta = parsePolicyText(
+      `{"origin":${JSON.stringify(ida.origin)},"logKey":${JSON.stringify(ida.logKey)},` +
+        `"witnesses":{${wit}},"quorum":${ida.quorum}}`,
+    );
+    expect(Object.keys(vuelta.witnesses).sort()).toEqual(["__proto__", "witness.example/w1"]);
+    expect(vuelta.witnesses["__proto__"]).toBe(K2);
+  });
+});

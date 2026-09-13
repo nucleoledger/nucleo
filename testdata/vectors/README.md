@@ -62,6 +62,14 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              (ADR-007), como la emite la CLI: los verificadores la ignoran y la
              página la reconoce como del log.
 
+             Sprint 7f (cuarta auditoría, la primera externa; adición autorizada por
+             el dev):
+             valido-timestamp-con-fraccion — header con fracción de segundo, como los
+             que la CLI selló hasta ADR-019; los tres verificadores lo aceptan porque
+             el texto lleva el LITERAL del header.
+             valido-testigo-proto — el testigo se llama "__proto__": nombre válido de
+             signed-note que en JavaScript desaparecía del mapa de testigos.
+
 - policy/    vectores de la POLÍTICA de verificación (PROTOCOL.md §3.2, ADR-018):
              el texto EXACTO de cada documento y su veredicto. Escritos a mano por
              policy/generar.py leyendo la tabla de PROTOCOL.md —ninguna línea del

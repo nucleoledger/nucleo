@@ -187,6 +187,17 @@ func TestExportReceiptVectors(t *testing.T) {
 			"María Pérez (cédula 1712345678)", 0)
 	}()
 
+	// Un testigo llamado "__proto__": nombre válido de signed-note y trampa clásica de
+	// JavaScript. El vector obliga a los tres verificadores a tratarlo como un nombre
+	// más (H5 de la cuarta auditoría).
+	func() {
+		nombreDelTestigo = "__proto__"
+		defer func() { nombreDelTestigo = "" }()
+		exportValid(t, dir, newSceneN(t, 1, 5), "valido-testigo-proto",
+			"el testigo se llama __proto__: en JavaScript asignarlo a un objeto normal cambia el prototipo en vez de crear un miembro, y el testigo desaparecía del mapa",
+			"María Pérez (cédula 1712345678)", 2)
+	}()
+
 	exportDuplicateCosignature(t, dir)
 	exportTwoCosignaturesSameWitness(t, dir)
 

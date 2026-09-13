@@ -693,7 +693,7 @@ time ${timestamp.toString()}
     let origin = "";
     let logKey = "";
     let signerKey;
-    const witnesses = {};
+    const witnesses = /* @__PURE__ */ Object.create(null);
     let quorum = "";
     let nTestigos = 0;
     for (const { nombre, valor } of obj) {
@@ -748,6 +748,9 @@ time ${timestamp.toString()}
     const q = quorum.length > 9 ? Infinity : Number(quorum);
     if (q < 1 || q > nTestigos) throw new Error(`quorum ${quorum} con ${nTestigos} testigos`);
     const out = { origin, logKey, witnesses, quorum: q };
+    if (Object.keys(witnesses).length !== nTestigos) {
+      throw new Error("el mapa de testigos perdi\xF3 alguna clave al construirse");
+    }
     if (signerKey !== void 0) out.signerKey = signerKey;
     return out;
   }

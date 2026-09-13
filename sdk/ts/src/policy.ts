@@ -230,7 +230,12 @@ function construir(obj: Array<{ nombre: string; valor: Valor }>): Policy {
   let origin = "";
   let logKey = "";
   let signerKey: string | undefined;
-  const witnesses: Record<string, string> = {};
+  // Object.create(null) y no {}: con un objeto normal, asignar la clave "__proto__"
+  // NO crea un miembro, cambia el prototipo, y ese testigo desaparecía del mapa sin
+  // un solo error (H5 de la cuarta auditoría). Un nombre de testigo es texto que
+  // elige quien escribe la política, y "__proto__" es un nombre válido para
+  // c2sp.org/signed-note.
+  const witnesses: Record<string, string> = Object.create(null) as Record<string, string>;
   let quorum = "";
   let nTestigos = 0;
   for (const { nombre, valor } of obj) {
@@ -285,6 +290,12 @@ function construir(obj: Array<{ nombre: string; valor: Valor }>): Policy {
   const q = quorum.length > 9 ? Infinity : Number(quorum);
   if (q < 1 || q > nTestigos) throw new Error(`quorum ${quorum} con ${nTestigos} testigos`);
   const out: Policy = { origin, logKey, witnesses, quorum: q };
+  // Comprobación de que el mapa devuelto tiene EXACTAMENTE los testigos leídos: si
+  // alguna clave se hubiera perdido por el camino, la política que se verifica no
+  // sería la que se escribió.
+  if (Object.keys(witnesses).length !== nTestigos) {
+    throw new Error("el mapa de testigos perdió alguna clave al construirse");
+  }
   if (signerKey !== undefined) out.signerKey = signerKey;
   return out;
 }
