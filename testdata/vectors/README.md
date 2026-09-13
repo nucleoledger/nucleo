@@ -22,7 +22,28 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              el cálculo sin confiar en nosotros. Adición autorizada por el dev
              (ADR-014, Sprint 7b).
 
-- receipt/   3 recibos golden generados por internal/receipt (TestExportReceiptVectors):
+- receipt/   recibos golden generados por receipt/generar.py, un ORÁCULO INDEPENDIENTE
+             (Sprint 7f). Implementa leaf/v2, la nota firmada, las cosignatures, el
+             header JCS y el recibo entero desde la especificación, con hashlib, json y
+             la primitiva Ed25519; no importa una línea de Go. Antes los generaba
+             internal/receipt —el paquete que verifican—, y la cuarta auditoría señaló
+             que eso falsificaba la regla anti-circularidad del proyecto: un golden que
+             sale del código bajo prueba reproduce sus errores.
+
+             Al comparar las dos implementaciones coincidieron BYTE A BYTE en 16 de 17;
+             la 17.ª destapó que Go copiaba provable_time a un vector inválido.
+
+                 python3 testdata/vectors/receipt/generar.py          # reescribe
+                 python3 testdata/vectors/receipt/generar.py --check  # compara sin escribir
+
+             La suite de Go ya no los escribe: TestVectoresGoldenDicenLaVerdad los lee y
+             comprueba que Go se comporta como declaran, y TestMain toma la huella del
+             directorio antes y después y falla si algo cambió. La ÚNICA excepción es
+             valido-firma-mldsa-del-log, que lleva una firma ML-DSA-44 que el oráculo no
+             puede producir: lo regenera Go a petición
+             (NUCLEO_REGENERAR_VECTOR_MLDSA=1).
+
+             Historia: 3 recibos golden generados por internal/receipt:
              valido-1-cosignature, alterado-encabezado, cosignature-no-confiable.
              Cada fichero lleva el recibo completo, la política de verificación
              (claves en hex), el entry_hash esperado y los dos tiempos. Son LA VARA
