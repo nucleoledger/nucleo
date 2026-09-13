@@ -34,7 +34,7 @@ func cmdStatus(e *env, args []string) error {
 	// obligar a sacarlos de la base con SQL sería empujar a la gente a hurgar
 	// en el fichero que este programa existe para proteger.
 	origin, logPub := logIdentity(s)
-	st, err := checkStaleness(s, res, now(), e.staleAfter, res.TreeSize)
+	st, err := checkStaleness(s, res, wp != nil, now(), e.staleAfter, res.TreeSize)
 	if err != nil {
 		return err
 	}
@@ -98,6 +98,8 @@ func printFreshness(e *env, st staleness) {
 	switch {
 	case st.Empty:
 		// Nada que decir: no hay historia.
+	case !st.Known && st.Policy:
+		e.printf("frescura  : ⚠ ninguna atestación verifica bajo la política (el registro local no cuenta)\n")
 	case !st.Known:
 		e.printf("frescura  : ⚠ ninguna atestación verificada, ni registro de haberla tenido\n")
 	case st.Stale:
@@ -160,7 +162,7 @@ func cmdVerify(e *env, args []string) error {
 		mode = "exhaustiva"
 	}
 
-	st, err := checkStaleness(s, res, now(), e.staleAfter, res.TreeSize)
+	st, err := checkStaleness(s, res, wp != nil, now(), e.staleAfter, res.TreeSize)
 	if err != nil {
 		return err
 	}

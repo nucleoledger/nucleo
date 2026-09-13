@@ -145,6 +145,11 @@ ATESTACIÓN VIEJA
   ("attestation" | "local_record" | "none") dicen de dónde salió la fecha. Un
   cron que mire "stale" sin mirar "verified" se está fiando del disco.
 
+  CON política, el registro local no cuenta nunca: si ninguna atestación
+  verifica bajo ella —checkpoints borrados, o cosignatures que no acepta—, la
+  frescura es "stale" y el aviso sale, aunque sync haya dejado un registro
+  reciente. Si no, quien pueda escribir el fichero elegiría la fecha.
+
   El contrato completo de la salida --json está en docs/CLI-JSON.md.
 
   El aviso sale por stderr a propósito: un cron con stdout a un fichero y

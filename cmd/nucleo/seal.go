@@ -156,7 +156,7 @@ func cmdSeal(e *env, args []string) error {
 	// muerta, es aquí donde tiene que enterarse, no la próxima vez que alguien se
 	// acuerde de mirar `status`. El sellado no falla por ello —el bloque queda
 	// escrito y firmado, que es lo que se pidió— pero deja de ser silencioso.
-	st, err := checkStaleness(s, res, now(), e.staleAfter, b.Header.Index+1)
+	st, err := checkStaleness(s, res, wp != nil, now(), e.staleAfter, b.Header.Index+1)
 	if err != nil {
 		return err
 	}

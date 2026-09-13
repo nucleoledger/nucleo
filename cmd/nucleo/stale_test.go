@@ -39,6 +39,7 @@ func avisoDeFrescura(errOut string) bool {
 	for _, marca := range []string{
 		"la última atestación es de hace",
 		"ninguna atestación verificada ni registro",
+		"ninguna atestación verifica bajo ella",
 		"dice ser del futuro",
 	} {
 		if strings.Contains(errOut, marca) {

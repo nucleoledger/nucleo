@@ -54,7 +54,7 @@ func cmdReconcile(e *env, args []string) error {
 	// que parece: el sistema vivo coincide con un ledger que podría estar
 	// truncado. Por eso la atestación, el firmante y la frescura salen aquí con
 	// la misma semántica y los mismos campos que en status.
-	st, err := checkStaleness(s, res, now(), e.staleAfter, res.TreeSize)
+	st, err := checkStaleness(s, res, wp != nil, now(), e.staleAfter, res.TreeSize)
 	if err != nil {
 		return err
 	}

@@ -51,6 +51,10 @@ type staleness struct {
 	// las dos máquinas. Pero se dice, porque silenciarlo convertiría un reloj
 	// roto en una atestación eternamente fresca.
 	Future bool
+	// Policy es true cuando quien abrió aportó una política. Con política, el
+	// registro local NUNCA alimenta la frescura (ADR-018, E.2): o la fecha sale de
+	// una atestación que verifica bajo ella, o no hay fecha y la alarma suena.
+	Policy bool
 	// Empty es true cuando el ledger no tiene ni un bloque.
 	//
 	// Con cero bloques no hay nada que atestiguar, así que avisar sería gritar
@@ -69,8 +73,14 @@ type staleness struct {
 //
 // treeSize va aparte de res porque `seal` juzga DESPUÉS de escribir el bloque: el
 // ledger que abrió vacío ya no lo está.
-func checkStaleness(s *store.Store, res store.OpenResult, now time.Time, threshold time.Duration, treeSize uint64) (staleness, error) {
-	out := staleness{Threshold: threshold, Empty: treeSize == 0}
+//
+// withPolicy dice si quien abrió aportó una política. La tercera auditoría abrió
+// CON --policy-file un ledger al que había borrado los checkpoints e insertado un
+// registro local fresco: la atestación quedaba en "none", la frescura caía al
+// registro forjado, y status, seal y verify callaban la alarma. Con política, esa
+// caída ya no existe.
+func checkStaleness(s *store.Store, res store.OpenResult, withPolicy bool, now time.Time, threshold time.Duration, treeSize uint64) (staleness, error) {
+	out := staleness{Threshold: threshold, Empty: treeSize == 0, Policy: withPolicy}
 	if res.Attestation == store.AttestationVerified && !res.AttestedAt.IsZero() {
 		// La fuente buena: lo que la apertura acaba de verificar contra la
 		// clave del testigo. El registro local ni se mira.
@@ -80,6 +90,12 @@ func checkStaleness(s *store.Store, res store.OpenResult, now time.Time, thresho
 			At:      res.AttestedAt,
 			Size:    res.AttestedSize,
 		}
+	} else if withPolicy {
+		// Hay política y nada verifica bajo ella: checkpoints ausentes, borrados o
+		// con cosignatures que la política no acepta. El registro local ni se lee;
+		// si lo hiciera, cualquiera con escritura en la base elegiría la fecha.
+		out.Stale = true
+		return out, nil
 	} else {
 		r, ok, err := s.LastAttested()
 		if err != nil {
@@ -124,6 +140,9 @@ func (st staleness) json() map[string]any {
 		// sin mirar "verified" se está fiando de este disco.
 		"verified": st.Verified,
 		"source":   st.source(),
+		// policy dice si se abrió con política. Con policy:true, source solo puede
+		// ser "attestation" o "none": el registro local no cuenta.
+		"policy": st.Policy,
 	}
 	if st.Known {
 		out["attested_at"] = st.Record.At.UTC().Format(time.RFC3339)
@@ -182,6 +201,15 @@ func (st staleness) warn(e *env) bool {
 		if !st.Stale {
 			return true
 		}
+	}
+	if !st.Known && st.Policy {
+		fmt.Fprintf(e.stderr,
+			"AVISO: se aportó una política y ninguna atestación verifica bajo ella.\n"+
+				"       Con política, el registro local que deja `sync` no cuenta para la\n"+
+				"       frescura: lo puede escribir cualquiera con acceso a este fichero.\n"+
+				"       O faltan los checkpoints cosignados, o los que hay no los avala\n"+
+				"       ningún testigo de la política. Ejecuta `nucleo sync --policy-file`.\n")
+		return true
 	}
 	if !st.Known {
 		fmt.Fprintf(e.stderr,

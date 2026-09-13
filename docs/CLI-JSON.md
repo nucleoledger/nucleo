@@ -68,7 +68,8 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 | `threshold_hours` | número | `--stale-after`, por omisión 72. |
 | `attested_ever` | bool | Hay alguna fecha que juzgar: atestación verificada o registro local. |
 | `verified` | bool | **De dónde sale la fecha.** `true`: de la cosignature que la apertura acaba de verificar bajo la política. `false`: del registro local que dejó el último `sync` en `log_state` — lo escribe quien tenga la base, y la segunda auditoría adversarial lo escribió con un testigo inventado. |
-| `source` | `"attestation"` \| `"local_record"` \| `"none"` | Lo mismo, con nombre. |
+| `source` | `"attestation"` \| `"local_record"` \| `"none"` | Lo mismo, con nombre. Con `policy: true` solo puede ser `"attestation"` o `"none"`. |
+| `policy` | bool | Se abrió con política (`--policy-file` o banderas sueltas). Con política, el registro local **nunca** alimenta la frescura. |
 | `attested_at` | RFC 3339 | El instante que afirmó el testigo (nunca el reloj local). |
 | `attested_size` | entero | Bloques cubiertos por esa atestación. |
 | `witness` | string | Testigo(s) de esa atestación, separados por `", "` si son varios. |
@@ -77,8 +78,17 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 | `clock_skew` | bool | Presente y `true` si `attested_at` está en el futuro: un reloj mal puesto, no un ataque. |
 
 **La frescura está subordinada a la atestación.** Un cron que mire `stale`
-sin mirar `verified` se está fiando de este disco. Con `--policy-file` la fecha
-sale de la cosignature y el registro local ni se lee.
+sin mirar `verified` se está fiando de este disco.
+
+> **Enmendado el 2026-09-13 tras la tercera auditoría adversarial.** Este párrafo
+> terminaba con *"Con `--policy-file` la fecha sale de la cosignature y el registro
+> local ni se lee."* **No era verdad.** Solo lo era cuando la atestación verificaba:
+> si no —checkpoints borrados, o cosignatures que la política no acepta—, la
+> frescura caía al registro local aunque se hubiera aportado la política, y la
+> auditoría borró los checkpoints, insertó un registro fresco y silenció la alarma
+> de `status`, `seal` y `verify`. Desde el Sprint 7e, **con política, o la fecha
+> sale de una atestación que verifica bajo ella, o no hay fecha**: `stale: true`,
+> `source: "none"`, `policy: true` y aviso por stderr.
 
 ### `policy` — la política lista para guardar (ADR-017 c)
 

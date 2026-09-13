@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -65,15 +66,83 @@ func TestFrescuraNoSeFiaDelRegistroLocal(t *testing.T) {
 		t.Errorf("freshness JSON = %v, want verified:false source:local_record", f)
 	}
 
-	// Con la política de un testigo REAL que nunca vio este log: el registro
-	// local sigue ahí, la atestación no verifica, y la frescura lo dice igual.
+	// Con la política de un testigo REAL que nunca vio este log: la atestación no
+	// verifica, y con política el registro local ni se lee (E.2): la alarma suena.
 	_, name, key := startTestWitness(t, c.logPubKey(t))
-	out, _, _ = c.run("status", "--witness-name", name, "--witness-key", key)
-	if strings.Contains(out, "frescura  : ✔") {
+	out, errOut, _ := c.run("status", "--witness-name", name, "--witness-key", key)
+	if strings.Contains(out, "frescura  : ✔") || strings.Contains(out, "testigo.inventado") {
 		t.Errorf("EXPLOTADO con política y sin cosignature:\n%s", out)
 	}
-	if !strings.Contains(out, "NO verificado") {
-		t.Errorf("status con política no califica el registro local:\n%s", out)
+	if !strings.Contains(out, "ninguna atestación verifica bajo la política") || !avisoDeFrescura(errOut) {
+		t.Errorf("con política y sin atestación verificada, la frescura tiene que avisar:\n%s\n%s", out, errOut)
+	}
+}
+
+// TestFrescuraConPoliticaNoCaeAlRegistroLocal es el hallazgo ALTO #2 de la tercera
+// auditoría, tal cual se ejecutó: un despliegue que abre CON --policy-file, cuatro
+// días sin sync, y un atacante que borra los checkpoints e inserta un registro local
+// fresco. La atestación queda en "none" y, antes, la frescura caía al registro
+// forjado: status, seal y verify callaban la alarma con exit 0 y stale:false.
+func TestFrescuraConPoliticaNoCaeAlRegistroLocal(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+	c.sealFile(`{"x":1}`)
+	url, name, key := startTestWitness(t, c.logPubKey(t))
+	js := c.mustRun("--json", "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+	var v struct {
+		Policy json.RawMessage `json:"policy"`
+	}
+	if err := json.Unmarshal([]byte(js), &v); err != nil {
+		t.Fatal(err)
+	}
+	politica := filepath.Join(c.dir, "politica.json")
+	if err := os.WriteFile(politica, v.Policy, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	avanzaReloj(t, 100*time.Hour)
+	ahora, _ := time.Parse(time.RFC3339, testClockRFC)
+	ahora = ahora.Add(100 * time.Hour)
+
+	// Control: sin tocar nada, con política, la alarma suena por la vía buena.
+	if _, errOut, _ := c.run("status", "--policy-file", politica); !avisoDeFrescura(errOut) {
+		t.Fatalf("control: con 100 h sin sync debía avisar:\n%s", errOut)
+	}
+
+	// El ataque: DROP TRIGGER + DELETE checkpoints + registro local fresco.
+	db, err := sql.Open("sqlite", filepath.Join(c.dir, "nucleo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{"DROP TRIGGER checkpoints_no_delete", "DELETE FROM checkpoints"} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	forjarRegistroLocal(t, c, ahora.Add(-time.Minute))
+
+	for _, args := range [][]string{
+		{"status", "--policy-file", politica},
+		{"verify", "--policy-file", politica},
+		{"seal", "--policy-file", politica, "--tenant", testTenant, "--type", "sri.factura.v1", "--payload", c.writeTemp(t, `{"x":2}`)},
+	} {
+		t.Run(args[0], func(t *testing.T) {
+			out, errOut, code := c.run(append([]string{"--json"}, args...)...)
+			if code != exitOK {
+				t.Fatalf("código %d: la frescura no cambia el código:\n%s", code, errOut)
+			}
+			if !avisoDeFrescura(errOut) {
+				t.Errorf("EXPLOTADO: con política, el registro forjado silenció la alarma:\n%s", errOut)
+			}
+			f := freshness(t, out)
+			if f["stale"] != true || f["verified"] != false || f["source"] != "none" || f["policy"] != true {
+				t.Errorf("freshness = %v, want stale:true verified:false source:none policy:true", f)
+			}
+			if _, hay := f["witness"]; hay {
+				t.Errorf("con política, el testigo del registro local no debe aparecer: %v", f)
+			}
+		})
 	}
 }
 
