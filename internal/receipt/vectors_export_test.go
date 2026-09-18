@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
-	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
 )
 
@@ -67,15 +67,29 @@ type vectorPolicy struct {
 // del código bajo prueba"— no se cumplía justo aquí: los recibos golden salían de
 // internal/receipt, el paquete que verifican, así que reproducían sus propios errores.
 //
-// Lo único que sigue generándose en Go es valido-firma-mldsa-del-log, porque lleva una
-// firma ML-DSA-44 y el oráculo no tiene ML-DSA. Se regenera a mano:
+// Lo único que Go sigue aportando a los vectores son los BYTES ML-DSA-44 de
+// valido-firma-mldsa-del-log —la clave pública y la firma—, porque no hay ML-DSA en la
+// caja de herramientas del oráculo (ADR-024). El vector entero lo construye el oráculo:
+// la nota, el árbol, la hoja, el texto, la firma del emisor y hasta el key ID de la
+// propia línea ML-DSA, que recompone desde la especificación. Y comprueba que la firma
+// prestada es sobre exactamente el cuerpo de nota que él produce.
 //
-//	NUCLEO_REGENERAR_VECTOR_MLDSA=1 go test ./internal/receipt -run TestRegeneraVectorMLDSA
-func TestRegeneraVectorMLDSA(t *testing.T) {
-	if os.Getenv("NUCLEO_REGENERAR_VECTOR_MLDSA") != "1" {
-		t.Skip("solo se regenera a petición: NUCLEO_REGENERAR_VECTOR_MLDSA=1")
+// El material se regenera en dos pasos, porque el oráculo tiene que decir primero QUÉ
+// hay que firmar:
+//
+//	NUCLEO_REGENERAR_MATERIAL_MLDSA=1 go test ./internal/receipt -run TestRegeneraMaterialMLDSA
+//
+// (ese test ejecuta `generar.py --mldsa-body` por su cuenta para no copiar el cuerpo a
+// mano, que es exactamente donde se cuela una divergencia).
+func TestRegeneraMaterialMLDSA(t *testing.T) {
+	if os.Getenv("NUCLEO_REGENERAR_MATERIAL_MLDSA") != "1" {
+		t.Skip("solo se regenera a petición: NUCLEO_REGENERAR_MATERIAL_MLDSA=1")
 	}
 	dir := filepath.Join("..", "..", "testdata", "vectors", "receipt")
+	cuerpo, err := exec.Command("python3", filepath.Join(dir, "generar.py"), "--mldsa-body").Output()
+	if err != nil {
+		t.Fatalf("el oráculo tiene que decir qué cuerpo firmar: %v", err)
+	}
 	seed := make([]byte, checkpoint.MLDSASeedSize)
 	for i := range seed {
 		seed[i] = byte(200 + i)
@@ -84,9 +98,29 @@ func TestRegeneraVectorMLDSA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exportValid(t, dir, newSceneConFirmas(t, 1, 5, mldsa), "valido-firma-mldsa-del-log",
-		"la nota trae además la firma ML-DSA-44 del log (ADR-007): se ignora al verificar y la página la reconoce como del log",
-		"María Pérez (cédula 1712345678)", 2)
+	firma, err := mldsa.Sign(cuerpo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	material := map[string]any{
+		"comentario": "La única pieza de los vectores de recibo que no sale del oráculo Python: " +
+			"los bytes ML-DSA-44. Ningún verificador los comprueba. Ver ADR-024 y generar.py.",
+		"origin":           testOrigin,
+		"alg":              checkpoint.AlgMLDSA44Ext,
+		"extension_id":     checkpoint.MLDSAExtensionID,
+		"public_key_hex":   hex.EncodeToString(mldsa.PublicKey()),
+		"signature_hex":    hex.EncodeToString(firma),
+		"signed_note_body": string(cuerpo),
+		"firmado_por":      "internal/checkpoint.MLDSASigner.Sign (determinista), semilla 200..231",
+	}
+	raw, err := json.MarshalIndent(material, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "material", "mldsa.json"), append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("material/mldsa.json escrito: %d bytes de firma sobre %d bytes de cuerpo", len(firma), len(cuerpo))
 }
 
 // TestVectoresGoldenDicenLaVerdad lee TODOS los vectores del directorio —vengan del
@@ -138,45 +172,11 @@ func TestVectoresGoldenDicenLaVerdad(t *testing.T) {
 	}
 }
 
-func exportValid(t *testing.T, dir string, sc *scene, name, desc, recipient string, idx uint64) {
-	t.Helper()
-	r, err := sc.issue(t, recipient, idx)
-	if err != nil {
-		t.Fatalf("%s: %v", name, err)
-	}
-	pol := sc.policy()
-	data, err := Format(r, pol)
-	if err != nil {
-		t.Fatal(err)
-	}
-	leafData, err := r.LeafData()
-	if err != nil {
-		t.Fatal(err)
-	}
-	provable, _, _ := r.ProvableTime(pol)
-	exported := vectorPolicy{
-		Origin: pol.Origin, LogKey: hex.EncodeToString(pol.LogKey),
-		SignerKey: hex.EncodeToString(pol.SignerKey), Witnesses: map[string]string{}, Quorum: pol.Quorum,
-	}
-	for wn, pub := range pol.Witnesses {
-		exported.Witnesses[wn] = hex.EncodeToString(pub)
-	}
-	v := vectorFile{
-		Name: name, Description: desc, Receipt: string(data), Policy: exported,
-		LeafData: hex.EncodeToString(leafData), LeafRule: ledger.LeafRule,
-		BlockSig: hex.EncodeToString(r.BlockSig), Valid: true,
-		DeclaredTime: r.Header.Timestamp, ProvableTime: provable.UTC().Format(timeLayout),
-		BlockIndex: idx,
-	}
-	raw, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, name+".json"), append(raw, '\n'), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	assertVector(t, v)
-}
+// Aquí vivía exportValid, que escribía un vector desde este paquete. Se borra con el
+// Sprint 8 (ADR-024): ya no queda ni un vector de recibo que Go escriba, así que el
+// código que sabía escribirlos tampoco tiene que quedarse. Lo que Go aporta son los
+// bytes ML-DSA de material/mldsa.json, y eso lo hace TestRegeneraMaterialMLDSA sin
+// tocar ningún vector.
 
 // assertVector comprueba que el vector se comporte como declara.
 func assertVector(t *testing.T, v vectorFile) {
@@ -237,6 +237,12 @@ func TestMain(m *testing.M) {
 	dir := filepath.Join("..", "..", "testdata", "vectors", "receipt")
 	antes := huellaDeVectores(dir)
 	code := m.Run()
+	// La única excepción, y es explícita: la regeneración del material ML-DSA escribe a
+	// propósito, y solo con su variable puesta. Sin ella, cualquier escritura en el
+	// directorio hunde la ejecución, que es de lo que va este guardián.
+	if os.Getenv("NUCLEO_REGENERAR_MATERIAL_MLDSA") == "1" {
+		os.Exit(code)
+	}
 	if despues := huellaDeVectores(dir); despues != antes {
 		fmt.Fprintln(os.Stderr, "los tests MODIFICARON los vectores golden: un golden que el test reescribe no juzga nada")
 		if code == 0 {
@@ -247,11 +253,19 @@ func TestMain(m *testing.M) {
 }
 
 // huellaDeVectores resume el contenido del directorio en un hash.
+//
+// Incluye el material prestado de material/: no es un vector, pero es material golden y
+// una suite que lo reescribiera estaría haciendo lo mismo que este guardián prohíbe.
 func huellaDeVectores(dir string) string {
 	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
 	if err != nil {
 		return "error: " + err.Error()
 	}
+	mat, err := filepath.Glob(filepath.Join(dir, "material", "*.json"))
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	files = append(files, mat...)
 	sort.Strings(files)
 	h := sha256.New()
 	for _, f := range files {
@@ -259,7 +273,7 @@ func huellaDeVectores(dir string) string {
 		if err != nil {
 			return "error: " + err.Error()
 		}
-		fmt.Fprintf(h, "%s:%x\n", filepath.Base(f), sha256.Sum256(raw))
+		fmt.Fprintf(h, "%s:%x\n", filepath.ToSlash(f), sha256.Sum256(raw))
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }

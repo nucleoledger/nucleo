@@ -38,10 +38,28 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
 
              La suite de Go ya no los escribe: TestVectoresGoldenDicenLaVerdad los lee y
              comprueba que Go se comporta como declaran, y TestMain toma la huella del
-             directorio antes y después y falla si algo cambió. La ÚNICA excepción es
-             valido-firma-mldsa-del-log, que lleva una firma ML-DSA-44 que el oráculo no
-             puede producir: lo regenera Go a petición
-             (NUCLEO_REGENERAR_VECTOR_MLDSA=1).
+             directorio —material/ incluido— antes y después y falla si algo cambió.
+
+             ENMENDADO el 2026-09-18 (ADR-024). Aquí decía que la ÚNICA excepción era
+             valido-firma-mldsa-del-log, que lo generaba Go entero. Ya no: ese vector lo
+             construye el oráculo como los demás y solo PRESTA los bytes ML-DSA-44 de
+             material/mldsa.json —1312 de clave pública y 2420 de firma—, que ningún
+             verificador comprueba. El oráculo recompone hasta el key ID de esa línea
+             desde la especificación (el byte 0xff lleva detrás el identificador de
+             ADR-007) y exige que la firma prestada sea sobre EXACTAMENTE el cuerpo de
+             nota que él produce; si la escena cambia, el material caduca y lo dice.
+             Comprobación de que el cambio no movió nada: el vector que salió del oráculo
+             es byte a byte el que generaba Go.
+
+             El material se regenera en dos pasos, porque el oráculo tiene que decir
+             primero qué hay que firmar:
+
+                 python3 testdata/vectors/receipt/generar.py --mldsa-body
+                 NUCLEO_REGENERAR_MATERIAL_MLDSA=1 go test ./internal/receipt \
+                     -run TestRegeneraMaterialMLDSA
+
+             (el test ejecuta el primer paso por su cuenta; está escrito para no copiar
+             el cuerpo a mano, que es donde se cuela una divergencia).
 
              Historia: 3 recibos golden generados por internal/receipt:
              valido-1-cosignature, alterado-encabezado, cosignature-no-confiable.

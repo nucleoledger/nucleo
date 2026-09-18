@@ -18,8 +18,16 @@ un vector debe provocar.
     python3 testdata/vectors/receipt/generar.py          # reescribe los vectores
     python3 testdata/vectors/receipt/generar.py --check  # falla si difieren (lo usa el CI)
 
-El vector valido-firma-mldsa-del-log NO sale de aquí: lleva una firma ML-DSA-44 y no hay
-ML-DSA en esta caja de herramientas. Lo genera Go y el README lo dice.
+valido-firma-mldsa-del-log se construye TAMBIÉN aquí, con una sola pieza prestada: los
+bytes de la clave pública y de la firma ML-DSA-44, que vienen de material/mldsa.json
+porque no hay ML-DSA en esta caja de herramientas (ADR-024). Todo lo demás de ese vector
+—la nota, el árbol, la hoja, el texto, la firma del emisor y hasta el key ID de la propia
+línea ML-DSA— sale de aquí, y se comprueba que la firma prestada es sobre EXACTAMENTE el
+cuerpo de nota que este oráculo produce. Ningún verificador comprueba esa firma; el
+material se regenera con:
+
+    python3 testdata/vectors/receipt/generar.py --mldsa-body   # el cuerpo a firmar
+    NUCLEO_REGENERAR_MATERIAL_MLDSA=1 go test ./internal/receipt -run TestRegeneraMaterialMLDSA
 """
 
 import base64, hashlib, json, os, struct, sys
@@ -46,6 +54,14 @@ AVISO_LEGAL = (
 )
 ALG_ED25519 = 0x01
 ALG_COSIGNATURE = 0x04
+# El byte de extensión de c2sp.org/signed-note y el identificador que Núcleo puso detrás
+# (ADR-007). Entran en el key ID de la firma ML-DSA, así que este oráculo los recompone y
+# no se los cree a nadie.
+ALG_EXT = 0xFF
+MLDSA_EXT_ID = "nucleoledger.com/sig/ml-dsa-44@v1"
+# En un subdirectorio a propósito: los tests recorren *.json de este directorio
+# esperando vectores, y el material no es un vector.
+MATERIAL_MLDSA = os.path.join(AQUI, "material", "mldsa.json")
 
 
 def clave(b):
@@ -123,10 +139,44 @@ def cuerpo_checkpoint(origin, size, root):
     return f"{origin}\n{size}\n{base64.b64encode(root).decode()}\n"
 
 
-def nota(origin, size, root, log_sk, cosignatures):
+def key_hash_mldsa(nombre, pub):
+    """El key ID de la firma ML-DSA: el byte 0xff lleva detrás el identificador largo."""
+    h = hashlib.sha256()
+    h.update(nombre.encode() + b"\n" + bytes([ALG_EXT]) + MLDSA_EXT_ID.encode() + b"\n" + pub)
+    return h.digest()[:4]
+
+
+def material_mldsa():
+    """La única pieza que este oráculo no puede calcular: los bytes ML-DSA-44.
+
+    Se presta la clave pública y la firma; el key ID se recompone aquí. Ver ADR-024.
+    """
+    with open(MATERIAL_MLDSA, encoding="utf-8") as fh:
+        m = json.load(fh)
+    pub = bytes.fromhex(m["public_key_hex"])
+    firma = bytes.fromhex(m["signature_hex"])
+    if len(pub) != 1312 or len(firma) != 2420:
+        raise SystemExit("material/mldsa.json: tamaños que no son de ML-DSA-44")
+    return m, pub, firma
+
+
+def nota(origin, size, root, log_sk, cosignatures, mldsa=False):
     """cosignatures: lista de (nombre, sk, unix). La firma del log va primero."""
     cuerpo = cuerpo_checkpoint(origin, size, root)
     lineas = linea_de_firma(origin, key_hash(origin, publica(log_sk), ALG_ED25519), log_sk.sign(cuerpo.encode()))
+    if mldsa:
+        m, pub, firma = material_mldsa()
+        # La firma prestada tiene que ser sobre ESTE cuerpo. Si la escena cambia, el
+        # material caduca y hay que volver a firmarlo: se dice aquí y no se parchea.
+        if m["signed_note_body"] != cuerpo:
+            raise SystemExit(
+                "material/mldsa.json firma otro cuerpo de nota que el de esta escena.\n"
+                "Regenéralo:\n"
+                "  python3 testdata/vectors/receipt/generar.py --mldsa-body\n"
+                "  NUCLEO_REGENERAR_MATERIAL_MLDSA=1 go test ./internal/receipt -run TestRegeneraMaterialMLDSA")
+        if m["origin"] != origin:
+            raise SystemExit("material/mldsa.json es de otro origin")
+        lineas += linea_de_firma(origin, key_hash_mldsa(origin, pub), firma)
     for nombre, sk, unix in cosignatures:
         mensaje = f"cosignature/v1\ntime {unix}\n".encode() + cuerpo.encode()
         blob = struct.pack(">Q", unix) + sk.sign(mensaje)
@@ -243,14 +293,14 @@ def vector(nombre, descripcion, rec, hoja, firma_bloque, pol, valido, declared, 
     return v
 
 
-def escena(n, cosigners=1, nombre_testigo=W1, fraccion=None, tiempos=None):
+def escena(n, cosigners=1, nombre_testigo=W1, fraccion=None, tiempos=None, mldsa=False):
     bloques = cadena(n, TENANT_SK, fraccion)
     hojas = [d + f for (_, _, d, f) in bloques]
     r = raiz(hojas)
     # Los testigos cosignan en instantes distintos y decrecientes, como la escena de Go.
     cos = tiempos if tiempos else [(nombre_testigo if i == 0 else f"witness.example/w{i+1}",
                                     [W1_SK, W2_SK][i], BASE + (30 - 10 * i) * 60) for i in range(cosigners)]
-    return bloques, hojas, nota(ORIGIN, n, r, LOG_SK, cos), min(t for (_, _, t) in cos)
+    return bloques, hojas, nota(ORIGIN, n, r, LOG_SK, cos, mldsa), min(t for (_, _, t) in cos)
 
 
 def genera():
@@ -268,6 +318,13 @@ def genera():
 
     rec5, bloques5, nota5, prov5 = valido(
         "valido-1-cosignature", "Recibo correcto con una cosignature de un testigo aceptado. Debe verificar.", 5, 2)
+
+    # La firma ML-DSA-44 del log: misma escena que valido-1-cosignature más la línea
+    # prestada (ADR-024). Ningún verificador la comprueba; lo que el vector prueba es que
+    # los tres la IGNORAN sin listarla como clave desconocida.
+    valido("valido-firma-mldsa-del-log",
+           "la nota trae además la firma ML-DSA-44 del log (ADR-007): se ignora al verificar y la página la reconoce como del log",
+           5, 2, mldsa=True)
 
     # alterado-encabezado: el tenant cambiado EN EL TEXTO.
     alterado = rec5.replace("emisor (tenant)   : " + TENANT, "emisor (tenant)   : 9999999999001", 1)
@@ -327,7 +384,17 @@ def genera():
     return out
 
 
+def cuerpo_de_la_escena_mldsa():
+    """El cuerpo de nota que hay que firmar con ML-DSA, para poder pedirlo a Go."""
+    bloques = cadena(5, TENANT_SK)
+    hojas = [d + f for (_, _, d, f) in bloques]
+    return cuerpo_checkpoint(ORIGIN, 5, raiz(hojas))
+
+
 def main():
+    if "--mldsa-body" in sys.argv:
+        sys.stdout.write(cuerpo_de_la_escena_mldsa())
+        return 0
     check = "--check" in sys.argv
     vectores = genera()
     diferentes = []

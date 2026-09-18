@@ -190,7 +190,7 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     // recompusiera de otra manera, la inclusión no habría verificado.
     igual('recibo ' . $v['name'] . ': regla de hoja', 'leaf/v2', $v['leaf_rule']);
 }
-comprueba('hay vectores de recibo', $n >= 17, sprintf('solo %d', $n));
+comprueba('hay vectores de recibo', $n >= 18, sprintf('solo %d', $n));
 
 // ---------------------------------------------------------------- no lanza nunca
 grupo('el verificador no lanza con ninguna entrada');
