@@ -11,6 +11,58 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Added: the PHP SDK, and sealing that survives a retry (Sprint 8)
+
+The external audit's product findings, and the ERP that seals from PHP.
+
+- **A PHP SDK, split by role** ([ADR-021](docs/adr/ADR-021-sdk-php.md)): `Nucleo\Verifier`
+  is **native**, written from `PROTOCOL.md` rather than ported, because whoever verifies is
+  the counterparty and asking them to run the issuer's binary to check the issuer's receipt
+  is asking them to trust what they are checking. `Nucleo\Sealer` **wraps the Go binary**,
+  because the ledger must have exactly one writer: the writer holds invariants that are not
+  in the format, and what it writes is append-only in a customer's file. No composer, no
+  dependencies beyond `ext-sodium` and `ext-json`. It joined the differential as the third
+  verifier on day one and agreed with Go on **3.314 receipt mutations and 9.929 policy
+  documents, zero verdict divergences** on the first full run — both clocks, the index, the
+  recipient, the signer key, which witnesses counted, which signatures were ignored.
+- **Sealing the same payload twice used to be four different behaviours**
+  ([ADR-020](docs/adr/ADR-020-idempotencia-y-atomicidad-del-sellado.md), H8). Encrypted: exit
+  1 with a raw `UNIQUE constraint failed: blobs.payload_hash (1555)`. With `--no-encrypt`: a
+  new block, silently. After a failure between the blob and the block: an orphan that made
+  that document **impossible to seal ever again** in that ledger — worse than reported. From
+  another tenant: the same dump. Now: re-sealing is a legitimate new block **that says which
+  block it duplicates**, the blob and the block and the commitments and the idempotency key
+  go in **one transaction**, a second tenant's identical content is refused with the reason
+  (its ciphertext is bound to its tenant by the AAD), and `--idempotency-key` makes a retry
+  after a timeout write nothing and answer what the original seal answered.
+- **No internal database error reaches the user**, and the rule is checkable: `store`
+  classifies driver errors by SQLite result code — never by message text — and a test walks
+  the failure paths, with and without `--json`, failing if any message mentions `sqlite`,
+  `constraint`, `SQL logic` or a result code in parentheses.
+- **A comparison that cannot be made is not a verdict**
+  ([ADR-022](docs/adr/ADR-022-comparacion-imposible-no-es-veredicto.md), H7). Identity
+  comparison was skipped when `vault_meta` lacked the rows to compare against, and skipping
+  it returned success — the pattern [ADR-016](docs/adr/ADR-016-atestacion-en-la-apertura.md)
+  closed for attestation, in another place. `vault_meta` is mutable by design, so deleting
+  two rows disabled both checks and a substituted ledger opened clean under the victim's
+  policy. Verified by removing the fix and watching the exploit work again.
+- **`payload_hash` confirms a guess of the whole document, and the field-level commitments
+  do not cover that** ([ADR-023](docs/adr/ADR-023-payload-hash-y-enumeracion.md), H10).
+  Reproduced: a four-value template document recovered from the header on the first try.
+  The hash stays a bare SHA-256, because it is the only thing that lets a counterparty tie
+  **their** document to the record with no keys and no PKI; PROTOCOL 0.5-draft §5 now states
+  the limit normatively and puts the entropy where it belongs — inside the payload, added by
+  whoever authors it, never by Núcleo, which must hash the exact bytes it was handed.
+- **The last golden vector Go authored is gone**
+  ([ADR-024](docs/adr/ADR-024-material-mldsa-de-los-vectores.md)). The Python oracle now
+  builds all eighteen receipt vectors and borrows only the 3.732 bytes of ML-DSA-44 key and
+  signature that no verifier checks — recomputing even that line's key ID from the spec, and
+  refusing stale material whose signature is over a different note body. The oracle's vector
+  came out byte-for-byte identical to the one Go used to write.
+- The replay warning got its own threshold: **15 minutes**, not the 72-hour freshness one. A
+  cosignature replayed ten minutes ago used to trigger nothing, and ten minutes is all a
+  replay needs while the log does not grow.
+
 ### Security: fourth adversarial audit — the first external one (Sprint 7f)
 
 A model with no access to this repository's history read the public tree at `1c53e1c` and
