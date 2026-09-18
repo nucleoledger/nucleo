@@ -153,6 +153,14 @@ jobs:
       # errores. La imagen del runner trae php-cli; sodium hace falta para Ed25519.
       - name: PHP con sodium
         run: |
+          # En el CI el tercer verificador NO es opcional: si la imagen del runner deja
+          # de traer php-cli, esto falla a propósito en vez de correr con dos de tres. El
+          # diferencial sí tolera la ausencia (y la dice) porque una máquina de desarrollo
+          # puede no tener PHP; un job que existe para comparar tres, no.
+          command -v php >/dev/null || {
+            echo "la imagen del runner ya no trae php-cli: el diferencial se quedaría con dos de tres" >&2
+            exit 1
+          }
           php -v
           php -r 'exit(extension_loaded("sodium") ? 0 : 1)' || {
             sudo apt-get update -qq
