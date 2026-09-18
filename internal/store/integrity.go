@@ -152,6 +152,16 @@ var ErrOriginMismatch = errors.New("store: el origin de la política no es el de
 // vault_meta declara: alguien sustituyó una de las dos.
 var ErrLogKeyMismatch = errors.New("store: la clave del log de la política no coincide con la que declara el ledger")
 
+// ErrIdentityUnknown indica que la política AFIRMA una identidad —origin, clave del
+// log— y el ledger no declara la suya, así que no hay nada con lo que compararla.
+//
+// Es el H7 de la auditoría externa, y el patrón que ADR-016 cerró en la atestación:
+// tratar "no pude comparar" como "la comparación no presenta problema". `init` escribe
+// las dos claves en vault_meta desde que existe, y vault_meta es MUTABLE por diseño, así
+// que un ledger que no las declara es uno al que alguien se las quitó —y quitarlas
+// convertía un ErrLogKeyMismatch en silencio—. Ver ADR-022.
+var ErrIdentityUnknown = errors.New("store: el ledger no declara su identidad y la política afirma una")
+
 // Attestation es el estado de la atestación al abrir (ADR-016).
 //
 // Era un booleano, y el booleano mentía: "hay una nota con una línea de 76 bytes"
@@ -448,14 +458,30 @@ func (s *Store) logPolicy(c *storedCheckpoint) (proof.Policy, error) {
 // checkLogKey: si quien abre trae la clave del log, tiene que ser la que el ledger
 // declara. Es la capa que detecta la sustitución de clave que ADR-016 describió y
 // no tenía código: vault_meta es fuente de comparación, la política es la verdad.
-// Un ledger que no declara clave (anterior a init con vault_meta) no tiene con qué
-// compararse; el camino de los checkpoints ya lo rechaza si los hay.
+//
+// Y si la política afirma una identidad que el ledger NO declara, eso es un error y no
+// un silencio (ADR-022, H7 de la auditoría externa). Antes se devolvía nil: borrar dos
+// filas de vault_meta —tabla mutable por diseño— desactivaba las dos comparaciones, y un
+// ledger sustituido abría limpio bajo la política de la víctima. "No pude comparar" no es
+// "la comparación no presenta problema"; es justo el patrón que ADR-016 cerró.
+//
+// Lo que sigue sin comparar nada es la política que no afirma nada: con --witness-name y
+// --witness-key sueltas no hay ni origin ni clave del log, y entonces no hay pregunta que
+// contestar. La diferencia es quién se queda callado.
 func (s *Store) checkLogKey() error {
 	if s.witnesses == nil {
 		return nil
 	}
 	if s.witnesses.Origin != "" {
-		if origin, err := s.GetMeta(MetaOriginKey); err == nil && string(origin) != s.witnesses.Origin {
+		origin, err := s.GetMeta(MetaOriginKey)
+		switch {
+		case errors.Is(err, ErrNotFound):
+			return fmt.Errorf("%w: la política es de %q y este ledger no dice de quién es "+
+				"(falta %s en vault_meta). Un ledger creado por `nucleo init` siempre lo declara",
+				ErrIdentityUnknown, s.witnesses.Origin, MetaOriginKey)
+		case err != nil:
+			return err
+		case string(origin) != s.witnesses.Origin:
 			return fmt.Errorf("%w: el ledger es %q y la política es de %q", ErrOriginMismatch, origin, s.witnesses.Origin)
 		}
 	}
@@ -463,8 +489,13 @@ func (s *Store) checkLogKey() error {
 		return nil
 	}
 	pub, err := s.GetMeta(MetaLogPubKey)
+	if errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("%w: la política trae la clave del log %s… y este ledger no declara ninguna "+
+			"(falta %s en vault_meta). Un ledger creado por `nucleo init` siempre la declara",
+			ErrIdentityUnknown, prefijoClave(hex.EncodeToString(s.witnesses.LogKey)), MetaLogPubKey)
+	}
 	if err != nil {
-		return nil
+		return err
 	}
 	if !bytes.Equal(s.witnesses.LogKey, pub) {
 		return fmt.Errorf("%w: el ledger declara %s… y la política trae %s…",
