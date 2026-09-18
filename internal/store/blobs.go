@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -20,27 +21,54 @@ type Blob struct {
 // escribir el mismo payload_hash con otro contenido se rechaza: sustituir un
 // texto cifrado bajo el mismo compromiso sería reescribir el dato sin tocar el
 // ledger.
+//
+// Ya con el payload_hash repetido devuelve ErrDuplicateBlob, que es una CLASE, no el
+// volcado del motor (ADR-020 §E). El sellado no la usa: escribe el blob y el bloque en
+// la misma transacción con AppendRecord.
 func (s *Store) PutBlob(payloadHash string, ciphertext, nonce []byte) error {
 	if s.db == nil {
 		return ErrClosed
 	}
-	if _, err := decodeHash(payloadHash); err != nil {
-		return err
+	b := &Blob{
+		PayloadHash: payloadHash,
+		Ciphertext:  ciphertext,
+		Nonce:       nonce,
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	if len(ciphertext) == 0 || len(nonce) == 0 {
-		return errors.New("store: blob sin texto cifrado o sin nonce")
+	if err := validateBlob(b); err != nil {
+		return err
 	}
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	_, err := s.db.Exec(
-		`INSERT INTO blobs (payload_hash, ciphertext, nonce, created_at) VALUES (?, ?, ?, ?)`,
-		payloadHash, ciphertext, nonce, time.Now().UTC().Format(time.RFC3339Nano))
-	if err != nil {
-		return fmt.Errorf("store: inserción del blob %s: %w", payloadHash, err)
+	return insertBlob(s.db, b)
+}
+
+// validateBlob comprueba lo que el esquema no puede: que el hash sea un SHA-256 en hex
+// minúsculo y que haya texto cifrado y nonce.
+func validateBlob(b *Blob) error {
+	if _, err := decodeHash(b.PayloadHash); err != nil {
+		return err
+	}
+	if len(b.Ciphertext) == 0 || len(b.Nonce) == 0 {
+		return errors.New("store: contenido cifrado sin texto o sin nonce")
+	}
+	if b.CreatedAt == "" {
+		return errors.New("store: contenido cifrado sin fecha")
 	}
 	return nil
+}
+
+// clavesOrdenadas devuelve las claves de un mapa en orden, para que una transacción
+// escriba siempre en la misma secuencia y dos ejecuciones sean comparables.
+func clavesOrdenadas[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // GetBlob devuelve un payload cifrado, o ErrNotFound si ya fue borrado.
@@ -56,7 +84,7 @@ func (s *Store) GetBlob(payloadHash string) (*Blob, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura del blob %s: %w", payloadHash, err)
+		return nil, errDB(fmt.Sprintf("store: lectura del contenido %s", payloadHash), nil, err)
 	}
 	return b, nil
 }
@@ -75,10 +103,8 @@ func (s *Store) DeleteBlob(payloadHash string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if _, err := s.db.Exec(`DELETE FROM blobs WHERE payload_hash = ?`, payloadHash); err != nil {
-		return fmt.Errorf("store: borrado del blob %s: %w", payloadHash, err)
-	}
-	return nil
+	_, err := s.db.Exec(`DELETE FROM blobs WHERE payload_hash = ?`, payloadHash)
+	return errDB(fmt.Sprintf("store: borrado del contenido %s", payloadHash), nil, err)
 }
 
 // PutMeta guarda un valor en vault_meta. A diferencia del ledger, esta tabla sí
@@ -90,12 +116,7 @@ func (s *Store) PutMeta(key string, value []byte) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if _, err := s.db.Exec(
-		`INSERT INTO vault_meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`,
-		key, value); err != nil {
-		return fmt.Errorf("store: escritura de vault_meta[%s]: %w", key, err)
-	}
-	return nil
+	return insertMeta(s.db, key, value)
 }
 
 // GetMeta lee un valor de vault_meta, o ErrNotFound.
@@ -109,7 +130,7 @@ func (s *Store) GetMeta(key string) ([]byte, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura de vault_meta[%s]: %w", key, err)
+		return nil, errDB(fmt.Sprintf("store: lectura de vault_meta[%s]", key), nil, err)
 	}
 	return v, nil
 }

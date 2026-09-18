@@ -40,12 +40,12 @@ func (s *Store) PutCheckpoint(note []byte) error {
 		}
 		return fmt.Errorf("%w: ya hay otro checkpoint para el tamaño %d", ErrAppendOnly, c.Size)
 	case !errors.Is(err, sql.ErrNoRows):
-		return fmt.Errorf("store: lectura de checkpoint %d: %w", c.Size, err)
+		return errDB(fmt.Sprintf("store: lectura del checkpoint %d", c.Size), nil, err)
 	}
 
 	if _, err := s.db.Exec(`INSERT INTO checkpoints (tree_size, note) VALUES (?, ?)`,
 		int64(c.Size), string(note)); err != nil {
-		return fmt.Errorf("store: inserción del checkpoint %d: %w", c.Size, err)
+		return errDB(fmt.Sprintf("store: inserción del checkpoint %d", c.Size), ErrAppendOnly, err)
 	}
 	return nil
 }
@@ -61,7 +61,7 @@ func (s *Store) LastCheckpoint() ([]byte, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura del último checkpoint: %w", err)
+		return nil, errDB("store: lectura del último checkpoint", nil, err)
 	}
 	return []byte(note), nil
 }
@@ -77,7 +77,7 @@ func (s *Store) Checkpoint(treeSize uint64) ([]byte, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura del checkpoint %d: %w", treeSize, err)
+		return nil, errDB(fmt.Sprintf("store: lectura del checkpoint %d", treeSize), nil, err)
 	}
 	return []byte(note), nil
 }
@@ -103,7 +103,7 @@ func (s *Store) LastCosignedCheckpoint() ([]byte, error) {
 	}
 	rows, err := s.db.Query(`SELECT note FROM checkpoints ORDER BY tree_size DESC`)
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura de checkpoints: %w", err)
+		return nil, errDB("store: lectura de checkpoints", nil, err)
 	}
 	defer rows.Close()
 
@@ -117,7 +117,7 @@ func (s *Store) LastCosignedCheckpoint() ([]byte, error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: lectura de checkpoints: %w", err)
+		return nil, errDB("store: lectura de checkpoints", nil, err)
 	}
 	return nil, ErrNotFound
 }
@@ -147,7 +147,7 @@ func (s *Store) PutLastSigned(note []byte) error {
 		 ON CONFLICT(k) DO UPDATE SET v = excluded.v`,
 		LastSignedKey, string(note))
 	if err != nil {
-		return fmt.Errorf("store: escritura del último checkpoint firmado: %w", err)
+		return errDB("store: escritura del último checkpoint firmado", nil, err)
 	}
 	return nil
 }
@@ -164,7 +164,7 @@ func (s *Store) LastSigned() ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura del último checkpoint firmado: %w", err)
+		return nil, errDB("store: lectura del último checkpoint firmado", nil, err)
 	}
 	return []byte(v), nil
 }
@@ -225,7 +225,7 @@ func (s *Store) PutLastCosignature(note []byte) error {
 		`INSERT INTO log_state (k, v) VALUES (?, ?)
 		 ON CONFLICT(k) DO UPDATE SET v = excluded.v`,
 		LastCosignatureKey, string(note)); err != nil {
-		return fmt.Errorf("store: escritura de la última cosignature: %w", err)
+		return errDB("store: escritura de la última cosignature", nil, err)
 	}
 	return nil
 }
@@ -241,7 +241,7 @@ func (s *Store) LastCosignature() ([]byte, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura de la última cosignature: %w", err)
+		return nil, errDB("store: lectura de la última cosignature", nil, err)
 	}
 	return []byte(v), nil
 }
@@ -275,7 +275,7 @@ func (s *Store) PutLastAttested(r AttestationRecord) error {
 		`INSERT INTO log_state (k, v) VALUES (?, ?)
 		 ON CONFLICT(k) DO UPDATE SET v = excluded.v`,
 		LastAttestedKey, string(raw)); err != nil {
-		return fmt.Errorf("store: escritura del registro de atestación: %w", err)
+		return errDB("store: escritura del registro de atestación", nil, err)
 	}
 	return nil
 }
@@ -297,7 +297,7 @@ func (s *Store) LastAttested() (AttestationRecord, bool, error) {
 		return AttestationRecord{}, false, nil
 	}
 	if err != nil {
-		return AttestationRecord{}, false, fmt.Errorf("store: lectura del registro de atestación: %w", err)
+		return AttestationRecord{}, false, errDB("store: lectura del registro de atestación", nil, err)
 	}
 	var r AttestationRecord
 	if err := json.Unmarshal([]byte(v), &r); err != nil {

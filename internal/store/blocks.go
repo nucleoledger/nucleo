@@ -11,52 +11,11 @@ import (
 
 // AppendBlock añade un bloque al final del ledger.
 //
-// Valida el encadenamiento contra el último bloque PERSISTIDO antes de insertar:
-// que el bloque sea internamente válido no basta, porque un bloque perfectamente
-// firmado puede no seguir a este ledger. La comprobación y la inserción ocurren
-// bajo el mismo candado de escritura, así que dos llamadas concurrentes no pueden
-// ver el mismo "último bloque".
+// Es AppendRecord con solo el bloque: la validación del encadenamiento y la inserción
+// ocurren en la misma transacción, así que dos llamadas concurrentes no pueden ver el
+// mismo "último bloque".
 func (s *Store) AppendBlock(b *ledger.Block) error {
-	if s.db == nil {
-		return ErrClosed
-	}
-	if b == nil {
-		return errors.New("store: bloque nulo")
-	}
-	if err := b.Verify(); err != nil {
-		return fmt.Errorf("store: el bloque no es válido: %w", err)
-	}
-
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-
-	last, err := s.lastBlock()
-	switch {
-	case errors.Is(err, ErrNotFound):
-		// Ledger vacío: solo cabe el génesis.
-		if b.Header.Index != 0 {
-			return fmt.Errorf("%w: el primer bloque debe ser el 0, es el %d",
-				ledger.ErrIndexSequence, b.Header.Index)
-		}
-	case err != nil:
-		return err
-	default:
-		if err := ledger.VerifyLink(last, b); err != nil {
-			return err
-		}
-	}
-
-	canonical, err := b.Header.Canonical()
-	if err != nil {
-		return err
-	}
-	_, err = s.db.Exec(
-		`INSERT INTO blocks (idx, hash, header_json, signature) VALUES (?, ?, ?, ?)`,
-		int64(b.Header.Index), b.Hash, string(canonical), b.Signature)
-	if err != nil {
-		return fmt.Errorf("store: inserción del bloque %d: %w", b.Header.Index, err)
-	}
-	return nil
+	return s.AppendRecord(Record{Block: b})
 }
 
 // LastBlock devuelve el último bloque persistido, o ErrNotFound si no hay ninguno.
@@ -69,8 +28,13 @@ func (s *Store) LastBlock() (*ledger.Block, error) {
 
 // lastBlock no toma el candado: lo llaman quienes ya lo tienen y LastBlock, que
 // solo lee.
-func (s *Store) lastBlock() (*ledger.Block, error) {
-	row := s.db.QueryRow(`SELECT idx, hash, header_json, signature FROM blocks ORDER BY idx DESC LIMIT 1`)
+func (s *Store) lastBlock() (*ledger.Block, error) { return lastBlockDe(s.db) }
+
+// lastBlockDe lee el último bloque de la base o de una transacción en curso. La
+// diferencia importa: dentro de AppendRecord hay que leerlo de la transacción, o la
+// comprobación del encadenamiento se haría contra un estado distinto del que se escribe.
+func lastBlockDe(q consulta) (*ledger.Block, error) {
+	row := q.QueryRow(`SELECT idx, hash, header_json, signature FROM blocks ORDER BY idx DESC LIMIT 1`)
 	b, err := scanBlock(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -85,7 +49,7 @@ func (s *Store) Count() (int, error) {
 	}
 	var n int
 	if err := s.db.QueryRow(`SELECT count(*) FROM blocks`).Scan(&n); err != nil {
-		return 0, fmt.Errorf("store: conteo de bloques: %w", err)
+		return 0, errDB("store: conteo de bloques", nil, err)
 	}
 	return n, nil
 }
@@ -103,7 +67,7 @@ func (s *Store) Blocks(from, to uint64) ([]*ledger.Block, error) {
 		`SELECT idx, hash, header_json, signature FROM blocks WHERE idx >= ? AND idx < ? ORDER BY idx`,
 		int64(from), int64(to))
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura de bloques [%d, %d): %w", from, to, err)
+		return nil, errDB(fmt.Sprintf("store: lectura de bloques [%d, %d)", from, to), nil, err)
 	}
 	defer rows.Close()
 
@@ -116,7 +80,7 @@ func (s *Store) Blocks(from, to uint64) ([]*ledger.Block, error) {
 		out = append(out, b)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: lectura de bloques [%d, %d): %w", from, to, err)
+		return nil, errDB(fmt.Sprintf("store: lectura de bloques [%d, %d)", from, to), nil, err)
 	}
 	return out, nil
 }
@@ -154,7 +118,7 @@ func (s *Store) LeafData() ([][]byte, error) {
 	}
 	rows, err := s.db.Query(`SELECT hash, signature FROM blocks ORDER BY idx`)
 	if err != nil {
-		return nil, fmt.Errorf("store: lectura de hojas: %w", err)
+		return nil, errDB("store: lectura de hojas", nil, err)
 	}
 	defer rows.Close()
 

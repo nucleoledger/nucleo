@@ -126,11 +126,15 @@ func connect(path string) (*Store, error) {
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("store: apertura de %q: %w", path, err)
+		return nil, errDB(fmt.Sprintf("store: apertura de %q", path), nil, err)
 	}
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store: apertura de %q: %w", path, err)
+		// Aquí cae el fichero que no es una base, el que no se puede leer y el que
+		// está corrupto. Ninguno de esos tres mensajes los escribe este proyecto, así
+		// que ninguno sale por la primera línea: se dice qué se intentaba y con qué
+		// fichero, que es lo que el usuario puede arreglar.
+		return nil, errDB(fmt.Sprintf("store: apertura de %q", path), nil, err)
 	}
 
 	s := &Store{db: db, path: path}
@@ -166,7 +170,7 @@ func (s *Store) migrate() error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if _, err := s.db.Exec(schemaSQL); err != nil {
-		return fmt.Errorf("store: creación del esquema: %w", err)
+		return errDB("store: creación del esquema", nil, err)
 	}
 	return nil
 }
