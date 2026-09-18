@@ -238,9 +238,10 @@ func TestSyncAvisaDeUnaCosignatureVieja(t *testing.T) {
 	c := newCLI(t)
 	c.initLedger()
 	c.sealFile(`{"x":1}`)
-	// El testigo firma con el reloj cuatro días atrasado: es lo que ve el cliente
-	// cuando alguien le sirve una cosignature guardada hace cuatro días.
-	url, name, key := startTestWitnessAt(t, c.logPubKey(t), -100*time.Hour)
+	// El testigo firma con el reloj MEDIA HORA atrasado: con el umbral viejo —el de
+	// frescura, 72 h— esto pasaba callado, y es todo lo que un replay necesita mientras
+	// el log no crezca.
+	url, name, key := startTestWitnessAt(t, c.logPubKey(t), -30*time.Minute)
 
 	out, errOut := c.runWant(t, exitOK, "--json", "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
 	if !strings.Contains(errOut, "no prueba contacto con el testigo ahora") {
@@ -269,5 +270,22 @@ func TestSyncAvisaDeUnaCosignatureVieja(t *testing.T) {
 	}
 	if v2["replay_suspect"] != false {
 		t.Errorf("replay_suspect = %v con el testigo en hora", v2["replay_suspect"])
+	}
+
+	// Y el desfase que sí se tolera: unos minutos de reloj mal puesto no son un replay.
+	c3 := newCLI(t)
+	c3.initLedger()
+	c3.sealFile(`{"x":1}`)
+	url3, name3, key3 := startTestWitnessAt(t, c3.logPubKey(t), -5*time.Minute)
+	out3, errOut3 := c3.runWant(t, exitOK, "--json", "sync", "--witness", url3, "--witness-name", name3, "--witness-key", key3)
+	if strings.Contains(errOut3, "no prueba contacto") {
+		t.Errorf("cinco minutos de desfase no deberían avisar:\n%s", errOut3)
+	}
+	var v3 map[string]any
+	if err := json.Unmarshal([]byte(out3), &v3); err != nil {
+		t.Fatal(err)
+	}
+	if v3["replay_suspect"] != false {
+		t.Errorf("replay_suspect = %v con cinco minutos de desfase", v3["replay_suspect"])
 	}
 }

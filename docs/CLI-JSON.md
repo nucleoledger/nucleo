@@ -82,6 +82,10 @@ La frescura mide el **último contacto verificado**, que no es lo mismo que "la 
 que un tercero vio esta historia": mientras el log no crezca, una respuesta reproducida
 por la red trae una cosignature real y vieja, y esa es la fecha que se ve (H2 de la cuarta
 auditoría; `sync` avisa y publica `replay_suspect` cuando lo que recibe ya nace viejo).
+El umbral de ese aviso **no** es el de frescura: un testigo vivo firma en el momento, así
+que lo que vuelve de un POST tiene segundos, y lo único que justifica una diferencia es el
+desfase de reloj entre las dos máquinas. Son **15 minutos**, o el umbral de frescura si
+`--stale-after` lo deja más corto.
 Lo que la fecha afirma con certeza es que un testigo firmó ESA raíz en ESE instante. El
 tiempo demostrable de un recibo sigue siendo el **mínimo** de las cosignatures, que es la
 mejor prueba de antigüedad. Un log parado

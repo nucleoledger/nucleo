@@ -140,6 +140,12 @@ jobs:
           node-version-file: sdk/ts/.nvmrc
           cache: npm
           cache-dependency-path: sdk/ts/package-lock.json
+      # Los recibos golden salen de un oráculo Python INDEPENDIENTE (Sprint 7f). Si
+      # el repositorio y el oráculo dejan de coincidir, alguien editó un vector a mano
+      # o cambió el formato sin regenerarlos: en los dos casos el vector ha dejado de
+      # ser una vara externa y hay que enterarse aquí.
+      - name: Los vectores golden coinciden con el oráculo
+        run: python3 testdata/vectors/receipt/generar.py --check
       - name: Catálogo con los veredictos de Go
         run: NUCLEO_DIFERENCIAL_OUT="$RUNNER_TEMP/catalogo.json" go test ./internal/receipt -run '^TestDiferencialGeneraCatalogo$'
       - name: Los mismos recibos por el bundle de TypeScript

@@ -129,14 +129,16 @@ func cmdSync(e *env, args []string) error {
 	// el testigo. Lo único que la delata es este instante, que no avanza. Aquí se
 	// dice, en vez de esperar a que la frescura lo note en el siguiente status: es lo
 	// que convierte un ataque silencioso en uno ruidoso.
-	vieja := res.Attested && now().Sub(res.AttestedAt) > e.staleAfter
+	umbral := umbralDeReplay(e.staleAfter)
+	edad := now().Sub(res.AttestedAt)
+	vieja := res.Attested && edad > umbral
 	if vieja {
 		fmt.Fprintf(e.stderr,
 			"AVISO: el testigo devolvió una cosignature de hace %s (umbral: %s).\n"+
 				"       Una cosignature vieja no prueba contacto con el testigo ahora: una\n"+
 				"       respuesta reproducida por la red se ve exactamente así mientras el\n"+
 				"       log no crezca. Comprueba que llegas al testigo de verdad.\n",
-			humanDuration(now().Sub(res.AttestedAt)), humanDuration(e.staleAfter))
+			humanDuration(edad), humanDuration(umbral))
 	}
 	if res.Attested {
 		// La nota entera como evidencia verificable de contacto reciente (H6): el
@@ -185,6 +187,28 @@ func cmdSync(e *env, args []string) error {
 		}
 	})
 	return nil
+}
+
+// MaxEdadCosignature es el umbral del aviso de replay: cuánto puede tener la
+// cosignature que un testigo acaba de devolver antes de resultar sospechosa.
+//
+// Nació igual al umbral de frescura (72 h por omisión) y eso era 288 veces demasiado
+// holgado: un testigo vivo firma en el momento, así que lo que vuelve de un POST tiene
+// segundos. Lo único que justifica una diferencia es el desfase de reloj entre el
+// testigo y quien sella —minutos en máquinas sin NTP— más la red. Quince minutos deja
+// pasar ese desfase y cierra la ventana en la que un replay pasaba callado: antes,
+// reproducir una respuesta de hace un día no decía nada hasta el siguiente status.
+//
+// No es criptografía, es operación, y por eso el operador puede apretarlo con
+// --stale-after: si su umbral de frescura es MENOR que este, manda el suyo.
+const MaxEdadCosignature = 15 * time.Minute
+
+// umbralDeReplay devuelve el menor entre el umbral fijo y el de frescura.
+func umbralDeReplay(staleAfter time.Duration) time.Duration {
+	if staleAfter < MaxEdadCosignature {
+		return staleAfter
+	}
+	return MaxEdadCosignature
 }
 
 func cmdWitness(e *env, args []string) error {
