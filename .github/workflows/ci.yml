@@ -148,12 +148,32 @@ jobs:
         run: python3 testdata/vectors/receipt/generar.py --check
       - name: Catálogo con los veredictos de Go
         run: NUCLEO_DIFERENCIAL_OUT="$RUNNER_TEMP/catalogo.json" go test ./internal/receipt -run '^TestDiferencialGeneraCatalogo$'
+      # PHP es el TERCER verificador desde el Sprint 8 (ADR-021 §F), escrito desde
+      # PROTOCOL.md y no portado: dos implementaciones con el mismo linaje comparten
+      # errores. La imagen del runner trae php-cli; sodium hace falta para Ed25519.
+      - name: PHP con sodium
+        run: |
+          php -v
+          php -r 'exit(extension_loaded("sodium") ? 0 : 1)' || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends php-sodium
+          }
+          php -r 'if (!extension_loaded("sodium")) { fwrite(STDERR, "PHP sin sodium: el diferencial no podria usarlo"); exit(1); }'
+      # Con NUCLEO_BIN, la suite de PHP incluye el sellado de punta a punta: PHP
+      # ejecutando el binario de verdad, con clave de idempotencia (ADR-020 §D). Sin la
+      # variable, la suite AVISA de que esa parte no se comprobó.
+      - name: La suite del SDK de PHP contra los vectores compartidos
+        run: |
+          go build -o "$RUNNER_TEMP/nucleo" ./cmd/nucleo
+          NUCLEO_BIN="$RUNNER_TEMP/nucleo" php sdk/php/test/run.php
       - name: Los mismos recibos por el bundle de TypeScript
         working-directory: sdk/ts
         run: |
           npm ci
           npm run bundle
           node scripts/diferencial.mjs "$RUNNER_TEMP/catalogo.json"
+        # El script busca `php` en el PATH y falla si lo encuentra y no funciona; si no
+        # hubiera PHP lo diría en voz alta en vez de callarse.
 
   # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
   # La configuración y el porqué de cada exclusión están en .golangci.yml.

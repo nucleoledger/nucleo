@@ -3,7 +3,7 @@
 # 🚀 STACK & ARCHITECTURE
 - **Lenguaje:** Go. Objetivo: **Go 1.27+** (por `crypto/mldsa` en stdlib). Versión local instalada: Go 1.27.1.
 - **Módulo:** `github.com/nucleoledger/nucleo`
-- **Producto:** binario CLI `nucleo` (implementado: init/seal/status/verify/receipt/reconcile/sync/witness/backup/restore, códigos de salida 0/1/2/3) + SDK TypeScript publicado en `sdk/ts` (`@nucleoledger/verify`). El daemon `nucleod` sigue sin existir y no está planificado para v1.
+- **Producto:** binario CLI `nucleo` (implementado: init/seal/status/verify/receipt/reconcile/sync/witness/backup/restore, códigos de salida 0/1/2/3) + SDK TypeScript publicado en `sdk/ts` (`@nucleoledger/verify`) + SDK de PHP en `sdk/php` (verificador NATIVO, sellador ENVOLTORIO del binario; ADR-021). El daemon `nucleod` sigue sin existir y no está planificado para v1.
 - **Sin Docker, sin base de datos externa, sin migraciones**: SQLite embebido (pure-Go, `modernc.org/sqlite`) append-only, con WAL y `synchronous=FULL`. Implementado en `internal/store`.
 - **Sin despliegue**: esto es un producto de software (releases firmados con goreleaser + cosign keyless; ver `.goreleaser.yaml` y `docs/RELEASING.md`). Nunca hay servidores que tocar.
 - **Criptografía fijada por `docs/PROTOCOL.md`** (normativo): JCS RFC 8785, Ed25519 sobre digest SHA-256, Merkle RFC 6962/9162, C2SP (checkpoint/cosignature/witness/proof/tiles), XChaCha20-Poly1305 + Argon2id, SLIP-0039, VRF vrf-r255.
@@ -31,6 +31,7 @@ nucleo/
 │   └── integration/        # tests de extremo a extremo entre paquetes
 ├── profiles/ecuador/       # sri.factura.v1 y sas.acta.v1
 ├── sdk/ts/                 # @nucleoledger/verify — cero dependencias de runtime
+├── sdk/php/                # verificador nativo + sellador envoltorio (sin composer)
 ├── web/verify/             # verificador HTML estático, sin red
 ├── scripts/                # demo-criterio-exito.sh: el criterio de éxito ejecutable
 ├── docs/
@@ -43,7 +44,7 @@ nucleo/
 └── .github/workflows/      # ci.yml, release.yml, publish-npm.yml (no tocar sin instrucción)
 ```
 La IA **lee** en `docs/` y `internal/`; **escribe** en `internal/`, `cmd/nucleo/`,
-`profiles/`, `sdk/ts/` y tests; **no toca**: `testdata/vectors/`, `.github/`,
+`profiles/`, `sdk/ts/`, `sdk/php/` y tests; **no toca**: `testdata/vectors/`, `.github/`,
 `docs/PROTOCOL.md`, `docs/adr/`, ni los `cmd/nucleo-demo` y `cmd/nucleo-poc*`
 (salvo instrucción explícita del dev).
 
@@ -71,6 +72,7 @@ go run ./cmd/nucleo-demo       # demo end-to-end (cadena + Merkle + 3 ataques)
 go test -bench=. ./internal/store ./internal/vault  # benchmarks
 ./scripts/demo-criterio-exito.sh  # el criterio de éxito de la v1, de punta a punta
 cd sdk/ts && npm test          # verificador TS contra los MISMOS vectores
+php sdk/php/test/run.php       # verificador PHP contra los MISMOS vectores (ext-sodium)
 ```
 No hay logs de servicio: la salida de la CLI y de los tests es el log.
 

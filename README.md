@@ -68,7 +68,13 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 
 **Ecuador profile.** `sri.factura.v1` with módulo-11 access-key validation, and `sas.acta.v1`. Each type declares which fields are guessable and must travel as HMAC commitments rather than bare hashes.
 
-**Verification anywhere.** [`@nucleoledger/verify`](sdk/ts) — a TypeScript verifier with **zero runtime dependencies** (Ed25519 and SHA-256 from WebCrypto) · [`web/verify/`](web/verify) — a single static HTML page that uses no network and verifies a receipt offline.
+**Verification anywhere.** [`@nucleoledger/verify`](sdk/ts) — a TypeScript verifier with **zero runtime dependencies** (Ed25519 and SHA-256 from WebCrypto) · [`web/verify/`](web/verify) — a single static HTML page that uses no network and verifies a receipt offline · [`sdk/php`](sdk/php) — a PHP verifier with no composer and no dependencies beyond `ext-sodium`, **written from the spec rather than ported**, plus a thin sealer that wraps the Go binary for the ERP that seals in the same request ([ADR-021](docs/adr/ADR-021-sdk-php.md)).
+
+Three independent verifiers, one writer. That asymmetry is deliberate: independence pays
+off where a counterparty forms a verdict, and costs where a ledger gets written. All
+three are held to the same shared vectors and to a differential that compares the whole
+verdict — both clocks, the index, the recipient, the signer key, which witnesses counted
+— across 3.314 receipt mutations and 9.929 policy documents.
 
 ## Two clocks, never confused
 
