@@ -1,6 +1,6 @@
 # Núcleo Protocol Specification
 
-**Version: 0.4-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; wire formats stabilize at v1.0)**
+**Version: 0.5-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; wire formats stabilize at v1.0)**
 
 > **0.3-draft changes what a verifier ACCEPTS, not what an issuer emits**
 > ([ADR-018](adr/ADR-018-politica-formato-de-cable.md)). Every receipt produced under
@@ -285,7 +285,24 @@ Counting:
 - Externally signed documents (SRI XML with XAdES-BES, PDFs) are hashed **byte-for-byte, never re-canonicalized**.
 - JSON payloads authored by Núcleo profiles are canonicalized with JCS before hashing. Monetary amounts and identifiers MUST travel as strings.
 - Low-entropy / guessable values (IDs, amounts, statuses) MUST NOT be committed as bare hashes. Use a **VRF commitment** (`c2sp.org/vrf-r255`) when third-party verifiability without key disclosure is needed; HMAC-SHA-256 with a tenant secret otherwise. (Pending implementation; format fixed in ADR-003.)
-- The ledger stores only commitments. Sensitive payloads live in **erasable encrypted blobs**: XChaCha20-Poly1305, random 24-byte nonce, `AAD = tenant ‖ payload_hash`. Erasure of blob + key removes the content while the chain stays intact. Whether that
+- **`payload_hash` confirms a guess of the whole document, and the ledger does not hide an
+enumerable payload.** The header carries `payload_hash` in clear and the header travels
+inside every receipt, so this is not a property of the local file: it is what every
+counterparty holding a receipt gets. Whoever can guess the exact bytes can confirm the
+guess, encrypted blob or not — the blob protects the content from whoever reads the
+database, not from whoever holds the receipt. Field-level commitments (ADR-003) **do not**
+cover this case: if the entire document is guessable, its committed fields are guessed
+along with it, so per-field protection never raises the bar above the entropy of the whole
+document. This is a property of the document, which the protocol does not control, so:
+payloads that Núcleo itself constructs (profiles) MUST include a random field of at least
+16 bytes, and payloads supplied by an integrator SHOULD carry equivalent entropy when the
+document space is enumerable. A verifier is unaffected: it holds the document and compares
+bytes. Núcleo MUST NOT add entropy to a payload it is given — hashing anything other than
+the exact bytes received would mean sealing a document the integrator never handed over
+([ADR-023](adr/ADR-023-payload-hash-y-enumeracion.md), added 2026-09-18 after the external
+audit, H10).
+- The ledger stores commitments for the fields a profile declares guessable, and the bare
+SHA-256 of the whole payload (above). Sensitive payloads live in **erasable encrypted blobs**: XChaCha20-Poly1305, random 24-byte nonce, `AAD = tenant ‖ payload_hash`. Erasure of blob + key removes the content while the chain stays intact. Whether that
 satisfies a particular deletion right is a legal question about a particular regime and a
 particular deployment — what remains is the `payload_hash` and the commitments, which are
 data about the erased document. The protocol states the technical fact and takes no
