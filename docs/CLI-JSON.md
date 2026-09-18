@@ -164,9 +164,23 @@ frescura **no** cambia el código.
 | `index` | entero — el bloque recién sellado |
 | `hash` | hex — hash del bloque |
 | `payload_hash` | hex — SHA-256 del contenido |
-| `encrypted` | bool — `false` con `--clear` (solo queda el hash) |
+| `encrypted` | bool — `false` con `--no-encrypt` (solo queda el hash) |
+| `idempotent` | bool — `true` solo cuando `seal` **no escribió nada** porque la clave de idempotencia ya estaba (ADR-020 §D) |
+| `idempotency_key` | string — solo si se pasó `--idempotency-key` |
+| `duplicate_of` | lista de enteros — bloques que ya sellaban ESTE contenido. Ausente si no hay ninguno |
 | `profile`, `metadata`, `commitments` | solo con perfil (`sri.factura.v1`, `sas.acta.v1`) |
 | `attestation`, `attested`, `attested_size`, `signer`, `freshness` | **el estado de la historia sobre la que se acaba de escribir**, con la misma semántica que `status`. El bloque recién sellado **no** está cubierto por la atestación: lo cubrirá el próximo `sync`. |
+
+Sellar el mismo contenido dos veces produce un **bloque nuevo**: el ledger registra
+hechos de sellado, no documentos (ADR-020 §A). `duplicate_of` es lo que permite verlo
+sin adivinar. Para que un reintento no duplique nada está `--idempotency-key`: con la
+misma clave y el mismo documento, la salida es la del sellado original con
+`"idempotent": true`, y el ledger no crece; con la misma clave y otro documento, es
+error de uso. Un reintento idempotente trae **los mismos campos** que un sellado normal,
+`freshness` incluida: el integrador no tiene dos formas que distinguir.
+
+> **Enmendado el 2026-09-17.** Esta tabla decía `--clear`, una bandera que no existe;
+> la de `seal` es `--no-encrypt`.
 
 ### `receipt`
 

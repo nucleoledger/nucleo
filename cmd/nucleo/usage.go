@@ -49,6 +49,26 @@ CÓDIGOS DE SALIDA
   2  la verificación falló: hay una alteración o una discrepancia
   3  la sincronización con el testigo falló (incidente operativo)
 
+SELLAR DOS VECES EL MISMO DOCUMENTO
+  El ledger registra HECHOS DE SELLADO, no documentos: "este contenido existía
+  a las 12:00" y "existía a las 14:00" son dos afirmaciones distintas y las dos
+  pueden necesitar prueba. Así que sellar el mismo contenido otra vez crea un
+  bloque NUEVO, y el sellado dice de qué bloque es duplicado.
+
+  Lo que un ERP necesita es lo contrario: que un reintento tras un timeout no
+  duplique nada. Para eso:
+
+    nucleo seal --idempotency-key "factura-001" ...
+
+  Con la misma clave y el mismo documento, el segundo seal NO escribe nada y
+  contesta lo del primero (en --json, "idempotent": true). Con la misma clave y
+  otro documento, es un error: una clave nombra un sellado concreto. La clave
+  está acotada por tenant, así que "factura-001" es de cualquiera.
+
+  El mismo contenido desde DOS tenants distintos se rechaza: su copia cifrada
+  está atada al tenant (AAD de PROTOCOL §5) y el otro no podría descifrarla.
+  Con --no-encrypt sí cabe, porque no hay copia que atar. Ver ADR-020.
+
 LÍMITES DE LECTURA
   documento a sellar         64 MiB   (--max-payload para subirlo)
   fichero de passphrase       1 MiB

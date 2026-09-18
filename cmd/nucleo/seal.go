@@ -25,6 +25,10 @@ func cmdSeal(e *env, args []string) error {
 	xmlFile := fs.String("xml", "", "fichero XML del comprobante (equivale a --payload con un perfil)")
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	clear := fs.Bool("no-encrypt", false, "no guarda el contenido cifrado; solo sella su hash")
+	// optString y no fs.String por lo mismo que --policy-file: un cron con la variable
+	// vacía pasaría --idempotency-key "" y sellaría un duplicado creyendo lo contrario.
+	idemKey := &optString{}
+	fs.Var(idemKey, "idempotency-key", "clave del integrador para que un reintento no duplique el registro")
 	pf := registerPolicyFlags(fs)
 	maxPayload := fs.Int64("max-payload", DefaultMaxPayload, "tamaño máximo del documento a sellar, en bytes")
 	if err := fs.Parse(args); err != nil {
@@ -92,6 +96,25 @@ func cmdSeal(e *env, args []string) error {
 		return err
 	}
 
+	sum := sha256.Sum256(data)
+	payloadHash := hex.EncodeToString(sum[:])
+
+	// El reintento se resuelve ANTES de construir el bloque, y después de comprobar el
+	// firmante: un reintento contra un ledger secuestrado no puede contestar "todo en
+	// orden" (ADR-020 §D).
+	if idemKey.set {
+		if err := validarClaveIdem(idemKey.v); err != nil {
+			return usageErr("%v", err)
+		}
+		previo, hay, err := leerIdem(s, *tenant, idemKey.v)
+		if err != nil {
+			return err
+		}
+		if hay {
+			return sealIdempotente(e, s, res, wp != nil, previo, payloadHash, *typ, prof)
+		}
+	}
+
 	prev, err := s.LastBlock()
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return err
@@ -100,8 +123,14 @@ func cmdSeal(e *env, args []string) error {
 		prev = nil
 	}
 
-	sum := sha256.Sum256(data)
-	payloadHash := hex.EncodeToString(sum[:])
+	// Los bloques que ya sellaron ESTE contenido. Se leen antes de escribir nada para
+	// poder NOMBRAR el duplicado: re-sellar es legítimo (ADR-020 §A), pero silencioso
+	// no, porque un duplicado accidental es mucho más frecuente que uno deliberado.
+	duplicados, err := s.BlocksWithPayload(payloadHash)
+	if err != nil {
+		return err
+	}
+
 	cid := "blob://" + payloadHash
 	if *clear {
 		cid = "none://"
@@ -116,30 +145,49 @@ func cmdSeal(e *env, args []string) error {
 		return err
 	}
 
-	// El contenido cifrado se guarda ANTES del bloque. Si el proceso muere entre
-	// las dos escrituras, sobra un blob sin bloque —inofensivo— en vez de faltar
-	// el blob de un bloque ya sellado, que sería un registro sin contenido.
+	// El contenido cifrado, los compromisos y la clave de idempotencia se escriben en
+	// la MISMA transacción que el bloque (ADR-020 §C). Antes eran tres escrituras
+	// sueltas, y un fallo entre la primera y la segunda dejaba un blob huérfano que
+	// bloqueaba el reintento de ese documento para siempre.
+	rec := store.Record{Block: b}
 	if !*clear {
-		ct, nonce, err := v.EncryptBlob(*tenant, payloadHash, data)
+		blob, err := contenidoParaSellar(v, s, *tenant, payloadHash, data, duplicados)
 		if err != nil {
 			return err
 		}
-		if err := s.PutBlob(payloadHash, ct, nonce); err != nil {
-			return err
-		}
-	}
-	if err := s.AppendBlock(b); err != nil {
-		return err
+		// nil significa que la fila que ya hay es exactamente la que se escribiría.
+		rec.Blob = blob
 	}
 
-	// Los compromisos se guardan DESPUÉS del bloque y referidos a su
-	// payload_hash: son metadatos del registro, no parte de lo firmado.
+	// Los compromisos van referidos al payload_hash, que sí está firmado, y NO al
+	// header: son metadatos del perfil.
 	var commitments map[string]string
 	if prof != nil {
-		commitments, err = storeCommitments(s, v, *tenant, payloadHash, prof)
+		var meta map[string][]byte
+		commitments, meta, err = commitmentsDe(v, *tenant, payloadHash, prof)
 		if err != nil {
 			return err
 		}
+		rec.Meta = meta
+	}
+
+	if idemKey.set {
+		k, val, err := entradaIdem(idemRecord{
+			Tenant:      *tenant,
+			Key:         idemKey.v,
+			Type:        *typ,
+			Block:       b.Header.Index,
+			PayloadHash: payloadHash,
+			SealedAt:    b.Header.Timestamp,
+		})
+		if err != nil {
+			return err
+		}
+		rec.State = map[string]string{k: val}
+	}
+
+	if err := s.AppendRecord(rec); err != nil {
+		return err
 	}
 
 	salida := map[string]any{
@@ -147,6 +195,13 @@ func cmdSeal(e *env, args []string) error {
 		"hash":         b.Hash,
 		"payload_hash": payloadHash,
 		"encrypted":    !*clear,
+		"idempotent":   false,
+	}
+	if len(duplicados) > 0 {
+		salida["duplicate_of"] = duplicados
+	}
+	if idemKey.set {
+		salida["idempotency_key"] = idemKey.v
 	}
 	if prof != nil {
 		salida["profile"] = prof.name
@@ -159,20 +214,14 @@ func cmdSeal(e *env, args []string) error {
 	// muerta, es aquí donde tiene que enterarse, no la próxima vez que alguien se
 	// acuerde de mirar `status`. El sellado no falla por ello —el bloque queda
 	// escrito y firmado, que es lo que se pidió— pero deja de ser silencioso.
-	st, err := checkStaleness(s, res, wp != nil, now(), e.staleAfter, b.Header.Index+1)
+	// La atestación y el firmante van en la misma cola que el reintento idempotente,
+	// con la misma semántica que status: el bloque recién sellado NO está cubierto por
+	// ellos —eso lo dice el texto—, pero quien automatiza el sellado tiene que poder
+	// ver en la misma salida qué respaldaba la historia sobre la que acaba de escribir.
+	st, err := sealTail(e, s, res, wp != nil, b.Header.Index+1, salida)
 	if err != nil {
 		return err
 	}
-	salida["freshness"] = st.json()
-	// La atestación y el firmante, con la misma semántica que status: el bloque
-	// recién sellado NO está cubierto por ellos —eso lo dice el texto—, pero quien
-	// automatiza el sellado tiene que poder ver en la misma salida qué respaldaba
-	// la historia sobre la que acaba de escribir.
-	salida["attestation"] = res.Attestation.String()
-	salida["attested"] = res.Attested()
-	salida["attested_size"] = res.AttestedSize
-	salida["signer"] = signerJSON(res)
-	st.warn(e)
 
 	e.out(salida, func() {
 		e.printf("✔ registro sellado\n")
@@ -182,6 +231,7 @@ func cmdSeal(e *env, args []string) error {
 		if *clear {
 			e.printf("  el contenido NO se guardó: solo queda su hash en el ledger\n")
 		}
+		printDuplicados(e, duplicados)
 		if prof != nil {
 			printProfile(e, prof, commitments)
 		}

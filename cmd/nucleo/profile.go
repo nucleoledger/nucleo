@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/commit"
-	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/vault"
 	"github.com/nucleoledger/nucleo/profiles/ecuador"
 )
@@ -46,37 +45,40 @@ func newProfileResult(name, tenant string, rec ecuador.Record) *profileResult {
 // registro en vault_meta.
 const metaCommitPrefix = "commit/v1/"
 
-// storeCommitments calcula y guarda los compromisos de los campos sensibles.
+// commitmentsDe calcula los compromisos de los campos sensibles y devuelve, además de
+// lo que se enseña, la entrada de vault_meta lista para escribir.
 //
-// Se guardan en vault_meta y no en el header del bloque a propósito. El header
-// lo fija PROTOCOL.md §2 con ocho campos escalares, y cada campo nuevo ahí sería
-// un cambio de formato que rompería los vectores compartidos y los verificadores
-// de otros lenguajes. Los compromisos son metadatos del perfil: se atan al
-// registro por su payload_hash, que sí está firmado.
-func storeCommitments(s *store.Store, v *vault.Vault, tenant, payloadHash string, p *profileResult) (map[string]string, error) {
+// No escribe: desde ADR-020 §C el sellado mete el bloque, el contenido cifrado y los
+// compromisos en UNA transacción, y para eso quien calcula tiene que devolver bytes, no
+// haber escrito ya. Antes se llamaba storeCommitments y guardaba por su cuenta, después
+// del bloque; un fallo en medio dejaba un registro sin sus compromisos.
+//
+// Van a vault_meta y no al header del bloque a propósito. El header lo fija
+// PROTOCOL.md §2 con ocho campos escalares, y cada campo nuevo ahí sería un cambio de
+// formato que rompería los vectores compartidos y los verificadores de otros lenguajes.
+// Los compromisos son metadatos del perfil: se atan al registro por su payload_hash,
+// que sí está firmado.
+func commitmentsDe(v *vault.Vault, tenant, payloadHash string, p *profileResult) (map[string]string, map[string][]byte, error) {
 	if len(p.sensitive) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	key, err := v.CommitKey(tenant)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := make(map[string]string, len(p.sensitive))
 	for _, f := range p.sensitive {
 		c, err := commit.CommitField(key, f.Name, f.Value)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out[f.Name] = c
 	}
 	blob, err := marshalJSON(out)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := s.PutMeta(metaCommitPrefix+payloadHash, blob); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return out, map[string][]byte{metaCommitPrefix + payloadHash: blob}, nil
 }
 
 // printProfile enseña lo que el perfil entendió y lo que decidió ocultar.
