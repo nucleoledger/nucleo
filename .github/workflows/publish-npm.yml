@@ -20,7 +20,9 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # Imagen fijada, por lo mismo que en release.yml: lo que se publica no debe depender
+    # de qué imagen le toque al runner ese mes.
+    runs-on: ubuntu-24.04
     permissions:
       # El token OIDC es toda la autenticación. Sin esto, npm no tiene forma de
       # saber quién publica y rechaza la petición.

@@ -10,7 +10,11 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # Imagen FIJADA. Es el job donde más importa: de aquí salen los binarios que se
+    # publican y se firman, y una migración silenciosa del runner cambiaría el entorno de
+    # compilación sin que nadie lo pidiera. Hoy `ubuntu-latest` ya resuelve a esta misma
+    # imagen, así que fijarla no cambia nada más que quién decide cuándo se mueve.
+    runs-on: ubuntu-24.04
     permissions:
       # Para crear el release y subir los artefactos.
       contents: write

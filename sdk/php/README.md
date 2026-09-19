@@ -126,7 +126,8 @@ NUCLEO_PHP="/mnt/c/xampp/php/php.exe -d extension=php_sodium.dll" node scripts/d
 
 Si no hay PHP, el diferencial lo dice y sigue con dos de tres. Lo que no hace es
 callarse: una compuerta que no distingue "coinciden" de "no se comprobó" no es una
-compuerta.
+compuerta. Y con `NUCLEO_DIFERENCIAL_EXIGE_PHP=1` la ausencia deja de ser un aviso y
+pasa a ser un fallo — es lo que pone el CI, donde el tercer verificador no es opcional.
 
 ## Lo que este SDK NO hace
 

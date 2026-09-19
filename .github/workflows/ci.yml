@@ -8,7 +8,13 @@ jobs:
       # justo la señal que decía si el fallo era de Windows o de todos.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Imágenes FIJADAS, no `-latest`. Hoy resuelven a exactamente esto —comprobado en
+        # el run 35314100642—, así que no cambia nada ahora; lo que cambia es que el
+        # entorno de un verificador criptográfico deje de moverse solo. GitHub anuncia la
+        # migración a Ubuntu 26 para el 19 de octubre, y la de macOS ya ocurrió:
+        # macos-latest es macos-26-arm64 desde hace poco. El precio es que hay que subir
+        # estas etiquetas a mano cuando una imagen se retire, y el aviso llega con meses.
+        os: [ubuntu-24.04, macos-26, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +42,7 @@ jobs:
   # testdata/vectors/ que la suite de Go. Es lo que impide que las dos
   # implementaciones diverjan sin que nadie se entere.
   sdk-ts:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: sdk/ts
@@ -83,7 +89,7 @@ jobs:
   # nada profundo. Lo profundo se busca a mano, en tandas de minutos, y el
   # hallazgo se deja en el corpus.
   fuzz:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -129,7 +135,7 @@ jobs:
   # es divergencia; si uno acepta y otro no, sí. Para añadir mutaciones, ver el
   # test de Go.
   diferencial:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -150,23 +156,31 @@ jobs:
         run: NUCLEO_DIFERENCIAL_OUT="$RUNNER_TEMP/catalogo.json" go test ./internal/receipt -run '^TestDiferencialGeneraCatalogo$'
       # PHP es el TERCER verificador desde el Sprint 8 (ADR-021 §F), escrito desde
       # PROTOCOL.md y no portado: dos implementaciones con el mismo linaje comparten
-      # errores. La imagen del runner trae php-cli; sodium hace falta para Ed25519.
-      - name: PHP con sodium
+      # errores.
+      #
+      # La extensión la entrega setup-php y no `apt-get`. El intento anterior falló en el
+      # run 35314100642 por las dos puntas: en Ubuntu el paquete se llama php8.3-sodium
+      # —`php-sodium` solo existe con el PPA de Ondřej, que esta imagen no trae—, y
+      # parchear la imagen a mano deja el job a merced de lo que traiga el runner ese mes.
+      # setup-php instala la versión y las extensiones que se le piden, siempre las
+      # mismas. Es una acción de terceros y se fija por eso en su tag mayor.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sodium
+          coverage: none
+      # El guardián se queda, pero COMPRUEBA lo prometido en vez de instalarlo. Y vive en
+      # un fichero .php porque el defecto anterior fue de comillas: `php -r '…'` llegaba
+      # truncado —"syntax error, unexpected end of file"— tras pasar por YAML y por el
+      # shell. Un fichero no tiene comillas que anidar.
+      - name: PHP listo para el diferencial
         run: |
-          # En el CI el tercer verificador NO es opcional: si la imagen del runner deja
-          # de traer php-cli, esto falla a propósito en vez de correr con dos de tres. El
-          # diferencial sí tolera la ausencia (y la dice) porque una máquina de desarrollo
-          # puede no tener PHP; un job que existe para comparar tres, no.
           command -v php >/dev/null || {
-            echo "la imagen del runner ya no trae php-cli: el diferencial se quedaría con dos de tres" >&2
+            echo "setup-php no dejó un php ejecutable: el diferencial se quedaría con dos de tres" >&2
             exit 1
           }
           php -v
-          php -r 'exit(extension_loaded("sodium") ? 0 : 1)' || {
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends php-sodium
-          }
-          php -r 'if (!extension_loaded("sodium")) { fwrite(STDERR, "PHP sin sodium: el diferencial no podria usarlo"); exit(1); }'
+          php scripts/ci-php-listo.php
       # Con NUCLEO_BIN, la suite de PHP incluye el sellado de punta a punta: PHP
       # ejecutando el binario de verdad, con clave de idempotencia (ADR-020 §D). Sin la
       # variable, la suite AVISA de que esa parte no se comprobó.
@@ -174,19 +188,23 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/nucleo" ./cmd/nucleo
           NUCLEO_BIN="$RUNNER_TEMP/nucleo" php sdk/php/test/run.php
-      - name: Los mismos recibos por el bundle de TypeScript
+      # Los TRES verificadores sobre las mismas mutaciones. NUCLEO_DIFERENCIAL_EXIGE_PHP
+      # es lo que convierte "PHP no se comprobó" en un fallo: sin esa variable el script
+      # sigue con dos de tres y lo dice —una máquina de desarrollo puede no tener PHP—,
+      # pero un job que existe para comparar tres no puede terminar en verde con dos.
+      - name: Los mismos recibos por el bundle de TypeScript y por el SDK de PHP
         working-directory: sdk/ts
+        env:
+          NUCLEO_DIFERENCIAL_EXIGE_PHP: '1'
         run: |
           npm ci
           npm run bundle
           node scripts/diferencial.mjs "$RUNNER_TEMP/catalogo.json"
-        # El script busca `php` en el PATH y falla si lo encuentra y no funciona; si no
-        # hubiera PHP lo diría en voz alta en vez de callarse.
 
   # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
   # La configuración y el porqué de cada exclusión están en .golangci.yml.
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

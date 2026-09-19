@@ -12,6 +12,10 @@
 // con dos de tres; una compuerta que no distingue "coinciden" de "no se comprobó" no
 // es una compuerta. Se busca en $NUCLEO_PHP (puede llevar argumentos) o en `php`.
 //
+// Con NUCLEO_DIFERENCIAL_EXIGE_PHP=1, no seguir: la ausencia de PHP pasa de aviso a
+// fallo. Lo pone el CI, donde el tercer verificador no es opcional. Una máquina de
+// desarrollo sin PHP sigue pudiendo correr el diferencial de dos.
+//
 // Uso:  node scripts/diferencial.mjs <catalogo.json>
 // Cómo añadir mutaciones: en catalogoDeMutaciones, en el test de Go. Este script
 // no genera nada; solo compara.
@@ -181,6 +185,8 @@ if (politicas.length === 0) {
 // formas.
 const etapasPHP = new Map();
 let phpEstado = "";
+// El CI lo pone; una máquina de desarrollo, no.
+const exigePHP = process.env.NUCLEO_DIFERENCIAL_EXIGE_PHP === "1";
 {
   const cmd = (process.env.NUCLEO_PHP ?? "php").split(/\s+/).filter(Boolean);
   // La raíz del repositorio y una ruta RELATIVA al script: en WSL con el PHP de
@@ -191,6 +197,15 @@ let phpEstado = "";
   const sonda = spawnSync(cmd[0], [...cmd.slice(1), "-r", "echo PHP_VERSION;"], { encoding: "utf8" });
   if (sonda.error || sonda.status !== 0) {
     phpEstado = `NO SE COMPROBÓ: no hay PHP ejecutable (${cmd.join(" ")}). Define NUCLEO_PHP si está en otro sitio.`;
+    if (exigePHP) {
+      divergencias.push({
+        nombre: "php: EXIGIDO y ausente",
+        go: "",
+        ts: "",
+        goErr: "",
+        tsErr: phpEstado,
+      });
+    }
   } else {
     // El catálogo va por la entrada estándar y no por una ruta: en WSL con el PHP de
     // Windows no hay ninguna ruta que sirva para los dos procesos, y por stdin no hay
@@ -278,5 +293,5 @@ if (divergencias.length > 0 || lanzo > 0) process.exit(1);
 console.log(
   phpEstado.startsWith("NO SE COMPROBÓ")
     ? "✔ Go y TypeScript coinciden en todas las mutaciones — PHP no se comprobó (ver arriba)"
-    : "✔ los tres verificadores coinciden en todas las mutaciones",
+    : "✔ los TRES verificadores coinciden en todas las mutaciones",
 );
