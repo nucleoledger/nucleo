@@ -20,6 +20,19 @@ An environment with **Ed25519 in WebCrypto**: Node ≥ 20, Chrome ≥ 137,
 Safari ≥ 17, Firefox ≥ 130. In a browser the page must be served over `https` or
 from `localhost`, because `crypto.subtle` is unavailable otherwise.
 
+That is what the **published package** needs, and it has no runtime dependencies
+at all. Working on this repository needs more: the test runner (vitest 5) wants
+Node ≥ 22.12, which is what `.nvmrc` pins.
+
+`package.json` carries one `overrides` entry — `vite: ^7` — and it is there for a
+reason worth writing down, since a manifest cannot hold comments: vitest pulls
+vite in, and vite **8** declares a peer on `esbuild ^0.27 || ^0.28`, which
+conflicts with the `esbuild 0.25.0` this package pins to build the browser bundle.
+Vite 7 declares no esbuild peer at all, so constraining it there keeps the
+bundler where it is. Bumping esbuild is a separate decision with its own
+verification — it changes bytes that ship in `web/verify/nucleo-verify.js` — and
+not something a security patch on the test runner gets to do as a side effect.
+
 ## Usage
 
 ```ts
