@@ -1,8 +1,19 @@
 session-*.md
 .obsidian/
-bin/
+# ANCLADO con "/": `bin/` a secas ignora CUALQUIER directorio llamado bin a
+# cualquier profundidad, y eso se llevó por delante sdk/php/bin/dictamen.php —el
+# punto de entrada del tercer verificador del diferencial— sin que nada avisara:
+# el fichero estaba en disco, la compuerta local pasaba, y el CI fallaba con
+# "Could not open input file" porque en el repositorio no estaba (run 35468562784).
+# Es exactamente lo que advierte el comentario de `/nucleo` de más abajo, en el
+# mismo fichero. Lo que se quiere ignorar es el directorio de compilación de la
+# raíz, y eso es `/bin/`.
+/bin/
 *.test
 *.out
+# También sin anclar a propósito: sdk/ts/dist es un bundle que se reconstruye con
+# `npm run bundle` y no se versiona. El que SÍ se versiona es
+# web/verify/nucleo-verify.js, que es lo que sirve la página.
 dist/
 
 # Binarios compilados. Un producto de integridad no distribuye —ni versiona—
