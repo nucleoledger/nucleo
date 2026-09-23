@@ -1,0 +1,8 @@
+{
+  "name": "invalido-vacio",
+  "description": "stdout vacío",
+  "exit_code": 0,
+  "stdout": "",
+  "valid": false,
+  "reason": "un binario que no escribió nada no sella nada"
+}

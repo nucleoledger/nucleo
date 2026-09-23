@@ -1,0 +1,8 @@
+{
+  "name": "invalido-hash-mayusculas",
+  "description": "hash en mayúsculas",
+  "exit_code": 0,
+  "stdout": "{\n  \"attestation\": \"none\",\n  \"attested\": false,\n  \"attested_size\": 0,\n  \"encrypted\": true,\n  \"freshness\": {\n    \"attested_ever\": false,\n    \"policy\": false,\n    \"source\": \"none\",\n    \"stale\": true,\n    \"threshold_hours\": 72,\n    \"verified\": false\n  },\n  \"hash\": \"593C84D86C574E6745A40377B6BA7D019FB565535804E6CFEDE1A6875BFDCD23\",\n  \"idempotent\": false,\n  \"index\": 0,\n  \"ok\": true,\n  \"payload_hash\": \"b60423d5a606ef5b84634f18f6e3110dc9ccac3c5b484ded6e86cffe77e0c45c\",\n  \"signer\": {\n    \"pubkey\": \"\",\n    \"state\": \"none\",\n    \"verified\": false\n  }\n}\n",
+  "valid": false,
+  "reason": "la forma canónica del proyecto es el hex minúsculo; dos grafías del mismo hash son una de más"
+}

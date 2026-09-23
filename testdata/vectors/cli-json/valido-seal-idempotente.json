@@ -1,0 +1,19 @@
+{
+  "name": "valido-seal-idempotente",
+  "description": "el reintento con la misma clave: idempotent true y no se escribió nada",
+  "command": [
+    "--json",
+    "seal",
+    "--tenant",
+    "1790012345001",
+    "--type",
+    "sri.factura.v1",
+    "--payload",
+    "\u003cDIR\u003e/doc-002.json",
+    "--idempotency-key",
+    "contrato-002"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"attestation\": \"none\",\n  \"attested\": false,\n  \"attested_size\": 0,\n  \"encrypted\": true,\n  \"freshness\": {\n    \"attested_ever\": false,\n    \"policy\": false,\n    \"source\": \"none\",\n    \"stale\": true,\n    \"threshold_hours\": 72,\n    \"verified\": false\n  },\n  \"hash\": \"6be0f8af22ee16debca7465defd769c9bd695ccabeee4c7f597128d158cf85e4\",\n  \"idempotency_key\": \"contrato-002\",\n  \"idempotent\": true,\n  \"index\": 2,\n  \"ok\": true,\n  \"payload_hash\": \"27ffeba887f777cf8861cd71455cb5c1c43fb60dc3c591a05f2d25c8ad754ec8\",\n  \"signer\": {\n    \"pubkey\": \"1452087a636d691592b449857ba76372320731039b297092be0f1bbb76848ada\",\n    \"state\": \"unverified\",\n    \"verified\": false\n  }\n}\n",
+  "valid": true
+}

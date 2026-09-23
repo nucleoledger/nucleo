@@ -105,6 +105,27 @@ La clave está acotada por tenant, así que `factura-001` es de cualquiera.
   hay degradado silencioso: un sellador que sigue adelante sin sellar es lo peor que
   este producto puede hacer.
 
+## El contrato de `--json`
+
+El envoltorio no lee la salida de la CLI con casts: la lee con `Nucleo\Contract`, que
+aplica la gramática de [docs/CLI-JSON.md](../../docs/CLI-JSON.md) campo por campo y
+**falla cerrado** ([ADR-025](../../docs/adr/ADR-025-json-como-formato-de-cable.md)). Un
+campo obligatorio ausente, un tipo que no es el suyo, un hash que no es hex de 64, una
+salida truncada o un binario que escribe cualquier otra cosa dan `SealContractError`:
+
+```php
+try {
+    $r = $sealer->sealBytes($xml, 'sri.factura.v1', $ruc, "factura-$n");
+} catch (Nucleo\SealContractError $e) {
+    // El binario no es el que este SDK espera: revisa el despliegue.
+    // Hasta el 2026-09-19 esto no existía y aquí llegaba un SealResult con index = -1.
+    throw $e;
+}
+```
+
+Lo que sí se tolera es un campo que este SDK no conozca: un binario más nuevo puede
+añadirlos y el envoltorio sigue andando. Son las dos mitades de la misma regla.
+
 ## La suite
 
 ```bash

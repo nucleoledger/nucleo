@@ -1,0 +1,8 @@
+{
+  "name": "invalido-json-lista",
+  "description": "una lista JSON en vez de un objeto",
+  "exit_code": 0,
+  "stdout": "[1,2,3]\n",
+  "valid": false,
+  "reason": "el contrato es un objeto"
+}

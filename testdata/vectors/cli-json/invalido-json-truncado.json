@@ -1,0 +1,8 @@
+{
+  "name": "invalido-json-truncado",
+  "description": "JSON cortado a la mitad",
+  "exit_code": 0,
+  "stdout": "{\n  \"attestation\": \"none\",\n  \"attested\": false,\n  \"attested_size\": 0,\n  \"encrypted\": true,\n  \"freshness\": {\n    \"atteste",
+  "valid": false,
+  "reason": "una salida truncada —tubería cerrada, disco lleno— no puede pasar por buena"
+}

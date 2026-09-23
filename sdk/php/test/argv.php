@@ -41,19 +41,14 @@ function entornoFalso(string $nombre): array
     if (!$ventanas) {
         chmod($bin, 0700);
     }
-    // Una salida que el contrato de SealResult acepta (ADR-025): todos los campos.
-    file_put_contents($salida, json_encode([
-        'index' => 0,
-        'hash' => str_repeat('ab', 32),
-        'payload_hash' => str_repeat('cd', 32),
-        'encrypted' => true,
-        'idempotent' => false,
-        'attestation' => 'none',
-        'attested' => false,
-        'attested_size' => 0,
-        'signer' => ['verified' => false, 'pubkey' => str_repeat('ef', 32)],
-        'freshness' => ['stale' => true, 'verified' => false, 'source' => 'none', 'policy' => false, 'attested_ever' => false, 'threshold_hours' => 72],
-    ]));
+    // La salida del binario falso sale de los VECTORES DEL CONTRATO, no de una lista de
+    // campos escrita aquí: `seal` y `status` mezclados en un objeto, que es legítimo
+    // porque el contrato ignora lo que no conoce (ADR-025 §B). Así el falso contesta lo
+    // que contesta la CLI de verdad, y si el contrato cambia, cambia aquí también.
+    $vectores = dirname(__DIR__, 3) . '/testdata/vectors/cli-json';
+    $deSeal = json_decode(json_decode(file_get_contents($vectores . '/valido-seal.json'), true)['stdout'], true);
+    $deStatus = json_decode(json_decode(file_get_contents($vectores . '/valido-status-vacio.json'), true)['stdout'], true);
+    file_put_contents($salida, json_encode(array_merge($deStatus, $deSeal)));
 
     $pass = $dir . DIRECTORY_SEPARATOR . 'pass.txt';
     file_put_contents($pass, "correcta caballo bateria grapa\n");

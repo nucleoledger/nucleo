@@ -72,7 +72,7 @@ final class Sealer
         if (!$encrypt) {
             $args[] = '--no-encrypt';
         }
-        return SealResult::fromJSON($this->run($args));
+        return SealResult::fromObject($this->run($args));
     }
 
     /**
@@ -105,10 +105,16 @@ final class Sealer
         }
     }
 
-    /** status devuelve el --json de `nucleo status`, útil para un cron de vigilancia. */
+    /**
+     * status devuelve el --json de `nucleo status`, útil para un cron de vigilancia.
+     *
+     * Pasa por el contrato igual que el sellado (ADR-025): devuelve el objeto entero
+     * —lo que un cron mira cambia con lo que a cada integrador le importe— pero solo
+     * después de comprobar que lo obligatorio está y es del tipo que dice ser.
+     */
     public function status(): array
     {
-        return $this->run(['status']);
+        return Contract::status($this->run(['status']));
     }
 
     /**
@@ -136,14 +142,15 @@ final class Sealer
     }
 
     /**
-     * run ejecuta la CLI y devuelve su JSON.
+     * run ejecuta la CLI y devuelve su JSON ya decodificado (stdClass: ver
+     * Contract::decode sobre por qué no un array).
      *
      * proc_open con el comando en ARRAY: así no hay shell, y por tanto no hay citado que
      * se pueda equivocar con un nombre de fichero raro. La passphrase va por fichero y
      * nunca por argumento —la lista de procesos la ve toda la máquina— ni por entorno,
      * que en muchos paneles es legible.
      */
-    private function run(array $args): array
+    private function run(array $args): \stdClass
     {
         if ($args === []) {
             throw new SealEnvironmentError('run sin subcomando: es un error de programación del SDK');
@@ -202,16 +209,21 @@ final class Sealer
         fclose($pipes[2]);
         $code = proc_close($proc);
 
-        $j = json_decode($out, true);
-        if (!is_array($j)) {
-            throw SealError::make(sprintf(
-                'la CLI no devolvió JSON (código %d). Primeros bytes: %s',
-                $code,
-                json_encode(substr($out, 0, 200))
-            ), $code, $err);
+        // El decodificador es el del contrato (ADR-025), el mismo que recorren los
+        // vectores de testdata/vectors/cli-json/: una salida que no es JSON, o que es
+        // JSON y no un objeto, sale por aquí con sus primeros bytes a la vista.
+        try {
+            $j = Contract::decode($out);
+        } catch (SealContractError $e) {
+            $e2 = SealError::make($e->getMessage(), $code, $err);
+            throw $code === 0 ? $e : $e2;
         }
-        if ($code !== 0 || ($j['ok'] ?? true) === false) {
-            throw SealError::make((string) ($j['error'] ?? 'el sellado falló sin decir por qué'), $code, $err);
+        if ($code !== 0 || ($j->ok ?? null) === false) {
+            throw SealError::make(
+                is_string($j->error ?? null) ? $j->error : 'el sellado falló sin decir por qué',
+                $code,
+                $err
+            );
         }
         return $j;
     }

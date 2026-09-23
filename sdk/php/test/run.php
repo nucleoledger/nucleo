@@ -220,6 +220,10 @@ unset($sinSigner['signerKey']);
 $r = Verifier::verify($recibo, $sinSigner);
 comprueba('sin signerKey no hay veredicto positivo', !$r->valid);
 
+// ---------------------------------------------------------------- contrato --json
+require __DIR__ . '/contrato.php';
+pruebasDeContrato($vectores);
+
 // ---------------------------------------------------------------- sellador
 // El argv primero: no necesita binario de verdad y es donde vivía el hallazgo alto de
 // la auditoría del 19-sep (la política que se guardaba y no se pasaba).

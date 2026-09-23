@@ -1,0 +1,8 @@
+{
+  "name": "invalido-no-es-json",
+  "description": "stdout que no es JSON",
+  "exit_code": 0,
+  "stdout": "nucleo: command not found\n",
+  "valid": false,
+  "reason": "un binario que escribe ayuda, un error de shell o un mensaje de arranque se ve así"
+}

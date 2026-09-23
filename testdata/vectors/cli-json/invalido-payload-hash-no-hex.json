@@ -1,0 +1,8 @@
+{
+  "name": "invalido-payload-hash-no-hex",
+  "description": "payload_hash con caracteres que no son hex",
+  "exit_code": 0,
+  "stdout": "{\n  \"attestation\": \"none\",\n  \"attested\": false,\n  \"attested_size\": 0,\n  \"encrypted\": true,\n  \"freshness\": {\n    \"attested_ever\": false,\n    \"policy\": false,\n    \"source\": \"none\",\n    \"stale\": true,\n    \"threshold_hours\": 72,\n    \"verified\": false\n  },\n  \"hash\": \"593c84d86c574e6745a40377b6ba7d019fb565535804e6cfede1a6875bfdcd23\",\n  \"idempotent\": false,\n  \"index\": 0,\n  \"ok\": true,\n  \"payload_hash\": \"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\",\n  \"signer\": {\n    \"pubkey\": \"\",\n    \"state\": \"none\",\n    \"verified\": false\n  }\n}\n",
+  "valid": false,
+  "reason": "un hash no lleva letras fuera de [0-9a-f]"
+}

@@ -10,6 +10,22 @@ Lo que sigue se comprobó contra la CLI del commit que lo acompaña. Los tests d
 `cmd/nucleo` (`freshness_test.go`, `policy_test.go`, `stale_test.go`, `cli_test.go`)
 afirman cada campo aquí descrito; si esto y el binario discrepan, es un bug.
 
+**Este documento es NORMATIVO** desde [ADR-025](adr/ADR-025-json-como-formato-de-cable.md).
+La salida `--json` es un formato de cable: la consumen el SDK de PHP, los crons y
+cualquier ERP, así que recibe el mismo trato que la política (ADR-018) —gramática escrita,
+consumidor estricto, vectores compartidos—:
+
+- **Vectores**: `testdata/vectors/cli-json/`. Los `valido-*` los emite la CLI de verdad
+  (`cmd/nucleo/clijson_vectors_test.go`, que además falla si la salida de hoy deja de
+  coincidir con el vector); los `invalido-*` están escritos a mano y son lo que la CLI
+  nunca produce.
+- **Consumidor de referencia**: `Nucleo\Contract` en `sdk/php/src/Contract.php`, con su
+  suite en `sdk/php/test/contrato.php`.
+- **Quien parsea falla CERRADO**: un campo obligatorio ausente o con otro tipo es un
+  error, no un valor por omisión. Un `-1` por un índice que no vino, o un `false` por una
+  atestación que nadie afirmó, es cómo un binario antiguo o una salida truncada acaban
+  pareciendo un sellado correcto.
+
 ## Convenciones
 
 - **`ok`** (bool) va en todos los objetos. `true` cuando el subcomando hizo su
@@ -25,6 +41,14 @@ afirman cada campo aquí descrito; si esto y el binario discrepan, es un bug.
 - **Estabilidad.** Los campos documentados aquí no se renombran ni cambian de
   tipo sin una entrada en el CHANGELOG. Pueden **añadirse** campos; quien parsea
   debe ignorar los que no conoce. Los códigos de salida no cambian.
+- **Los booleanos son booleanos y los enteros enteros.** La CLI emite JSON canónico:
+  nunca `"0"` por un entero ni `"true"` por un booleano, así que un consumidor estricto
+  no tiene nada que tolerar. Los hashes y las claves van en hex **minúsculo** de 64
+  caracteres, y un consumidor puede rechazar cualquier otra grafía.
+- **Los campos que se contradicen no existen.** `attested` es exactamente
+  `attestation == "verified"`, y `signer.verified` es exactamente
+  `signer.state == "verified"`. Un consumidor puede —y debe— rechazar una salida donde no
+  cuadren: no hay nada que interpretar ahí.
 
 ## Objetos compartidos
 

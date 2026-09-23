@@ -1,0 +1,8 @@
+{
+  "name": "invalido-dos-objetos",
+  "description": "dos objetos JSON pegados",
+  "exit_code": 0,
+  "stdout": "{\"attestation\": \"none\", \"attested\": false, \"attested_size\": 0, \"encrypted\": true, \"freshness\": {\"attested_ever\": false, \"policy\": false, \"source\": \"none\", \"stale\": true, \"threshold_hours\": 72, \"verified\": false}, \"hash\": \"593c84d86c574e6745a40377b6ba7d019fb565535804e6cfede1a6875bfdcd23\", \"idempotent\": false, \"index\": 0, \"ok\": true, \"payload_hash\": \"b60423d5a606ef5b84634f18f6e3110dc9ccac3c5b484ded6e86cffe77e0c45c\", \"signer\": {\"pubkey\": \"\", \"state\": \"none\", \"verified\": false}}{\"attestation\": \"none\", \"attested\": false, \"attested_size\": 0, \"encrypted\": true, \"freshness\": {\"attested_ever\": false, \"policy\": false, \"source\": \"none\", \"stale\": true, \"threshold_hours\": 72, \"verified\": false}, \"hash\": \"593c84d86c574e6745a40377b6ba7d019fb565535804e6cfede1a6875bfdcd23\", \"idempotent\": false, \"index\": 0, \"ok\": true, \"payload_hash\": \"b60423d5a606ef5b84634f18f6e3110dc9ccac3c5b484ded6e86cffe77e0c45c\", \"signer\": {\"pubkey\": \"\", \"state\": \"none\", \"verified\": false}}",
+  "valid": false,
+  "reason": "la CLI escribe exactamente un objeto y nada más"
+}

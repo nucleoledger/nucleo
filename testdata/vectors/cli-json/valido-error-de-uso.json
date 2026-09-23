@@ -1,0 +1,17 @@
+{
+  "name": "valido-error-de-uso",
+  "description": "un error de uso: ok false, error y exit_code, y el proceso sale con ese código",
+  "command": [
+    "--json",
+    "seal",
+    "--tenant",
+    "1790012345001",
+    "--type",
+    "sri.factura.v1",
+    "--payload",
+    "no-existe.json"
+  ],
+  "exit_code": 1,
+  "stdout": "{\n  \"error\": \"no se pudo leer el documento \\\"no-existe.json\\\": open no-existe.json: no such file or directory\",\n  \"exit_code\": 1,\n  \"ok\": false\n}\n",
+  "valid": true
+}
