@@ -178,3 +178,40 @@ func TestSealProfileJSONLlevaCompromisos(t *testing.T) {
 		t.Errorf("valores sensibles en la salida JSON:\n%s", out)
 	}
 }
+
+// TestPerfilesExpuestos fija la lista de perfiles que `seal --profile` acepta.
+//
+// Existe porque la auditoría del 2026-09-19 encontró que el README anunciaba
+// `sas.acta.v1` en "What works today" mientras la CLI solo reconocía
+// ecuador.sri.factura. No había nada que sujetara esa lista: ni añadir un perfil ni
+// quitarlo rompía ningún test, así que la documentación podía adelantarse al código —y se
+// adelantó— sin que nadie se enterara.
+//
+// Este test no dice qué perfiles DEBERÍA haber: dice cuáles hay. Cambiar la lista exige
+// cambiarlo, y ese diff es la conversación.
+func TestPerfilesExpuestos(t *testing.T) {
+	expuestos := []string{"ecuador.sri.factura"}
+
+	for _, p := range expuestos {
+		if _, err := applyProfile(p, []byte("no es un documento válido")); err != nil &&
+			strings.Contains(err.Error(), "perfil desconocido") {
+			t.Errorf("%s debería estar expuesto y no lo está: %v", p, err)
+		}
+	}
+
+	// Y lo que NO está, incluido el acta: el error nombra lo que sí hay, para que quien
+	// lo lea sepa qué escribir en su lugar. El porqué del acta está en ParseActa y en
+	// ADR-023 §C: su payload sale del registro mercantil y el perfil aún no exige
+	// entropía dentro del documento.
+	for _, p := range []string{"ecuador.sas.acta", "ecuador.sas.acta.v1", "sas.acta", "inventado", ""} {
+		_, err := applyProfile(p, []byte(`{"razon_social":"X"}`))
+		if err == nil {
+			t.Errorf("%q no está cableado y applyProfile lo aceptó", p)
+			continue
+		}
+		if !strings.Contains(err.Error(), "perfil desconocido") ||
+			!strings.Contains(err.Error(), "ecuador.sri.factura") {
+			t.Errorf("%q: el error no dice qué perfiles hay: %v", p, err)
+		}
+	}
+}

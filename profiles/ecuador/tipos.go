@@ -147,6 +147,18 @@ type Acta struct {
 }
 
 // ParseActa valida un acta y decide qué va comprometido.
+//
+// NO ESTÁ CABLEADA A LA CLI, y es deliberado: `seal --profile` expone hoy solo
+// ecuador.sri.factura (ver cmd/nucleo/profile.go y su test de la lista expuesta). El
+// README lo dice así desde la auditoría del 2026-09-19, que encontró la afirmación
+// contraria.
+//
+// Lo que hace falta ANTES de cablearla, y no es un `case` en un switch: el payload de un
+// acta —razón social, fecha de junta, tipo, lista de socios— sale del registro mercantil,
+// que es público. Es el documento enumerable del que habla ADR-023 §C, donde un perfil que
+// Núcleo escriba TIENE que exigir un campo aleatorio dentro del payload. Ese miembro es
+// una decisión de formato que este perfil todavía no tiene, y cablearlo sin ella sería
+// ofrecer un registro cuyo contenido se adivina desde su propio hash.
 func ParseActa(a Acta) (Record, error) {
 	switch {
 	case strings.TrimSpace(a.RazonSocial) == "":
