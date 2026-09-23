@@ -122,7 +122,15 @@ func connect(path string) (*Store, error) {
 		"?_pragma=journal_mode(WAL)" +
 		"&_pragma=synchronous(FULL)" +
 		"&_pragma=foreign_keys(ON)" +
-		"&_pragma=busy_timeout(5000)"
+		"&_pragma=busy_timeout(5000)" +
+		// Transacciones en modo IMMEDIATE: el candado de escritura se toma al abrir la
+		// transacción y no en la primera escritura. Con el modo diferido —el de por
+		// omisión— SQLite en WAL devuelve BUSY INMEDIATO si otra transacción confirmó
+		// mientras la nuestra leía, y `busy_timeout` no reintenta ese caso: el ensayo de
+		// operación del Sprint 10 vio a dos workers de un ERP perder un tercio de los
+		// sellados por esto. En modo immediate, el segundo escritor ESPERA su turno
+		// hasta busy_timeout en vez de fallar.
+		"&_txlock=immediate"
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {

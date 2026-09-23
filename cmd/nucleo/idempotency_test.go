@@ -98,8 +98,13 @@ func TestSelladoInterrumpidoNoBloqueaElReintento(t *testing.T) {
 	if code != exitUsage {
 		t.Fatalf("con el reloj atrasado el sellado debe fallar: código %d\n%s", code, c.ultima())
 	}
-	if !strings.Contains(errOut, "timestamp anterior") {
-		t.Errorf("el fallo debería ser el del encadenamiento:\n%s", c.ultima())
+	// El mensaje cambió en el Sprint 10 y a mejor: antes decía "ledger: timestamp
+	// anterior al del bloque previo", que es exacto y no le dice a nadie que el problema
+	// está en el reloj de su máquina. Lo que esta prueba fija ahora es que lo diga.
+	for _, quiere := range []string{"reloj de esta máquina", "POR DETRÁS", "NTP"} {
+		if !strings.Contains(errOut, quiere) {
+			t.Errorf("el fallo del reloj debería decir %q:\n%s", quiere, c.ultima())
+		}
 	}
 
 	t.Setenv(envClock, testClockRFC)

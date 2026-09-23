@@ -115,79 +115,111 @@ func cmdSeal(e *env, args []string) error {
 		}
 	}
 
-	prev, err := s.LastBlock()
-	if err != nil && !errors.Is(err, store.ErrNotFound) {
-		return err
-	}
-	if errors.Is(err, store.ErrNotFound) {
-		prev = nil
-	}
+	// Un intento de sellado: leer el último bloque, construir el siguiente, firmarlo y
+	// escribirlo todo en una transacción. Va en un bucle porque entre la lectura y la
+	// escritura puede colarse OTRO proceso —el ERP con dos workers— y entonces el bloque
+	// que acabamos de firmar ya no sigue a nadie. Ver intentosDeSellado.
+	var (
+		b           *ledger.Block
+		duplicados  []uint64
+		commitments map[string]string
+	)
+	intento := func() error {
+		// La clave de idempotencia se vuelve a mirar en CADA intento: si el proceso que
+		// nos ganó la carrera era nuestro propio reintento con la misma clave, el
+		// registro ya está y sellar otra vez lo duplicaría.
+		if idemKey.set {
+			previo, hay, err := leerIdem(s, *tenant, idemKey.v)
+			if err != nil {
+				return err
+			}
+			if hay {
+				return sealIdempotente(e, s, res, wp != nil, previo, payloadHash, *typ, prof)
+			}
+		}
 
-	// Los bloques que ya sellaron ESTE contenido. Se leen antes de escribir nada para
-	// poder NOMBRAR el duplicado: re-sellar es legítimo (ADR-020 §A), pero silencioso
-	// no, porque un duplicado accidental es mucho más frecuente que uno deliberado.
-	duplicados, err := s.BlocksWithPayload(payloadHash)
-	if err != nil {
-		return err
-	}
+		prev, err := s.LastBlock()
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		if errors.Is(err, store.ErrNotFound) {
+			prev = nil
+		}
 
-	cid := "blob://" + payloadHash
-	if *clear {
-		cid = "none://"
-	}
-
-	h, err := ledger.NewHeader(prev, *tenant, *typ, data, cid, id.TenantPublic(), now())
-	if err != nil {
-		return usageErr("%v", err)
-	}
-	b, err := ledger.Seal(h, id.Tenant)
-	if err != nil {
-		return err
-	}
-
-	// El contenido cifrado, los compromisos y la clave de idempotencia se escriben en
-	// la MISMA transacción que el bloque (ADR-020 §C). Antes eran tres escrituras
-	// sueltas, y un fallo entre la primera y la segunda dejaba un blob huérfano que
-	// bloqueaba el reintento de ese documento para siempre.
-	rec := store.Record{Block: b}
-	if !*clear {
-		blob, err := contenidoParaSellar(v, s, *tenant, payloadHash, data, duplicados)
+		// Los bloques que ya sellaron ESTE contenido. Se leen antes de escribir nada
+		// para poder NOMBRAR el duplicado: re-sellar es legítimo (ADR-020 §A), pero
+		// silencioso no, porque un duplicado accidental es mucho más frecuente que uno
+		// deliberado.
+		duplicados, err = s.BlocksWithPayload(payloadHash)
 		if err != nil {
 			return err
 		}
-		// nil significa que la fila que ya hay es exactamente la que se escribiría.
-		rec.Blob = blob
-	}
 
-	// Los compromisos van referidos al payload_hash, que sí está firmado, y NO al
-	// header: son metadatos del perfil.
-	var commitments map[string]string
-	if prof != nil {
-		var meta map[string][]byte
-		commitments, meta, err = commitmentsDe(v, *tenant, payloadHash, prof)
+		cid := "blob://" + payloadHash
+		if *clear {
+			cid = "none://"
+		}
+
+		h, err := ledger.NewHeader(prev, *tenant, *typ, data, cid, id.TenantPublic(), now())
+		if err != nil {
+			return usageErr("%v", err)
+		}
+		if err := relojCoherente(e, prev, h); err != nil {
+			return err
+		}
+		b, err = ledger.Seal(h, id.Tenant)
 		if err != nil {
 			return err
 		}
-		rec.Meta = meta
-	}
 
-	if idemKey.set {
-		k, val, err := entradaIdem(idemRecord{
-			Tenant:      *tenant,
-			Key:         idemKey.v,
-			Type:        *typ,
-			Block:       b.Header.Index,
-			PayloadHash: payloadHash,
-			SealedAt:    b.Header.Timestamp,
-		})
-		if err != nil {
-			return err
+		// El contenido cifrado, los compromisos y la clave de idempotencia se escriben
+		// en la MISMA transacción que el bloque (ADR-020 §C). Antes eran tres escrituras
+		// sueltas, y un fallo entre la primera y la segunda dejaba un blob huérfano que
+		// bloqueaba el reintento de ese documento para siempre.
+		rec := store.Record{Block: b}
+		if !*clear {
+			blob, err := contenidoParaSellar(v, s, *tenant, payloadHash, data, duplicados)
+			if err != nil {
+				return err
+			}
+			// nil significa que la fila que ya hay es exactamente la que se escribiría.
+			rec.Blob = blob
 		}
-		rec.State = map[string]string{k: val}
+
+		// Los compromisos van referidos al payload_hash, que sí está firmado, y NO al
+		// header: son metadatos del perfil.
+		if prof != nil {
+			var meta map[string][]byte
+			commitments, meta, err = commitmentsDe(v, *tenant, payloadHash, prof)
+			if err != nil {
+				return err
+			}
+			rec.Meta = meta
+		}
+
+		if idemKey.set {
+			k, val, err := entradaIdem(idemRecord{
+				Tenant:      *tenant,
+				Key:         idemKey.v,
+				Type:        *typ,
+				Block:       b.Header.Index,
+				PayloadHash: payloadHash,
+				SealedAt:    b.Header.Timestamp,
+			})
+			if err != nil {
+				return err
+			}
+			rec.State = map[string]string{k: val}
+		}
+		return s.AppendRecord(rec)
 	}
 
-	if err := s.AppendRecord(rec); err != nil {
+	if err := sellarConReintentos(intento); err != nil {
 		return err
+	}
+	if b == nil {
+		// sealIdempotente ya contestó: el reintento no escribió nada.
+		return nil
 	}
 
 	salida := map[string]any{
