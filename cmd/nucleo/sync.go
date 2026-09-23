@@ -34,6 +34,13 @@ func cmdSync(e *env, args []string) error {
 	if *url == "" {
 		return usageErr("sync necesita --witness URL")
 	}
+	// La URL se comprueba ANTES de tocar la red: una errata es un error de uso (código
+	// 1) y no un incidente del testigo (código 3). Con el código 3, un cron que
+	// reintenta ante incidentes reintentaría para siempre una URL que nunca va a
+	// funcionar (ensayo de operación del Sprint 10, escenario 3).
+	if err := validaURLDeTestigo(*url); err != nil {
+		return err
+	}
 	wp, file, err := pf.resolve(e)
 	if err != nil {
 		return err
@@ -138,7 +145,7 @@ func cmdSync(e *env, args []string) error {
 			})
 			return &exitError{code: exitVerify, err: rb, reported: true}
 		}
-		return syncErr("%v", err)
+		return errorDeTestigo(*url, err)
 	}
 
 	// Aquí, y solo aquí, se graba cuándo avaló un tercero este log: es el único

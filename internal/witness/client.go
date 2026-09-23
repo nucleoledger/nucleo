@@ -169,9 +169,27 @@ func (c *Client) AddCheckpoint(ctx context.Context, oldSize uint64, proof [][]by
 			Reason:   fmt.Errorf("el testigo recuerda un árbol de %d y se le declaró %d", size, oldSize),
 		}
 	default:
-		return nil, fmt.Errorf("witness: add-checkpoint: HTTP %d: %s",
-			resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return nil, &HTTPError{Op: "add-checkpoint", Status: resp.StatusCode, Body: strings.TrimSpace(string(respBody))}
 	}
+}
+
+// HTTPError es una respuesta del testigo con un código que no esperábamos.
+//
+// Lleva el código aparte del mensaje para que quien llama pueda decirle al operador algo
+// distinto según la clase: un 404 suele ser una URL equivocada o un log que ese testigo
+// no sirve, y un 500 es un problema del testigo que no se arregla tocando este ledger.
+// El texto es el mismo de antes, así que nada que lo lea cambia de comportamiento.
+type HTTPError struct {
+	// Op es qué se estaba pidiendo, en el vocabulario del protocolo.
+	Op string
+	// Status es el código HTTP.
+	Status int
+	// Body es lo que contestó, recortado.
+	Body string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("witness: %s: HTTP %d: %s", e.Op, e.Status, e.Body)
 }
 
 // ErrNoWitnessCheckpoint indica que el testigo nunca cosignó para ese origin.
@@ -211,7 +229,10 @@ func (c *Client) Checkpoint(ctx context.Context, origin string) ([]byte, error) 
 	case http.StatusNotFound:
 		return nil, ErrNoWitnessCheckpoint
 	default:
-		return nil, fmt.Errorf("witness: checkpoint de %q: HTTP %d: %s",
-			origin, resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, &HTTPError{
+			Op:     fmt.Sprintf("checkpoint de %q", origin),
+			Status: resp.StatusCode,
+			Body:   strings.TrimSpace(string(body)),
+		}
 	}
 }

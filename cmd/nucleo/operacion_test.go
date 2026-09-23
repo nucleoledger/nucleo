@@ -5,6 +5,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -261,5 +263,78 @@ func copiaDeFichero(t *testing.T, de, a string) {
 	}
 	if err := os.WriteFile(a, raw, 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestLosFallosDelTestigoSeExplican es el escenario 3 del ensayo: nueve formas de que un
+// testigo se porte mal.
+//
+// El código de salida ya era el correcto y el sistema quedaba utilizable; lo que no
+// servía era el mensaje. Tres cosas se fijan aquí: que la URL mal escrita sea error de
+// USO y no un incidente —un cron que reintenta ante el 3 reintentaría para siempre—, que
+// cada fallo diga qué mirar, y que el detalle técnico siga estando debajo.
+func TestLosFallosDelTestigoSeExplican(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+	c.sealFile(`{"factura":"testigo"}`)
+	_, _, wkey := startTestWitness(t, c.logPubKey(t))
+
+	// La URL mal escrita: error de uso, y sin tocar la red.
+	for _, mala := range []string{"127.0.0.1:18988", "localhost", "ftp://testigo.example", "http://"} {
+		_, errOut, code := c.run("sync", "--witness", mala,
+			"--witness-name", "witness.example/w1", "--witness-key", wkey)
+		if code != exitUsage {
+			t.Errorf("--witness %q: código %d, esperado %d (una errata no es un incidente)\n%s",
+				mala, code, exitUsage, c.ultima())
+		}
+		if !strings.Contains(errOut, "URL del testigo") {
+			t.Errorf("--witness %q: el mensaje no habla de la URL:\n%s", mala, c.ultima())
+		}
+	}
+
+	// Un testigo que no está: incidente, con consejo.
+	_, errOut, code := c.run("sync", "--witness", "http://127.0.0.1:1",
+		"--witness-name", "witness.example/w1", "--witness-key", wkey)
+	if code != exitSyncFail {
+		t.Fatalf("testigo caído: código %d, esperado %d\n%s", code, exitSyncFail, c.ultima())
+	}
+	for _, quiere := range []string{"no se pudo conectar", "levantado", "Detalle técnico"} {
+		if !strings.Contains(errOut, quiere) {
+			t.Errorf("testigo caído: el mensaje no dice %q:\n%s", quiere, c.ultima())
+		}
+	}
+
+	// Y los que contestan algo que no es un testigo.
+	casos := []struct {
+		nombre  string
+		handler http.HandlerFunc
+		dice    []string
+	}{
+		{"500", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "algo se rompió", http.StatusInternalServerError)
+		}, []string{"error interno", "reintenta más tarde"}},
+		{"404", func(w http.ResponseWriter, r *http.Request) {
+			http.NotFound(w, r)
+		}, []string{"404", "sirva a ESTE log"}},
+		{"basura", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, "hola, no soy un testigo")
+		}, []string{"no es una cosignature válida", "NO se arregla reintentando"}},
+	}
+	for _, cs := range casos {
+		srv := httptest.NewServer(cs.handler)
+		_, errOut, code := c.run("sync", "--witness", srv.URL,
+			"--witness-name", "witness.example/w1", "--witness-key", wkey)
+		srv.Close()
+		if code != exitSyncFail {
+			t.Errorf("%s: código %d, esperado %d\n%s", cs.nombre, code, exitSyncFail, c.ultima())
+		}
+		for _, quiere := range cs.dice {
+			if !strings.Contains(errOut, quiere) {
+				t.Errorf("%s: el mensaje no dice %q:\n%s", cs.nombre, quiere, c.ultima())
+			}
+		}
+		if !strings.Contains(errOut, "Detalle técnico") {
+			t.Errorf("%s: falta el detalle técnico, que es lo que sirve para depurar:\n%s", cs.nombre, c.ultima())
+		}
 	}
 }

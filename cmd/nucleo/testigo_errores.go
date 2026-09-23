@@ -1,0 +1,126 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
+
+	"github.com/nucleoledger/nucleo/internal/witness"
+)
+
+// Los fallos del testigo, dichos para un operador.
+//
+// Del ensayo de operación del Sprint 10, escenario 3: nueve formas de que un testigo se
+// porte mal —caído, URL con typo, 404, 500, basura, la conexión cortada a medias, sin
+// contestar—. Todas terminaban con el código correcto (3) y dejaban el sistema utilizable,
+// que era lo importante. Lo que no estaba bien era el mensaje:
+//
+//	error: witness: checkpoint de "nucleoledger.com/mi-empresa": Get "http://127.0.0.1:
+//	18999/c65397b04d875cc205ed905c64c7dddf5a29d9505d799f168825499c37b1aab1/checkpoint":
+//	dial tcp 127.0.0.1:18999: connect: connection refused
+//
+// Ahí hay un hash de 64 caracteres, la forma de un error de la biblioteca de red de Go y
+// ni una palabra sobre qué mirar. Y el peor de los nueve era el typo más común —olvidar
+// el http:// — que contestaba "first path segment in URL cannot contain colon" y salía
+// con 3, como si el testigo tuviera la culpa de una errata nuestra.
+//
+// Esto no reescribe el error: le pone delante una frase que dice qué pasó y qué hacer, y
+// deja el detalle técnico debajo, que es donde sirve.
+
+// validaURLDeTestigo comprueba la URL ANTES de tocar la red.
+//
+// Devuelve un error de USO (código 1) porque una URL mal escrita es una errata de quien
+// invoca, no un incidente del testigo, y mezclarlas hace que un cron que reintenta ante
+// el código 3 reintente para siempre una URL que nunca va a funcionar.
+func validaURLDeTestigo(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return usageErr("la URL del testigo no se entiende: %q.\n"+
+			"  Tiene que ser una URL completa, con esquema: http://host:puerto o https://host", raw)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		falta := ""
+		if u.Scheme == "" || !strings.Contains(raw, "//") {
+			falta = "\n  Parece que falta el http:// del principio."
+		}
+		return usageErr("la URL del testigo tiene que empezar por http:// o https://, y esta es %q.%s", raw, falta)
+	}
+	if u.Host == "" {
+		return usageErr("la URL del testigo no trae host: %q", raw)
+	}
+	return nil
+}
+
+// errorDeTestigo traduce el fallo a algo accionable, conservando el detalle.
+func errorDeTestigo(u string, err error) error {
+	frase, consejo := clasificaFalloDeTestigo(u, err)
+	if frase == "" {
+		return syncErr("%v", err)
+	}
+	return syncErr("%s\n  %s\n  Detalle técnico: %v", frase, consejo, err)
+}
+
+// clasificaFalloDeTestigo devuelve la frase y el consejo, o "" si no sabe clasificarlo.
+func clasificaFalloDeTestigo(u string, err error) (frase, consejo string) {
+	// 1. El testigo contestó, pero con un código que no esperábamos.
+	var he *witness.HTTPError
+	if errors.As(err, &he) {
+		switch {
+		case he.Status == 404:
+			return fmt.Sprintf("el testigo %s contestó 404: ahí no hay lo que se le pidió", u),
+				"Comprueba la URL, y que ESE testigo sirva a ESTE log: un testigo solo responde por los origins que tiene configurados."
+		case he.Status == 401 || he.Status == 403:
+			return fmt.Sprintf("el testigo %s rechazó la petición (HTTP %d)", u, he.Status),
+				"El testigo pide autorización o no acepta a este log. Es cosa de quien lo opera."
+		case he.Status == 429:
+			return fmt.Sprintf("el testigo %s dice que le estás pidiendo demasiado (HTTP 429)", u),
+				"Espacia las sincronizaciones; con una por hora sobra para un despliegue normal."
+		case he.Status >= 500:
+			return fmt.Sprintf("el testigo %s tuvo un error interno (HTTP %d)", u, he.Status),
+				"No es problema de este ledger ni de este fichero: reintenta más tarde, y si sigue, avisa a quien opera el testigo."
+		default:
+			return fmt.Sprintf("el testigo %s contestó HTTP %d, que no es una respuesta del protocolo", u, he.Status),
+				"Comprueba que la URL apunta a un testigo de Núcleo y no a otra cosa —un proxy, un portal cautivo, una web—."
+		}
+	}
+
+	// 2. No contestó a tiempo.
+	if errors.Is(err, context.DeadlineExceeded) || esTimeout(err) {
+		return fmt.Sprintf("el testigo %s no contestó dentro del tiempo de espera", u),
+			"Si tarda siempre, súbelo con --timeout; si no debería tardar, mira la red y la carga del testigo. No se escribió nada."
+	}
+
+	// 3. No se pudo llegar.
+	var oe *net.OpError
+	var de *net.DNSError
+	switch {
+	case errors.As(err, &de):
+		return fmt.Sprintf("no se encontró el host del testigo %s", u),
+			"Comprueba el nombre en la URL y el DNS de esta máquina."
+	case errors.As(err, &oe):
+		return fmt.Sprintf("no se pudo conectar con el testigo %s", u),
+			"Comprueba que está levantado, que el puerto es ese y que ningún cortafuegos lo tapa."
+	}
+
+	// 4. Contestó algo, pero no era una nota firmada.
+	if strings.Contains(err.Error(), "cosignature") || strings.Contains(err.Error(), "malformed note") {
+		return fmt.Sprintf("lo que contestó %s no es una cosignature válida de ese testigo", u),
+			"O la URL no es de un testigo de Núcleo, o la clave que traes en la política no es la suya. Esto NO se arregla reintentando."
+	}
+
+	// 5. Cortó la conexión a medias.
+	if errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "EOF") {
+		return fmt.Sprintf("el testigo %s cortó la conexión antes de terminar de contestar", u),
+			"Suele ser el testigo reiniciándose o un proxy en medio. No se escribió nada: reintenta."
+	}
+	return "", ""
+}
+
+// esTimeout reconoce los tiempos agotados de la biblioteca de red.
+func esTimeout(err error) bool {
+	var t interface{ Timeout() bool }
+	return errors.As(err, &t) && t.Timeout()
+}
