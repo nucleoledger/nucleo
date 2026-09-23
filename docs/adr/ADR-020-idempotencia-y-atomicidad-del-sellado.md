@@ -1,6 +1,6 @@
 # ADR-020-idempotencia-y-atomicidad-del-sellado
 
-**Estado:** ACEPTADA el 2026-09-17 por el dev (Sprint 8) · **Fecha:** 2026-09-17 · **Fuentes:** cuarta auditoría adversarial —la primera externa, GPT-6 vía OpenCode— hallazgo H8; ADR-009 (esquema congelado), PROTOCOL.md §5 (AAD del blob) y §8 (almacenamiento), `cmd/nucleo/seal.go:119-146`, `internal/store/blobs.go:22`, `cmd/nucleo/profile.go:56`
+**Estado:** ACEPTADA el 2026-09-17 por el dev (Sprint 8) · **Fecha:** 2026-09-17 · **Fuentes:** [auditoría externa del 2026-09-13](../auditoria-externa-20260913.md) hallazgo H8; ADR-009 (esquema congelado), PROTOCOL.md §5 (AAD del blob) y §8 (almacenamiento), `cmd/nucleo/seal.go:119-146`, `internal/store/blobs.go:22`, `cmd/nucleo/profile.go:56`
 
 ## El hallazgo, reproducido
 

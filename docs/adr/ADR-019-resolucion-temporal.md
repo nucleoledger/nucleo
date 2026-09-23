@@ -1,6 +1,6 @@
 # ADR-019-resolucion-temporal
 
-**Estado:** ACEPTADA el 2026-09-13 por el dev (Sprint 7f) · **Fecha:** 2026-09-13 · **Fuentes:** cuarta auditoría adversarial —la primera externa, GPT-6 vía OpenCode, solo lectura sobre el HEAD público `1c53e1c`— hallazgo H4.1 (crítico); ADR-002, ADR-014, ADR-015, PROTOCOL.md §1 y §4, `internal/ledger/block.go:79`, `internal/receipt/format.go:19` y `:169-170`, `sdk/ts/src/receipt.ts:601-620`
+**Estado:** ACEPTADA el 2026-09-13 por el dev (Sprint 7f) · **Fecha:** 2026-09-13 · **Fuentes:** [auditoría externa del 2026-09-13](../auditoria-externa-20260913.md) —cuarta auditoría adversarial, la primera externa: gpt-6-astra vía OpenCode, solo lectura sobre el HEAD público `1c53e1c`— hallazgo H4.1; ADR-002, ADR-014, ADR-015, PROTOCOL.md §1 y §4, `internal/ledger/block.go:79`, `internal/receipt/format.go:19` y `:169-170`, `sdk/ts/src/receipt.ts:601-620`
 
 ## El hallazgo, reproducido
 
