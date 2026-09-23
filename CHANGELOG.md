@@ -11,6 +11,56 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Fixed: an operations rehearsal, not a code audit (Sprint 10)
+
+A deployment set up the way a small business would have it, and then **operated**: a
+month of daily sealing and hourly syncing compressed into 1.200 seals and 720 syncs,
+the cron broken for three days, nine ways for a witness to misbehave, a week-old
+backup restored, permissions and locks and a full disk, two ERP workers at once, the
+clock jumping, and a receipt archived and verified "a year later". The full report,
+with the exact sequence for each one, is in
+[`docs/ensayo-de-operacion-20260923.md`](docs/ensayo-de-operacion-20260923.md).
+
+What held up, because it is also a result: growth is linear and boring (**1.173 bytes
+per block**; 720 syncs leave 31 checkpoint rows, because the table is keyed by tree
+size), nothing degrades except `verify --full` (0,1 ms per block, as it should),
+**zero warnings in 1.200 seals** with a policy in place, integrity survived two
+concurrent workers and a process killed mid-write, and **an archived receipt verified
+in two independent implementations with the witness switched off and no network**.
+
+What broke, and is fixed here with regressions:
+
+- **Two ERP workers lost a third of their seals.** 19 of 60, with two errors that share
+  one cause — the block is built and signed *outside* the transaction. SQLite in WAL
+  returns BUSY immediately when a deferred transaction tries to write after another one
+  committed, and `busy_timeout` does not retry that; and even with the lock, a signed
+  block stops following the tip when someone else commits in between. Transactions now
+  open in `immediate` mode and the seal retries a lost race: 60 of 60.
+- **A clock jump could leave a ledger unable to seal for a year.** With the clock a year
+  ahead the seal *works*, leaving a future-dated block that blocks sealing until that
+  date — explained by `ledger: timestamp anterior al del bloque previo`, which tells an
+  operator nothing. Now a backwards clock is explained with both times, NTP and what
+  happens if the odd one is the block; and a jump of more than a day **warns before
+  writing**, while it can still be stopped.
+- **Three different failures, one mute message.** A read-only ledger, a read-only
+  directory and another process writing all said `error interno de la base de datos`.
+  The worst of them bricked the deployment: SQLite creates `nucleo.db-wal` and
+  `nucleo.db-shm` next to the database and they inherit its permissions, so a `chmod`
+  on the database leaves the `-shm` read-only even after the database is fixed. Each
+  class now carries its action — and names the two sidecar files nobody guesses.
+- **A detected rollback was forgotten.** Restoring a week-old backup is caught by `sync`
+  with exit 2 and exact numbers — and the next `status` said `✔ historia atestiguada
+  hasta 1322 de 1322`. The first place someone looks after restoring said everything was
+  fine. It is now recorded in the ledger: `status` and `seal` say it on every
+  invocation, `verify` exits 2 while it stands, and only a sync that adds up clears it.
+- **The nine witness failures spoke Go, not Spanish**, and the commonest typo — a URL
+  without `http://` — came out as a sync incident (exit 3) instead of a usage error.
+- Smaller, and it still matters: the wrong passphrase answered
+  `chacha20poly1305: message authentication failed`; an attestation that verified but did
+  **not** cover the head of the ledger printed a `✔` (and `attested` stayed `true` for
+  monitors — hence the new `attested_head`); `sync` printed a cron recipe that fails in a
+  cron, because it left out `--passphrase-file`; and "hace 1 minutos".
+
 ### Security: second external audit, and the PHP SDK's first real bug (Sprint 9)
 
 The same external reviewer read the tree again at `ffd5cf1`. Both audit reports are now
