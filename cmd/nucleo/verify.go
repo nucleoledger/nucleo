@@ -245,10 +245,14 @@ func printAttestation(e *env, r store.OpenResult) {
 		// línea decía "✔ historia atestiguada hasta 1201 de 1321 bloques" y un operador
 		// lee el ✔, no la aritmética. Los 120 bloques de esos tres días no los respalda
 		// nadie más que este disco, y eso no es un ✔.
-		e.printf("estado    : ◐ atestiguada hasta el bloque %d, y hay %d bloques MÁS sin atestiguar\n",
-			r.AttestedSize, r.TreeSize-r.AttestedSize)
-		e.printf("            Lo que respalda a esos %d es solo este disco. Ejecuta `nucleo sync`.\n",
-			r.TreeSize-r.AttestedSize)
+		faltan := int(r.TreeSize - r.AttestedSize)
+		esos := "a esos bloques"
+		if faltan == 1 {
+			esos = "a ese bloque"
+		}
+		e.printf("estado    : ◐ atestiguada hasta el bloque %d, y hay %s sin atestiguar\n",
+			r.AttestedSize, plural(faltan, "bloque MÁS", "bloques MÁS"))
+		e.printf("            Lo que respalda %s es solo este disco. Ejecuta `nucleo sync`.\n", esos)
 	case r.Attestation == store.AttestationVerified:
 		e.printf("estado    : ✔ historia atestiguada hasta %d de %d bloques\n", r.AttestedSize, r.TreeSize)
 	case r.Attestation == store.AttestationUnverified:

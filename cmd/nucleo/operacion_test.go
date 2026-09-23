@@ -386,7 +386,7 @@ func TestLaErgonomiaQueElEnsayoCorrigio(t *testing.T) {
 		if strings.Contains(out, "✔ historia atestiguada") {
 			t.Errorf("con 2 bloques sin atestiguar no puede salir un ✔:\n%s", out)
 		}
-		for _, quiere := range []string{"◐ atestiguada hasta el bloque 1", "2 bloques MÁS sin atestiguar", "solo este disco"} {
+		for _, quiere := range []string{"◐ atestiguada hasta el bloque 1", "2 bloques MÁS sin atestiguar", "a esos bloques", "solo este disco"} {
 			if !strings.Contains(out, quiere) {
 				t.Errorf("status no dice %q:\n%s", quiere, out)
 			}
