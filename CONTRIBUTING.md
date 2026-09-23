@@ -53,6 +53,47 @@ And the one that decides whether the project works at all:
 That script is the success criterion from `docs/CONCEPTO-v1.2-es.md` §18, made
 executable. If it fails, something real is broken.
 
+### The PHP verifier, and the three-verifier claim
+
+The README says three independent verifiers agree on every mutation. Reproducing that
+claim needs PHP with **ext-sodium** — the external audit of 2026-09-19 could not run it
+and had to take the Go↔TS half on its own, which is exactly the gap this section closes.
+
+```bash
+# Debian / Ubuntu — the package is version-qualified in the standard archive
+sudo apt install php-cli php8.3-sodium     # adjust 8.3 to the php -v you get
+# macOS
+brew install php                           # sodium is bundled
+# Windows / XAMPP — the DLL ships and only needs enabling
+php -d extension=php_sodium.dll …          # or uncomment extension=sodium in php.ini
+
+php -r 'exit(extension_loaded("sodium") ? 0 : 1)' && echo "ready"   # or:
+php scripts/ci-php-listo.php               # same check, with a real signature
+```
+
+Then:
+
+```bash
+php sdk/php/test/run.php                   # the shared vectors, in PHP
+go build -o /tmp/nucleo ./cmd/nucleo
+NUCLEO_BIN=/tmp/nucleo php sdk/php/test/run.php   # adds real sealing through the binary
+
+NUCLEO_DIFERENCIAL_OUT=/tmp/catalogo.json   go test ./internal/receipt -run TestDiferencialGeneraCatalogo
+cd sdk/ts && npm run bundle
+NUCLEO_DIFERENCIAL_EXIGE_PHP=1 node scripts/diferencial.mjs /tmp/catalogo.json
+```
+
+Three environment variables, and what each one buys:
+
+| variable | what it does |
+|---|---|
+| `NUCLEO_DIFERENCIAL_EXIGE_PHP=1` | **the absence of PHP becomes a failure** instead of a printed warning. Set it whenever you intend to reproduce the three-verifier claim; CI sets it always. Without it the script runs two of three and says so. |
+| `NUCLEO_PHP` | the PHP command, if it is not `php` on the PATH. It may carry arguments: `NUCLEO_PHP="/c/xampp/php/php.exe -d extension=php_sodium.dll"`. |
+| `NUCLEO_BIN` | the `nucleo` binary, so the PHP suite also covers sealing end to end. Without it the suite **warns** that that part was not checked. |
+
+A green run prints `✔ los TRES verificadores coinciden en todas las mutaciones`. If it
+says `PHP: NO SE COMPROBÓ`, you reproduced two verifiers, not three.
+
 ## Test vectors are ground truth
 
 `testdata/vectors/` holds shared vectors — RFC 6962 Merkle, RFC 8785 JCS, the

@@ -73,8 +73,12 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 **Verification anywhere.** [`@nucleoledger/verify`](sdk/ts) — a TypeScript verifier with **zero runtime dependencies** (Ed25519 and SHA-256 from WebCrypto) · [`web/verify/`](web/verify) — a single static HTML page that uses no network and verifies a receipt offline · [`sdk/php`](sdk/php) — a PHP verifier with no composer and no dependencies beyond `ext-sodium`, **written from the spec rather than ported**, plus a thin sealer that wraps the Go binary for the ERP that seals in the same request ([ADR-021](docs/adr/ADR-021-sdk-php.md)).
 
 Three independent verifiers, one writer. That asymmetry is deliberate: independence pays
-off where a counterparty forms a verdict, and costs where a ledger gets written. All
-three are held to the same shared vectors and to a differential that compares the whole
+off where a counterparty forms a verdict, and costs where a ledger gets written. To
+reproduce that claim you need PHP with `ext-sodium` and one environment variable that
+turns a missing PHP from a warning into a failure — the recipe is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md#the-php-verifier-and-the-three-verifier-claim), and it
+is there because the external audit of 2026-09-19 could only reproduce two of the three.
+All three are held to the same shared vectors and to a differential that compares the whole
 verdict — both clocks, the index, the recipient, the signer key, which witnesses counted
 — across 3.314 receipt mutations and 9.929 policy documents.
 
