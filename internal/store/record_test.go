@@ -213,3 +213,51 @@ func TestErroresDeLaBaseSonClasesNoVolcados(t *testing.T) {
 		t.Errorf("el mensaje lleva jerga del motor: %q", err.Error())
 	}
 }
+
+// TestRollbackRegistradoDuraHastaQueSeResuelve: la constancia del rollback (ensayo de
+// operación del Sprint 10, escenario 4) se escribe, se lee y solo se borra a mano por
+// quien comprueba que el problema está resuelto —que en la CLI es una sincronización que
+// vuelve a cuadrar—.
+func TestRollbackRegistradoDuraHastaQueSeResuelve(t *testing.T) {
+	s := openTemp(t)
+
+	if _, hay, err := s.Rollback(); err != nil || hay {
+		t.Fatalf("un ledger nuevo no tiene rollback: hay=%v err=%v", hay, err)
+	}
+
+	r := RollbackRecord{At: "2026-09-23T05:50:21Z", LocalSize: 1322, WitnessSize: 1422, Witness: "witness.example/w1"}
+	if err := s.PutRollback(r); err != nil {
+		t.Fatal(err)
+	}
+	got, hay, err := s.Rollback()
+	if err != nil || !hay {
+		t.Fatalf("hay=%v err=%v", hay, err)
+	}
+	if got != r {
+		t.Errorf("registro = %+v, want %+v", got, r)
+	}
+
+	// Sobrevive a cerrar y volver a abrir: si no, la alarma seguiría siendo la de un
+	// proceso y no la del ledger.
+	path := s.path
+	s.Close()
+	s2, _, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if got, hay, _ := s2.Rollback(); !hay || got != r {
+		t.Errorf("tras reabrir: hay=%v registro=%+v", hay, got)
+	}
+
+	if err := s2.ClearRollback(); err != nil {
+		t.Fatal(err)
+	}
+	if _, hay, _ := s2.Rollback(); hay {
+		t.Error("ClearRollback no lo borró")
+	}
+	// Borrar dos veces no es un error: el efecto deseado ya se cumplió.
+	if err := s2.ClearRollback(); err != nil {
+		t.Errorf("borrar dos veces: %v", err)
+	}
+}

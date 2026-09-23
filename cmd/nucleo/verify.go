@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/store"
@@ -62,9 +63,13 @@ func cmdStatus(e *env, args []string) error {
 		// sola— y de vault_meta en un ledger vacío.
 		"signer_pubkey": signerPubkey(s, res),
 	}
+	if rb := st.rollbackJSON(); rb != nil {
+		data["rollback"] = rb
+	}
 	// El aviso sale ANTES del volcado, y sale también en modo --json: va por
 	// stderr, así que no contamina la salida que alguien parsea. Es lo que hace
 	// que un cron con stdout a un fichero y stderr al correo avise solo.
+	st.warnRollback(e)
 	st.warn(e)
 	e.out(data, func() {
 		e.printf("ledger    : %s\n", e.dbPath())
@@ -177,8 +182,12 @@ func cmdVerify(e *env, args []string) error {
 	// distintas y mezclarlas haría inútil el código de salida. "Las firmas
 	// cuadran" y "alguien de fuera lo vio hace poco" pueden tener respuestas
 	// opuestas, y quien llama necesita distinguirlas.
-	st.warn(e)
-	e.out(map[string]any{
+	//
+	// Con el rollback SÍ falla, y es la excepción que confirma la regla: un rollback
+	// registrado no dice "hace tiempo que nadie lo ve", dice "esto no es la historia que
+	// un tercero atestiguó". Eso es exactamente lo que verify existe para contestar, y
+	// por eso sale con el código 2 aunque todas las firmas locales cuadren.
+	salida := map[string]any{
 		"mode":          mode,
 		"tree_size":     res.TreeSize,
 		"attested":      res.Attested(),
@@ -186,7 +195,14 @@ func cmdVerify(e *env, args []string) error {
 		"attested_size": res.AttestedSize,
 		"freshness":     st.json(),
 		"signer":        signerJSON(res),
-	}, func() {
+	}
+	if rb := st.rollbackJSON(); rb != nil {
+		salida["rollback"] = rb
+		salida["ok"] = false
+	}
+	st.warnRollback(e)
+	st.warn(e)
+	e.out(salida, func() {
 		if *full {
 			e.printf("✔ verificación EXHAUSTIVA superada: %d bloques, todas las firmas recomputadas\n", res.TreeSize)
 		} else {
@@ -199,6 +215,13 @@ func cmdVerify(e *env, args []string) error {
 		printAttestation(e, res)
 		printFreshness(e, st)
 	})
+	if st.HayRollback {
+		return &exitError{
+			code:     exitVerify,
+			err:      fmt.Errorf("rollback registrado el %s: el testigo cosignó %d bloques y en disco hay %d", st.Rollback.At, st.Rollback.WitnessSize, res.TreeSize),
+			reported: true,
+		}
+	}
 	return nil
 }
 

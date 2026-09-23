@@ -59,6 +59,18 @@ type staleness struct {
 	// historia atestiguada: desde cuándo consta. Es cero si coincide con Record.At.
 	// Frescura y antigüedad son dos preguntas y el JSON las publica por separado (H6).
 	Primera time.Time
+	// Rollback es la constancia de que un testigo dijo recordar más historia de la que
+	// hay en disco, si la hay, y TreeSize el tamaño actual para saber si sigue en pie.
+	//
+	// El escenario 4 del ensayo de operación del Sprint 10: se restauró un respaldo de
+	// hacía una semana, `sync` lo cazó con un ✘ y código 2, y el siguiente `status`
+	// decía "✔ historia atestiguada hasta 1322 de 1322 bloques". El primer sitio donde
+	// mira quien acaba de restaurar decía que todo estaba bien.
+	Rollback store.RollbackRecord
+	// HayRollback dice si Rollback lleva algo.
+	HayRollback bool
+	// TreeSize es el tamaño del ledger que se está juzgando.
+	TreeSize uint64
 	// Empty es true cuando el ledger no tiene ni un bloque.
 	//
 	// Con cero bloques no hay nada que atestiguar, así que avisar sería gritar
@@ -84,7 +96,14 @@ type staleness struct {
 // registro forjado, y status, seal y verify callaban la alarma. Con política, esa
 // caída ya no existe.
 func checkStaleness(s *store.Store, res store.OpenResult, withPolicy bool, now time.Time, threshold time.Duration, treeSize uint64) (staleness, error) {
-	out := staleness{Threshold: threshold, Empty: treeSize == 0, Policy: withPolicy}
+	out := staleness{Threshold: threshold, Empty: treeSize == 0, Policy: withPolicy, TreeSize: treeSize}
+	// El rollback registrado se lee SIEMPRE y antes que nada: es lo más grave que puede
+	// decir un ledger de sí mismo, y no depende de la política ni de la frescura.
+	if rb, hay, err := s.Rollback(); err != nil {
+		return out, err
+	} else if hay {
+		out.Rollback, out.HayRollback = rb, true
+	}
 	if res.Attestation == store.AttestationVerified && !res.AttestedAt.IsZero() {
 		// La fuente buena: lo que la apertura acaba de verificar contra la
 		// clave del testigo. El registro local ni se mira.
@@ -185,6 +204,50 @@ func (st staleness) json() map[string]any {
 
 // source nombra la fuente de la frescura para el JSON: "attestation" (verificada
 // al abrir), "local_record" (lo que dejó sync, sin verificar) o "none".
+// warnRollback saca por stderr la constancia de un rollback detectado.
+//
+// Por stderr y no por stdout, y también con --json, por lo mismo que la frescura: un
+// cron con stdout a un fichero y stderr al correo del administrador hace sonar la alarma
+// sin que nadie haya tenido que programar nada. Y esta es la más grave de las dos.
+func (st staleness) warnRollback(e *env) bool {
+	if !st.HayRollback {
+		return false
+	}
+	rb := st.Rollback
+	fmt.Fprintf(e.stderr,
+		"✘ ESTE LEDGER TIENE UN ROLLBACK REGISTRADO (%s)\n"+
+			"       Un testigo%s dijo haber cosignado %d bloques y aquí había %d.\n"+
+			"       Ahora hay %d. Mientras esto conste, lo que hay en este fichero NO es la\n"+
+			"       historia que un tercero atestiguó: es un trozo de ella, o otra distinta.\n"+
+			"       · Si restauraste un respaldo, busca una copia más reciente del ledger.\n"+
+			"       · Lo que selles aquí se aparta más de lo atestiguado en cada bloque.\n"+
+			"       · La constancia se borra sola cuando una sincronización vuelva a cuadrar;\n"+
+			"         no hay forma de apagarla sin arreglar el problema.\n",
+		rb.At, nombreDelTestigo(rb.Witness), rb.WitnessSize, rb.LocalSize, st.TreeSize)
+	return true
+}
+
+// nombreDelTestigo compone " (X)" o nada: el registro puede no traer el nombre.
+func nombreDelTestigo(n string) string {
+	if n == "" {
+		return ""
+	}
+	return " (" + n + ")"
+}
+
+// rollbackJSON es el objeto que publica la salida máquina, o nil si no hay nada.
+func (st staleness) rollbackJSON() map[string]any {
+	if !st.HayRollback {
+		return nil
+	}
+	return map[string]any{
+		"at":           st.Rollback.At,
+		"local_size":   st.Rollback.LocalSize,
+		"witness_size": st.Rollback.WitnessSize,
+		"witness":      st.Rollback.Witness,
+	}
+}
+
 func (st staleness) source() string {
 	switch {
 	case !st.Known:

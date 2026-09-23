@@ -305,3 +305,78 @@ func (s *Store) LastAttested() (AttestationRecord, bool, error) {
 	}
 	return r, true, nil
 }
+
+// RollbackKey es la clave de log_state donde queda constancia de que un testigo dijo
+// recordar más historia de la que hay en disco.
+//
+// Existe por el escenario 4 del ensayo de operación del Sprint 10: se restauró un
+// respaldo de hacía una semana y `sync` lo cazó —"✘ ROLLBACK LOCAL DETECTADO", con las
+// dos cifras y código 2—, pero `status` y `verify --full` seguían diciendo "✔ historia
+// atestiguada hasta 1322 de 1322" y "✔ atestación verificada de hace 4 minutos". El
+// primer sitio donde mira un operador que acaba de restaurar decía que todo estaba bien,
+// y la única alarma vivía en la salida de un cron que nadie lee.
+//
+// Va en log_state, que ADR-009 declaró mutable por diseño, y no pretende ser una defensa
+// criptográfica: quien pueda escribir el fichero puede borrar esta fila. Lo que hace es
+// que la alarma DURE lo que dure el problema, en vez de un instante.
+const RollbackKey = "log/rollback-detected/v1"
+
+// RollbackRecord es lo que se guarda bajo esa clave.
+type RollbackRecord struct {
+	// At es cuándo se detectó, en RFC 3339.
+	At string `json:"at"`
+	// LocalSize es lo que había en disco.
+	LocalSize uint64 `json:"local_size"`
+	// WitnessSize es lo que el testigo dijo haber cosignado.
+	WitnessSize uint64 `json:"witness_size"`
+	// Witness es quién lo dijo, si se sabe.
+	Witness string `json:"witness,omitempty"`
+}
+
+// PutRollback deja constancia del rollback detectado.
+func (s *Store) PutRollback(r RollbackRecord) error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return fmt.Errorf("store: serialización del registro de rollback: %w", err)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return insertState(s.db, RollbackKey, string(raw))
+}
+
+// Rollback devuelve el registro de rollback, si hay alguno.
+func (s *Store) Rollback() (RollbackRecord, bool, error) {
+	if s.db == nil {
+		return RollbackRecord{}, false, ErrClosed
+	}
+	v, err := s.State(RollbackKey)
+	if errors.Is(err, ErrNotFound) {
+		return RollbackRecord{}, false, nil
+	}
+	if err != nil {
+		return RollbackRecord{}, false, err
+	}
+	var r RollbackRecord
+	if err := json.Unmarshal([]byte(v), &r); err != nil {
+		return RollbackRecord{}, false, fmt.Errorf("store: registro de rollback ilegible: %w", err)
+	}
+	return r, true, nil
+}
+
+// ClearRollback borra la constancia.
+//
+// La borra quien resuelve el problema, y solo hay una forma de resolverlo: que una
+// sincronización vuelva a salir bien cubriendo al menos lo que el testigo recordaba. Eso
+// significa que el ledger que hay delante ya no es un prefijo truncado de lo atestiguado.
+func (s *Store) ClearRollback() error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM log_state WHERE k = ?`, RollbackKey)
+	return errDB("store: borrado del registro de rollback", nil, err)
+}

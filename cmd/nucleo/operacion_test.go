@@ -5,6 +5,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -166,5 +168,98 @@ func TestElRelojAdelantadoAvisaAntesDeEscribir(t *testing.T) {
 	}
 	if strings.Contains(errOut2, "por delante del último bloque") {
 		t.Errorf("media hora no es un salto de reloj y no debería avisar:\n%s", c.ultima())
+	}
+}
+
+// TestElRollbackDetectadoNoSeOlvida es el escenario 4 del ensayo: restaurar un respaldo
+// de hace una semana y seguir operando.
+//
+// `sync` lo cazaba —"✘ ROLLBACK LOCAL DETECTADO", con las dos cifras y código 2— y el
+// siguiente `status` decía "✔ historia atestiguada hasta 1322 de 1322 bloques". El primer
+// sitio donde mira quien acaba de restaurar decía que todo estaba bien, y la única alarma
+// vivía en la salida de un cron que nadie lee. Ahora queda constancia en el propio ledger.
+func TestElRollbackDetectadoNoSeOlvida(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+	c.sealFile(`{"factura":"uno"}`)
+	c.sealFile(`{"factura":"dos"}`)
+
+	url, name, key := startTestWitness(t, c.logPubKey(t))
+	c.mustRun("sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+
+	// El respaldo: una copia del fichero, como la haría un sysadmin.
+	respaldo := filepath.Join(t.TempDir(), "nucleo.db")
+	copiaDeFichero(t, filepath.Join(c.dir, "nucleo.db"), respaldo)
+
+	// La semana sigue y el testigo ve más historia.
+	c.sealFile(`{"factura":"tres"}`)
+	c.mustRun("sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+
+	// Y se restaura el respaldo, que es lo que hace quien pierde el disco.
+	for _, sufijo := range []string{"", "-wal", "-shm"} {
+		_ = os.Remove(filepath.Join(c.dir, "nucleo.db"+sufijo))
+	}
+	copiaDeFichero(t, respaldo, filepath.Join(c.dir, "nucleo.db"))
+
+	_, errOut, code := c.run("sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+	if code != exitVerify {
+		t.Fatalf("el sync tras restaurar debe salir con %d: código %d\n%s", exitVerify, code, c.ultima())
+	}
+	_ = errOut
+
+	// Y ahora lo que faltaba: la alarma DURA.
+	_, errOut = c.runWant(t, exitOK, "status")
+	for _, quiere := range []string{"ROLLBACK REGISTRADO", "3 bloques", "restauraste un respaldo"} {
+		if !strings.Contains(errOut, quiere) {
+			t.Errorf("el status tras el rollback no dice %q:\n%s", quiere, c.ultima())
+		}
+	}
+
+	// verify sale con 2: un rollback registrado no es "hace tiempo que nadie lo ve", es
+	// "esto no es la historia que un tercero atestiguó", y eso es lo que verify contesta.
+	if _, _, code := c.run("verify", "--full"); code != exitVerify {
+		t.Errorf("verify --full con rollback registrado: código %d, esperado %d\n%s", code, exitVerify, c.ultima())
+	}
+
+	// El sellado sigue funcionando —lo que se pidió fue sellar— pero lo dice.
+	out, errOut, code := c.run("seal", "--tenant", testTenant, "--type", "sri.factura.v1",
+		"--payload", ficheroUnico(t, c.dir, "tras-rollback-*.json", `{"factura":"cuatro"}`))
+	if code != exitOK {
+		t.Fatalf("el sellado no se prohíbe: código %d\n%s", code, c.ultima())
+	}
+	if !strings.Contains(out, "✔ registro sellado") {
+		t.Errorf("debería haber sellado:\n%s", c.ultima())
+	}
+	if !strings.Contains(errOut, "ROLLBACK REGISTRADO") {
+		t.Errorf("el sellado sobre un ledger con rollback tiene que decirlo:\n%s", c.ultima())
+	}
+
+	// Y en --json, para un monitor.
+	out, _ = c.runWant(t, exitOK, "--json", "status")
+	var v map[string]any
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	rb, ok := v["rollback"].(map[string]any)
+	if !ok {
+		t.Fatalf("el JSON de status no trae el objeto rollback:\n%s", out)
+	}
+	if fmt.Sprint(rb["witness_size"]) != "3" || fmt.Sprint(rb["local_size"]) != "2" {
+		t.Errorf("rollback = %v, esperado witness_size 3 y local_size 2", rb)
+	}
+	if rb["witness"] != name {
+		t.Errorf("rollback.witness = %v, esperado %q", rb["witness"], name)
+	}
+}
+
+// copiaDeFichero copia un fichero, que es lo que hace un respaldo de verdad.
+func copiaDeFichero(t *testing.T, de, a string) {
+	t.Helper()
+	raw, err := os.ReadFile(de)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(a, raw, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }

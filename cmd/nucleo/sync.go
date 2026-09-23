@@ -98,6 +98,19 @@ func cmdSync(e *env, args []string) error {
 		// porque lo que ha fallado es la integridad de la historia local.
 		var rb *logsync.RollbackError
 		if errors.As(err, &rb) {
+			// La alarma se GUARDA antes de imprimirla. En el ensayo de operación del
+			// Sprint 10 se restauró un respaldo viejo, sync lo cazó… y el siguiente
+			// `status` decía "✔ historia atestiguada hasta 1322 de 1322": la única
+			// alarma vivía en la salida de un cron que nadie lee. Ahora dura lo que
+			// dure el problema (store.RollbackKey).
+			if errGuardar := s.PutRollback(store.RollbackRecord{
+				At:          now().UTC().Format(time.RFC3339),
+				LocalSize:   rb.LocalSize,
+				WitnessSize: rb.WitnessSize,
+				Witness:     name,
+			}); errGuardar != nil {
+				fmt.Fprintf(e.stderr, "AVISO: no se pudo dejar constancia del rollback: %v\n", errGuardar)
+			}
 			if !e.json {
 				e.printf("\n")
 			}
@@ -111,7 +124,17 @@ func cmdSync(e *env, args []string) error {
 				e.printf("    faltan            : %d bloques\n\n", rb.WitnessSize-rb.LocalSize)
 				e.printf("  El testigo conserva su cosignature de un árbol mayor que el que\n")
 				e.printf("  hay en este disco. Una de las dos cosas es mentira, y la que está\n")
-				e.printf("  firmada por un tercero no es la que se puede reescribir aquí.\n")
+				e.printf("  firmada por un tercero no es la que se puede reescribir aquí.\n\n")
+				e.printf("  QUÉ HACER\n")
+				e.printf("  · Si acabas de restaurar un respaldo: ese respaldo es ANTERIOR a lo que el\n")
+				e.printf("    testigo ya vio. Busca una copia más reciente del ledger; la que tienes\n")
+				e.printf("    delante le faltan %d bloques.\n", rb.WitnessSize-rb.LocalSize)
+				e.printf("  · NO sigas sellando en este fichero: cada bloque nuevo se aparta más de la\n")
+				e.printf("    historia que el testigo atestiguó, y luego no hay forma de juntarlas.\n")
+				e.printf("  · Si no restauraste nada, alguien reescribió este fichero. Guarda una copia\n")
+				e.printf("    tal como está antes de tocar nada: es la evidencia.\n")
+				e.printf("  · Queda constancia en el propio ledger, así que `status` y `verify` lo\n")
+				e.printf("    seguirán diciendo hasta que una sincronización vuelva a cuadrar.\n")
 			})
 			return &exitError{code: exitVerify, err: rb, reported: true}
 		}
@@ -140,6 +163,19 @@ func cmdSync(e *env, args []string) error {
 				"       log no crezca. Comprueba que llegas al testigo de verdad.\n",
 			humanDuration(edad), humanDuration(umbral))
 	}
+	// Una sincronización que sale bien es la ÚNICA forma de resolver un rollback
+	// registrado: significa que este ledger ya no es un prefijo truncado de lo que el
+	// testigo atestiguó. Se borra aquí y no en ningún otro sitio, para que la alarma no
+	// se pueda apagar sin arreglar el problema.
+	if previo, hay, err := s.Rollback(); err == nil && hay && res.LocalSize >= previo.WitnessSize {
+		if err := s.ClearRollback(); err != nil {
+			fmt.Fprintf(e.stderr, "AVISO: no se pudo borrar el registro de rollback ya resuelto: %v\n", err)
+		} else if !e.json {
+			e.printf("  (el rollback que constaba del %s queda resuelto: %d bloques cubren los %d que el testigo recordaba)\n",
+				previo.At, res.LocalSize, previo.WitnessSize)
+		}
+	}
+
 	if res.Attested {
 		// La nota entera como evidencia verificable de contacto reciente (H6): el
 		// checkpoint guardado es el PRIMERO de su tamaño —el tiempo demostrable es el

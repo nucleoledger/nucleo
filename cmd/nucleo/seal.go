@@ -254,6 +254,10 @@ func cmdSeal(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	// El sellado no se prohíbe con un rollback registrado —lo que se pidió fue sellar—
+	// pero se dice donde ocurre y en cada bloque: cada uno se aparta más de la historia
+	// que un tercero atestiguó.
+	st.warnRollback(e)
 
 	e.out(salida, func() {
 		e.printf("✔ registro sellado\n")

@@ -184,6 +184,7 @@ func sealIdempotente(e *env, s *store.Store, res store.OpenResult, withPolicy bo
 	if err != nil {
 		return err
 	}
+	st.warnRollback(e)
 
 	e.out(salida, func() {
 		e.printf("✔ este registro ya estaba sellado (reintento idempotente)\n")
@@ -230,6 +231,9 @@ func sealTail(e *env, s *store.Store, res store.OpenResult, withPolicy bool, tre
 		return staleness{}, err
 	}
 	salida["freshness"] = st.json()
+	if rb := st.rollbackJSON(); rb != nil {
+		salida["rollback"] = rb
+	}
 	salida["attestation"] = res.Attestation.String()
 	salida["attested"] = res.Attested()
 	salida["attested_size"] = res.AttestedSize

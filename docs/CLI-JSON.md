@@ -75,6 +75,29 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 | `attested` | bool | `attestation == "verified"`. Solo entonces hubo atajo en la apertura. |
 | `attested_size` | entero | Bloques que cubre el checkpoint considerado. Con `unverified` es lo que el checkpoint **afirma**, no lo comprobado. |
 
+### `rollback` — un testigo recuerda más historia de la que hay aquí
+
+Presente **solo** si consta un rollback detectado; ausente lo demás del tiempo. Lo
+escribe `sync` cuando un testigo dice haber cosignado un árbol mayor que el local, y lo
+borra `sync` cuando una sincronización vuelve a cuadrar. Ninguna otra cosa lo apaga.
+
+| campo | tipo |
+|---|---|
+| `at` | RFC 3339 — cuándo se detectó |
+| `local_size` | entero — bloques que había en disco entonces |
+| `witness_size` | entero — bloques que el testigo dijo haber cosignado |
+| `witness` | string — quién lo dijo |
+
+Aparece en `status`, `verify`, `seal` y `reconcile`. **`verify` sale con `2`** mientras
+conste: un rollback registrado no dice "hace tiempo que nadie lo ve", dice "esto no es la
+historia que un tercero atestiguó". `status` y `seal` siguen saliendo con `0` —informar y
+sellar es lo que se les pidió— pero lo dicen por stderr en cada invocación.
+
+Existe por el ensayo de operación del Sprint 10: se restauró un respaldo de hacía una
+semana, `sync` lo cazó con código 2… y el siguiente `status` decía "✔ historia atestiguada
+hasta 1322 de 1322 bloques". El primer sitio donde mira quien acaba de restaurar decía que
+todo estaba bien.
+
 ### `freshness` — hace cuánto vio un tercero esta historia
 
 ```json
