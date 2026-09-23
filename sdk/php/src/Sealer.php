@@ -30,7 +30,8 @@ final class Sealer
      * @param string $binary         ruta del ejecutable `nucleo`
      * @param string $dir            directorio del despliegue (el que lleva nucleo.db)
      * @param string $passphraseFile fichero con la passphrase, en modo 0600
-     * @param string|null $policyFile política de verificación, si se usa (ADR-017)
+     * @param string|null $policyFile fichero de política; se pasa a la CLI como
+     *                                --policy-file en TODA ejecución (ADR-017)
      * @param int $timeout           segundos antes de declarar colgado el sellado
      */
     public function __construct(
@@ -111,6 +112,30 @@ final class Sealer
     }
 
     /**
+     * politica devuelve --policy-file si el integrador dio una política, o nada.
+     *
+     * Va en el camino COMÚN de run() y no en cada subcomando, y eso es la corrección del
+     * hallazgo alto de la auditoría del 2026-09-19: el constructor aceptaba la política,
+     * la guardaba… y ni seal() ni status() la pasaban al binario. Un ERP podía creer que
+     * había configurado la raíz de confianza de ADR-017 mientras la CLI se abría sin
+     * ella: la atestación, la frescura y la identidad del firmante salían sin verificar y
+     * nadie se enteraba. Un parámetro que APARENTA configurar algo y no lo configura es
+     * peor que no ofrecerlo.
+     *
+     * Por qué aquí y no repitiéndolo en cada método: porque repetirlo es exactamente el
+     * error que se acaba de arreglar. Todo subcomando que este envoltorio ejecute la
+     * recibe; si algún día se envuelve uno que no la admita —`init`, por ejemplo—, la CLI
+     * contesta con un error de uso en la primera ejecución, que es un fallo ruidoso y no
+     * un silencio.
+     *
+     * @return string[]
+     */
+    private function politica(): array
+    {
+        return $this->policyFile === null ? [] : ['--policy-file', $this->policyFile];
+    }
+
+    /**
      * run ejecuta la CLI y devuelve su JSON.
      *
      * proc_open con el comando en ARRAY: así no hay shell, y por tanto no hay citado que
@@ -120,8 +145,19 @@ final class Sealer
      */
     private function run(array $args): array
     {
+        if ($args === []) {
+            throw new SealEnvironmentError('run sin subcomando: es un error de programación del SDK');
+        }
         $this->checkEntorno();
-        $cmd = array_merge([$this->binary, '--dir', $this->dir, '--json'], $args);
+        // El orden importa y no es adorno: --dir y --json son banderas GLOBALES y van
+        // antes del subcomando, mientras --policy-file lo registra cada subcomando y va
+        // DESPUÉS. Con el orden al revés, la CLI contesta "subcomando desconocido".
+        $subcomando = array_shift($args);
+        $cmd = array_merge(
+            [$this->binary, '--dir', $this->dir, '--json', $subcomando],
+            $this->politica(),
+            $args
+        );
         $descr = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $proc = @proc_open($cmd, $descr, $pipes);
         if (!is_resource($proc)) {
@@ -196,7 +232,12 @@ final class Sealer
         if (!is_file($this->binary)) {
             throw new SealEnvironmentError(sprintf('no hay ningún fichero en %s', $this->binary));
         }
-        if (!is_executable($this->binary)) {
+        // is_executable solo se cree en Unix, por lo mismo que los permisos del fichero
+        // de passphrase: en Windows no consulta ninguna ACL, decide por la extensión del
+        // nombre, y se equivoca en las dos direcciones. Una comprobación que dice "no se
+        // puede ejecutar" sobre algo que sí se ejecuta es peor que no comprobar: ahí el
+        // error real lo da proc_open, y ese camino ya está cubierto abajo con su mensaje.
+        if (!self::esWindows() && !is_executable($this->binary)) {
             throw new SealEnvironmentError(sprintf(
                 '%s existe pero no se puede ejecutar. Dale permiso (chmod 0700); si tampoco así, ' .
                 'el sistema de ficheros puede estar montado noexec y hay que preguntarle al proveedor.',
@@ -212,6 +253,24 @@ final class Sealer
                 'proceso web no tiene terminal.',
                 $this->passphraseFile
             ));
+        }
+        // La política es la raíz de confianza (ADR-017): si se pidió una y el fichero no
+        // está, el sellado NO sigue sin ella. Seguir sería volver al hallazgo de arriba
+        // por otro camino.
+        if ($this->policyFile !== null) {
+            if (!is_file($this->policyFile)) {
+                throw new SealEnvironmentError(sprintf(
+                    'no hay fichero de política en %s. Se configuró una política y sin ella el ' .
+                    'sellado no verificaría ni la atestación ni el firmante (ADR-017).',
+                    $this->policyFile
+                ));
+            }
+            if (!is_readable($this->policyFile)) {
+                throw new SealEnvironmentError(sprintf(
+                    'el fichero de política %s no se puede leer con el usuario de PHP',
+                    $this->policyFile
+                ));
+            }
         }
         if (!self::esWindows()) {
             $modo = @fileperms($this->passphraseFile);

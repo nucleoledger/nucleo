@@ -52,6 +52,7 @@ $sealer = new Nucleo\Sealer(
     '/home/usuario/bin/nucleo',        // el binario, chmod 0700
     '/home/usuario/nucleo',            // el despliegue (el que lleva nucleo.db)
     '/home/usuario/.nucleo-pass',      // fichero de passphrase, chmod 0600
+    '/home/usuario/politica.json',     // la política: raíz de confianza (ADR-017)
 );
 
 try {
@@ -72,7 +73,22 @@ try {
 }
 ```
 
-**Pasa siempre `--idempotency-key`** (el cuarto argumento). Es lo que hace que un
+**Pasa la política.** El cuarto argumento se añade como `--policy-file` a **toda**
+ejecución del binario, y es lo que hace que la atestación, la frescura y la identidad
+del firmante se verifiquen contra algo que viene de fuera del fichero en vez de
+reportarse como no verificadas ([ADR-017](../../docs/adr/ADR-017-politica-raiz-de-confianza.md)).
+Sin ella el sellado funciona y afirma menos, y lo dice en su salida
+(`freshness.policy: false`, `signer.verified: false`). Si se configura una política y el
+fichero no está, el sellado **no sigue sin ella**: lanza `SealEnvironmentError`.
+
+> Hasta el 2026-09-19 este parámetro se guardaba y **no se pasaba al binario**: el
+> sellado se hacía sin política aunque el integrador creyera haberla configurado
+> (hallazgo alto de la auditoría externa de ese día). Ahora hay dos pruebas que lo
+> sujetan: una mira la línea de comandos con un binario falso, y otra comprueba con el
+> binario de verdad que `signer.verified` pasa a `true` y que una política de otro log
+> sale con código 2.
+
+**Pasa siempre `--idempotency-key`** (el quinto argumento). Es lo que hace que un
 reintento tras un timeout no duplique el registro, y un ERP que reintenta es exactamente
 el caso que lo hace falta ([ADR-020](../../docs/adr/ADR-020-idempotencia-y-atomicidad-del-sellado.md)).
 La clave está acotada por tenant, así que `factura-001` es de cualquiera.

@@ -221,6 +221,12 @@ $r = Verifier::verify($recibo, $sinSigner);
 comprueba('sin signerKey no hay veredicto positivo', !$r->valid);
 
 // ---------------------------------------------------------------- sellador
+// El argv primero: no necesita binario de verdad y es donde vivía el hallazgo alto de
+// la auditoría del 19-sep (la política que se guardaba y no se pasaba).
+require __DIR__ . '/argv.php';
+require __DIR__ . '/sellado.php';
+pruebasDeArgv();
+
 grupo('sellador: el entorno se comprueba antes de sellar');
 $tmp = sys_get_temp_dir();
 $passOK = $tmp . '/nucleo-pass-test.txt';
@@ -261,7 +267,6 @@ $bin = getenv('NUCLEO_BIN');
 if ($bin === false || $bin === '') {
     printf("  ⚠ NUCLEO_BIN no está definida: el sellado de punta a punta NO se comprobó\n");
 } else {
-    require __DIR__ . '/sellado.php';
     selladoDePuntaAPunta($bin);
 }
 
