@@ -11,6 +11,48 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Security: second external audit, and the PHP SDK's first real bug (Sprint 9)
+
+The same external reviewer read the tree again at `ffd5cf1`. Both audit reports are now
+**in the repository** — [2026-09-13](docs/auditoria-externa-20260913.md), recovered
+verbatim from the session that produced it, and
+[2026-09-19](docs/auditoria-externa-20260919.md) — so the ADRs that cite them point at
+something a reader can check. One of those citations turned out to be false and is
+amended in place, which is the whole argument for versioning the source.
+
+- **HIGH — the PHP sealer accepted a policy and never passed it to the binary.** The
+  constructor stored `$policyFile`; `seal()` and `status()` built their arguments without
+  `--policy-file`. An ERP could configure the trust root of
+  [ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md) and seal without it for
+  months: attestation, freshness and signer identity came back unverified and nothing said
+  so. A parameter that *appears* to configure something and does not is worse than not
+  offering it. Fixed in the common path, plus the two tests the auditor asked for — one
+  reads the command line through a **fake binary**, the other proves with the real one
+  that `signer.verified` flips to `true` and that a foreign policy exits 2. Removing the
+  fix again fails 9 assertions. A sweep of every property and parameter in the SDK found
+  no other stored-and-unused value.
+- **MEDIUM — the `--json` output is a wire format, and now gets that treatment**
+  ([ADR-025](docs/adr/ADR-025-json-como-formato-de-cable.md)). `SealResult::fromJSON` read
+  the CLI with casts and defaults: measured against this release's invalid vectors, the
+  old reader **accepted 25 of 29**. The two worst were not theoretical — `attestation:
+  "none"` with `attested: true` read as attested, and a missing `freshness` object read as
+  `stale: false`, which is what a cron looks at to stay quiet. Now: a strict reader
+  (`Nucleo\Contract`), a typed `SealContractError`, and
+  `testdata/vectors/cli-json/` — 8 valid vectors emitted by the real CLI (including the
+  fully attested state, with a witness cosigning) and 29 invalid ones written by hand. The
+  Go side regenerates and **compares** them, so a change in the CLI's output fails there
+  instead of in an integrator's cron. `docs/CLI-JSON.md` is normative.
+- **LOW — `sas.acta.v1` was announced in "What works today" and is not wired into the
+  CLI.** Corrected in the README, and the reason is written down: an acta's payload comes
+  from the public commercial registry, so it is the enumerable document
+  [ADR-023](docs/adr/ADR-023-payload-hash-y-enumeracion.md) §C addresses — wiring it needs
+  a random member the profile does not yet have. A test now pins the exposed profile list,
+  because nothing did, which is how the docs got ahead of the code unnoticed.
+- **Reproducibility.** The auditor could not run PHP, so they reproduced two verifiers out
+  of three and said so. `CONTRIBUTING.md` now carries the recipe — `ext-sodium` per
+  platform, the readiness check, and `NUCLEO_DIFERENCIAL_EXIGE_PHP=1`, which turns a
+  missing PHP from a printed warning into a failed run.
+
 ### Added: the PHP SDK, and sealing that survives a retry (Sprint 8)
 
 The external audit's product findings, and the ERP that seals from PHP.
