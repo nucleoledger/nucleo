@@ -295,6 +295,11 @@ Ctrl-C para parar.
 
 Déjalo corriendo y abre otra terminal.
 
+> **`sync` pide la passphrase.** Firma un checkpoint nuevo, así que necesita el vault.
+> En una terminal la pide y ya está; **en un cron no hay terminal** y hay que pasarle
+> `--passphrase-file /ruta/pass.txt` (con `chmod 0600`), o falla el primer día con
+> `no hay terminal para pedir la passphrase`. `status` y `verify` no la piden.
+
 ---
 
 ## Paso 5 — Sincronizar

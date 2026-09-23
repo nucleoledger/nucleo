@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // Las regresiones del ensayo de operación del Sprint 10.
@@ -337,4 +338,147 @@ func TestLosFallosDelTestigoSeExplican(t *testing.T) {
 			t.Errorf("%s: falta el detalle técnico, que es lo que sirve para depurar:\n%s", cs.nombre, c.ultima())
 		}
 	}
+}
+
+// TestLaErgonomiaQueElEnsayoCorrigio junta los cuatro detalles del ensayo de operación
+// que no rompen nada y confunden a quien opera.
+func TestLaErgonomiaQueElEnsayoCorrigio(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+
+	t.Run("la passphrase equivocada se dice sin criptografía", func(t *testing.T) {
+		// Antes: "no se pudo abrir el vault: vault: no se pudo desenvolver la DEK:
+		// chacha20poly1305: message authentication failed".
+		mala := ficheroUnico(t, c.dir, "mala-*.txt", "esta-no-es-la-passphrase\n")
+		doc := ficheroUnico(t, c.dir, "doc-*.json", `{"factura":"x"}`)
+		_, errOut, code := c.run("seal", "--tenant", testTenant, "--type", "sri.factura.v1",
+			"--payload", doc, "--passphrase-file", mala)
+		if code != exitUsage {
+			t.Fatalf("código %d, esperado %d\n%s", code, exitUsage, c.ultima())
+		}
+		for _, quiere := range []string{"la passphrase no es la de este vault", "restore", "tarjetas"} {
+			if !strings.Contains(errOut, quiere) {
+				t.Errorf("el mensaje no dice %q:\n%s", quiere, c.ultima())
+			}
+		}
+		for _, sobra := range []string{"chacha20poly1305", "DEK", "authentication failed"} {
+			if strings.Contains(errOut, sobra) {
+				t.Errorf("el mensaje sigue soltando %q:\n%s", sobra, c.ultima())
+			}
+		}
+	})
+
+	t.Run("una atestación que no cubre la cabeza no lleva ✔", func(t *testing.T) {
+		c2 := newCLI(t)
+		c2.initLedger()
+		c2.sealFile(`{"factura":"uno"}`)
+		url, name, key := startTestWitness(t, c2.logPubKey(t))
+		pol := politicaDeTest(t, c2, name, key)
+		c2.mustRun("sync", "--witness", url, "--policy-file", pol)
+
+		// El cron se rompe y se siguen sellando facturas: la atestación verifica pero
+		// cubre 1 de 3 bloques. El ensayo vio "✔ historia atestiguada hasta 1201 de
+		// 1321", y un operador lee el ✔, no la aritmética.
+		c2.sealFile(`{"factura":"dos"}`)
+		c2.sealFile(`{"factura":"tres"}`)
+
+		out, _ := c2.runWant(t, exitOK, "status", "--policy-file", pol)
+		if strings.Contains(out, "✔ historia atestiguada") {
+			t.Errorf("con 2 bloques sin atestiguar no puede salir un ✔:\n%s", out)
+		}
+		for _, quiere := range []string{"◐ atestiguada hasta el bloque 1", "2 bloques MÁS sin atestiguar", "solo este disco"} {
+			if !strings.Contains(out, quiere) {
+				t.Errorf("status no dice %q:\n%s", quiere, out)
+			}
+		}
+
+		// Y el campo que un monitor puede mirar sin hacer aritmética.
+		js, _ := c2.runWant(t, exitOK, "--json", "status", "--policy-file", pol)
+		var v map[string]any
+		if err := json.Unmarshal([]byte(js), &v); err != nil {
+			t.Fatal(err)
+		}
+		if v["attested"] != true {
+			t.Errorf("attested debería seguir siendo true (la atestación verifica): %v", v["attested"])
+		}
+		if v["attested_head"] != false {
+			t.Errorf("attested_head debería ser false con la cabeza sin atestiguar: %v", v["attested_head"])
+		}
+
+		// Tras sincronizar, las dos cosas vuelven a coincidir.
+		c2.mustRun("sync", "--witness", url, "--policy-file", pol)
+		js, _ = c2.runWant(t, exitOK, "--json", "status", "--policy-file", pol)
+		v = map[string]any{}
+		if err := json.Unmarshal([]byte(js), &v); err != nil {
+			t.Fatal(err)
+		}
+		if v["attested_head"] != true {
+			t.Errorf("tras sincronizar, attested_head debería ser true: %v", v["attested_head"])
+		}
+	})
+
+	t.Run("el cron que imprime sync funciona en un cron", func(t *testing.T) {
+		c3 := newCLI(t)
+		c3.initLedger()
+		c3.sealFile(`{"factura":"cron"}`)
+		url, name, key := startTestWitness(t, c3.logPubKey(t))
+		out, _ := c3.runWant(t, exitOK, "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+		// La receta impresa incluía `sync` SIN --passphrase-file, y en un cron eso
+		// falla con "no hay terminal para pedir la passphrase".
+		i := strings.Index(out, "Y el cron")
+		if i < 0 {
+			t.Fatalf("sync ya no imprime la receta del cron:\n%s", out)
+		}
+		receta := out[i:]
+		if !strings.Contains(receta, "--passphrase-file") {
+			t.Errorf("la receta del cron no lleva --passphrase-file, y sin ella falla el primer día:\n%s", receta)
+		}
+	})
+
+	t.Run("plural", func(t *testing.T) {
+		for _, cs := range []struct {
+			d    time.Duration
+			want string
+		}{
+			{1 * time.Second, "1 segundo"},
+			{2 * time.Second, "2 segundos"},
+			{time.Minute, "1 minuto"},
+			{90 * time.Second, "1 minuto"},
+			{2 * time.Minute, "2 minutos"},
+			{time.Hour, "1 hora"},
+			{3 * time.Hour, "3 horas"},
+			{48 * time.Hour, "2 días"},
+			{72 * time.Hour, "3 días"},
+		} {
+			if got := humanDuration(cs.d); got != cs.want {
+				t.Errorf("humanDuration(%s) = %q, want %q", cs.d, got, cs.want)
+			}
+		}
+	})
+}
+
+// politicaDeTest escribe una política con el testigo dado y devuelve su ruta.
+func politicaDeTest(t *testing.T, c *cli, witnessName, witnessKey string) string {
+	t.Helper()
+	out, _ := c.runWant(t, exitOK, "--json", "status")
+	var st map[string]any
+	if err := json.Unmarshal([]byte(out), &st); err != nil {
+		t.Fatal(err)
+	}
+	pol := map[string]any{
+		"origin":    st["origin"],
+		"logKey":    st["log_pubkey"],
+		"signerKey": st["signer_pubkey"],
+		"witnesses": map[string]string{witnessName: witnessKey},
+		"quorum":    1,
+	}
+	raw, err := json.Marshal(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ruta := filepath.Join(c.dir, "politica.json")
+	if err := os.WriteFile(ruta, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return ruta
 }

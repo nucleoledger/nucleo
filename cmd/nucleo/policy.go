@@ -157,9 +157,18 @@ func policySnippet(e *env, origin string, logKey, signerKey ed25519.PublicKey, w
 	for _, l := range strings.Split(string(raw), "\n") {
 		e.printf("  %s\n", l)
 	}
+	// El cron que se imprime lleva --passphrase-file, y no es un detalle: `sync` firma
+	// un checkpoint nuevo, así que necesita el vault. Sin esa bandera pide la passphrase
+	// por terminal, y un cron no tiene terminal: el ensayo de operación del Sprint 10
+	// copió estas dos líneas tal como salían y la primera falló con
+	// "no hay terminal para pedir la passphrase". Un programa no puede dictar una receta
+	// que él mismo rechaza.
 	e.printf("\n  Y el cron, con ella:\n\n")
-	e.printf("    nucleo --dir %s sync --witness URL --policy-file politica.json\n", e.dir)
+	e.printf("    nucleo --dir %s sync --witness URL --policy-file politica.json \\\n", e.dir)
+	e.printf("      --passphrase-file /ruta/segura/pass.txt\n")
 	e.printf("    nucleo --dir %s status --policy-file politica.json\n\n", e.dir)
+	e.printf("  `sync` firma un checkpoint, así que necesita la passphrase: en un cron va en\n")
+	e.printf("  un fichero que solo pueda leer su usuario (chmod 0600). `status` no la pide.\n\n")
 	e.printf("  Es lo mismo que tu contraparte necesita para verificar tus recibos:\n")
 	e.printf("  la misma política, el mismo fichero.\n")
 }

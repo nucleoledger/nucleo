@@ -73,7 +73,13 @@ política la distingue. Sin `signerKey`, `unverified` es lo honesto.
 |---|---|---|
 | `attestation` | `"none"` \| `"unverified"` \| `"verified"` | `none`: ningún checkpoint cosignado. `unverified`: hay uno con la firma del log correcta, pero no se aportó política de testigos o la cosignature no verifica bajo ella. `verified`: la cosignature verificó contra la clave del testigo de la política. |
 | `attested` | bool | `attestation == "verified"`. Solo entonces hubo atajo en la apertura. |
+| `attested_head` | bool | `attested` **y** la atestación cubre el último bloque. Es la pregunta que hace un monitor de verdad: ¿está respaldado lo que hay AHORA? Con el cron roto tres días, `attested` seguía siendo `true` mientras 120 bloques no los respaldaba nadie más que el disco (ensayo de operación del Sprint 10). |
 | `attested_size` | entero | Bloques que cubre el checkpoint considerado. Con `unverified` es lo que el checkpoint **afirma**, no lo comprobado. |
+
+En `seal`, `attested_head` se juzga **después** de escribir el bloque, así que es `false`
+en cuanto se sella: el bloque nuevo todavía no lo ha visto ningún testigo. En la salida
+humana, una atestación que no llega a la cabeza sale con `◐` y con los bloques que faltan,
+no con `✔`.
 
 ### `rollback` — un testigo recuerda más historia de la que hay aquí
 

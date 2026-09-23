@@ -186,6 +186,19 @@ func (e *env) unlock(s *store.Store, passphraseFile string, prompt string) (*vau
 	}
 	v, err := vault.Unlock(s, pass)
 	if err != nil {
+		// La passphrase equivocada es el error más común de todos y salía como
+		// "no se pudo abrir el vault: vault: no se pudo desenvolver la DEK:
+		// chacha20poly1305: message authentication failed". Cierto y cruel: quien lo
+		// lee no sabe si se equivocó de tecla o si el fichero está roto. Son cosas
+		// distintas y se dicen distinto (ensayo de operación del Sprint 10).
+		if errors.Is(err, vault.ErrUnwrap) {
+			return nil, nil, usageErr("la passphrase no es la de este vault.\n" +
+				"  Si la escribiste a mano, mira las mayúsculas y la distribución del teclado.\n" +
+				"  Si viene de un fichero con --passphrase-file, comprueba que no lleva espacios\n" +
+				"  ni saltos de línea de más: se usa tal cual, salvo el salto final.\n" +
+				"  Si la has perdido, las tarjetas SLIP-0039 del `init` son la única vuelta:\n" +
+				"  `nucleo restore`. Sin passphrase ni tarjetas, el contenido cifrado no se abre.")
+		}
 		return nil, nil, usageErr("no se pudo abrir el vault: %v", err)
 	}
 	id, err := identity.Load(v, s)

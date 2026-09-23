@@ -322,12 +322,25 @@ func (st staleness) warn(e *env) bool {
 func humanDuration(d time.Duration) string {
 	switch {
 	case d < time.Minute:
-		return fmt.Sprintf("%d segundos", int(d.Seconds()))
+		return plural(int(d.Seconds()), "segundo", "segundos")
 	case d < time.Hour:
-		return fmt.Sprintf("%d minutos", int(d.Minutes()))
+		return plural(int(d.Minutes()), "minuto", "minutos")
 	case d < 48*time.Hour:
-		return fmt.Sprintf("%d horas", int(d.Hours()))
+		return plural(int(d.Hours()), "hora", "horas")
 	default:
-		return fmt.Sprintf("%d días", int(d.Hours()/24))
+		return plural(int(d.Hours()/24), "día", "días")
 	}
+}
+
+// plural concuerda el número con la palabra.
+//
+// Sale del ensayo de operación del Sprint 10: el aviso decía "la última atestación es de
+// hace 1 minutos". Es una tontería y a la vez no lo es: un programa que le va a decir a
+// alguien que su registro contable no está respaldado no puede sonar a borrador. Lo que
+// se juega en esa "s" es que el operador se crea el resto del mensaje.
+func plural(n int, singular, plural string) string {
+	if n == 1 {
+		return "1 " + singular
+	}
+	return fmt.Sprintf("%d %s", n, plural)
 }

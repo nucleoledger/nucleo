@@ -52,7 +52,7 @@ func TestFrescuraNoSeFiaDelRegistroLocal(t *testing.T) {
 	if strings.Contains(out, "frescura  : ✔") {
 		t.Errorf("EXPLOTADO: un registro local forjado compró un ✔:\n%s", out)
 	}
-	for _, want := range []string{"frescura  : ◐ registro local de hace 1 minutos, por testigo.inventado/w9 — NO verificado", "estado    : ⚠ SIN ATESTIGUAR"} {
+	for _, want := range []string{"frescura  : ◐ registro local de hace 1 minuto, por testigo.inventado/w9 — NO verificado", "estado    : ⚠ SIN ATESTIGUAR"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status no dice %q:\n%s", want, out)
 		}

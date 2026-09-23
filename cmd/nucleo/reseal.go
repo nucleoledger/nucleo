@@ -236,6 +236,10 @@ func sealTail(e *env, s *store.Store, res store.OpenResult, withPolicy bool, tre
 	}
 	salida["attestation"] = res.Attestation.String()
 	salida["attested"] = res.Attested()
+	// Con treeSize y no con res.TreeSize: `seal` juzga DESPUÉS de escribir su bloque, y
+	// ese bloque no lo atestigua nadie todavía. Comparar con el tamaño de antes diría
+	// que la cabeza está atestiguada justo cuando acaba de dejar de estarlo.
+	salida["attested_head"] = res.Attested() && res.AttestedSize == treeSize
 	salida["attested_size"] = res.AttestedSize
 	salida["signer"] = signerJSON(res)
 	st.warn(e)

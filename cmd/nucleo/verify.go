@@ -47,12 +47,17 @@ func cmdStatus(e *env, args []string) error {
 		return err
 	}
 	data := map[string]any{
-		"dir":           e.dir,
-		"leaf_rule":     leafRule,
-		"origin":        origin,
-		"log_pubkey":    logPub,
-		"tree_size":     res.TreeSize,
-		"attested":      res.Attested(),
+		"dir":        e.dir,
+		"leaf_rule":  leafRule,
+		"origin":     origin,
+		"log_pubkey": logPub,
+		"tree_size":  res.TreeSize,
+		"attested":   res.Attested(),
+		// attested_head contesta la pregunta que un monitor hace de verdad: ¿está
+		// atestiguado lo que hay AHORA? `attested` dice si la atestación verifica, y con
+		// el cron roto tres días seguía siendo true mientras 120 bloques no los
+		// respaldaba nadie (ensayo de operación del Sprint 10, escenario 2).
+		"attested_head": res.Attested() && res.AttestedSize == res.TreeSize,
 		"attestation":   res.Attestation.String(),
 		"attested_size": res.AttestedSize,
 		"root":          hex.EncodeToString(root),
@@ -191,6 +196,7 @@ func cmdVerify(e *env, args []string) error {
 		"mode":          mode,
 		"tree_size":     res.TreeSize,
 		"attested":      res.Attested(),
+		"attested_head": res.Attested() && res.AttestedSize == res.TreeSize,
 		"attestation":   res.Attestation.String(),
 		"attested_size": res.AttestedSize,
 		"freshness":     st.json(),
@@ -233,6 +239,16 @@ func printAttestation(e *env, r store.OpenResult) {
 	switch {
 	case r.TreeSize == 0:
 		e.printf("estado    : base nueva, todavía sin historia que atestiguar\n")
+	case r.Attestation == store.AttestationVerified && r.AttestedSize < r.TreeSize:
+		// La atestación verifica, pero NO cubre la cabeza del ledger. El ensayo de
+		// operación del Sprint 10 dejó el cron roto tres días sellando facturas: la
+		// línea decía "✔ historia atestiguada hasta 1201 de 1321 bloques" y un operador
+		// lee el ✔, no la aritmética. Los 120 bloques de esos tres días no los respalda
+		// nadie más que este disco, y eso no es un ✔.
+		e.printf("estado    : ◐ atestiguada hasta el bloque %d, y hay %d bloques MÁS sin atestiguar\n",
+			r.AttestedSize, r.TreeSize-r.AttestedSize)
+		e.printf("            Lo que respalda a esos %d es solo este disco. Ejecuta `nucleo sync`.\n",
+			r.TreeSize-r.AttestedSize)
 	case r.Attestation == store.AttestationVerified:
 		e.printf("estado    : ✔ historia atestiguada hasta %d de %d bloques\n", r.AttestedSize, r.TreeSize)
 	case r.Attestation == store.AttestationUnverified:
