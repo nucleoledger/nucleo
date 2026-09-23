@@ -54,6 +54,20 @@ type vectorCLIJSON struct {
 // no vacía, que es lo que CLI-JSON.md exige de ese campo.
 const marcaDir = "<DIR>"
 
+// sinRutas quita el directorio del test de una salida JSON.
+//
+// Sustituye la ruta Y su forma escapada en JSON, y esa segunda mitad la enseñó Windows:
+// allí la ruta lleva barras invertidas, dentro del JSON aparecen duplicadas —`C:\\Users`—
+// y la sustitución literal no encontraba nada, así que el directorio temporal se colaba
+// en el vector y la comparación fallaba solo en ese sistema (run 35815589938).
+func sinRutas(texto, dir string) string {
+	texto = strings.ReplaceAll(texto, dir, marcaDir)
+	if escapado := strings.ReplaceAll(dir, `\`, `\\`); escapado != dir {
+		texto = strings.ReplaceAll(texto, escapado, marcaDir)
+	}
+	return texto
+}
+
 func TestVectoresCLIJSON(t *testing.T) {
 	regenerar := os.Getenv("NUCLEO_REGENERAR_VECTORES_CLIJSON") == "1"
 	dir := filepath.Join("..", "..", "testdata", "vectors", dirVectoresCLIJSON)
@@ -74,7 +88,7 @@ func TestVectoresCLIJSON(t *testing.T) {
 			Description: desc,
 			Command:     limpios,
 			ExitCode:    code,
-			Stdout:      strings.ReplaceAll(salida, c.dir, marcaDir),
+			Stdout:      sinRutas(salida, c.dir),
 			Valid:       true,
 		})
 		return salida
@@ -134,8 +148,15 @@ func TestVectoresCLIJSON(t *testing.T) {
 		"--payload", escribeDoc(t, c.dir, "doc-003.json", `{"factura":"contrato-003"}`), "--policy-file", polPath)
 
 	// 6. Y el objeto de error, que también es contrato (CLI-JSON.md §Convenciones).
+	//
+	// El error se provoca con una bandera que la CLI valida por su cuenta y NO con un
+	// fichero que no existe: el mensaje de "no existe" lo escribe el sistema operativo
+	// —"no such file or directory" en Linux, "The system cannot find the file specified."
+	// en Windows— y un vector con texto del sistema dentro solo vale en un sistema. Lo
+	// que este caso demuestra es la FORMA del objeto de error, no de quién es la frase.
 	añade("valido-error-de-uso", "un error de uso: ok false, error y exit_code, y el proceso sale con ese código",
-		exitUsage, "--json", "seal", "--tenant", testTenant, "--type", "sri.factura.v1", "--payload", "no-existe.json")
+		exitUsage, "--json", "seal", "--tenant", testTenant, "--type", "sri.factura.v1",
+		"--payload", doc, "--idempotency-key", "")
 
 	if regenerar {
 		escribeVectoresCLIJSON(t, dir, out)
