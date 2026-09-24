@@ -104,3 +104,25 @@ func TestElConsejoDePermisosSeAdaptaAlSistemaDeFicheros(t *testing.T) {
 		}
 	}
 }
+
+// TestElAvisoDeLaPoliticaTambienSeAdapta: el aviso de permisos de la política
+// tampoco manda hacer un chmod donde el chmod no hace nada.
+//
+// Es el mismo hallazgo que en la clave del testigo, encontrado en la misma
+// sesión: el ejemplo de integración imprimía este aviso en CADA comando, y su
+// consejo era inseguible.
+func TestElAvisoDeLaPoliticaTambienSeAdapta(t *testing.T) {
+	conChmod := avisoDePermisosDePolitica("/sitio/politica.json", 0o666, true)
+	if !strings.Contains(conChmod, "déjala en 0600 o 0644") {
+		t.Errorf("el aviso de siempre cambió:\n%s", conChmod)
+	}
+	sinChmod := avisoDePermisosDePolitica("/sitio/politica.json", 0o777, false)
+	if strings.Contains(sinChmod, "déjala en 0600") {
+		t.Errorf("sigue mandando un chmod que no sirve:\n%s", sinChmod)
+	}
+	for _, quiero := range []string{"NO guarda permisos", "/mnt/c", "0777"} {
+		if !strings.Contains(sinChmod, quiero) {
+			t.Errorf("el aviso no dice %q:\n%s", quiero, sinChmod)
+		}
+	}
+}

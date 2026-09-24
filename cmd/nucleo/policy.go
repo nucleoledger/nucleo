@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -128,8 +129,7 @@ func loadPolicyFile(e *env, path string) (*policy.File, error) {
 	if runtime.GOOS != "windows" {
 		if st, err := os.Stat(path); err == nil {
 			if perm := st.Mode().Perm(); perm != 0o600 && perm != 0o644 {
-				fmt.Fprintf(e.stderr, "AVISO: la política %q tiene permisos %04o. Quien pueda escribirla decide qué\n"+
-					"       se verifica; déjala en 0600 o 0644.\n", path, perm)
+				fmt.Fprint(e.stderr, avisoDePermisosDePolitica(path, perm, guardaPermisos(filepath.Dir(path))))
 			}
 		}
 	}
@@ -138,6 +138,24 @@ func loadPolicyFile(e *env, path string) (*policy.File, error) {
 		return nil, usageErr("la política %q no es válida: %v", path, err)
 	}
 	return f, nil
+}
+
+// avisoDePermisosDePolitica redacta el aviso, y lo redacta distinto cuando el
+// consejo no sirve.
+//
+// "Déjala en 0600" no se puede obedecer en un directorio que no guarda permisos
+// POSIX —/mnt/c bajo WSL, un recurso compartido—: el chmod contesta que sí y el
+// fichero sigue igual. Mismo hallazgo que en la clave del testigo (Sprint 11), y
+// se arregla igual: decir lo que de verdad hay que hacer.
+func avisoDePermisosDePolitica(path string, perm os.FileMode, guarda bool) string {
+	if guarda {
+		return fmt.Sprintf("AVISO: la política %q tiene permisos %04o. Quien pueda escribirla decide qué\n"+
+			"       se verifica; déjala en 0600 o 0644.\n", path, perm)
+	}
+	return fmt.Sprintf("AVISO: la política %q tiene permisos %04o y su directorio NO guarda permisos\n"+
+		"       POSIX (típico de /mnt/c bajo WSL): el chmod no va a cambiarlo. Quien pueda\n"+
+		"       escribirla decide qué se verifica; ten el despliegue en un sistema de\n"+
+		"       ficheros que sí los guarde.\n", path, perm)
 }
 
 // policySnippet escribe la política lista para guardar y el comando listo para el
