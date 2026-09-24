@@ -267,6 +267,7 @@ El informe de `internal/reconcile` más el estado de la historia:
 | `local_size`, `witness_size` | enteros — bloques aquí y bloques que el testigo había cosignado |
 | `attested` | bool — la cosignature del testigo verificó |
 | `attested_at` | RFC 3339 — el instante que afirmó el testigo |
+| `replay_suspect` | bool — la cosignature recibida ya nacía vieja (ver `freshness` arriba) |
 | `first_time` | bool — era el primer checkpoint de este log para ese testigo |
 | `policy` | objeto, ver arriba — lo que hace falta para volver a abrir con todo verificado |
 
