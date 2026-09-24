@@ -11,6 +11,49 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Added: the integration example, and the four contract frictions it found (Sprint 11)
+
+[`examples/erp-node`](examples/erp-node) — a small but real ERP in Node.js (invoices,
+not a hello-world) that seals each invoice on issue with an idempotency key, runs `sync`
+from cron, hands the customer a receipt, verifies a pasted one with
+`@nucleoledger/verify`, and shows a tampered record caught by `reconcile`: the v1 success
+criterion, inside an application. It reimplements nothing, wraps the protocol in no
+abstractions of its own, and every screen shows the command it ran. Two commands to run
+it, its own README, and its own CI job (`ejemplo`) so it cannot rot. Where it lives and
+what it depends on is [ADR-026](docs/adr/ADR-026-ejemplo-de-integracion.md); the full
+report, with the timed measurement, is in
+[`docs/ejemplo-de-integracion-20260923.md`](docs/ejemplo-de-integracion-20260923.md).
+
+Writing it was also the point: it is a **second, independent consumer of the `--json`
+contract** (ADR-025), in another language, written from `docs/CLI-JSON.md` without
+looking at the PHP wrapper. Four frictions came out of that, and are fixed here:
+
+- **`findings` was `null` in the good case.** The contract promises an array; a nil slice
+  in Go marshals as `null`, so a reconciliation that finds *nothing* broke the strict
+  consumer ADR-025 asks for. Fixed in the emitter — an empty array is an array — with a
+  regression test that fails if the nil slice comes back.
+- **A finding on block 0 came without its index.** `omitempty` on a `uint64` hides the
+  zero, and block 0 is the first invoice of everyone who integrates Núcleo.
+- **`replay_suspect` was in `sync`'s output and not in its table.** Documented.
+- **`full_verify` is not "only with `--full`".** In `reconcile`, `--full` defaults to
+  `true`: the check re-verifies every historical signature unless you pass `--full=false`.
+
+And one that came from operating it rather than from the contract: the witness's key
+permission check told you to run a `chmod` that does nothing on a filesystem which does
+not keep POSIX modes (`/mnt/c` under WSL, a network share), so a witness started **once**
+— the run that created its key — and never again. The refusal stays: a private key other
+users can read attests nothing. The diagnosis now says what is actually wrong and tells
+you to move the witness's memory with `--db`. Same fix for the policy's permission
+warning, which the example was printing on every single command.
+
+**The timed measurement CONCEPTO §18 asked for**, which nobody had done: from a clean
+clone to a verified receipt, **≈15 s of machine time warm, ≈35 s cold**; sealing an
+invoice, **88–97 ms** on ext4 (508–623 ms on `/mnt/c`, which is what an `fsync` costs
+there); the example's receipt verified by **the same bundle `web/verify/` serves** — the
+bytes a phone would run — in **13 ms**. What that measurement cannot cover is stated
+plainly in the report: the *comprehension* time of a developer who has not seen the
+project cannot be clocked by whoever wrote the example.
+
 ### Fixed: an operations rehearsal, not a code audit (Sprint 10)
 
 A deployment set up the way a small business would have it, and then **operated**: a
