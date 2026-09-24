@@ -287,3 +287,38 @@ func TestFindingsAreOrdered(t *testing.T) {
 		t.Errorf("el último hallazgo debería ser el faltante: %+v", rep.Findings[2])
 	}
 }
+
+// TestFindingsSerializaComoArrayVacio: un cotejo que cuadra emite `"findings": []`,
+// no `"findings": null`.
+//
+// Es un hallazgo del Sprint 11, y salió de escribir un SEGUNDO consumidor del contrato
+// --json —en Node, desde docs/CLI-JSON.md— en vez de de leer este código: el documento
+// promete un array y el caso bueno entregaba null, así que el consumidor estricto que
+// pide ADR-025 se rompía justo cuando no había nada que denunciar. El golden es el texto
+// del contrato, no la salida de esta función.
+func TestFindingsSerializaComoArrayVacio(t *testing.T) {
+	s, payloads := sealed(t)
+	rep, err := Reconcile(s, FromSlice(live(payloads, func(i int, p []byte) []byte { return p })), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := rep.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"findings": []`) {
+		t.Errorf("el cotejo limpio no emite un array vacío:\n%s", raw)
+	}
+	if strings.Contains(string(raw), `"findings": null`) {
+		t.Errorf("findings sigue saliendo como null:\n%s", raw)
+	}
+
+	// Y un consumidor que lo lea como array tiene que poder hacerlo sin tolerar nada.
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["findings"].([]any); !ok {
+		t.Errorf("findings = %#v, y el contrato dice array", m["findings"])
+	}
+}

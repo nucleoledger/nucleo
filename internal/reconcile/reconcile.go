@@ -151,7 +151,12 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 		sealed[b.Header.Index] = b
 	}
 
-	rep := &Report{TreeSize: uint64(n)}
+	// Findings arranca como una lista VACÍA, no nil. La diferencia solo se ve al
+	// serializar: una lista nil se convierte en `null` y una vacía en `[]`, y el
+	// contrato de docs/CLI-JSON.md promete un array. Un consumidor estricto
+	// (ADR-025) que lo lea como array se rompería justo en el caso bueno —el cotejo
+	// que cuadra— si esto fuera nil.
+	rep := &Report{TreeSize: uint64(n), Findings: []Finding{}}
 	seen := make(map[uint64]bool, len(blocks))
 
 	err = src(func(rec Record) error {

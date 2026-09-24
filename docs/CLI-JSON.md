@@ -254,8 +254,8 @@ El informe de `internal/reconcile` más el estado de la historia:
 | campo | tipo |
 |---|---|
 | `tree_size`, `checked`, `verified` | enteros — bloques, registros comparados, coincidentes |
-| `findings` | array de `{status, index, sealed_hash, current_hash, sealed_at, tenant, type}`; `status` es `"discrepancia"` (el vivo cambió), `"faltante"` (el vivo ya no lo tiene) o `"no sellado"` (el vivo tiene algo que el ledger no); `sealed_at` es el tiempo **declarado** del bloque |
-| `full_verify` | `{run, ok, error}` solo con `--full` |
+| `findings` | array —**siempre array**, vacío cuando el cotejo cuadra— de `{status, index, sealed_hash, current_hash, sealed_at, tenant, type}`; `status` es `"discrepancia"` (el vivo cambió), `"faltante"` (el vivo ya no lo tiene) o `"no sellado"` (el vivo tiene algo que el ledger no); `sealed_at` es el tiempo **declarado** del bloque |
+| `full_verify` | `{run, ok, error}`. **`--full` vale `true` por omisión en `reconcile`**: el cotejo recomprueba todas las firmas históricas salvo que se pase `--full=false`, y entonces el campo no sale |
 | `attestation`, `attested`, `attested_size`, `signer`, `freshness` | misma semántica que `status`: un cotejo que coincide sobre una historia sin atestiguar coincide con un ledger que podría estar truncado |
 | `ok` | `true` sin hallazgos (y `full_verify.ok` si se pidió); con `false` el código de salida es `2` |
 
