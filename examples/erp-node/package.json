@@ -1,0 +1,21 @@
+{
+  "name": "nucleo-ejemplo-erp-node",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ERP mínimo en Node.js que sella sus facturas en Núcleo, emite recibos y reconcilia",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "node bin/setup.js",
+    "testigo": "node bin/testigo.js",
+    "demo": "node bin/demo.js",
+    "cron": "node bin/cron.js",
+    "start": "node src/servidor.js"
+  },
+  "dependencies": {
+    "@nucleoledger/verify": "file:../../sdk/ts"
+  }
+}

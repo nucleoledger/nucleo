@@ -1,0 +1,5 @@
+# El despliegue del ejemplo: ledger, vault, facturas, documentos, política y la
+# passphrase de juguete. Nada de esto se versiona, y la passphrase menos que nada.
+datos/
+node_modules/
+package-lock.json
