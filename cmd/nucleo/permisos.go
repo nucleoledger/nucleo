@@ -18,7 +18,10 @@ func guardaPermisos(dir string) bool {
 		return true
 	}
 	nombre := f.Name()
-	defer os.Remove(nombre)
+	// El borrado no se comprueba a propósito: si falla, queda un fichero vacío de
+	// nombre inequívoco y no hay nada que hacer al respecto. Lo que importa de esta
+	// función es el veredicto.
+	defer func() { _ = os.Remove(nombre) }()
 	if err := f.Close(); err != nil {
 		return true
 	}
