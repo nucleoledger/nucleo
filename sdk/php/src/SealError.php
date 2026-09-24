@@ -19,8 +19,21 @@ class SealError extends \RuntimeException
     public string $stderr = '';
     /** @var int el código de salida de la CLI, o -1 si no llegó a ejecutarse */
     public int $exitCode = -1;
+    /**
+     * @var string la clase del error (ADR-027): usage, transient, environment o
+     * integrity. Dice lo que el código de salida no puede: si esto se reintenta, si hay
+     * que llamar a una persona o si es un incidente. Un binario antiguo no la manda y
+     * entonces se deduce del código.
+     */
+    public string $errorClass = '';
 
-    public static function make(string $mensaje, int $code, string $stderr): self
+    /** esReintentable es la pregunta que un ERP hace de verdad. */
+    public function esReintentable(): bool
+    {
+        return $this->errorClass === 'transient';
+    }
+
+    public static function make(string $mensaje, int $code, string $stderr, string $errorClass = ''): self
     {
         $clase = self::class;
         if ($code === 1) {
@@ -34,6 +47,11 @@ class SealError extends \RuntimeException
         $e = new $clase($mensaje);
         $e->exitCode = $code;
         $e->stderr = $stderr;
+        $e->errorClass = $errorClass !== '' ? $errorClass : match ($code) {
+            2 => 'integrity',
+            3 => 'transient',
+            default => 'usage',
+        };
         return $e;
     }
 }

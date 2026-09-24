@@ -81,6 +81,10 @@ function selladoDePuntaAPunta(string $bin): void
             $e->getMessage()
         );
         comprueba('el error lleva el código de salida', $e->exitCode === 1, (string) $e->exitCode);
+        // Y la clase, que dice lo que el código no puede (ADR-027): esto NO se
+        // reintenta, porque la clave ya nombra otro sellado.
+        comprueba('el error lleva su clase', $e->errorClass === 'usage', $e->errorClass);
+        comprueba('y no es reintentable', !$e->esReintentable());
     } catch (SealError $e) {
         comprueba('clave reutilizada para otro documento', false, 'tipo ' . get_class($e) . ': ' . $e->getMessage());
     }

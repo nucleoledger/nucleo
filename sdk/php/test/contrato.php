@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 use Nucleo\Contract;
 use Nucleo\SealContractError;
+use Nucleo\SealError;
 use Nucleo\SealResult;
 
 function pruebasDeContrato(string $vectores): void
@@ -31,8 +32,24 @@ function pruebasDeContrato(string $vectores): void
 
         if ($v['valid'] === false) {
             $invalidos++;
-            // Regla única para todos los inválidos: el camino del sellado los rechaza.
-            // Todos son mutaciones de una salida de `seal` o cosas que no son JSON.
+            // Los inválidos que son OBJETOS DE ERROR van por el camino del error, no por
+            // el del sellado. Si fueran por el del sellado se rechazarían por llevar
+            // `ok: false`, que es cierto y no prueba nada: el vector existe para fijar
+            // que la clase del error se valida (ADR-027), y un test que pasa por el
+            // motivo equivocado es un test que no vigila nada.
+            if (str_starts_with($nombre, 'invalido-error-class')) {
+                try {
+                    Contract::error(Contract::decode($stdout));
+                    comprueba('rechaza ' . $nombre, false, 'debería haber lanzado; motivo del vector: ' . $v['reason']);
+                } catch (SealContractError $e) {
+                    comprueba('rechaza ' . $nombre, true);
+                } catch (\Throwable $e) {
+                    comprueba('rechaza ' . $nombre, false, 'lanzó ' . get_class($e) . ': ' . $e->getMessage());
+                }
+                continue;
+            }
+            // Regla para el resto: el camino del sellado los rechaza. Todos son
+            // mutaciones de una salida de `seal` o cosas que no son JSON.
             try {
                 SealResult::fromCliJson($stdout);
                 comprueba('rechaza ' . $nombre, false, 'debería haber lanzado; motivo del vector: ' . $v['reason']);
@@ -82,8 +99,10 @@ function pruebasDeContrato(string $vectores): void
         }
         if (str_starts_with($nombre, 'valido-error')) {
             try {
-                Contract::error(Contract::decode($stdout));
+                $e = Contract::error(Contract::decode($stdout));
                 comprueba('acepta ' . $nombre, true);
+                // La clase se lee, y es una de las cuatro (ADR-027).
+                igual($nombre . ': error_class', 'usage', $e['error_class']);
             } catch (\Throwable $e) {
                 comprueba('acepta ' . $nombre, false, get_class($e) . ': ' . $e->getMessage());
             }
@@ -103,6 +122,27 @@ function pruebasDeContrato(string $vectores): void
     comprueba('hay vectores de contrato', $n >= 30, sprintf('solo %d', $n));
     comprueba('hay válidos e inválidos', $validos >= 8 && $invalidos >= 20,
         sprintf('%d válidos, %d inválidos', $validos, $invalidos));
+
+    // La clase del error se deduce del código cuando el binario no la manda, que es lo
+    // que pasa con un despliegue anterior a septiembre de 2026 (ADR-027 §C).
+    foreach ([[1, 'usage'], [2, 'integrity'], [3, 'transient']] as [$code, $esperada]) {
+        $viejo = Contract::decode(sprintf('{"ok":false,"error":"algo","exit_code":%d}', $code));
+        $a = Contract::error($viejo);
+        igual(sprintf('binario sin error_class: código %d', $code), $esperada, $a['error_class']);
+    }
+    // Y una clase desconocida en esa misma salida no se interpreta a la baja.
+    try {
+        Contract::error(Contract::decode('{"ok":false,"error":"algo","exit_code":1,"error_class":"retryable"}'));
+        comprueba('una clase desconocida no pasa', false, 'debería haber lanzado');
+    } catch (SealContractError $e) {
+        comprueba('una clase desconocida no pasa', true);
+    }
+    // La excepción tipada lleva la clase, y contesta la pregunta que un ERP hace.
+    $e = SealError::make('el testigo no contesta', 3, '', 'transient');
+    comprueba('SealError transitorio es reintentable', $e->esReintentable());
+    $e2 = SealError::make('la clave no es la de la política', 3, '', 'environment');
+    comprueba('SealError de entorno NO es reintentable', !$e2->esReintentable());
+    igual('SealError sin clase la deduce del código', 'integrity', SealError::make('x', 2, '')->errorClass);
 
     // Lo que el contrato SÍ tolera, y es la otra mitad de la regla: un campo que este SDK
     // no conoce. Un binario más nuevo puede añadirlos y el envoltorio tiene que seguir

@@ -210,7 +210,8 @@ final class Contract
 
     /**
      * error comprueba el objeto de error de la CLI, que también es contrato
-     * (CLI-JSON.md §Convenciones): {"ok": false, "error": "...", "exit_code": N}.
+     * (CLI-JSON.md §Convenciones):
+     * {"ok": false, "error": "...", "exit_code": N, "error_class": "..."}.
      */
     public static function error(\stdClass $j): array
     {
@@ -222,7 +223,34 @@ final class Contract
         if (!in_array($code, [1, 2, 3], true)) {
             throw new SealContractError(sprintf('exit_code = %d, y los códigos son 1, 2 y 3', $code));
         }
-        return self::toArray($j);
+        // Valida error_class si viene, y de paso deja la clase deducida al alcance de
+        // quien llame: es el mismo cálculo y hacerlo dos veces invita a que divergan.
+        $a = self::toArray($j);
+        $a['error_class'] = self::errorClass($j, $code);
+        return $a;
+    }
+
+    /**
+     * errorClass devuelve la clase del error (ADR-027), validada.
+     *
+     * Se lee como OPCIONAL a propósito: un binario anterior a septiembre de 2026 no la
+     * trae, y exigirla rompería contra un despliegue sin actualizar —la regla de
+     * compatibilidad dice que los campos se pueden añadir, no que aparezcan hacia atrás—.
+     * Cuando falta, se deduce del código de salida, que es el comportamiento de siempre.
+     *
+     * Lo que NO se tolera es un valor desconocido: un `retryable` que este SDK no conoce
+     * no se puede interpretar a la baja sin inventar. Misma regla que `attestation`.
+     */
+    public static function errorClass(\stdClass $j, int $code): string
+    {
+        if (property_exists($j, 'error_class')) {
+            return self::enumField($j, 'error_class', ['usage', 'transient', 'environment', 'integrity']);
+        }
+        return match ($code) {
+            2 => 'integrity',
+            3 => 'transient',
+            default => 'usage',
+        };
     }
 
     /** signer comprueba el objeto compartido `signer`. */

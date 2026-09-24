@@ -219,10 +219,14 @@ final class Sealer
             throw $code === 0 ? $e : $e2;
         }
         if ($code !== 0 || ($j->ok ?? null) === false) {
+            // La clase viaja en la excepción (ADR-027). Se lee con el mismo lector que
+            // los vectores, así que una clase desconocida es un error de contrato y no
+            // un valor que se cuela hasta el ERP.
             throw SealError::make(
                 is_string($j->error ?? null) ? $j->error : 'el sellado falló sin decir por qué',
                 $code,
-                $err
+                $err,
+                Contract::errorClass($j, in_array($code, [1, 2, 3], true) ? $code : 1)
             );
         }
         return $j;
