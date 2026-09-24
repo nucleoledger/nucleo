@@ -29,6 +29,7 @@ nucleo/
 │   ├── reconcile/          # comparar el sistema vivo contra lo sellado
 │   ├── commit/             # compromisos HMAC-SHA-256 con subclave por tenant
 │   └── integration/        # tests de extremo a extremo entre paquetes
+├── examples/erp-node/      # ERP de ejemplo en Node: integración de extremo a extremo
 ├── profiles/ecuador/       # sri.factura.v1 y sas.acta.v1
 ├── sdk/ts/                 # @nucleoledger/verify — cero dependencias de runtime
 ├── sdk/php/                # verificador nativo + sellador envoltorio (sin composer)
@@ -44,8 +45,8 @@ nucleo/
 └── .github/workflows/      # ci.yml, release.yml, publish-npm.yml (no tocar sin instrucción)
 ```
 La IA **lee** en `docs/` y `internal/`; **escribe** en `internal/`, `cmd/nucleo/`,
-`profiles/`, `sdk/ts/`, `sdk/php/` y tests; **no toca**: `testdata/vectors/`, `.github/`,
-`docs/PROTOCOL.md`, `docs/adr/`, ni los `cmd/nucleo-demo` y `cmd/nucleo-poc*`
+`profiles/`, `sdk/ts/`, `sdk/php/`, `examples/` y tests; **no toca**: `testdata/vectors/`,
+`.github/`, `docs/PROTOCOL.md`, `docs/adr/`, ni los `cmd/nucleo-demo` y `cmd/nucleo-poc*`
 (salvo instrucción explícita del dev).
 
 # 🛡️ STRICT DEVELOPMENT RULES
@@ -73,6 +74,7 @@ go test -bench=. ./internal/store ./internal/vault  # benchmarks
 ./scripts/demo-criterio-exito.sh  # el criterio de éxito de la v1, de punta a punta
 cd sdk/ts && npm test          # verificador TS contra los MISMOS vectores
 php sdk/php/test/run.php       # verificador PHP contra los MISMOS vectores (ext-sodium)
+cd examples/erp-node && npm run setup && npm run demo   # el ejemplo de integración, de punta a punta
 ```
 No hay logs de servicio: la salida de la CLI y de los tests es el log.
 

@@ -31,6 +31,12 @@ go build -o nucleo ./cmd/nucleo
 
 The full walkthrough — including the witness, receipts and reconciliation — is [`docs/TUTORIAL-es.md`](docs/TUTORIAL-es.md) (Spanish; every command in it was executed and its output pasted verbatim).
 
+Integrating from an application? [`examples/erp-node`](examples/erp-node) is a small but
+real ERP in Node.js — invoices, not a hello-world — that seals each invoice on issue with
+an idempotency key, runs `sync` from cron, hands the customer a receipt, verifies a pasted
+one with `@nucleoledger/verify`, and shows a tampered record caught by `reconcile`. Two
+commands to run it, and every screen shows the command it ran.
+
 ## The CLI
 
 One binary, no daemon, no external database. It runs per invocation so it works on the shared hosting where most of the target market lives.
@@ -290,6 +296,7 @@ The protocol and every design decision, with sources:
 - [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — normative specification
 - [`docs/adr/`](docs/adr/) — architecture decision records, including the amendments where a measurement contradicted an earlier assumption
 - [`docs/TUTORIAL-es.md`](docs/TUTORIAL-es.md) — integration guide (Spanish)
+- [`examples/erp-node`](examples/erp-node) — the integration example, with its own CI job so it cannot rot ([ADR-026](docs/adr/ADR-026-ejemplo-de-integracion.md))
 - [`docs/RELEASING.md`](docs/RELEASING.md) — how releases are built, signed and verified
 - [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) — concept document (Spanish)
 
