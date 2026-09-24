@@ -355,13 +355,38 @@ ${resultadoSync}
  * operador va a buscar, y traducirlo solo consigue que no lo encuentre.
  */
 function respuestaDeError(e, ruta) {
+  // La CLASE primero (ADR-027), porque dice lo que el código no puede. Un código 1 que
+  // es `transient` no es un fallo de la llamada: es "todavía no", y la respuesta correcta
+  // es esperar o sincronizar, no revisar el código del ERP. Este ejemplo fue el que
+  // encontró el caso, y ya no tiene que adivinarlo leyendo el mensaje.
+  if (e instanceof ErrorDeNucleo && e.clase === "transient" && e.exitCode === 1) {
+    return {
+      codigo: 409,
+      html: paginaDeError({
+        ruta,
+        titulo: "Todavía no",
+        clase: `error_class: transient (código ${e.exitCode})`,
+        mensaje: e.message,
+        queHizoElERP:
+          "Nada que haya que deshacer. Lo que se pidió está bien pedido; falta que se " +
+          "cumpla una condición que no depende de este ERP.",
+        queHacer: `<ul>
+          <li>Si el mensaje habla de <code>sync</code>: sincroniza y vuelve a intentarlo</li>
+          <li>Si habla de otro proceso con el ledger tomado: reintenta en unos segundos,
+          con la misma clave de idempotencia</li>
+          <li>Lo que <strong>no</strong> hay que hacer es cambiar la llamada: no está mal</li>
+        </ul>`,
+        detalle: e.stderr,
+      }),
+    };
+  }
   if (e instanceof ErrorDeEntorno) {
     return {
       codigo: 503,
       html: paginaDeError({
         ruta,
         titulo: "Núcleo no se pudo ejecutar",
-        clase: "ErrorDeEntorno",
+        clase: `ErrorDeEntorno${e.clase ? ` · error_class: ${e.clase}` : ""}`,
         mensaje: e.message,
         queHizoElERP:
           "<strong>No se emitió nada.</strong> El ERP se detuvo antes de escribir la factura " +
@@ -382,12 +407,22 @@ function respuestaDeError(e, ruta) {
       html: paginaDeError({
         ruta,
         titulo: "El testigo no atestiguó",
-        clase: "ErrorDeSincronizacion (código 3)",
+        clase: `ErrorDeSincronizacion (código 3) · error_class: ${e.clase || "transient"}`,
         mensaje: e.message,
         queHizoElERP:
           "<strong>Nada se perdió.</strong> Los sellos son locales y siguen ahí; lo que falta es " +
           "el tercero que dé fe de la fecha. El cron lo reintentará.",
-        queHacer: `<ul>
+        queHacer:
+          e.clase === "environment"
+            ? `<p><strong>Esto no se arregla reintentando</strong> —lo dice la clase del
+               error, <code>environment</code>—: el testigo contestó, y lo que contestó no
+               encaja con lo que espera la política.</p>
+               <ul>
+                 <li>Comprueba que la clave del testigo en <code>datos/politica.json</code> es la suya</li>
+                 <li>Comprueba que la URL apunta a un testigo de Núcleo y no a un proxy o a otra web</li>
+                 <li>Si el testigo perdió su memoria, tiene clave nueva: hay que rehacer la política</li>
+               </ul>`
+            : `<ul>
           <li>Si es un corte de red, no hay nada que hacer: se arregla solo en el próximo <code>sync</code></li>
           <li>Si dura horas, <code>status</code> empezará a avisar de que la atestación es vieja</li>
           <li>Lo que <strong>no</strong> se hace es dejar de sellar: sellar no depende del testigo</li>
@@ -402,7 +437,7 @@ function respuestaDeError(e, ruta) {
       html: paginaDeError({
         ruta,
         titulo: "Núcleo encontró una discrepancia",
-        clase: "ErrorDeIntegridad (código 2)",
+        clase: `ErrorDeIntegridad (código 2) · error_class: ${e.clase || "integrity"}`,
         mensaje: e.message,
         queHizoElERP:
           "El ERP <strong>no siguió adelante</strong>. Un código 2 no es un reintento: es un " +
@@ -442,15 +477,15 @@ function respuestaDeError(e, ruta) {
       html: paginaDeError({
         ruta,
         titulo: "Núcleo rechazó la llamada",
-        clase: "ErrorDeUso (código 1)",
+        clase: `ErrorDeUso (código 1) · error_class: ${e.clase || "usage"}`,
         mensaje: e.message,
         queHizoElERP: "Nada: se detuvo antes de escribir.",
-        queHacer: `<p>El código <code>1</code> cubre dos cosas que al ERP le convendría
-          distinguir y no puede: un error de la integración —un argumento mal puesto— y una
-          condición que se resuelve sola, como pedir el recibo de un bloque que ningún
-          testigo ha cubierto todavía. El mensaje de arriba dice cuál de las dos es; si
-          habla de <code>sync</code>, sincroniza y vuelve a intentarlo.</p>
-          <p class="nota">Está anotado como fricción del contrato en el informe del Sprint 11.</p>`,
+        queHacer: `<p>Es un error de la integración: mira los argumentos del comando de
+          arriba. Lo sabemos sin leer el mensaje porque la salida lo dice —
+          <code>error_class: ${esc(e.clase || "usage")}</code>—, y si fuera una condición
+          que se resuelve sola (el recibo de un bloque que ningún testigo cubrió todavía)
+          esta página sería otra.</p>
+          <p class="nota">Esa distinción es ADR-027, y salió de este ejemplo.</p>`,
         detalle: e.stderr,
       }),
     };
@@ -569,7 +604,7 @@ async function enruta(req, url) {
             html: paginaDeError({
               ruta,
               titulo: "Todavía no se puede emitir este recibo",
-              clase: "ErrorDeSincronizacion (código 3)",
+              clase: `ErrorDeSincronizacion (código 3) · error_class: ${e.clase || "transient"}`,
               mensaje: e.message,
               queHizoElERP:
                 `La factura <strong>está sellada</strong> (bloque ${f.nucleo.bloque}) y eso no ` +

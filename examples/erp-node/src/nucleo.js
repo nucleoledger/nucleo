@@ -24,11 +24,23 @@ export { ErrorDeContrato } from "./contrato.js";
 
 /** ErrorDeNucleo es la base: todos los fallos del binario pasan por aquí. */
 export class ErrorDeNucleo extends Error {
-  constructor(mensaje, { exitCode = -1, stderr = "" } = {}) {
+  constructor(mensaje, { exitCode = -1, stderr = "", clase = "" } = {}) {
     super(mensaje);
     this.name = "ErrorDeNucleo";
     this.exitCode = exitCode;
     this.stderr = stderr;
+    /**
+     * clase es lo que el código de salida no puede decir (ADR-027): usage, transient,
+     * environment o integrity. El caso que la hizo falta está en este ejemplo: pedir el
+     * recibo de un bloque que ningún testigo cubrió sale con código 1 —como una bandera
+     * mal escrita— y es TRANSITORIO, se arregla sincronizando.
+     */
+    this.clase = clase;
+  }
+
+  /** esReintentable es la pregunta que un ERP hace de verdad. */
+  esReintentable() {
+    return this.clase === "transient";
   }
 }
 
@@ -271,18 +283,21 @@ export class Nucleo {
     // Así que manda el código del proceso, y el objeto de error se lee si está.
     let mensaje;
     let exitCode = code;
+    let clase = "";
     if (Object.prototype.hasOwnProperty.call(j, "exit_code")) {
       const err = contrato.errorDeLaCLI(j);
       mensaje = err.error;
       exitCode = err.exitCode;
+      clase = err.clase;
     } else {
       if (contrato.booleano(j, "ok") !== false) {
         throw new contrato.ErrorDeContrato(`la CLI salió con ${code} y dice ok: true`);
       }
       mensaje = `${args[0]} salió con código ${code} y entregó su informe, sin objeto de error`;
+      clase = contrato.claseDelError(j, code);
     }
     const Clase = PORCODIGO[exitCode] ?? ErrorDeNucleo;
-    const e = new Clase(mensaje, { exitCode, stderr });
+    const e = new Clase(mensaje, { exitCode, stderr, clase });
     // El JSON entero viaja con el error: `reconcile` publica su informe completo con
     // ok:false y código 2, y tirarlo obligaría a volver a ejecutarlo para leerlo.
     e.json = j;

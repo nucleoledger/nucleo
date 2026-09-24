@@ -133,6 +133,7 @@ el sellado falla no es una integración:
 | El testigo no responde | `ErrorDeSincronizacion`, código 3 | Sigue sellando. No se ha perdido nada; falta el tercero que dé fe de la fecha |
 | El cotejo encuentra una discrepancia | código 2 con el informe completo | Enseña el informe. No reintenta: un 2 es un incidente |
 | La salida no encaja con el contrato | `ErrorDeContrato` | Se detiene. No rellena con valores por omisión: así es como una salida truncada parece un sellado correcto |
+| Se pide el recibo de un bloque que ningún testigo cubrió | código 1 con `error_class: transient` | Sincroniza y reintenta. **No** es un error de la llamada, y el ERP lo sabe sin leer el mensaje ([ADR-027](../../docs/adr/ADR-027-clase-del-error-en-json.md)) |
 
 Cada rama tiene su página, y las tres contestan lo mismo: qué pasó, **qué hizo el ERP con
 mi factura** y qué hacer ahora.
@@ -150,6 +151,11 @@ mi factura** y qué hacer ahora.
 - **El envoltorio está escrito desde `docs/CLI-JSON.md`**, no traducido del de PHP: es el
   segundo consumidor independiente del contrato de ADR-025. Cuatro fricciones salieron de
   escribirlo así, y están en el informe del sprint; tres se arreglaron en el mismo.
+- **La clase del error se lee, y no el texto del mensaje.** Cada objeto de error trae
+  `error_class` —`usage`, `transient`, `environment` o `integrity`— y eso es lo que
+  decide qué hace el ERP: reintentar, avisar a quien opera o abrir un incidente. Es
+  [ADR-027](../../docs/adr/ADR-027-clase-del-error-en-json.md), y salió de que este
+  ejemplo no podía distinguir "has llamado mal" de "todavía no" sin leer español.
 
 ## Si tu copia está en /mnt/c (WSL) o en un recurso compartido
 

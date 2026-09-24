@@ -256,6 +256,25 @@ export function cotejo(j) {
   };
 }
 
+/** LAS CUATRO CLASES de error (ADR-027). Conjunto cerrado. */
+export const CLASES = ["usage", "transient", "environment", "integrity"];
+
+/**
+ * claseDelError devuelve la clase, validada.
+ *
+ * Opcional a propósito: un binario anterior a septiembre de 2026 no la trae, y exigirla
+ * rompería contra un despliegue sin actualizar. Cuando falta se deduce del código de
+ * salida, que es el comportamiento de siempre —así que no se pierde nada y lo que se
+ * gana es nuevo—. Lo que no se tolera es un valor desconocido: interpretarlo a la baja
+ * sería inventar.
+ */
+export function claseDelError(j, code) {
+  if (Object.prototype.hasOwnProperty.call(j, "error_class")) {
+    return unoDe(j, "error_class", CLASES);
+  }
+  return { 2: "integrity", 3: "transient" }[code] ?? "usage";
+}
+
 /** error lee el objeto de error de la CLI, que también es contrato. */
 export function errorDeLaCLI(j) {
   if (booleano(j, "ok") !== false) throw new ErrorDeContrato("el objeto de error tiene que llevar ok: false");
@@ -263,5 +282,9 @@ export function errorDeLaCLI(j) {
   if (![1, 2, 3].includes(code)) {
     throw new ErrorDeContrato(`exit_code = ${code}, y los códigos son 1, 2 y 3`);
   }
-  return { error: cadena(j, "error", { vacia: false }), exitCode: code };
+  return {
+    error: cadena(j, "error", { vacia: false }),
+    exitCode: code,
+    clase: claseDelError(j, code),
+  };
 }

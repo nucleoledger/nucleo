@@ -99,6 +99,22 @@ const trasReintento = await nucleo.estado();
 comprueba(trasReintento.treeSize === 3, `el ledger creció a ${trasReintento.treeSize}: el reintento duplicó`);
 dice("  el ledger sigue en 3 bloques: no se duplicó nada (ADR-020)");
 
+// ————— 2b. el recibo ANTES de sincronizar: "todavía no" no es "has llamado mal" —————
+
+paso("2b", "Pedir el recibo antes de que ningún testigo haya visto el log.");
+try {
+  await nucleo.recibo({ bloque: 0, destinatario: "Cliente" });
+  comprueba(false, "se emitió un recibo sin checkpoint, y eso no debería poder pasar");
+} catch (e) {
+  dice(`  código ${e.exitCode}, clase ${e.clase}: ${e.message.split("\n")[0]}`);
+  comprueba(e.exitCode === 1, `código ${e.exitCode}, want 1`);
+  // EL CASO QUE ORIGINÓ ADR-027: código 1, como una bandera mal escrita, y no tiene nada
+  // que ver. La clase lo dice sin leer el texto, y el ERP sabe que la respuesta es
+  // sincronizar y reintentar.
+  comprueba(e.clase === "transient", `clase ${e.clase}, want transient`);
+  comprueba(e.esReintentable() === true, "un transitorio tiene que ser reintentable");
+}
+
 // ————— 3. atestación —————
 
 paso("3", "Pedir atestación a un testigo.");
@@ -221,7 +237,11 @@ try {
 } catch (e) {
   comprueba(e instanceof ErrorDeSincronizacion, `esperaba ErrorDeSincronizacion y llegó ${e?.name}`);
   comprueba(e.exitCode === 3, `código ${e.exitCode}, want 3`);
-  dice("  testigo apagado → ErrorDeSincronizacion, código 3:");
+  // Un testigo apagado vuelve; uno cuya clave no es la de la política, no. Los dos salen
+  // con 3 y la clase los separa (ADR-027).
+  comprueba(e.clase === "transient", `clase ${e.clase}, want transient`);
+  comprueba(e.esReintentable() === true, "un testigo caído se reintenta");
+  dice(`  testigo apagado → ErrorDeSincronizacion, código 3, clase ${e.clase}:`);
   for (const l of e.message.split("\n")) dice(`    ${l}`);
   dice("  y el ledger sigue sellando: el sello no depende del testigo");
 }
