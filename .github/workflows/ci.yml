@@ -70,6 +70,62 @@ jobs:
       - name: El bundle publicado está al día
         run: git diff --exit-code ../../web/verify/nucleo-verify.js
 
+  # El ejemplo de integración (examples/erp-node) arranca y completa el flujo
+  # entero en cada push.
+  #
+  # Es un job aparte y no un test más de Go porque lo que vigila no es Go: es que
+  # el contrato --json, el formato del recibo y los códigos de salida sigan
+  # siendo los que consume alguien de FUERA. Si este job se pone rojo con los
+  # demás en verde, lo que se ha roto es la integración, y es exactamente la
+  # señal que se quería (ADR-026).
+  #
+  # Corre los mismos dos comandos que el README manda teclear, en ese orden: así
+  # el README no puede quedarse obsoleto en silencio.
+  ejemplo:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 'stable'
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: sdk/ts/.nvmrc
+      - name: El binario que el ejemplo invoca
+        run: go build -o nucleo ./cmd/nucleo
+      - name: Arranque del despliegue (npm run setup)
+        working-directory: examples/erp-node
+        run: npm run setup
+      - name: El recorrido completo, con comprobaciones (npm run demo)
+        working-directory: examples/erp-node
+        run: npm run demo
+      # El cron es la mitad operativa del ejemplo y su promesa es el código de
+      # salida: 3 cuando el testigo no contesta, y 0 en la pasada semanal. Un
+      # cron que siempre sale 0 no se puede vigilar, así que se comprueba.
+      - name: El cron propaga los códigos de salida
+        working-directory: examples/erp-node
+        run: |
+          set +e
+          node bin/cron.js sync
+          codigo=$?
+          set -e
+          if [ "$codigo" != "3" ]; then
+            echo "sync sin testigo salió con $codigo, y tenía que ser 3"
+            exit 1
+          fi
+          node bin/cron.js semanal
+      - name: El servidor arranca y sirve el panel
+        working-directory: examples/erp-node
+        run: |
+          node bin/testigo.js & testigo=$!
+          node src/servidor.js & erp=$!
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/ >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:3000/ | grep -q "Facturas emitidas"
+          kill "$testigo" "$erp"
+
   # Fuzz corto de los formatos de cable.
   #
   # Dos cosas distintas protegen aquí, y conviene no confundirlas:
