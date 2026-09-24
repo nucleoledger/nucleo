@@ -322,3 +322,43 @@ func TestFindingsSerializaComoArrayVacio(t *testing.T) {
 		t.Errorf("findings = %#v, y el contrato dice array", m["findings"])
 	}
 }
+
+// TestHallazgoDelBloqueCeroLlevaSuIndice: una alteración en el PRIMER registro del
+// ledger sale con `"index": 0` y no sin índice.
+//
+// Con `omitempty`, el índice 0 desaparecía del JSON y quien lee el informe no podía
+// distinguirlo de un campo que no vino. No es un caso raro: el bloque 0 es la primera
+// factura de todo el que integra Núcleo.
+func TestHallazgoDelBloqueCeroLlevaSuIndice(t *testing.T) {
+	s, payloads := sealed(t)
+	// Se altera solo el primero.
+	src := FromSlice(live(payloads, func(i int, p []byte) []byte {
+		if i == 0 {
+			return []byte(`{"otra":"cosa"}`)
+		}
+		return p
+	}))
+	rep, err := Reconcile(s, src, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := rep.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"index": 0`) {
+		t.Errorf("el hallazgo del bloque 0 sale sin índice:\n%s", raw)
+	}
+	var m struct {
+		Findings []map[string]any `json:"findings"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Findings) != 1 {
+		t.Fatalf("%d hallazgos, want 1: %s", len(m.Findings), raw)
+	}
+	if _, ok := m.Findings[0]["index"]; !ok {
+		t.Errorf("el hallazgo no trae la clave index: %#v", m.Findings[0])
+	}
+}

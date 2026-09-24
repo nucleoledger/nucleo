@@ -61,7 +61,11 @@ const (
 // Finding describe un registro que no cuadra.
 type Finding struct {
 	Status Status `json:"status"`
-	Index  uint64 `json:"index,omitempty"`
+	// Index va SIEMPRE, sin omitempty: el bloque 0 es un bloque como los demás y
+	// con omitempty un hallazgo sobre el primer registro del ledger salía sin
+	// índice. Quien lee el informe no puede distinguir "índice 0" de "no me lo
+	// dijeron", y el primer registro es justo el que más ejemplos tienen delante.
+	Index uint64 `json:"index"`
 	// SealedHash es el payload_hash que está en el ledger.
 	SealedHash string `json:"sealed_hash,omitempty"`
 	// CurrentHash es el SHA-256 de lo que el sistema vivo devuelve hoy.
