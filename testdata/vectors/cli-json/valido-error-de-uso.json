@@ -14,6 +14,6 @@
     ""
   ],
   "exit_code": 1,
-  "stdout": "{\n  \"error\": \"--idempotency-key no puede estar vacía\",\n  \"exit_code\": 1,\n  \"ok\": false\n}\n",
+  "stdout": "{\n  \"error\": \"--idempotency-key no puede estar vacía\",\n  \"error_class\": \"usage\",\n  \"exit_code\": 1,\n  \"ok\": false\n}\n",
   "valid": true
 }

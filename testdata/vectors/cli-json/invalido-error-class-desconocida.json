@@ -1,0 +1,8 @@
+{
+  "name": "invalido-error-class-desconocida",
+  "description": "un objeto de error con una error_class que no está en el conjunto cerrado",
+  "exit_code": 1,
+  "stdout": "{\n  \"error\": \"--idempotency-key no puede estar vacía\",\n  \"error_class\": \"retryable\",\n  \"exit_code\": 1,\n  \"ok\": false\n}\n",
+  "valid": false,
+  "reason": "error_class solo admite usage, transient, environment e integrity (ADR-027 §C): un valor que no se entiende no se interpreta a la baja"
+}

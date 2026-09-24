@@ -56,41 +56,54 @@ func validaURLDeTestigo(raw string) error {
 
 // errorDeTestigo traduce el fallo a algo accionable, conservando el detalle.
 func errorDeTestigo(u string, err error) error {
-	frase, consejo := clasificaFalloDeTestigo(u, err)
+	frase, consejo, clase := clasificaFalloDeTestigo(u, err)
 	if frase == "" {
 		return syncErr("%v", err)
 	}
-	return syncErr("%s\n  %s\n  Detalle técnico: %v", frase, consejo, err)
+	return syncErr("%s\n  %s\n  Detalle técnico: %v", frase, consejo, err).conClase(clase)
 }
 
-// clasificaFalloDeTestigo devuelve la frase y el consejo, o "" si no sabe clasificarlo.
-func clasificaFalloDeTestigo(u string, err error) (frase, consejo string) {
+// clasificaFalloDeTestigo devuelve la frase, el consejo y la clase (ADR-027), o
+// "" si no sabe clasificarlo.
+//
+// La clase no se deduce del código de salida y aquí se ve por qué: los nueve
+// fallos del ensayo salen todos con 3, y la mitad se arreglan esperando mientras
+// la otra mitad no se arreglan nunca sin que alguien cambie algo. Un cron que
+// reintenta ante un 3 reintentaría para siempre contra un testigo cuya clave no
+// es la de la política.
+func clasificaFalloDeTestigo(u string, err error) (frase, consejo, clase string) {
 	// 1. El testigo contestó, pero con un código que no esperábamos.
 	var he *witness.HTTPError
 	if errors.As(err, &he) {
 		switch {
 		case he.Status == 404:
 			return fmt.Sprintf("el testigo %s contestó 404: ahí no hay lo que se le pidió", u),
-				"Comprueba la URL, y que ESE testigo sirva a ESTE log: un testigo solo responde por los origins que tiene configurados."
+				"Comprueba la URL, y que ESE testigo sirva a ESTE log: un testigo solo responde por los origins que tiene configurados.",
+				claseEntorno
 		case he.Status == 401 || he.Status == 403:
 			return fmt.Sprintf("el testigo %s rechazó la petición (HTTP %d)", u, he.Status),
-				"El testigo pide autorización o no acepta a este log. Es cosa de quien lo opera."
+				"El testigo pide autorización o no acepta a este log. Es cosa de quien lo opera.",
+				claseEntorno
 		case he.Status == 429:
 			return fmt.Sprintf("el testigo %s dice que le estás pidiendo demasiado (HTTP 429)", u),
-				"Espacia las sincronizaciones; con una por hora sobra para un despliegue normal."
+				"Espacia las sincronizaciones; con una por hora sobra para un despliegue normal.",
+				claseTransitoria
 		case he.Status >= 500:
 			return fmt.Sprintf("el testigo %s tuvo un error interno (HTTP %d)", u, he.Status),
-				"No es problema de este ledger ni de este fichero: reintenta más tarde, y si sigue, avisa a quien opera el testigo."
+				"No es problema de este ledger ni de este fichero: reintenta más tarde, y si sigue, avisa a quien opera el testigo.",
+				claseTransitoria
 		default:
 			return fmt.Sprintf("el testigo %s contestó HTTP %d, que no es una respuesta del protocolo", u, he.Status),
-				"Comprueba que la URL apunta a un testigo de Núcleo y no a otra cosa —un proxy, un portal cautivo, una web—."
+				"Comprueba que la URL apunta a un testigo de Núcleo y no a otra cosa —un proxy, un portal cautivo, una web—.",
+				claseEntorno
 		}
 	}
 
 	// 2. No contestó a tiempo.
 	if errors.Is(err, context.DeadlineExceeded) || esTimeout(err) {
 		return fmt.Sprintf("el testigo %s no contestó dentro del tiempo de espera", u),
-			"Si tarda siempre, súbelo con --timeout; si no debería tardar, mira la red y la carga del testigo. No se escribió nada."
+			"Si tarda siempre, súbelo con --timeout; si no debería tardar, mira la red y la carga del testigo. No se escribió nada.",
+			claseTransitoria
 	}
 
 	// 3. No se pudo llegar.
@@ -99,24 +112,28 @@ func clasificaFalloDeTestigo(u string, err error) (frase, consejo string) {
 	switch {
 	case errors.As(err, &de):
 		return fmt.Sprintf("no se encontró el host del testigo %s", u),
-			"Comprueba el nombre en la URL y el DNS de esta máquina."
+			"Comprueba el nombre en la URL y el DNS de esta máquina.",
+			claseEntorno
 	case errors.As(err, &oe):
 		return fmt.Sprintf("no se pudo conectar con el testigo %s", u),
-			"Comprueba que está levantado, que el puerto es ese y que ningún cortafuegos lo tapa."
+			"Comprueba que está levantado, que el puerto es ese y que ningún cortafuegos lo tapa.",
+			claseTransitoria
 	}
 
 	// 4. Contestó algo, pero no era una nota firmada.
 	if strings.Contains(err.Error(), "cosignature") || strings.Contains(err.Error(), "malformed note") {
 		return fmt.Sprintf("lo que contestó %s no es una cosignature válida de ese testigo", u),
-			"O la URL no es de un testigo de Núcleo, o la clave que traes en la política no es la suya. Esto NO se arregla reintentando."
+			"O la URL no es de un testigo de Núcleo, o la clave que traes en la política no es la suya. Esto NO se arregla reintentando.",
+			claseEntorno
 	}
 
 	// 5. Cortó la conexión a medias.
 	if errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "EOF") {
 		return fmt.Sprintf("el testigo %s cortó la conexión antes de terminar de contestar", u),
-			"Suele ser el testigo reiniciándose o un proxy en medio. No se escribió nada: reintenta."
+			"Suele ser el testigo reiniciándose o un proxy en medio. No se escribió nada: reintenta.",
+			claseTransitoria
 	}
-	return "", ""
+	return "", "", ""
 }
 
 // esTimeout reconoce los tiempos agotados de la biblioteca de red.

@@ -343,7 +343,11 @@ func cmdReceipt(e *env, args []string) error {
 	r, err := receipt.Issue(s, *recipient, uint64(*block), pol, id.Tenant)
 	if err != nil {
 		if errors.Is(err, receipt.ErrNotAttested) {
-			return usageErr("%v\n  Ejecuta `nucleo sync` para que un testigo cubra ese bloque.", err)
+			// Clase TRANSITORIA aunque el código sea 1 (ADR-027 §B): no hay nada mal
+			// en la llamada, solo hace falta que un testigo cubra ese bloque. Es el
+			// caso que encontró el ejemplo de integración: un ERP tiene que
+			// sincronizar y reintentar, no arreglar su código.
+			return usageErr("%v\n  Ejecuta `nucleo sync` para que un testigo cubra ese bloque.", err).conClase(claseTransitoria)
 		}
 		return usageErr("%v", err)
 	}
@@ -394,7 +398,10 @@ func cmdReceipt(e *env, args []string) error {
 func issuerPolicy(s *store.Store, wp *store.WitnessPolicy) (proof.Policy, error) {
 	noteBytes, err := s.LastCheckpoint()
 	if err != nil {
-		return proof.Policy{}, usageErr("el ledger no tiene ningún checkpoint todavía; ejecuta `nucleo sync`")
+		// TRANSITORIA, como el bloque sin cubrir: no falta nada en la llamada, falta
+		// que un testigo haya visto este log (ADR-027 §B). Es el mismo caso con un
+		// paso menos de historia, y el ejemplo de integración tropieza primero aquí.
+		return proof.Policy{}, usageErr("el ledger no tiene ningún checkpoint todavía; ejecuta `nucleo sync`").conClase(claseTransitoria)
 	}
 	c, err := checkpointOf(noteBytes)
 	if err != nil {

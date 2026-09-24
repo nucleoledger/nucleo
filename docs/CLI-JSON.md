@@ -29,10 +29,37 @@ consumidor estricto, vectores compartidos—:
 ## Convenciones
 
 - **`ok`** (bool) va en todos los objetos. `true` cuando el subcomando hizo su
-  trabajo. En un error, el objeto es `{"ok": false, "error": "...", "exit_code": N}`
+  trabajo. En un error, el objeto es
+  `{"ok": false, "error": "...", "exit_code": N, "error_class": "..."}`
   y el código de salida del proceso es `N`: `1` uso, `2` verificación/integridad,
   `3` sincronización fallida. `reconcile` con hallazgos emite su informe completo
-  con `ok: false` y sale con `2`.
+  con `ok: false` y sale con `2`; ese informe **no es un objeto de error** y no
+  trae `error` ni `exit_code` ni `error_class`, así que un consumidor tiene que
+  mirar el código del PROCESO antes de buscar un objeto de error.
+- **`error_class`** (string) dice QUÉ CLASE de problema es, que es lo que el
+  código de salida no puede decir (ADR-027). Conjunto cerrado:
+
+  | valor | qué afirma | qué hace un programa |
+  |---|---|---|
+  | `usage` | lo que se pidió no se puede pedir así | no reintentar; cambiar la llamada o la entrada |
+  | `transient` | se resuelve sola o con un reintento (el testigo no contesta, el ledger está tomado, el bloque no está cubierto todavía) | reintentar luego, con la misma `--idempotency-key` si hubo escritura |
+  | `environment` | el despliegue está roto y lo arregla una persona (permisos, disco, un fichero que falta, un testigo cuya clave no es la de la política) | avisar a quien opera; reintentar da lo mismo |
+  | `integrity` | la verificación falló: alteración, discrepancia, retroceso | incidente: no reintentar, no borrar, preservar |
+
+  Es **ortogonal al código**: un `1` puede ser `usage` o `transient` —pedir el
+  recibo de un bloque que ningún testigo cubrió no tiene nada de malo, solo es
+  pronto—, y un `3` puede ser `transient` (no se llega al testigo) o
+  `environment` (se llega y su clave no es la de la política, que no se arregla
+  reintentando). El `2` es siempre `integrity`.
+
+  Quien parsea lo lee como **opcional**: un binario anterior a septiembre de 2026
+  no lo trae, y entonces se deduce del código (`1 → usage`, `2 → integrity`,
+  `3 → transient`), que es el comportamiento de siempre. Si está y no es una de
+  las cuatro cadenas, es un error de contrato: un valor que no se entiende no se
+  interpreta a la baja.
+
+  **No sale en la salida para personas**, a propósito: ahí el mensaje ya dice qué
+  hacer, en español.
 - **Los avisos de frescura salen por stderr también con `--json`.** Es deliberado:
   un cron con stdout a un fichero y stderr al correo hace sonar la alarma sin
   programar nada. El mismo veredicto está en `freshness` para quien parsea.

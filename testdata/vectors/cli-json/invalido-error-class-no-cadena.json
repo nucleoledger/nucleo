@@ -1,0 +1,8 @@
+{
+  "name": "invalido-error-class-no-cadena",
+  "description": "un objeto de error con error_class numérica",
+  "exit_code": 1,
+  "stdout": "{\n  \"error\": \"--idempotency-key no puede estar vacía\",\n  \"error_class\": 1,\n  \"exit_code\": 1,\n  \"ok\": false\n}\n",
+  "valid": false,
+  "reason": "error_class es una cadena; los tipos no se convierten (ADR-025 §B)"
+}

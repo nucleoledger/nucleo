@@ -52,7 +52,7 @@ func relojCoherente(e *env, prev *ledger.Block, h ledger.Header) error {
 			"  Si el que está mal es el bloque —porque un salto de reloj lo escribió con fecha\n"+
 			"  futura—, no hay forma de reescribirlo: el ledger es append-only. Habría que esperar a\n"+
 			"  esa fecha o empezar un ledger nuevo, y en los dos casos conviene decidirlo con calma.",
-			ahora.UTC().Format(time.RFC3339), anterior.UTC().Format(time.RFC3339))
+			ahora.UTC().Format(time.RFC3339), anterior.UTC().Format(time.RFC3339)).conClase(claseEntorno)
 	}
 
 	if salto := ahora.Sub(anterior); salto > saltoSospechoso {

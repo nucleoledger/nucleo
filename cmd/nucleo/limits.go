@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 )
 
@@ -41,7 +43,15 @@ func readLimited(path string, max int64, que string) ([]byte, error) {
 		// Se envuelve con %w y no con %v: quien llama necesita poder distinguir
 		// "no existe" de "no se puede leer". witnessKey crea la clave la primera
 		// vez, y sin esa distinción trataría un fichero ausente como un fallo.
-		return nil, usageErr("no se pudo leer %s %q: %w", que, path, err)
+		// La clase distingue dos cosas que el código de salida no puede (ADR-027):
+		// una ruta que no existe es la entrada mal dada —uso—, y un fichero que
+		// está ahí y no se deja leer es el despliegue —entorno—, que no se arregla
+		// reintentando ni cambiando el argumento.
+		clase := claseUso
+		if errors.Is(err, fs.ErrPermission) {
+			clase = claseEntorno
+		}
+		return nil, usageErr("no se pudo leer %s %q: %w", que, path, err).conClase(clase)
 	}
 	defer f.Close()
 
