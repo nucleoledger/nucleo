@@ -11,6 +11,33 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Added: the error object says what kind of problem it is (ADR-027)
+
+Every JSON error object now carries **`error_class`**: `usage`, `transient`, `environment`
+or `integrity`. Closed set, **orthogonal to the exit code**, and that is where its value
+is — the code says *what* went wrong, the class says *what to do about it*:
+
+- a code `1` can be `usage` (a flag is wrong) or `transient` — asking for the receipt of a
+  block no witness has covered yet is not a bad call, it is just early;
+- a code `3` can be `transient` (the witness is down and will come back) or `environment`
+  (the witness answered and its key is not the one in the policy, which no amount of
+  retrying will fix);
+- a code `2` is always `integrity`.
+
+Until now the only way to tell those apart was reading the Spanish prose of the message,
+which is exactly what a wire format must not ask of a program. The class is decided in one
+place, reusing the error sentinels `internal/store` already had, and it does **not** appear
+in the output meant for people.
+
+Consumers read it as **optional**, falling back to the exit code (`1 → usage`,
+`2 → integrity`, `3 → transient`) when an older binary does not send it — so nothing
+regresses. A value outside the four is a contract error: something that cannot be
+understood is not interpreted downwards. Both external consumers read it: the PHP SDK
+(`SealError::$errorClass`, `esReintentable()`) and the Node example, which no longer has to
+explain on its error page that code 1 means two things.
+
+Came out of the integration example (finding H6 of Sprint 11), decided the next day.
+
 ### Added: the integration example, and the four contract frictions it found (Sprint 11)
 
 [`examples/erp-node`](examples/erp-node) — a small but real ERP in Node.js (invoices,

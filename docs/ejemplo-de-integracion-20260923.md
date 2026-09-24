@@ -117,11 +117,17 @@ argumento mal escrito, y lo que un ERP hace con cada uno es opuesto —reintenta
 sincronizar, o arreglar el código—. Distinguirlos hoy exige mirar el texto, que es lo que
 un contrato de cable no debería pedir.
 
-**No se ha tocado.** Los códigos de salida no cambian (está en el contrato), y añadir un
-discriminador legible por máquina —un campo aditivo tipo `reason` en el objeto de error—
-es una decisión de formato, o sea del dev vía ADR. Mientras tanto el ejemplo hace lo
-correcto sin depender del texto: **sella, sincroniza y entonces emite el recibo**, que es
-el orden bueno, y solo si aun así falla enseña el mensaje tal cual.
+Los códigos de salida no cambian (está en el contrato), y añadir un discriminador
+legible por máquina era una decisión de formato, o sea del dev vía ADR. Mientras tanto el
+ejemplo hacía lo correcto sin depender del texto: **sella, sincroniza y entonces emite el
+recibo**, que es el orden bueno, y solo si aun así falla enseña el mensaje tal cual.
+
+> **RESUELTO el 2026-09-24**, al día siguiente y por decisión del dev:
+> [ADR-027](adr/ADR-027-clase-del-error-en-json.md) añade `error_class` al objeto de error
+> —`usage`, `transient`, `environment`, `integrity`—, ortogonal al código de salida y con
+> conjunto cerrado. El recibo de un bloque sin cubrir sale ahora con código 1 y clase
+> `transient`, y los dos consumidores externos —PHP y el ejemplo— la leen. El ejemplo dejó
+> de tener que explicar en su página de error que el código 1 significa dos cosas.
 
 ### H7 — La excepción del objeto de error es fácil de implementar mal
 
@@ -208,8 +214,6 @@ haya visto el proyecto sigue pendiente, y es la que cierra §18.
 
 - **Republicar `@nucleoledger/verify`** con soporte de `receipt@v2` (H1). Es lo único que
   impide que el ejemplo dependa del paquete como lo haría cualquiera.
-- **Decidir sobre H6**: un discriminador legible por máquina en el objeto de error, o
-  dejarlo como está y documentar que el texto es la única pista. Es una decisión de
-  formato, con ADR.
+- ~~**Decidir sobre H6**~~: decidido y hecho el 2026-09-24, ADR-027.
 - **La medición de §18 con un sujeto real**, que es la mitad que no se puede fabricar
   desde dentro.
