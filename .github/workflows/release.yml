@@ -1,9 +1,17 @@
 name: release
 
 # Solo un tag publica. Un push a main no dispara nada de esto.
+#
+# Y solo un tag DEL CORE: `v` seguida de un dígito (v0.2.0-alpha, v1.0.0). El filtro
+# era `v*`, que también captura los tags del SDK de TypeScript (`vsdk-*`, que publica
+# publish-npm.yml con su propio ritmo). Pasó de verdad: el tag vsdk-0.2.0-alpha.0 lanzó
+# este workflow (run 36098169879), corrió los tests y la demo, y lo único que impidió un
+# release del binario con el número del SDK fue que goreleaser no supo leer
+# "vsdk-0.2.0-alpha.0" como versión semántica. Que un parser rechace un tag no es un
+# control: es suerte. Este filtro sí lo es.
 on:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]*']
 
 permissions:
   contents: read
@@ -55,6 +63,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # cosign no debe preguntar nada: no hay un humano delante.
           COSIGN_YES: "true"
+          # La versión es el tag que disparó el workflow, dicho explícitamente. Sin
+          # esto goreleaser la deduce de los tags del commit, y si un commit lleva a la
+          # vez un tag del core y uno del SDK puede quedarse con el que no es: en el
+          # run 36098169879 eligió `current=vsdk-0.2.0-alpha.0` por su cuenta.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       # Attestation de procedencia nativa de GitHub, además de la firma de
       # cosign. Son dos cosas distintas y ninguna sustituye a la otra: la firma

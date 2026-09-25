@@ -94,7 +94,21 @@ git push origin v0.1.0-alpha
 ```
 
 El push del tag es lo que dispara el workflow. **Nada más lo dispara**: un push
-a `main` no publica.
+a `main` no publica, y **un tag del SDK tampoco**.
+
+`release.yml` escucha solo los tags del core: `v` seguida de un **dígito**
+(`v[0-9]*`). Los del SDK de TypeScript empiezan por `vsdk-` y los atiende
+`publish-npm.yml`. Hasta el 25 de septiembre de 2026 el filtro era `v*`, que
+capturaba los dos: el tag `vsdk-0.2.0-alpha.0` lanzó el release del binario (run
+36098169879), pasó los tests y la demo, y solo se paró porque goreleaser no pudo
+leer `vsdk-0.2.0-alpha.0` como versión semántica. No publicó nada, pero lo que lo
+impidió fue un parser, no un control. Además, el workflow le pasa a goreleaser el
+tag que lo disparó (`GORELEASER_CURRENT_TAG`): en ese run, goreleaser había elegido
+por su cuenta el tag del SDK como versión.
+
+Así que las dos cadencias son independientes de verdad, y no solo en el papel:
+un tag `vsdk-*` publica el paquete de npm y nada más, y un tag `vX.Y.Z` publica los
+binarios y nada más.
 
 ### Después
 
@@ -243,7 +257,8 @@ publicado, eso es exactamente el tipo de cosa que queremos saber.
 
 El paquete `@nucleoledger/verify` se publica desde
 `.github/workflows/publish-npm.yml`, con su propio tag `vsdk-<versión>` para que
-su ritmo no quede atado al del binario Go. La autenticación es **npm Trusted
+su ritmo no quede atado al del binario Go (y `release.yml` no lo escucha: ver
+[El tag](#el-tag)). La autenticación es **npm Trusted
 Publishing**: OIDC contra ese workflow concreto, sin ningún token de npm en los
 secretos del repositorio.
 
