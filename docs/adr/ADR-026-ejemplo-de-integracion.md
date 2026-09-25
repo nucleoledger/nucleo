@@ -80,6 +80,33 @@ carrera, si la salida no cumple el contrato.
   que ya está probado contra los mismos vectores: aportaría menos.
 - Queda una deuda con nombre: **republicar `@nucleoledger/verify`**. Hasta entonces, el
   README del SDK y el del ejemplo dicen que la versión de npm es anterior a `receipt@v2`.
+  **Cerrada el 2026-09-25**: ver [Cierre de la deuda de §B](#cierre-de-la-deuda-de-b).
+
+## Cierre de la deuda de §B
+
+**2026-09-25.** `@nucleoledger/verify@0.2.0-alpha.0` se publicó en npm desde
+`publish-npm.yml` con trusted publishing, y con procedencia SLSA: la atestación dice
+`nucleoledger/nucleo`, workflow `.github/workflows/publish-npm.yml`,
+`refs/tags/vsdk-0.2.0-alpha.0`, commit `669eaf2`. Los dos dist-tags, `latest` y `alpha`,
+apuntan a esa versión.
+
+Antes de cambiar el ejemplo se comprobó el paquete **del registro**, no el build local:
+instalado en un proyecto vacío, `npm audit signatures` da *«1 package has a verified
+attestation»*, verifica un recibo `@v2` recién emitido por el binario de HEAD —las dos
+firmas, tiempo demostrable, un cosignatario— y rechaza ese mismo recibo con un carácter
+cambiado.
+
+El ejemplo depende ahora de `"@nucleoledger/verify": "0.2.0-alpha.0"`, fijado por versión
+exacta y, en `package-lock.json` —que pasa a versionarse—, por el hash sha512 del tarball
+publicado. `bin/setup.js` instala con `npm ci` y se niega a seguir si encuentra un enlace a
+una carpeta local, y el job `ejemplo` del CI corre `npm audit signatures`. El CI comprueba
+por tanto lo mismo que obtendría un tercero que clone el repositorio.
+
+**Lo que cambia de las consecuencias.** El job `ejemplo` ya no ve los cambios del
+verificador del repositorio hasta que se publiquen. Es lo que se quería y tiene un efecto
+útil: si el formato del recibo vuelve a cambiar, el ejemplo se pondrá rojo con la versión
+publicada, y ese rojo es el aviso de que hay que publicar el SDK antes de publicar el
+binario. Exactamente lo que faltó entre el 10 y el 25 de septiembre.
 
 ## Alternativas descartadas
 

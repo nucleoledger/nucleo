@@ -5,8 +5,7 @@
 // primera vez:
 //
 //   1. comprueba que hay un binario de Núcleo y que se puede ejecutar
-//   2. construye el verificador TypeScript del repositorio (ver el README: el paquete
-//      publicado todavía no lee recibos @v2)
+//   2. instala el verificador TypeScript desde npm, fijado por versión y por hash
 //   3. crea el vault y el ledger con `nucleo init`, y guarda las tarjetas de respaldo
 //   4. consigue la PRIMERA atestación de un testigo y escribe datos/politica.json
 //
@@ -14,7 +13,7 @@
 // después, y `sync` es el único comando que la entrega completa —con el testigo dentro—.
 
 import { spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as cfg from "../src/config.js";
 import { claveDelTestigo, dirDelTestigo, levanta, responde } from "../src/testigo.js";
@@ -35,24 +34,20 @@ async function main() {
   dice(`  ${cfg.BINARIO}`);
   dice(`  ejecutable: sí${v.code === 0 ? " (y ya hay un ledger ahí)" : ""}`);
 
-  paso(2, "El verificador TypeScript");
-  const dist = join(cfg.REPO, "sdk", "ts", "dist", "index.js");
-  if (existsSync(dist)) {
-    dice(`  ya construido: ${dist}`);
-  } else {
-    dice("  no está construido. npm install + npm run build en sdk/ts…");
-    const sdk = join(cfg.REPO, "sdk", "ts");
-    if (!existsSync(join(sdk, "node_modules"))) {
-      await corre(npm(), ["install", "--no-audit", "--no-fund"], { cwd: sdk, heredaSalida: true });
-    }
-    await corre(npm(), ["run", "build"], { cwd: sdk, heredaSalida: true });
-    if (!existsSync(dist)) fatal("el build del SDK no dejó dist/index.js");
-    dice("  construido");
+  paso(2, "El verificador TypeScript, del registro de npm");
+  // Del REGISTRO, fijado por versión exacta y por hash en package-lock.json: lo mismo
+  // que instalaría cualquiera que clone esto. Hasta el 25 de septiembre de 2026 el
+  // ejemplo dependía del SDK del repositorio (file:../../sdk/ts), porque la versión
+  // publicada era anterior al recibo @v2 (ADR-026). Ya no: 0.2.0-alpha.0 está en npm
+  // con procedencia, y el ejemplo comprueba lo que un tercero de verdad obtiene.
+  await corre(npm(), ["ci", "--no-audit", "--no-fund"], { cwd: cfg.RAIZ, heredaSalida: true });
+  const instalado = join(cfg.RAIZ, "node_modules", "@nucleoledger", "verify");
+  if (lstatSync(instalado).isSymbolicLink()) {
+    fatal("@nucleoledger/verify es un enlace a una carpeta local, no el paquete de npm");
   }
-  if (!existsSync(join(cfg.RAIZ, "node_modules", "@nucleoledger", "verify"))) {
-    dice("  enlazando la dependencia del ejemplo (npm install)…");
-    await corre(npm(), ["install", "--no-audit", "--no-fund"], { cwd: cfg.RAIZ, heredaSalida: true });
-  }
+  const version = JSON.parse(readFileSync(join(instalado, "package.json"), "utf8")).version;
+  dice(`  @nucleoledger/verify ${version}, instalado desde el registro`);
+  dice("  su procedencia se comprueba con:  npm audit signatures");
 
   paso(3, "El vault y el ledger");
   mkdirSync(cfg.DATOS, { recursive: true });

@@ -56,6 +56,11 @@ El ejemplo depende por eso de `file:../../sdk/ts`, y su README lo dice en voz al
 integrador escribiría `npm install @nucleoledger/verify`. **No se arregla con código**:
 hay que republicar el paquete, y eso es del dev. Deuda declarada en ADR-026.
 
+> **RESUELTO el 2026-09-25.** `@nucleoledger/verify@0.2.0-alpha.0` publicado desde
+> `publish-npm.yml` con procedencia SLSA (tag `vsdk-0.2.0-alpha.0`, commit `669eaf2`),
+> comprobado desde el registro contra un recibo `@v2` recién emitido, y el ejemplo
+> depende ya de esa versión, fijada por hash. Detalle en ADR-026, «Cierre de la deuda».
+
 ### H2 — `replay_suspect` estaba en la salida y no en el contrato
 
 `sync` publica `replay_suspect` desde el Sprint 8; la tabla de `sync` en
@@ -212,8 +217,7 @@ haya visto el proyecto sigue pendiente, y es la que cierra §18.
 
 ## 5. Lo que queda
 
-- **Republicar `@nucleoledger/verify`** con soporte de `receipt@v2` (H1). Es lo único que
-  impide que el ejemplo dependa del paquete como lo haría cualquiera.
+- ~~**Republicar `@nucleoledger/verify`**~~: hecho el 2026-09-25 (H1).
 - ~~**Decidir sobre H6**~~: decidido y hecho el 2026-09-24, ADR-027.
 - **La medición de §18 con un sujeto real**, que es la mitad que no se puede fabricar
   desde dentro.

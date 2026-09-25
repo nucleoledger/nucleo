@@ -31,10 +31,10 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 
 ## Tareas del dev (fuera del código)
 - [x] Organizaciones `nucleoledger` en GitHub y `@nucleoledger` en npm; dominio; 2FA; LICENSE
-- [ ] Configurar el trusted publisher de `@nucleoledger/verify` en npmjs.com
-      (Settings → Trusted Publisher → GitHub Actions; pasos exactos en
-      `docs/RELEASING.md`; **marcar "allow npm publish"**, no solo staging) —
-      verificar: un tag `vsdk-*` publica sin token y el paquete sale con procedencia
+- [x] Configurar el trusted publisher de `@nucleoledger/verify` en npmjs.com —
+      verificado el 2026-09-25: el tag `vsdk-0.2.0-alpha.0` publicó sin token y
+      `npm audit signatures` da «1 package has a verified attestation»
+      (publish-npm.yml, commit `669eaf2`)
 - [ ] Crear el buzón `security@nucleoledger.com` o cambiar la dirección en
       `SECURITY.md` — verificar: un correo a esa dirección llega
 - [ ] Activar el reporte privado de vulnerabilidades en GitHub — verificar:

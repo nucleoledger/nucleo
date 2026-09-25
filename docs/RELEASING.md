@@ -264,8 +264,10 @@ secretos del repositorio.
 
 ### Lo que hay que configurar una sola vez, en npmjs.com
 
-El paquete tiene que existir antes de poder configurarlo, y ya existe
-(`0.1.0-alpha.0`, publicado a mano y sin procedencia; ver CHANGELOG).
+El paquete tiene que existir antes de poder configurarlo. `0.1.0-alpha.0` se publicó a
+mano y sin procedencia (ver CHANGELOG); **`0.2.0-alpha.0` fue la primera versión
+publicada por esta vía**, el 2026-09-25, y la configuración de abajo es la que está
+hecha.
 
 1. Entrar en `https://www.npmjs.com/package/@nucleoledger/verify` → pestaña
    **Settings**.

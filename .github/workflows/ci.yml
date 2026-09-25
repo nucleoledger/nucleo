@@ -96,6 +96,15 @@ jobs:
       - name: Arranque del despliegue (npm run setup)
         working-directory: examples/erp-node
         run: npm run setup
+      # El verificador que usa el ejemplo es el PUBLICADO: @nucleoledger/verify fijado
+      # por versión y por hash en package-lock.json, no el SDK de este repositorio
+      # (setup falla si encuentra un enlace a una carpeta local). Y se comprueba su
+      # procedencia como la comprobaría un tercero: que lo construyó publish-npm.yml
+      # de este repositorio. Si alguien publicara a mano, sin procedencia, este paso
+      # se pone rojo.
+      - name: El verificador viene de npm, con procedencia
+        working-directory: examples/erp-node
+        run: npm audit signatures
       - name: El recorrido completo, con comprobaciones (npm run demo)
         working-directory: examples/erp-node
         run: npm run demo

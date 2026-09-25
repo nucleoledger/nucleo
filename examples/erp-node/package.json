@@ -16,6 +16,6 @@
     "start": "node src/servidor.js"
   },
   "dependencies": {
-    "@nucleoledger/verify": "file:../../sdk/ts"
+    "@nucleoledger/verify": "0.2.0-alpha.0"
   }
 }

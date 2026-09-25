@@ -30,7 +30,7 @@ firmado, apunta `NUCLEO_BIN` a él) y nada más: ni Docker, ni base de datos, ni
 go build -o nucleo ./cmd/nucleo
 
 cd examples/erp-node
-npm run setup     # ~30 s: construye el verificador, crea el ledger y la política
+npm run setup     # ~30 s: instala el verificador de npm, crea el ledger y la política
 npm run demo      # ~10 s: el recorrido completo, con comprobaciones
 ```
 
@@ -144,10 +144,13 @@ mi factura** y qué hacer ahora.
   el mismo commit que rompa el contrato `--json`, el formato del recibo o un código de
   salida. Eso es el objetivo, no un efecto colateral. Está razonado en
   [ADR-026](../../docs/adr/ADR-026-ejemplo-de-integracion.md).
-- **Depende del verificador del repositorio** (`file:../../sdk/ts`), no del publicado en
-  npm. En tu proyecto escribirías `npm install @nucleoledger/verify`; la versión publicada
-  hoy (`0.1.0-alpha.0`) es anterior al recibo `@v2` y rechaza los recibos que emite este
-  binario. Es una deuda declarada en ADR-026, no una peculiaridad del ejemplo.
+- **Usa el verificador publicado en npm**, `@nucleoledger/verify@0.2.0-alpha.0`, fijado
+  por versión exacta y por hash en `package-lock.json`: lo mismo que instalarías en tu
+  proyecto. Tiene procedencia —lo construyó `publish-npm.yml` de este repositorio— y lo
+  puedes comprobar con `npm audit signatures`, que el CI también ejecuta. Hasta el 25 de
+  septiembre de 2026 el ejemplo tenía que usar el SDK del repositorio, porque la versión
+  publicada entonces (0.1.0-alpha.0) era anterior al recibo `@v2`; la deuda y su cierre
+  están en ADR-026.
 - **El envoltorio está escrito desde `docs/CLI-JSON.md`**, no traducido del de PHP: es el
   segundo consumidor independiente del contrato de ADR-025. Cuatro fricciones salieron de
   escribirlo así, y están en el informe del sprint; tres se arreglaron en el mismo.
