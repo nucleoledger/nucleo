@@ -1,8 +1,8 @@
 # TODO.md — Backlog atómico
 
-Estado: `v0.1.0-alpha` publicada (tag firmado, release verificado con cosign y
-procedencia SLSA, `@nucleoledger/verify@0.1.0-alpha.0` en npm). **Sprint 7 en
-curso:** cerrar la revisión externa del 10-sep-2026.
+Estado: `v0.2.0-alpha` preparada (CHANGELOG, README y RELEASING al día; falta el
+tag, que empuja el dev). `@nucleoledger/verify@0.2.0-alpha.0` publicado en npm desde
+CI con procedencia. Lo detallado de los Sprints 7 a 11 vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
 commits, en `CHANGELOG.md` y en `docs/adr/`, que es donde hay que buscarlo. Una
