@@ -8,7 +8,34 @@ Núcleo is **not** a blockchain, not a new database, and not a cloud service. It
 
 ## Status
 
-**v0.1.0-alpha — the success criterion runs end to end.**
+**v0.2.0-alpha.** Alpha software: **no professional security audit has been performed,
+and nobody runs it in production.** Every review listed below was an adversarial review by
+AI models — three rounds inside the project, two from outside it — not by a security firm.
+
+What this alpha has behind it, each item checked rather than claimed:
+
+- **Five adversarial rounds, every executed exploit kept as a regression test** — the
+  findings and the decisions they forced are in the table under
+  [Security & audits](#security--audits) and in [`docs/adr/`](docs/adr/).
+- **An operations rehearsal**: a deployment run the way a small business would run it —
+  a compressed month, a broken cron, a misbehaving witness, a restored backup, two
+  workers, a jumping clock. It found four failures no code review had seen, all fixed
+  ([report](docs/ensayo-de-operacion-20260923.md)).
+- **Three verifiers that must agree**: Go, TypeScript, and a PHP verifier written from
+  the specification rather than ported, compared on thousands of mutated receipts in CI,
+  against golden receipts produced by an independent Python oracle.
+- **An integration example that boots in CI**: a small Node.js ERP
+  ([`examples/erp-node`](examples/erp-node)) that seals invoices, hands out receipts and
+  catches a tampered record, using the **published** verifier, pinned by hash.
+- **Artifacts you can check**: releases signed keyless with cosign, with a SLSA
+  provenance attestation; `@nucleoledger/verify` published from CI with npm provenance
+  (`npm audit signatures`); and the published `v0.1.0-alpha` binary rebuilt from its tag
+  **byte for byte** ([how](docs/RELEASING.md#compilar-desde-el-código)).
+
+What is still missing: that audit, any production use, and the other half of the success
+criterion below — a developer from outside the project, timed. The mechanical path, from
+a clean clone to a verified receipt, measures about half a minute; the comprehension part
+cannot be clocked by whoever wrote the example.
 
 The project defines its own bar in [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) §18: *a developer who knows no cryptography integrates Núcleo in under an hour, seals records, deliberately alters one, and reconciliation catches it and explains it.* That demo is automated and it passes:
 
@@ -107,21 +134,28 @@ beside it** — two runs of the same code on the same machine have differed by a
 and the script refuses to run on a tree with uncommitted changes, so the commit it
 cites is exactly the code it measured.
 
-<!-- generado por scripts/bench-readme.sh · 2026-09-13 · commit 7b367b1 (árbol limpio) · AMD Ryzen 7 5700U with Radeon Graphics · go1.27.1 · n=5 -->
+<!-- generado por scripts/bench-readme.sh · 2026-09-25 · commit 6893b4a (árbol limpio) · AMD Ryzen 7 5700U with Radeon Graphics · go1.27.1 · n=5 -->
 | what | figure (median, range) | how it was measured |
 |---|---|---|
-| block sealing (JCS + SHA-256 + Ed25519), in memory | **24,339** (21,905–24,806, n=5) blocks/s | `BenchmarkSeal`, 1 s per sample |
-| durable append (`synchronous=FULL`, one fsync each) | **388** (326–484, n=5) blocks/s | `BenchmarkAppendBlock`, 1 s per sample |
-| open, 10⁵ blocks, attestation **verified** (fast path) | **515 ms** (444 ms–652 ms, n=5) | `BenchmarkOpen`, policy supplied, 1 open per sample |
-| open, 10⁵ blocks, no policy (every signature recomputed) | **8.87 s** (8.14 s–9.25 s, n=5) | `BenchmarkOpenUnattested`, 1 open per sample |
-| `verify --full`, 10⁵ blocks | **8.94 s** (8.46 s–9.43 s, n=5) | `BenchmarkVerifyFull`, 1 run per sample |
-| Merkle root, 10⁵ leaves | **159 ms** (117 ms–183 ms, n=5) | `BenchmarkRoot`, 1 s per sample |
-| unlock the vault, `default` KDF profile (64 MiB) | **62 ms** (60 ms–66 ms, n=5) | `BenchmarkUnlockDefault`, 10 unlocks per sample |
-| unlock the vault, `constrained` KDF profile (19 MiB) | **28 ms** (26 ms–31 ms, n=5) | `BenchmarkUnlockConstrained`, 10 unlocks per sample |
+| block sealing (JCS + SHA-256 + Ed25519), in memory | **18,599** (17,449–19,723, n=5) blocks/s | `BenchmarkSeal`, 1 s per sample |
+| durable append (`synchronous=FULL`, one fsync each) | **528** (449–557, n=5) blocks/s | `BenchmarkAppendBlock`, 1 s per sample |
+| open, 10⁵ blocks, attestation **verified** (fast path) | **631 ms** (470 ms–720 ms, n=5) | `BenchmarkOpen`, policy supplied, 1 open per sample |
+| open, 10⁵ blocks, no policy (every signature recomputed) | **9.11 s** (8.86 s–9.72 s, n=5) | `BenchmarkOpenUnattested`, 1 open per sample |
+| `verify --full`, 10⁵ blocks | **9.72 s** (9.48 s–11.05 s, n=5) | `BenchmarkVerifyFull`, 1 run per sample |
+| Merkle root, 10⁵ leaves | **143 ms** (101 ms–191 ms, n=5) | `BenchmarkRoot`, 1 s per sample |
+| unlock the vault, `default` KDF profile (64 MiB) | **64 ms** (62 ms–67 ms, n=5) | `BenchmarkUnlockDefault`, 10 unlocks per sample |
+| unlock the vault, `constrained` KDF profile (19 MiB) | **33 ms** (31 ms–34 ms, n=5) | `BenchmarkUnlockConstrained`, 10 unlocks per sample |
 | one receipt, 1 witness, 1-block log: legal notice, block and issuer signatures, the log's Ed25519 and ML-DSA-44 signatures | **4907 bytes** | emitted by the CLI and measured with `wc -c` (deterministic) |
 | inclusion proof section alone (`tlog-proof`), 10⁵-entry log | **1,124** (1,124–1,124, n=5) bytes | `BenchmarkReceipt`; the proof grows with log₂(n), the rest of the receipt does not |
 
-Measured 2026-09-13 on commit `7b367b1`, clean tree (AMD Ryzen 7 5700U with Radeon Graphics, go1.27.1). Each time is the median of 5 samples with the range beside it. Regenerate with `./scripts/bench-readme.sh`; it refuses to run on a dirty tree.
+Measured 2026-09-25 on commit `6893b4a`, clean tree (AMD Ryzen 7 5700U with Radeon Graphics, go1.27.1). Each time is the median of 5 samples with the range beside it. Regenerate with `./scripts/bench-readme.sh`; it refuses to run on a dirty tree.
+
+**About the sealing figure.** The previous table (2026-09-13, commit `7b367b1`) had
+in-memory sealing at 24,339 blocks/s, and the ranges do not overlap. Before pasting this
+one, `BenchmarkSeal` was run on both commits **interleaved** — old, new, old, new, three
+samples each, on the same machine minutes apart — and they came out the same, 38–41 µs
+per block for both. The difference is the laptop at the moment of the run, not the code:
+the "a third between two runs" warning above, happening.
 
 **The receipt is about 5 KB, not "~1 KB".** An earlier version of this table reported
 1,124 bytes for a 10⁵-entry log and called it the receipt; that was the `tlog-proof`
@@ -133,7 +167,7 @@ so a hundred-thousand-entry log adds about a kilobyte to the one-block figure. S
 email attachment or a PDF page, not a QR code.
 
 The durable rate, not the in-memory one, is what sizes a real deployment. Opening a
-ledger whose attestation **verifies** under your policy is ~17× faster than opening it
+ledger whose attestation **verifies** under your policy is ~14× faster than opening it
 without one (medians), because signatures below a cosigned checkpoint are already vouched for;
 without a policy there is no shortcut, by design (ADR-016). The trade-off is written
 down in the [ADR-009 amendment](docs/adr/ADR-009-store-schema.md).
@@ -285,7 +319,21 @@ The record of the pre-publication rounds is in
 [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md); the post-publication audits are in
 ADR-016, ADR-017 and ADR-018 and in the CHANGELOG.
 
-**No external security audit has been performed.** The reviews above were model-driven and thorough, but they are not a substitute for a professional audit, and this software has not been used in production by anyone. Treat it accordingly.
+**Then two audits from outside the project, and an operations rehearsal.** A model with no
+access to the repository's history read the public tree and found, among others, a genuine
+receipt that two of the three verifiers rejected whenever the clock did not land on a whole
+second ([ADR-019](docs/adr/ADR-019-resolucion-temporal.md)), and receipt vectors generated
+by the very code they judged — the anti-circularity amendment above
+([report](docs/auditoria-externa-20260913.md)). A second external review found the PHP
+SDK's first real bug, lax casts over the CLI's `--json` output, which made that output a
+wire format with its own vectors ([ADR-025](docs/adr/ADR-025-json-como-formato-de-cable.md),
+[report](docs/auditoria-externa-20260919.md)). The operations rehearsal and the integration
+example are in the [status](#status) above and in the CHANGELOG.
+
+**No professional security audit has been performed.** The reviews above — internal and
+external alike — were adversarial reviews by AI models, thorough and with executed
+exploits, but they are not a substitute for a professional audit, and this software has
+not been used in production by anyone. Treat it accordingly.
 
 To report a vulnerability privately, see [`SECURITY.md`](SECURITY.md).
 
