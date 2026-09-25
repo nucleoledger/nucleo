@@ -287,17 +287,62 @@ aprobar desde una máquina con `npm stage list @nucleoledger/verify` y
 
 ```bash
 # 1. La versión en sdk/ts/package.json es la que manda.
-cd sdk/ts && npm version 0.1.0-alpha.1 --no-git-tag-version
+cd sdk/ts && npm version 0.2.0-alpha.0 --no-git-tag-version
 # 2. Commit y, ya en la raíz, el tag con el MISMO número.
-git commit -am "chore(sdk): versión 0.1.0-alpha.1"
-git tag -a vsdk-0.1.0-alpha.1 -m "sdk 0.1.0-alpha.1"
-git push origin main vsdk-0.1.0-alpha.1
+git commit -am "chore(sdk): versión 0.2.0-alpha.0"
+git tag -a vsdk-0.2.0-alpha.0 -m "sdk 0.2.0-alpha.0"
+git push origin main vsdk-0.2.0-alpha.0
 ```
 
 El workflow comprueba que el tag y `package.json` coinciden antes de tocar la
 red, y corre typecheck, tests y build antes de publicar. También se puede
 disparar a mano (`workflow_dispatch`), y en ese caso la comprobación del tag se
 salta porque no hay tag que comprobar.
+
+### El tag de npm, y el paso que queda a mano
+
+El workflow publica con **`--tag latest`**, explícito. Dos razones:
+
+- **npm 11 no publica una prerelease sin `--tag`** (*«You must specify a tag using
+  --tag when publishing a prerelease version»*), y el workflow instala npm 11. Se
+  comprobó en local, con los mismos pasos del workflow, antes de empujar el primer
+  tag `vsdk-*`.
+- **`latest` es lo que instala todo el mundo.** Mientras todas las versiones sean
+  alfas, dejar `latest` en una anterior es entregar por defecto un verificador que
+  quizá no lee los recibos del binario de hoy —que es exactamente lo que pasó con
+  0.1.0-alpha.0 frente al recibo @v2—.
+
+El tag `alpha` **se mueve a mano**, cuando el workflow termina en verde:
+
+```bash
+npm dist-tag add @nucleoledger/verify@<versión> alpha
+npm view @nucleoledger/verify dist-tags    # latest y alpha en <versión>
+```
+
+A mano porque trusted publishing autoriza a este workflow a **publicar**, no a
+mover dist-tags; eso pide la cuenta y su 2FA. El día de la 1.0 la regla se invierte:
+las prereleases se publican con su propio tag y `latest` queda para las estables.
+
+### Qué comprobar después de publicar
+
+- En la página del paquete, la sección **Provenance**: construido desde
+  `nucleoledger/nucleo`, workflow `publish-npm.yml`, en el commit del tag. Si no
+  aparece, el paquete no salió por esta vía y hay que averiguar por cuál.
+- La pestaña de código: `LICENSE`, `README.md`, `dist/` y `package.json`, nada más.
+- Que un recibo recién emitido por el binario verifica con el paquete **del
+  registro** (`npm pack @nucleoledger/verify@<versión>`, no el build local).
+
+### Si el workflow falla
+
+No se publica nada y el tag se borra sin daño:
+
+```bash
+git tag -d vsdk-<versión>
+git push origin :vsdk-<versión>
+```
+
+Lo que no se recupera es un número de versión **ya publicado** en npm, aunque se
+despublique: por eso los fallos se buscan en local antes de empujar el tag.
 
 ### Por qué no se pasa `--provenance`
 
