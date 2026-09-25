@@ -75,6 +75,15 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
 - [ ] `./scripts/demo-criterio-exito.sh` en verde. Es el criterio del proyecto:
       si falla, no hay versión que publicar.
 - [ ] `cd sdk/ts && npm ci && npm run typecheck && npm test` en verde.
+- [ ] `php sdk/php/test/run.php` en verde, con `NUCLEO_BIN` apuntando a un binario de
+      este commit para que incluya el sellado de punta a punta.
+- [ ] El diferencial de tres vías (Go, TypeScript, PHP) sin divergencias, con
+      `NUCLEO_DIFERENCIAL_EXIGE_PHP=1`: los pasos están en el job `diferencial` de
+      `ci.yml`.
+- [ ] `cd examples/erp-node && npm run setup && npm run demo` en verde: el ejemplo
+      de integración usa el SDK **publicado**, así que si el formato del recibo
+      cambió y el SDK no se ha publicado, esto falla, y es el aviso de publicar
+      primero el SDK (tag `vsdk-*`) y después el binario.
 - [ ] `CHANGELOG.md` con la sección de la versión, escrita a mano.
 - [ ] `git status` limpio.
 - [ ] `goreleaser check` sin errores.
@@ -89,8 +98,8 @@ ls dist/
 ### El tag
 
 ```bash
-git tag -a v0.1.0-alpha -m "v0.1.0-alpha"
-git push origin v0.1.0-alpha
+git tag -a v0.2.0-alpha -m "v0.2.0-alpha"
+git push origin v0.2.0-alpha
 ```
 
 El push del tag es lo que dispara el workflow. **Nada más lo dispara**: un push
@@ -123,8 +132,8 @@ binarios y nada más.
 Un tag empujado que resultó estar mal:
 
 ```bash
-git tag -d v0.1.0-alpha
-git push --delete origin v0.1.0-alpha
+git tag -d v0.2.0-alpha
+git push --delete origin v0.2.0-alpha
 ```
 
 Borra también el release en borrador desde la interfaz de GitHub. **La entrada de
@@ -144,7 +153,7 @@ Son unos treinta segundos.
 
 De la página del release, tres ficheros:
 
-- el archivo de tu plataforma, p. ej. `nucleo_0.1.0-alpha_linux_amd64.tar.gz`
+- el archivo de tu plataforma, p. ej. `nucleo_0.2.0-alpha_linux_amd64.tar.gz`
 - `checksums.txt`
 - `checksums.txt.sig` y `checksums.txt.pem`
 
@@ -154,7 +163,7 @@ De la página del release, tres ficheros:
 cosign verify-blob checksums.txt \
   --signature checksums.txt.sig \
   --certificate checksums.txt.pem \
-  --certificate-identity-regexp '^https://github\.com/nucleoledger/nucleo/\.github/workflows/release\.yml@refs/tags/' \
+  --certificate-identity-regexp '^https://github\.com/nucleoledger/nucleo/\.github/workflows/release\.yml@refs/tags/v[0-9]' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
@@ -164,7 +173,15 @@ Debe imprimir `Verified OK`.
 la firma es válida pero no *de quién*, y cualquiera puede producir una firma
 válida a su propio nombre. Lo que hace útil a este comando es que exige que quien
 firmó sea el workflow `release.yml` de este repositorio, ejecutándose sobre un
-tag.
+tag **del core** —`v` seguida de un dígito, el mismo filtro con el que se dispara
+`release.yml`—. La expresión terminaba antes en `refs/tags/` y aceptaba cualquier
+tag; con `release.yml` escuchando también los `vsdk-*` (ver [El tag](#el-tag)),
+eso dejaba pasar una firma hecha sobre un tag del SDK. Si sabes qué versión
+descargaste, es mejor aún la identidad exacta, como en el script de abajo.
+
+La identidad es la que lleva el certificado: el del release `v0.1.0-alpha` dice
+`https://github.com/nucleoledger/nucleo/.github/workflows/release.yml@refs/tags/v0.1.0-alpha`
+(leído con `openssl x509 -ext subjectAltName`).
 
 ### 3. Comprueba que tu archivo es uno de los que se firmaron
 
@@ -180,7 +197,7 @@ Ese es el enganche entre los dos pasos: la firma cubre el `checksums.txt`, y el
 ### 4. Y ya
 
 ```bash
-tar xzf nucleo_0.1.0-alpha_linux_amd64.tar.gz
+tar xzf nucleo_0.2.0-alpha_linux_amd64.tar.gz
 ./nucleo help
 ```
 
@@ -190,7 +207,7 @@ Para meterlo en un script de instalación:
 
 ```bash
 set -euo pipefail
-VER=0.1.0-alpha
+VER=0.2.0-alpha
 BASE=https://github.com/nucleoledger/nucleo/releases/download/v$VER
 ARCHIVO=nucleo_${VER}_linux_amd64.tar.gz
 
@@ -199,9 +216,11 @@ curl -fsSLO "$BASE/checksums.txt"
 curl -fsSLO "$BASE/checksums.txt.sig"
 curl -fsSLO "$BASE/checksums.txt.pem"
 
+# La identidad EXACTA: el workflow release.yml sobre el tag de esta versión, no
+# sobre cualquier tag.
 cosign verify-blob checksums.txt \
   --signature checksums.txt.sig --certificate checksums.txt.pem \
-  --certificate-identity-regexp '^https://github\.com/nucleoledger/nucleo/\.github/workflows/release\.yml@refs/tags/' \
+  --certificate-identity "https://github.com/nucleoledger/nucleo/.github/workflows/release.yml@refs/tags/v$VER" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 sha256sum --ignore-missing -c checksums.txt
@@ -246,10 +265,32 @@ cd nucleo
 go build -o nucleo ./cmd/nucleo
 ```
 
-Las compilaciones de release usan `-trimpath` y `-ldflags "-s -w"` con el
-timestamp del commit, así que un binario compilado desde el mismo commit y con la
-misma versión de Go debería dar los mismos bytes. Si el tuyo no coincide con el
-publicado, eso es exactamente el tipo de cosa que queremos saber.
+Eso da un binario que funciona igual, pero no los mismos bytes que el publicado: las
+compilaciones de release llevan `-trimpath`, `-ldflags "-s -w"` y tres valores
+incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado: el
+`nucleo_0.1.0-alpha_linux_amd64.tar.gz` publicado se recompiló el 2026-09-25 desde
+su tag y coincidió byte a byte (sha256 `3c6e55a4…35f5c7` los dos).
+
+```bash
+git clone https://github.com/nucleoledger/nucleo && cd nucleo
+git checkout v0.2.0-alpha                       # el tag de la versión que comparas
+go version -m ruta/al/nucleo-descargado | head -1  # la versión de Go con la que se compiló
+C=$(git rev-parse HEAD)
+D=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+  -ldflags "-s -w -X main.version=0.2.0-alpha -X main.commit=$C -X main.date=$D" \
+  -o nucleo ./cmd/nucleo
+sha256sum nucleo ruta/al/nucleo-descargado     # tienen que coincidir
+```
+
+Dos condiciones, y las dos importan: **la misma versión de Go** —la dice el propio
+binario publicado, primera línea de `go version -m`— y **el árbol limpio en el
+commit del tag**, porque Go incrusta el commit y si había cambios sin commitear. Si
+con las dos el tuyo no coincide con el publicado, eso es exactamente el tipo de cosa
+que queremos saber.
+
+`release.yml` compila con `go-version: 'stable'`, la última de Go en el momento del
+tag: por eso la versión hay que leerla del binario y no se puede suponer.
 
 ---
 
