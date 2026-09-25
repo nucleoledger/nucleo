@@ -11,6 +11,80 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+## [0.2.0-alpha] — 2026-09-25
+
+### What this version is
+
+Sixteen days after `v0.1.0-alpha`, most of it spent trying to break the first one. In
+short:
+
+- **Two breaking changes to the wire format, each made once and on purpose.** The
+  Merkle leaf is now `hash ‖ signature` (`leaf/v2`, [ADR-014](docs/adr/ADR-014-hoja-y-firma.md)),
+  so a cosigned root pins every block signature and the issuer signs the whole receipt,
+  recipient included ([ADR-015](docs/adr/ADR-015-destinatario.md)); receipts become
+  `nucleo.org/receipt@v2`. And signed time has **one-second resolution**
+  ([ADR-019](docs/adr/ADR-019-resolucion-temporal.md)), after an external audit showed a
+  genuine receipt rejected by two of three verifiers whenever the clock did not land on a
+  whole second. PROTOCOL.md went from 0.1-draft to 0.5-draft, and the leaf rule is now a
+  versioned concept so the next change of this kind has a migration path.
+- **Fourteen decisions recorded, [ADR-014](docs/adr/ADR-014-hoja-y-firma.md) to
+  [ADR-027](docs/adr/ADR-027-clase-del-error-en-json.md)**: attestation on open, the policy
+  as the single trust root and as a wire format, one-second time, idempotent and atomic
+  sealing, the PHP SDK, "a comparison that cannot be made is not a verdict",
+  `payload_hash` enumerability, the borrowed ML-DSA material, the `--json` output as a
+  wire format, the integration example, and the error class.
+- **Five adversarial rounds**, three internal and two external, **with every executed
+  exploit kept as a regression test** — including the one that made a fabricated
+  checkpoint count as attestation, and the one where anyone could crash the Go verifier
+  with a receipt carrying a short `signer_pubkey`.
+- **An operations rehearsal that found four failures no code audit had seen**: two ERP
+  workers losing a third of their seals, a clock jump leaving a ledger unable to seal for
+  a year, three distinct write failures collapsing into one mute message, and a detected
+  rollback whose alarm evaporated so `status` said `✔`. All four fixed with regression
+  tests; the three hardest were power-proved by removing the fix and watching the test
+  fail.
+- **Three verifiers in the differential** — Go, TypeScript and a PHP verifier written from
+  the spec rather than ported — that must agree on every mutation in the catalogue, with
+  the golden receipts produced by an independent Python oracle.
+- **An integration example that boots in CI**: a small Node.js ERP that seals invoices,
+  hands out receipts and catches a tampered record, run end to end on every push. Writing
+  it found four frictions in the `--json` contract, fixed here.
+- **The SDK published with provenance**: `@nucleoledger/verify@0.2.0-alpha.0`, built by
+  `publish-npm.yml` through npm trusted publishing, with a SLSA attestation
+  (`npm audit signatures` verifies it). The example depends on that published version,
+  pinned by hash, so CI checks what a third party gets.
+
+What has **not** happened: an audit by a professional security firm. Every review above
+was adversarial review by AI models, internal and external to the project, and the README
+says so in its first lines.
+
+### What it costs if you had v0.1.0-alpha
+
+`v0.1.0-alpha` shipped with no known deployments, so there is no migration tool — but
+this is what changes if you tried it:
+
+- **Ledgers created by v0.1.0-alpha do not open.** Checked against a real one built from
+  the `v0.1.0-alpha` tag: this binary refuses it with *"el log usa otra regla de hoja …
+  es de "leaf/v1"; este binario implementa "leaf/v2""* (exit code `1`, `error_class:
+  environment`). Keep the old binary to read it, or start a new ledger.
+- **`@v1` receipts are rejected** by the CLI, the SDK and the static page, each saying it
+  is a `@v1` receipt rather than failing on a missing field. Receipts issued by this
+  version are `@v2` and ~220 bytes larger.
+- **`nucleo receipt` asks for the passphrase**, because it now signs.
+- **Policies are stricter.** `quorum` and `witnesses` are required, hex must be
+  lower-case, duplicated or case-variant members are rejected, and **`signerKey` is
+  required to verify a receipt**. `nucleo sync --json` prints a policy that satisfies all
+  of it.
+- **`@nucleoledger/verify` 0.1 → 0.2 is two code changes**: read the policy with
+  `parsePolicyText` instead of building the object, and make sure it carries `signerKey`.
+  Without them every receipt comes back `valid: false`. The package README has an
+  "Upgrading from 0.1.0-alpha.0" section.
+- **Scripts that parse `--json`** keep working: fields were only added
+  (`attested_head`, `rollback`, `replay_suspect`, `error_class`), `findings` is now always
+  an array, and a finding on block 0 now carries `"index": 0`. The contract is normative
+  in [docs/CLI-JSON.md](docs/CLI-JSON.md) ([ADR-025](docs/adr/ADR-025-json-como-formato-de-cable.md)).
+- **Exit codes are unchanged**: `0`, `1`, `2`, `3`, as promised above.
+
 ### Added: the error object says what kind of problem it is (ADR-027)
 
 Every JSON error object now carries **`error_class`**: `usage`, `transient`, `environment`
@@ -581,7 +655,7 @@ Practical consequences for anyone who had a working setup:
   same request. Every other parser in the project already used `.Strict()` for the same
   construct; this one was the outlier. Fixed, with the failing input kept as a corpus seed.
 
-## [0.1.0-alpha] — unreleased
+## [0.1.0-alpha] — 2026-09-09
 
 First tagged version. The success criterion of the project
 (`docs/CONCEPTO-v1.2-es.md` §18) runs end to end and is automated in
@@ -712,5 +786,6 @@ First tagged version. The success criterion of the project
 - Witness cosignatures are Ed25519, not ML-DSA-44, which `tlog-witness` states as
   a SHOULD.
 
-[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.1.0-alpha...HEAD
+[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.2.0-alpha...HEAD
+[0.2.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.1.0-alpha...v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/nucleoledger/nucleo/releases/tag/v0.1.0-alpha
