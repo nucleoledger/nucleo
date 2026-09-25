@@ -77,5 +77,18 @@ jobs:
       # procedencia por su cuenta. `publishConfig.provenance` queda en true en
       # package.json de todas formas, para que una publicación por cualquier
       # otra vía falle en lugar de salir sin procedencia en silencio.
+      #
+      # `--tag latest` EXPLÍCITO. npm 11 rechaza publicar una prerelease sin
+      # --tag («You must specify a tag using --tag when publishing a prerelease
+      # version»), y este workflow instala npm 11. Se reprodujo en local con
+      # 11.20.0 antes de empujar el primer tag, no después.
+      #
+      # Y `latest` y no `alpha` a propósito: mientras todas las versiones sean
+      # prereleases, `latest` es lo que da `npm install @nucleoledger/verify`, y
+      # dejarlo en una versión anterior es entregar por defecto un verificador que
+      # rechaza los recibos del binario de hoy. El tag `alpha` se mueve a mano
+      # después (docs/RELEASING.md): trusted publishing autoriza publicar, no
+      # mover dist-tags. El día de la 1.0, las prereleases pasan a publicarse con
+      # su propio tag y `latest` queda para las estables.
       - name: Publish
-        run: npm publish
+        run: npm publish --tag latest
