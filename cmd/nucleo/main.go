@@ -187,6 +187,13 @@ func claseDelError(err error, code int) string {
 		errors.Is(err, store.ErrIO),
 		errors.Is(err, store.ErrInternalDB):
 		return claseEntorno
+	// Un ledger de otra regla de hoja —uno de v0.1.0-alpha abierto con este
+	// binario— tampoco es un error de la llamada: la llamada está bien y el
+	// ledger es de otra versión. Lo arregla una persona, eligiendo el binario
+	// que corresponde o empezando un ledger nuevo (PROTOCOL.md §2.1). Salió al
+	// preparar v0.2.0-alpha, abriendo un ledger real de v0.1.0-alpha.
+	case errors.Is(err, store.ErrLeafRule):
+		return claseEntorno
 	// El fichero no es un ledger, o la cadena no encaja: eso es integridad,
 	// aunque llegue por el camino de un error de apertura.
 	case errors.Is(err, store.ErrNotALedger),

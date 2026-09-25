@@ -4,12 +4,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/nucleoledger/nucleo/internal/store"
 )
 
 // La clase del error (ADR-027), comprobada en las situaciones que la hicieron falta.
@@ -106,6 +109,15 @@ func TestClaseDelErrorEnLosCasosQueLaPiden(t *testing.T) {
 		// un programa, que es de lo que se trata.
 		if !strings.Contains(mensaje, "NO se arregla reintentando") {
 			t.Errorf("el mensaje perdió el aviso de que no se reintenta: %s", mensaje)
+		}
+	})
+
+	// Un ledger de otra versión del protocolo no es un error de la llamada. Se fabrica
+	// el de v0.1.0-alpha como lo reconoce la apertura: bloques sin regla de hoja
+	// declarada, que es lo que hace a un log "leaf/v1".
+	t.Run("un ledger de otra regla de hoja es entorno", func(t *testing.T) {
+		if claseDelError(fmt.Errorf("abrir: %w", store.ErrLeafRule), exitUsage) != claseEntorno {
+			t.Errorf("ErrLeafRule no se clasifica como %q", claseEntorno)
 		}
 	})
 
