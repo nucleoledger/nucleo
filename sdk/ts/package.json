@@ -1,6 +1,6 @@
 {
   "name": "@nucleoledger/verify",
-  "version": "0.1.0-alpha.0",
+  "version": "0.2.0-alpha.0",
   "description": "Offline verifier for Núcleo receipts. Zero runtime dependencies.",
   "keywords": [
     "transparency-log",

@@ -14,6 +14,25 @@ part of the platform. Nothing else is needed.
 npm install @nucleoledger/verify
 ```
 
+## Upgrading from 0.1.0-alpha.0
+
+0.1.0-alpha.0 predates the current receipt format, and the two versions do not read
+each other's receipts:
+
+| | 0.1.0-alpha.0 | 0.2.0-alpha.0 |
+|---|---|---|
+| Receipt format | `nucleo.org/receipt@v1` (leaf/v1) | `nucleo.org/receipt@v2` (leaf/v2) — what `nucleo` emits today |
+| A receipt of the other format | rejected: *"se esperaba nucleo.org/receipt@v1"* | rejected, saying it is a `@v1` receipt and why |
+| Policy | a plain object `{origin, logKey, witnesses, quorum}` | read with `parsePolicyText`; **`signerKey` is required** |
+
+So an upgrade is two changes in your code, not one: read the policy with
+`parsePolicyText` instead of building the object yourself, and make sure the policy
+file has `signerKey` — `nucleo sync --json` prints it. With the old object and no
+`signerKey`, every receipt comes back `valid: false`, which is the safe direction to
+fail but will look like an outage. Receipts issued by a `nucleo` binary from before the
+receipt@v2 change need the old version; the format change is explained in the
+project's PROTOCOL.md §2.1 and ADR-014.
+
 ## Requirements
 
 An environment with **Ed25519 in WebCrypto**: Node ≥ 20, Chrome ≥ 137,
