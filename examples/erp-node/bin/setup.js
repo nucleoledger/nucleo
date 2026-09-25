@@ -13,7 +13,7 @@
 // después, y `sync` es el único comando que la entrega completa —con el testigo dentro—.
 
 import { spawn } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as cfg from "../src/config.js";
 import { claveDelTestigo, dirDelTestigo, levanta, responde } from "../src/testigo.js";
@@ -69,6 +69,30 @@ async function main() {
     );
     logKey = est.log_pubkey;
   } else {
+    // Un ledger NUEVO necesita un testigo de juguete SIN memoria. Si queda la de un
+    // despliegue anterior, el testigo recuerda bloques de un ledger que ya no existe y
+    // el primer `sync` lo denuncia como retroceso (código 2), que es exactamente lo que
+    // tiene que hacer Núcleo. Pasaba al "resetear" con `rm -rf datos` sobre /mnt/c: ahí
+    // la memoria del testigo vive fuera de datos/ (dirDelTestigo) y sobrevivía.
+    //
+    // Solo se aplica al testigo DE JUGUETE —el que el ejemplo levanta y cuya clave lee
+    // de su memoria—. Con NUCLEO_TESTIGO_CLAVE o NUCLEO_TESTIGO_DB el testigo es de
+    // quien lo configuró, y el ejemplo no le toca nada.
+    const deJuguete = !process.env.NUCLEO_TESTIGO_CLAVE && !process.env.NUCLEO_TESTIGO_DB;
+    if (deJuguete) {
+      if (await responde(cfg.TESTIGO)) {
+        // Se para ANTES de crear el ledger: un testigo vivo tiene su memoria abierta, y
+        // borrársela por debajo solo cambiaría un retroceso por una clave que no casa.
+        fatal(
+          `hay un testigo escuchando en ${cfg.TESTIGO} —un \`npm run testigo\` anterior—, y\n` +
+            "  recuerda el despliegue que acabas de borrar. Contra un ledger nuevo, Núcleo lo\n" +
+            "  denunciaría como un retroceso, que es lo que debe hacer.\n" +
+            "  Páralo (Ctrl-C en su terminal) y vuelve a ejecutar  npm run setup\n" +
+            "  El ledger no se ha creado: volver a ejecutarlo no deja nada a medias.",
+        );
+      }
+      rmSync(dirDelTestigo(), { recursive: true, force: true });
+    }
     const r = await corre(cfg.BINARIO, [
       "--dir", cfg.DIR_LEDGER, "--json", "init",
       "--origin", cfg.ORIGIN,
