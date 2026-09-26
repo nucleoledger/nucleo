@@ -1,6 +1,6 @@
 # ADR-022-comparacion-imposible-no-es-veredicto
 
-**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8) · **Fecha:** 2026-09-18 · **Fuentes:** [auditoría externa del 2026-09-13](../auditoria-externa-20260913.md) hallazgo H7 (`internal/store/integrity.go:415-435`); ADR-016 (la atestación al abrir), ADR-017 (la política como raíz de confianza), ADR-009 (`vault_meta` es mutable por diseño)
+**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8) · **Fecha:** 2026-09-18 · **Fuentes:** [revisión externa, por un modelo, del 2026-09-13](../revision-externa-modelo-20260913.md) hallazgo H7 (`internal/store/integrity.go:415-435`); ADR-016 (la atestación al abrir), ADR-017 (la política como raíz de confianza), ADR-009 (`vault_meta` es mutable por diseño)
 
 ## El hallazgo, reproducido
 

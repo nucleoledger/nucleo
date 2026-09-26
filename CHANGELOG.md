@@ -207,10 +207,10 @@ What broke, and is fixed here with regressions:
 
 ### Security: second external audit, and the PHP SDK's first real bug (Sprint 9)
 
-The same external reviewer read the tree again at `ffd5cf1`. Both audit reports are now
-**in the repository** — [2026-09-13](docs/auditoria-externa-20260913.md), recovered
+The same external reviewer read the tree again at `ffd5cf1`. Both reports —reviews by an AI
+model, not professional audits— are now **in the repository** — [2026-09-13](docs/revision-externa-modelo-20260913.md), recovered
 verbatim from the session that produced it, and
-[2026-09-19](docs/auditoria-externa-20260919.md) — so the ADRs that cite them point at
+[2026-09-19](docs/revision-externa-modelo-20260919.md) — so the ADRs that cite them point at
 something a reader can check. One of those citations turned out to be false and is
 amended in place, which is the whole argument for versioning the source.
 

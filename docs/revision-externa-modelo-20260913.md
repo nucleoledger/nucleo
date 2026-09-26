@@ -44,8 +44,17 @@ hizo; cada commit lleva su propia explicación y su prueba de que falla sin el a
 | §6 — seis afirmaciones publicadas | enmendadas a la vista en README, PROTOCOL y CHANGELOG (Sprints 7f y 8) | — |
 
 La revisión siguiente, del 2026-09-19 y del mismo auditor, está en
-[`auditoria-externa-20260919.md`](auditoria-externa-20260919.md) y comprobó estos cierres
+[`revision-externa-modelo-20260919.md`](revision-externa-modelo-20260919.md) y comprobó estos cierres
 uno por uno.
+
+
+## El nombre del fichero
+
+Hasta el 2026-09-26 este fichero se llamaba `auditoria-externa-20260913.md`. Se renombró
+por honestidad: fue una **revisión hecha por un modelo de IA** —el de la tabla de
+arriba—, adversarial y con la maquinaria del repositorio en la mano, pero **no una
+auditoría profesional de seguridad**, y el nombre invitaba a leerlo como tal. El informe
+de debajo conserva su propio título, «Auditoría», porque es suyo y no se toca.
 
 FIN DEL PREÁMBULO
 

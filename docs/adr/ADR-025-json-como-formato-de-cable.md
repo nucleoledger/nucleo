@@ -1,6 +1,6 @@
 # ADR-025-json-como-formato-de-cable
 
-**Estado:** ACEPTADA el 2026-09-22 por el dev (Sprint 9) · **Fecha:** 2026-09-22 · **Fuentes:** [auditoría externa del 2026-09-19](../auditoria-externa-20260919.md), hallazgo medio (`SealResult::fromJSON` con casts laxos y defaults silenciosos); ADR-018 (la política como formato de cable), ADR-020 §E (ningún error del motor llega al usuario), ADR-021 (el SDK de PHP), `docs/CLI-JSON.md`
+**Estado:** ACEPTADA el 2026-09-22 por el dev (Sprint 9) · **Fecha:** 2026-09-22 · **Fuentes:** [revisión externa, por un modelo, del 2026-09-19](../revision-externa-modelo-20260919.md), hallazgo medio (`SealResult::fromJSON` con casts laxos y defaults silenciosos); ADR-018 (la política como formato de cable), ADR-020 §E (ningún error del motor llega al usuario), ADR-021 (el SDK de PHP), `docs/CLI-JSON.md`
 
 ## El hallazgo, y la causa que lo explica
 

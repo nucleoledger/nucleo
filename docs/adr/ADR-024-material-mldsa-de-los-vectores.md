@@ -1,6 +1,6 @@
 # ADR-024-material-mldsa-de-los-vectores
 
-**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8) · **Fecha:** 2026-09-18 · **Fuentes:** [auditoría externa del 2026-09-13](../auditoria-externa-20260913.md) hallazgo H9 (la independencia de los golden), cerrado en dos pasos: el oráculo Python del Sprint 7f y este ADR; ADR-007 (ML-DSA-44 adicional), `testdata/vectors/receipt/generar.py`, `internal/receipt/vectors_export_test.go`
+**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8) · **Fecha:** 2026-09-18 · **Fuentes:** [revisión externa, por un modelo, del 2026-09-13](../revision-externa-modelo-20260913.md) hallazgo H9 (la independencia de los golden), cerrado en dos pasos: el oráculo Python del Sprint 7f y este ADR; ADR-007 (ML-DSA-44 adicional), `testdata/vectors/receipt/generar.py`, `internal/receipt/vectors_export_test.go`
 
 ## El problema
 

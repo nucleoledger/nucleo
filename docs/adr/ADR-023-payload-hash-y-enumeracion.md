@@ -1,6 +1,6 @@
 # ADR-023-payload-hash-y-enumeracion
 
-**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8) · **Fecha:** 2026-09-18 · **Fuentes:** [auditoría externa del 2026-09-13](../auditoria-externa-20260913.md) hallazgo H10; ADR-003 (compromisos VRF/HMAC), PROTOCOL.md §1 y §5, `profiles/ecuador/tipos.go`
+**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8) · **Fecha:** 2026-09-18 · **Fuentes:** [revisión externa, por un modelo, del 2026-09-13](../revision-externa-modelo-20260913.md) hallazgo H10; ADR-003 (compromisos VRF/HMAC), PROTOCOL.md §1 y §5, `profiles/ecuador/tipos.go`
 
 ## El hallazgo, reproducido
 

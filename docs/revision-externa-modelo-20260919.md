@@ -1,3 +1,22 @@
+<!--
+Este preámbulo lo añade el repositorio; el informe empieza donde lo dice y no se ha
+tocado una coma. Si alguna vez hay que separar las dos cosas, el corte es la línea
+"FIN DEL PREÁMBULO".
+-->
+
+# Nota de procedencia
+
+Hasta el 2026-09-26 este fichero se llamaba `auditoria-externa-20260919.md`. Se renombró
+por honestidad: fue una **revisión hecha por un modelo de IA**, ejecutada en OpenCode
+—las rutas `/tmp/opencode/…` de sus propias órdenes lo muestran—, adversarial y con la
+maquinaria del repositorio en la mano, pero **no una auditoría profesional de
+seguridad**, y el nombre invitaba a leerlo como tal. El informe de debajo conserva su
+propio título, «Auditoría externa técnica», porque es suyo y no se toca.
+
+FIN DEL PREÁMBULO
+
+---
+
 # Auditoría externa técnica — 2026-09-19
 
 Revisión independiente de seguridad sobre `github.com/nucleoledger/nucleo`, `PROTOCOL.md` 0.5-draft y ADR-014 a ADR-024.

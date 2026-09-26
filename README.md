@@ -324,10 +324,10 @@ access to the repository's history read the public tree and found, among others,
 receipt that two of the three verifiers rejected whenever the clock did not land on a whole
 second ([ADR-019](docs/adr/ADR-019-resolucion-temporal.md)), and receipt vectors generated
 by the very code they judged — the anti-circularity amendment above
-([report](docs/auditoria-externa-20260913.md)). A second external review found the PHP
+([report](docs/revision-externa-modelo-20260913.md)). A second external review found the PHP
 SDK's first real bug, lax casts over the CLI's `--json` output, which made that output a
 wire format with its own vectors ([ADR-025](docs/adr/ADR-025-json-como-formato-de-cable.md),
-[report](docs/auditoria-externa-20260919.md)). The operations rehearsal and the integration
+[report](docs/revision-externa-modelo-20260919.md)). The operations rehearsal and the integration
 example are in the [status](#status) above and in the CHANGELOG.
 
 **No professional security audit has been performed.** The reviews above — internal and
