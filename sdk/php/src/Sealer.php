@@ -291,8 +291,16 @@ final class Sealer
         try {
             $j = Contract::decode($out);
         } catch (SealContractError $e) {
-            $e2 = SealError::make($e->getMessage(), $code, $err);
-            throw $code === 0 ? $e : $e2;
+            if ($code === 0) {
+                throw $e;
+            }
+            // Un código distinto de 0 SIN el JSON de la CLI no es un veredicto: el proceso
+            // murió antes de poder darlo. Y el caso real deja una trampa: el runtime de Go
+            // sale con 2 en un error fatal —con memoria virtual limitada por debajo de
+            // ~800 MiB muere con "fatal error: out of memory allocating heap arena map"—,
+            // y 2 es «la verificación falló» en el contrato. Leerlo por el código haría
+            // escalar como incidente de integridad un límite de memoria del hosting.
+            throw new SealEnvironmentError(self::murioSinContestar($code, $err));
         }
         // La alarma, antes que nada: también cuando la CLI devuelve un error. Un `sync`
         // que no llega al testigo y un `seal --fail-on-stale` que se niega traen `alert`
@@ -310,6 +318,29 @@ final class Sealer
             );
         }
         return $j;
+    }
+
+    /**
+     * murioSinContestar redacta el error de un binario que terminó sin escribir su JSON.
+     */
+    private static function murioSinContestar(int $code, string $stderr): string
+    {
+        $primera = trim(strtok($stderr, "\n") ?: '');
+        $msg = sprintf(
+            'el binario de Núcleo terminó con código %d sin escribir su respuesta, así que ese ' .
+            'código no es un veredicto: el proceso no llegó a contestar.',
+            $code
+        );
+        if (str_contains($stderr, 'out of memory') || str_contains($stderr, 'failed to reserve')) {
+            $msg .= ' Se quedó sin memoria: el hosting limita la memoria virtual del proceso por ' .
+                'debajo de lo que necesita el binario (~800 MiB de memoria virtual, aunque use ' .
+                'mucha menos memoria real). Pídele al proveedor que suba ese límite; ver ' .
+                'docs/OPERACION.md.';
+        }
+        if ($primera !== '') {
+            $msg .= ' Detalle: ' . $primera;
+        }
+        return $msg;
     }
 
     /**

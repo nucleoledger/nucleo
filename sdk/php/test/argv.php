@@ -147,6 +147,32 @@ function pruebasDeArgv(): void
     comprueba('alert status: --policy-file va detrás de las dos',
         $j !== false && array_search('--policy-file', $argv, true) === $j + 3, implode(' ', $argv));
 
+    // ---- un binario que muere sin contestar no da un veredicto ----------------------
+    // Con memoria virtual limitada por debajo de ~800 MiB, el runtime de Go muere antes
+    // de escribir nada y sale con 2 —medido con el binario publicado de v0.2.0-alpha—.
+    // 2 es «la verificación falló» en el contrato: leído por el código, un límite de
+    // memoria del hosting se escalaría como incidente de integridad.
+    $m = entornoFalso('muere');
+    $ventanas = DIRECTORY_SEPARATOR === '\\';
+    file_put_contents($m['bin'], $ventanas
+        ? "@echo off\r\necho fatal error: out of memory allocating heap arena map 1>&2\r\nexit /b 2\r\n"
+        : "#!/bin/sh\necho 'fatal error: out of memory allocating heap arena map' >&2\nexit 2\n");
+    if (!$ventanas) {
+        chmod($m['bin'], 0700);
+    }
+    try {
+        (new Sealer($m['bin'], $m['dir'], $m['pass']))->status();
+        comprueba('muere sin contestar: lanza', false, 'no lanzó');
+    } catch (Nucleo\SealEnvironmentError $ex) {
+        comprueba('muere sin contestar: es un fallo del ENTORNO, no de integridad', true);
+        comprueba('muere sin contestar: el mensaje dice que es la memoria y qué pedir',
+            str_contains($ex->getMessage(), 'memoria virtual') && str_contains($ex->getMessage(), 'OPERACION.md'),
+            $ex->getMessage());
+    } catch (\Throwable $ex) {
+        comprueba('muere sin contestar: es un fallo del ENTORNO, no de integridad', false,
+            'lanzó ' . get_class($ex) . ': ' . $ex->getMessage());
+    }
+
     // ---- sin política: no se inventa ninguna ---------------------------------------
     $e2 = entornoFalso('sinpolitica');
     (new Sealer($e2['bin'], $e2['dir'], $e2['pass']))->status();

@@ -36,6 +36,14 @@ consumidor estricto, vectores compartidos—:
   con `ok: false` y sale con `2`; ese informe **no es un objeto de error** y no
   trae `error` ni `exit_code` ni `error_class`, así que un consumidor tiene que
   mirar el código del PROCESO antes de buscar un objeto de error.
+- **Sin JSON en stdout, el código de salida NO es del contrato.** Todo lo que la CLI
+  decide lo dice con su JSON, también los errores. Si el proceso termina con un código
+  distinto de 0 **sin** escribir ese JSON, es que murió antes de contestar, y su código no
+  significa lo que dice esta lista. El caso real: con la memoria virtual del proceso
+  limitada por debajo de ~800 MiB, el runtime de Go muere con `fatal error: out of memory
+  allocating heap arena map` y sale con **2**, que aquí es «la verificación falló»
+  (medido con el binario publicado de v0.2.0-alpha, `prlimit --as`). Un consumidor tiene
+  que tratar «código ≠ 0 sin JSON» como un fallo del **entorno**, nunca como un veredicto.
 - **`error_class`** (string) dice QUÉ CLASE de problema es, que es lo que el
   código de salida no puede decir (ADR-027). Conjunto cerrado:
 

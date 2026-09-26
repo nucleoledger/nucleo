@@ -67,6 +67,20 @@ export class ErrorDeEntorno extends ErrorDeNucleo {}
 
 const PORCODIGO = { 1: ErrorDeUso, 2: ErrorDeIntegridad, 3: ErrorDeSincronizacion };
 
+/** murioSinContestar redacta el error de un binario que terminó sin escribir su JSON. */
+function murioSinContestar(code, stderr) {
+  const primera = (stderr.split("\n").find((l) => l.trim() !== "") ?? "").trim();
+  let msg = `el binario de Núcleo terminó con código ${code} sin escribir su respuesta, así que ese ` +
+    "código no es un veredicto: el proceso no llegó a contestar.";
+  if (/out of memory|failed to reserve/.test(stderr)) {
+    msg += "\n  Se quedó sin memoria: el hosting limita la memoria virtual del proceso por debajo de lo" +
+      "\n  que necesita el binario (~800 MiB de memoria virtual, aunque use mucha menos memoria real)." +
+      "\n  Pídele al proveedor que suba ese límite; ver docs/OPERACION.md.";
+  }
+  if (primera) msg += `\n  Detalle: ${primera}`;
+  return msg;
+}
+
 export class Nucleo {
   /**
    * @param {object} opciones
@@ -341,7 +355,18 @@ export class Nucleo {
       this.log(l.startsWith("✘") ? "alarma" : "aviso", l);
     }
 
-    const j = contrato.decode(stdout);
+    let j;
+    try {
+      j = contrato.decode(stdout);
+    } catch (e) {
+      if (code === 0) throw e;
+      // Un código distinto de 0 SIN el JSON de la CLI no es un veredicto: el proceso murió
+      // antes de darlo. Y el runtime de Go sale con 2 en un error fatal —con memoria virtual
+      // limitada por debajo de ~800 MiB muere con "out of memory allocating heap arena
+      // map"—, que en el contrato es «la verificación falló». Leerlo por el código haría
+      // tratar un límite del hosting como un incidente de integridad.
+      throw new ErrorDeEntorno(murioSinContestar(code, stderr), { exitCode: code, stderr });
+    }
     // La alarma, antes que nada: también cuando la CLI devuelve error. Un `sync` que no
     // llega al testigo y un `seal --fail-on-stale` que se niega la traen en el objeto de
     // error, y son justo los dos momentos en que más importa.
