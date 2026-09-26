@@ -145,7 +145,15 @@ func cmdSync(e *env, args []string) error {
 			})
 			return &exitError{code: exitVerify, err: rb, reported: true}
 		}
-		return errorDeTestigo(*url, err)
+		// El testigo no contesta, y este es EL momento de la alarma de frescura: el
+		// cron que lo intenta suele tirar stderr y el código de salida. Se juzga con lo
+		// que se abrió —antes de hablar con el testigo, que no ha cambiado nada— y la
+		// alarma viaja en el propio objeto de error (ADR-028 §C y §D).
+		ee := errorDeTestigo(*url, err)
+		if st, errSt := checkStaleness(s, apertura, wp != nil, now(), e.staleAfter, apertura.TreeSize); errSt == nil {
+			ee = ee.conExtra("alert", registraAlarma(e, s, st).json())
+		}
+		return ee
 	}
 
 	// Aquí, y solo aquí, se graba cuándo avaló un tercero este log: es el único
@@ -200,6 +208,16 @@ func cmdSync(e *env, args []string) error {
 		}
 	}
 
+	// Una cosignature verificada y que no nace vieja es atestación fresca: la alarma, si
+	// la había, deja de tener motivo y se cierra aquí (ADR-028 §C). Una que ya nacía vieja
+	// no cierra nada: es justo la que un replay por la red devolvería.
+	alarma := leeAlarma(e, s)
+	cerrada := store.StaleAlarm{}
+	if res.Attested && !vieja && alarma.Estado != alarmaNinguna {
+		cerrada = alarma.Registro
+		alarma = cierraAlarma(e, s, alarma.Registro)
+	}
+
 	e.out(map[string]any{
 		"origin":       res.Origin,
 		"local_size":   res.LocalSize,
@@ -213,12 +231,16 @@ func cmdSync(e *env, args []string) error {
 		// este ledger con atestación verificada, y lo mismo que la contraparte
 		// necesita para verificar sus recibos (ADR-017 c).
 		"policy": jsonPolicy(id.Origin, id.LogPublic(), id.TenantPublic(), name, pub),
+		"alert":  alarma.json(),
 	}, func() {
 		e.printf("✔ atestación obtenida del testigo %s\n", name)
 		e.printf("  origin  : %s\n", res.Origin)
 		e.printf("  bloques : %d\n", res.LocalSize)
 		e.printf("  tiempo  : %s (lo afirma el testigo, no este reloj)\n",
 			res.AttestedAt.UTC().Format(time.RFC3339))
+		if cerrada.EmittedAt != "" && alarma.Estado == alarmaNinguna {
+			e.printf("  (la alarma de frescura, abierta el %s, queda cerrada)\n", cerrada.EmittedAt)
+		}
 		if res.Fresh {
 			e.printf("  (era el primer checkpoint de este log para ese testigo)\n")
 		} else if res.WitnessSize < res.LocalSize {

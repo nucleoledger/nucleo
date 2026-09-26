@@ -131,6 +131,34 @@ semana, `sync` lo cazó con código 2… y el siguiente `status` decía "✔ his
 hasta 1322 de 1322 bloques". El primer sitio donde mira quien acaba de restaurar decía que
 todo estaba bien.
 
+### `alert` — la alarma de frescura, guardada en el ledger (ADR-028)
+
+La llevan `seal` (también el reintento idempotente), `status`, `verify`, `reconcile`,
+`sync` y `alert status`. Y la llevan también **dos objetos de error**: el de un `sync` que
+no llega al testigo y el de un `seal --fail-on-stale` que se niega a sellar, que son
+justo los dos momentos en que más importa.
+
+| campo | tipo |
+|---|---|
+| `state` | `"none"`, `"open"` o `"acked"`. Conjunto cerrado: un valor desconocido es un error de contrato |
+| `new` | bool — `true` solo en el comando que abrió la alarma |
+| `persisted` | bool — `false` si la alarma se vio pero no se pudo escribir en el ledger (lo dice también stderr). Con `false`, el siguiente comando no la encontrará |
+| `stale_since` | RFC 3339 — desde cuándo está vieja: la última atestación que cuenta más el umbral, o el momento en que se observó si no hubo ninguna. Solo si `state` no es `none` |
+| `alert_emitted_at` | RFC 3339 — cuándo la registró Núcleo por primera vez. Ídem |
+| `threshold_hours` | número — el umbral con el que se abrió. Ídem |
+| `reason` | `"age"`, `"never_attested"` o `"no_attestation_under_policy"`. Ídem |
+| `alert_acked_at` | RFC 3339 — cuándo se reconoció con `alert ack`. Solo si `state` es `acked` |
+| `acked_by` | string — quién, si lo dijo con `--by`. Solo si se dio |
+
+La alarma se **abre** cuando un comando observa la atestación vieja, se **reconoce** con
+`nucleo alert ack` —que no la cierra— y se **cierra sola** cuando un comando vuelve a
+observar la atestación fresca, en la práctica tras un `sync` que sale bien. El episodio
+siguiente es una alarma nueva, sin reconocer.
+
+Un integrador que parsea esto lo lee como **opcional**: un binario anterior a septiembre
+de 2026 no lo trae. Y no es un control de seguridad: vive en `log_state`, que es mutable
+por diseño; lo que impide que mienta sobre el presente es que cada comando la recalcula.
+
 ### `freshness` — hace cuánto vio un tercero esta historia
 
 ```json
@@ -250,6 +278,14 @@ frescura **no** cambia el código.
 | `duplicate_of` | lista de enteros — bloques que ya sellaban ESTE contenido. Ausente si no hay ninguno |
 | `profile`, `metadata`, `commitments` | solo con perfil (`sri.factura.v1`, `sas.acta.v1`) |
 | `attestation`, `attested`, `attested_size`, `signer`, `freshness` | **el estado de la historia sobre la que se acaba de escribir**, con la misma semántica que `status`. El bloque recién sellado **no** está cubierto por la atestación: lo cubrirá el próximo `sync`. |
+| `alert` | objeto, ver arriba |
+
+`seal` sella **siempre** por omisión, también con la atestación vieja: un registro que no
+se sella se pierde, y una atestación atrasada se recupera en el siguiente `sync`
+(ADR-028 §A). Con **`--fail-on-stale`**, en cambio, si la atestación está vieja no escribe
+nada y sale con un objeto de error con `exit_code: 3`, `error_class: "transient"` y el
+objeto `alert`: es para quien tiene una cola y puede reintentar, con la misma
+`--idempotency-key`, después de un `sync`.
 
 Sellar el mismo contenido dos veces produce un **bloque nuevo**: el ledger registra
 hechos de sellado, no documentos (ADR-020 §A). `duplicate_of` es lo que permite verlo
@@ -297,9 +333,27 @@ El informe de `internal/reconcile` más el estado de la historia:
 | `replay_suspect` | bool — la cosignature recibida ya nacía vieja (ver `freshness` arriba) |
 | `first_time` | bool — era el primer checkpoint de este log para ese testigo |
 | `policy` | objeto, ver arriba — lo que hace falta para volver a abrir con todo verificado |
+| `alert` | objeto, ver arriba. Un `sync` que obtiene una cosignature verificada que no nace vieja **cierra** la alarma |
 
 Con rollback detectado: `{"ok": false, "rollback": true, "local_size": N,
-"witness_size": M}` y código `2`. Sin poder llegar al testigo: error con código `3`.
+"witness_size": M}` y código `2`. Sin poder llegar al testigo: error con código `3`, y
+el objeto de error lleva `alert` —con el veredicto de frescura del ledger tal como
+estaba—, porque es el momento exacto en que la alarma se produce.
+
+### `alert status` · `alert ack`
+
+`alert status` publica `{"alert": {…}, "freshness": {…}}` y, como cualquier comando que
+juzga la frescura, abre o cierra la alarma según el veredicto; acepta la política igual
+que `status`. Sale con `0`. Con **`--exit-code`** sale con `3` si hay una alarma
+**abierta sin reconocer** —la reconocida ya tiene a alguien encima—; es para quien vigila
+desde un script sin parsear JSON. Ojo: con `--exit-code` y `--json` a la vez, el código 3
+llega con la salida normal (`ok: true`) y **no** con un objeto de error, igual que el
+informe de `reconcile` con hallazgos.
+
+`alert ack [--by NOMBRE]` publica `{"acked": bool, "alert": {…}}`. `acked` es `true` solo
+si este comando la reconoció: sin alarma abierta, o con una ya reconocida, no cambia
+nada y sale con `0` —un script que reconoce por si acaso no tiene que distinguir el caso—.
+No pide la passphrase: `log_state` no se firma.
 
 ### `help`
 

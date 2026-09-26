@@ -55,7 +55,7 @@ func validaURLDeTestigo(raw string) error {
 }
 
 // errorDeTestigo traduce el fallo a algo accionable, conservando el detalle.
-func errorDeTestigo(u string, err error) error {
+func errorDeTestigo(u string, err error) *exitError {
 	frase, consejo, clase := clasificaFalloDeTestigo(u, err)
 	if frase == "" {
 		return syncErr("%v", err)

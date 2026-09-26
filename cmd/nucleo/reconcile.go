@@ -58,6 +58,7 @@ func cmdReconcile(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	alarma := registraAlarma(e, s, st)
 	st.warn(e)
 	if e.json {
 		raw, err := rep.JSON()
@@ -73,6 +74,7 @@ func cmdReconcile(e *env, args []string) error {
 		data["attested_size"] = res.AttestedSize
 		data["signer"] = signerJSON(res)
 		data["freshness"] = st.json()
+		data["alert"] = alarma.json()
 		data["ok"] = len(rep.Findings) == 0 && (rep.FullVerify == nil || rep.FullVerify.OK)
 		e.printJSON(data)
 	} else {
@@ -80,6 +82,7 @@ func cmdReconcile(e *env, args []string) error {
 		e.printf("\n")
 		printAttestation(e, res)
 		printFreshness(e, st)
+		printAlerta(e, alarma)
 	}
 
 	// Una discrepancia NO es un error del programa: el cotejo hizo su trabajo.

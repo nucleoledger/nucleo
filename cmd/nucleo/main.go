@@ -72,6 +72,19 @@ type exitError struct {
 	// que la regla general. Vacía significa "decídela por la cadena o por el
 	// código", que es lo que hace claseDelError.
 	class string
+	// extra son campos que se añaden al objeto de error en --json. Existe para el
+	// objeto `alert` de ADR-028: un `sync` que falla y un `seal --fail-on-stale` que
+	// se niega son justo los dos momentos en que la alarma más importa.
+	extra map[string]any
+}
+
+// conExtra añade un campo al objeto de error de --json.
+func (e *exitError) conExtra(k string, v any) *exitError {
+	if e.extra == nil {
+		e.extra = map[string]any{}
+	}
+	e.extra[k] = v
+	return e
 }
 
 // conClase marca un error con su clase. Devuelve el mismo error para poder
@@ -113,6 +126,7 @@ var commands = map[string]func(*env, []string) error{
 	"witness":   cmdWitness,
 	"backup":    cmdBackup,
 	"restore":   cmdRestore,
+	"alert":     cmdAlert,
 }
 
 func main() {
@@ -135,7 +149,7 @@ func run(args []string, stdout, stderr *os.File) int {
 	reported := ee != nil && ee.reported
 	if e.json {
 		if !reported {
-			e.printJSON(map[string]any{
+			obj := map[string]any{
 				"ok":        false,
 				"error":     err.Error(),
 				"exit_code": code,
@@ -143,7 +157,15 @@ func run(args []string, stdout, stderr *os.File) int {
 				// A una persona se le dice qué hacer en su idioma; "[transient]"
 				// sería jerga del motor llegando al usuario (ADR-020 §E).
 				"error_class": claseDelError(err, code),
-			})
+			}
+			if ee != nil {
+				for k, v := range ee.extra {
+					if _, ya := obj[k]; !ya {
+						obj[k] = v
+					}
+				}
+			}
+			e.printJSON(obj)
 		}
 	} else {
 		if !reported {

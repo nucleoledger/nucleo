@@ -242,6 +242,9 @@ func sealTail(e *env, s *store.Store, res store.OpenResult, withPolicy bool, tre
 	salida["attested_head"] = res.Attested() && res.AttestedSize == treeSize
 	salida["attested_size"] = res.AttestedSize
 	salida["signer"] = signerJSON(res)
+	// La alarma se registra en el ledger y se publica: el aviso de stderr de abajo no
+	// lo lee nadie en el hosting donde vive este producto (ADR-028).
+	salida["alert"] = registraAlarma(e, s, st).json()
 	st.warn(e)
 	return st, nil
 }

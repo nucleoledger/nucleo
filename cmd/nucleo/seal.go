@@ -25,6 +25,9 @@ func cmdSeal(e *env, args []string) error {
 	xmlFile := fs.String("xml", "", "fichero XML del comprobante (equivale a --payload con un perfil)")
 	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
 	clear := fs.Bool("no-encrypt", false, "no guarda el contenido cifrado; solo sella su hash")
+	// Desactivado por omisión a propósito (ADR-028 §A): un registro que no se sella se
+	// pierde, y una atestación atrasada se recupera en el siguiente sync.
+	failOnStale := fs.Bool("fail-on-stale", false, "no sella si la atestación está vieja: sale con 3 sin escribir, para quien tenga cola y pueda reintentar")
 	// optString y no fs.String por lo mismo que --policy-file: un cron con la variable
 	// vacía pasaría --idempotency-key "" y sellaría un duplicado creyendo lo contrario.
 	idemKey := &optString{}
@@ -112,6 +115,25 @@ func cmdSeal(e *env, args []string) error {
 		}
 		if hay {
 			return sealIdempotente(e, s, res, wp != nil, previo, payloadHash, *typ, prof)
+		}
+	}
+
+	// --fail-on-stale: se juzga ANTES de construir nada, con el ledger tal como se abrió.
+	// Va después del reintento idempotente, que no escribe y por eso no hay nada que
+	// rechazar. La alarma se registra igual: negarse a sellar no la hace menos cierta.
+	if *failOnStale {
+		st, err := checkStaleness(s, res, wp != nil, now(), e.staleAfter, res.TreeSize)
+		if err != nil {
+			return err
+		}
+		if st.Stale && !st.Empty {
+			alarma := registraAlarma(e, s, st)
+			st.warn(e)
+			return syncErr("no se ha sellado: la atestación está vieja y se pidió --fail-on-stale.\n"+
+				"  No se ha escrito ningún bloque. Ejecuta `nucleo sync` y, cuando salga bien,\n"+
+				"  reintenta con la MISMA --idempotency-key. Si prefieres sellar igualmente —el\n"+
+				"  registro quedará sin atestiguar hasta el próximo sync—, quita --fail-on-stale.").
+				conClase(claseTransitoria).conExtra("alert", alarma.json())
 		}
 	}
 

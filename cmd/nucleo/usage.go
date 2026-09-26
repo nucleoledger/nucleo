@@ -19,6 +19,7 @@ SUBCOMANDOS
   witness     witness serve — levanta un testigo · witness key — su clave pública
   backup      vuelve a emitir las tarjetas SLIP-0039 de la KEK
   restore     reconstruye la KEK desde las tarjetas
+  alert       alert status — la alarma de frescura · alert ack — «me he enterado»
 
 BANDERAS GLOBALES
   --dir D     directorio del despliegue (por defecto, el actual)

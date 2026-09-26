@@ -71,6 +71,10 @@ func cmdStatus(e *env, args []string) error {
 	if rb := st.rollbackJSON(); rb != nil {
 		data["rollback"] = rb
 	}
+	// status también ESCRIBE la alarma (ADR-028 §C): es lo que mira un cron, y el cron
+	// es justo quien no lee stderr.
+	alarma := registraAlarma(e, s, st)
+	data["alert"] = alarma.json()
 	// El aviso sale ANTES del volcado, y sale también en modo --json: va por
 	// stderr, así que no contamina la salida que alguien parsea. Es lo que hace
 	// que un cron con stdout a un fichero y stderr al correo avise solo.
@@ -88,6 +92,7 @@ func cmdStatus(e *env, args []string) error {
 		e.printf("raíz      : %s\n", hex.EncodeToString(root))
 		printAttestation(e, res)
 		printFreshness(e, st)
+		printAlerta(e, alarma)
 	})
 	return nil
 }
@@ -201,6 +206,7 @@ func cmdVerify(e *env, args []string) error {
 		"attested_size": res.AttestedSize,
 		"freshness":     st.json(),
 		"signer":        signerJSON(res),
+		"alert":         registraAlarma(e, s, st).json(),
 	}
 	if rb := st.rollbackJSON(); rb != nil {
 		salida["rollback"] = rb
