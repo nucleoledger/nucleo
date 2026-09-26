@@ -77,13 +77,22 @@ func cmdAlertAck(e *env, args []string) error {
 	fs := flag.NewFlagSet("alert ack", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	por := fs.String("by", "", "quién se ha enterado: queda anotado junto al reconocimiento")
+	// Admite la política como cualquier otro subcomando: los SDK la pasan en TODA
+	// ejecución (ADR-017) y un subcomando que la rechazara sería un error de uso en el
+	// camino común. Reconocer no juzga nada, pero abrir con ella verifica lo mismo que
+	// siempre.
+	pf := registerPolicyFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
 	}
-	// Sin política: reconocer no juzga nada, anota. Y no pide la passphrase, porque
-	// log_state no se firma: quien opera el despliegue tiene que poder hacerlo desde
-	// cualquier terminal, a las tres de la mañana, sin la tarjeta de respaldo.
-	s, _, err := e.openStoreWith(nil)
+	wp, _, err := pf.resolve(e)
+	if err != nil {
+		return err
+	}
+	// No pide la passphrase, porque log_state no se firma: quien opera el despliegue
+	// tiene que poder hacerlo desde cualquier terminal, a las tres de la mañana, sin la
+	// tarjeta de respaldo.
+	s, _, err := e.openStoreWith(wp)
 	if err != nil {
 		return err
 	}
