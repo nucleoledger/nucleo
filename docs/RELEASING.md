@@ -317,10 +317,18 @@ incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado con lo
 releases publicados, bajando el binario linux/amd64 de la página del release y
 recompilándolo desde su tag con la orden de abajo, tal cual:
 
-| release | Go (de `go version -m`) | commit del tag | sha256 del binario, publicado = recompilado | comprobado |
-|---|---|---|---|---|
-| `v0.1.0-alpha` | go1.27.1 | `03d71d8` | `3c6e55a488ed…35f5c7` | 2026-09-25 |
-| `v0.2.0-alpha` | go1.27.1 | `6442b03` | `771ab28a4567…33ac3c4` | 2026-09-25 |
+| release | Go (de `go version -m`) | commit del tag | comprobado |
+|---|---|---|---|
+| `v0.1.0-alpha` | go1.27.1 | `03d71d8` | 2026-09-25 |
+| `v0.2.0-alpha` | go1.27.1 | `6442b03` | 2026-09-25 |
+
+Y el sha256 del binario linux/amd64, el mismo publicado y recompilado, **entero**: un
+hash abreviado a mano ya se copió mal una vez en esta tabla.
+
+```
+3c6e55a488ed6877a7977792598097ce1ddceb1fe0538a61edfdcd131035f5c7  v0.1.0-alpha
+771ab28a4567b2a35525b04d783b877f7cb5f175064efc79577cbda4337ac3c4  v0.2.0-alpha
+```
 
 En los dos, además, el certificado de la firma lleva la identidad exacta del tag
 —`…/release.yml@refs/tags/v0.1.0-alpha` y `…@refs/tags/v0.2.0-alpha`— y el de
