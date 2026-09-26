@@ -1,8 +1,11 @@
 # TODO.md — Backlog atómico
 
-Estado: `v0.2.0-alpha` preparada (CHANGELOG, README y RELEASING al día; falta el
-tag, que empuja el dev). `@nucleoledger/verify@0.2.0-alpha.0` publicado en npm desde
-CI con procedencia. Lo detallado de los Sprints 7 a 11 vive en `CHANGELOG.md`.
+Estado: **`v0.2.0-alpha` publicada** como pre-release el 2026-09-25 (commit `6442b03`)
+y verificada por el dev con la receta de RELEASING —cosign `Verified OK` con la
+identidad exacta del tag, sha256 OK, cero ganchos de prueba en el binario— y aquí
+—el binario linux/amd64 se recompila byte a byte desde el tag—.
+`@nucleoledger/verify@0.2.0-alpha.0` en npm con procedencia (`latest` y `alpha`).
+Lo detallado de los Sprints 7 a 11 vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
 commits, en `CHANGELOG.md` y en `docs/adr/`, que es donde hay que buscarlo. Una
@@ -35,13 +38,19 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       verificado el 2026-09-25: el tag `vsdk-0.2.0-alpha.0` publicó sin token y
       `npm audit signatures` da «1 package has a verified attestation»
       (publish-npm.yml, commit `669eaf2`)
-- [ ] Crear el buzón `security@nucleoledger.com` o cambiar la dirección en
-      `SECURITY.md` — verificar: un correo a esa dirección llega
+- [x] Crear el buzón `security@nucleoledger.com` — operativo, confirmado por el dev
+      el 2026-09-25
+- [x] Publicar `v0.2.0-alpha` y verificarla desde un directorio limpio con la receta
+      de RELEASING — hecho por el dev el 2026-09-25 (cosign v3.1.3)
 - [ ] Activar el reporte privado de vulnerabilidades en GitHub — verificar:
       Settings → Security → la opción aparece habilitada
-- [ ] Cronometrar el tutorial con alguien de fuera del proyecto — verificar: una
-      hora medida, no estimada por quien lo escribió
-- [ ] Decidir sobre ADR-012 (VRF), ADR-014 (hoja y firma) y ADR-015 (destinatario)
+- [ ] Cronometrar el tutorial con alguien de fuera del proyecto, sobre el ejemplo
+      Node (`examples/erp-node`) — verificar: una hora medida, no estimada por quien
+      lo escribió. La parte mecánica ya está medida (de clon a recibo verificado,
+      ~15 s en caliente, ~35 s en frío); falta la de comprensión, que es la que
+      cierra CONCEPTO §18
+- [ ] Decidir sobre ADR-012 (VRF). ADR-014 y ADR-015 están aceptadas e implementadas
+      desde el Sprint 7b
 
 ## Sprint 7 — cerrar la revisión externa
 - [x] Ningún binario compilado en el árbol; `.gitignore` con rutas ancladas (P0)
@@ -59,9 +68,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] Fuzzers de todos los formatos de cable: note firmada, checkpoint,
       cosignature, recibo y cuerpo de la petición del testigo
 
-## Siguiente sprint (no empezar sin cerrar el 7)
-- [ ] **Sealer PHP.** El mercado es PHP en cPanel y hoy solo hay CLI Go y
-      verificador TS. Es el hueco más grande del producto.
+## Pendiente de producto
+- [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
 - [ ] **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo
       demostrable no existe para una pyme. Testigo mutuo entre instalaciones, o
       un tercero con incentivo (contador, certificadora, colegio de abogados).
@@ -71,5 +79,5 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 ## Fuera de alcance hasta nuevo aviso
 - **Dual-license con texto y precio** — decisión de negocio del dev, no de ingeniería.
 - **Auditoría humana pagada** — cuando haya ingresos. Hasta entonces el README
-  dice que no hay auditoría externa y eso no se maquilla.
+  dice, en su primera frase, que no hay auditoría profesional, y eso no se maquilla.
 - **HSM** — v1 es software-only. Documentado como límite, no como pendiente.

@@ -1,37 +1,60 @@
 # PLAN.md — Fase actual
 
-Estado: **post-lanzamiento de `v0.1.0-alpha`** (tag firmado el 9-sep-2026, release
-borrador verificado: cosign + procedencia SLSA; `@nucleoledger/verify@0.1.0-alpha.0`
-en npm). Sprint en curso: **Sprint 7 — cerrar la revisión externa.**
+Estado: **post-lanzamiento de `v0.2.0-alpha`**, publicada como pre-release el
+25-sep-2026 (commit `6442b03`) y verificada dos veces: por el dev, con la receta de
+`docs/RELEASING.md` desde un directorio limpio (cosign `Verified OK` con la identidad
+exacta del tag, sha256 OK, cero ganchos de prueba en el binario), y recompilando el
+binario linux/amd64 desde el tag, que coincide byte a byte. `@nucleoledger/verify@0.2.0-alpha.0`
+está en npm, publicado desde CI con procedencia. El siguiente sprint lo fija el dev.
 
-# 🎯 OBJETIVO DE LA FASE ACTUAL
+El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 11: cinco rondas
+adversariales, el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
+en `CHANGELOG.md` y en `docs/adr/`, no aquí.
 
-La v1 ya cumple su criterio de éxito de punta a punta (`scripts/demo-criterio-exito.sh`,
-7 pasos, 30 aserciones). Lo que falta **no es más criptografía**: es el producto
-alrededor del teorema. La revisión externa del 10-sep-2026 lo resumió en una
-frase que conviene no suavizar:
+# 🎯 DÓNDE ESTÁ EL PROYECTO
+
+La v1 cumple su criterio de éxito de punta a punta como script
+(`scripts/demo-criterio-exito.sh`) y como aplicación (`examples/erp-node`, en CI). Tres
+verificadores —Go, TypeScript y PHP escrito desde la especificación— coinciden en
+cada mutación del diferencial. Lo que falta sigue sin ser criptografía, y la revisión
+externa del 10-sep-2026 lo dijo en una frase que conviene no suavizar:
 
 > Falta quién atestigua, cómo sella el PHP del ERP en la misma transacción, qué
 > pasa cuando restauran el backup, qué dice el recibo ante un juez, y una
 > auditoría que no sea otro modelo.
 
-Sprint 7 ataca cuatro de esos cinco frentes. La auditoría humana no depende de
-código y queda fuera a propósito (ver abajo).
+De esos cinco frentes, tres están cerrados: el sellado desde PHP (Sprint 8, ADR-021),
+el backup restaurado (ensayo de operación del Sprint 10: el rollback detectado ya no
+se olvida) y el recibo ante un juez (aviso legal dentro del recibo, destinatario
+firmado por ADR-015). Quedan dos: **quién atestigua** y **la auditoría que no sea
+otro modelo**.
 
-# 🧭 ORDEN DEL SPRINT 7
+# 📋 LO QUE QUEDA
 
-1. **Higiene P0.** Ningún binario compilado en el árbol; documentación de proceso
-   que diga la verdad; README preciso sobre qué es y qué no es ML-DSA-44.
-2. **El recibo ante un humano y un juez.** Disclaimer legal en español en el
-   recibo y en el verificador HTML; el destinatario etiquetado como lo que es.
-3. **ADR-014 — la hoja y la firma.** Decisión sobre mover la firma del bloque
-   dentro de la hoja de Merkle. Es ahora o nunca: hoy hay cero usuarios y cero
-   recibos ajenos; dentro de un año el coste es infinito.
-4. **Operación que no miente.** Política *fail-stale*: una atestación vieja es un
-   incidente que se anuncia solo, sin que nadie tenga que mirar `status`.
-   Perfiles de KDF medidos para el hosting compartido que el propio ADR-005 eligió.
-5. **Fuzz del formato de cable.** No solo JCS: note firmada, checkpoint,
-   cosignature, recibo y el cuerpo de la petición del testigo.
+El backlog atómico está en `TODO.md`. En resumen:
+
+**Del dev, fuera del código**
+- Activar el reporte privado de vulnerabilidades en GitHub.
+- El tutorial cronometrado con alguien de fuera del proyecto, sobre el ejemplo Node.
+  La parte mecánica está medida (~15 s de clon a recibo verificado); falta la de
+  comprensión, que es la mitad de CONCEPTO §18 que no se puede fabricar desde dentro.
+- Decidir ADR-012 (VRF), la única decisión abierta.
+
+**De producto**
+- **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo demostrable
+  no existe para una pyme: testigo mutuo entre instalaciones, o un tercero con
+  incentivo (contador, certificadora, colegio de abogados).
+- **Identidad de registro y eventos `issued`/`voided`** en el perfil genérico: las
+  facturas se anulan y `reconcile` no lo modela. Toca el protocolo; pide ADR.
+
+**Anotado, sin urgencia**
+- **cosign 3 en el CI de releases.** Hoy se firma con cosign 2.5.2 para publicar a la
+  vez `.sig`/`.pem` y el bundle de Sigstore; cosign 3 ya no produce los primeros sin
+  bundle. Pasar a cosign 3 es pasar a publicar solo el bundle: una decisión, no una
+  actualización (ver `release.yml` y `docs/RELEASING.md`).
+- **La versión de Go de los releases** no está fijada (`go-version: 'stable'`): recibe
+  los parches de seguridad sola, a cambio de que la versión se lea del binario y no del
+  repositorio para reproducirlo.
 
 # 🧠 DECISIONES YA TOMADAS (no se re-litigan)
 
@@ -48,12 +71,18 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
 - SLIP-0039 2-de-3 para el respaldo de la KEK — ADR-004, ADR-010.
 - **CLI como modo primario**, sin daemon obligatorio — ADR-005.
 - SQLite append-only con apertura rápida respaldada por checkpoint cosignado — ADR-009 y sus enmiendas.
-
-# ⏳ DECISIONES ESPERANDO AL DEV
-
-- **ADR-012** — VRF: evaluado, dependencia no añadida. Sin decidir.
-- **ADR-014** — hoja de Merkle que incluya la firma. Escrito en este sprint, sin implementar.
-- **ADR-015** — destinatario firmado por el emisor. Escrito en este sprint, sin implementar.
+- **`leaf/v2`**: la firma del bloque dentro de la hoja de Merkle — ADR-014. El emisor
+  firma el recibo entero, destinatario incluido — ADR-015.
+- La atestación solo cuenta si **verifica**, y la política es la única raíz de
+  confianza y un formato de cable — ADR-016, ADR-017, ADR-018.
+- Tiempo firmado con resolución de **segundo** — ADR-019.
+- Sellado **idempotente y atómico** — ADR-020. SDK de PHP: verificador nativo,
+  sellador envoltorio — ADR-021.
+- Una comparación que no se puede hacer no es un veredicto — ADR-022. Entropía dentro
+  del payload frente a la enumeración de `payload_hash` — ADR-023.
+- La salida `--json` es un formato de cable, con **clase de error** ortogonal al código
+  de salida — ADR-025, ADR-027. El ejemplo de integración vive en este repositorio y
+  usa el SDK publicado — ADR-026.
 
 # ✅ MÓDULOS ESTABLES (NO TOCAR)
 
@@ -65,32 +94,11 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
   se quedan como referencia de cómo se llegó hasta aquí; **no se editan**. El
   producto es `cmd/nucleo`.
 
-# 🏁 CRITERIOS DE ACEPTACIÓN DEL SPRINT 7
-
-1. `git ls-files` sin un solo ejecutable; `.gitignore` con las rutas ancladas.
-2. Un recibo recién emitido lleva el disclaimer legal en español, y el
-   destinatario dice en su propia línea que va anotado y no firmado.
-3. ADR-014 y ADR-015 escritos con recomendación y plan de ejecución, sin una
-   línea de código de producción tocada.
-4. `status` y `seal` avisan por stderr y en `--json` cuando la última atestación
-   pasa del umbral; `verify` lo reporta. Con reloj inyectado en los tests.
-5. `init --kdf-profile constrained` persiste sus parámetros y `Unlock` los honra,
-   con el coste de las dos configuraciones medido, no estimado.
-6. Un fuzzer por formato de cable, cada uno ≥ 2 minutos sin pánico y sin aceptar
-   lo que debe rechazar.
-
-# 🚫 FUERA DE ESTE SPRINT, A PROPÓSITO
+# 🚫 FUERA DE ALCANCE, A PROPÓSITO
 
 Escrito aquí para que no se confunda "no hecho" con "olvidado":
 
-- **Sealer PHP.** Es el hueco más grande del producto —el mercado es PHP en cPanel
-  y hoy solo hay CLI Go y verificador TS— pero es un sprint entero, no un bloque.
-- **Producto-testigo.** Sin una red de testigos que el emisor no controle, el
-  tiempo demostrable no existe para una pyme. Siguiente sprint.
 - **Dual-license con texto y precio.** Decisión de negocio, no de ingeniería.
-- **Auditoría humana pagada.** Cuando haya ingresos. Hasta entonces el README
-  dice que no hay auditoría externa, y eso no se maquilla.
+- **Auditoría humana pagada.** Cuando haya ingresos. Hasta entonces el README dice,
+  en su primera frase, que no hay auditoría profesional, y eso no se maquilla.
 - **HSM.** v1 es software-only; queda documentado como límite, no como pendiente.
-- **Identidad de registro y eventos (`issued`/`voided`) en el perfil genérico.**
-  Hallazgo real de la revisión, no abordado aquí: toca el protocolo y pide su
-  propio ADR.
