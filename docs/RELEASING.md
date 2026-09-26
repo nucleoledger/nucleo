@@ -267,9 +267,19 @@ go build -o nucleo ./cmd/nucleo
 
 Eso da un binario que funciona igual, pero no los mismos bytes que el publicado: las
 compilaciones de release llevan `-trimpath`, `-ldflags "-s -w"` y tres valores
-incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado: el
-`nucleo_0.1.0-alpha_linux_amd64.tar.gz` publicado se recompiló el 2026-09-25 desde
-su tag y coincidió byte a byte (sha256 `3c6e55a4…35f5c7` los dos).
+incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado con los dos
+releases publicados, bajando el binario linux/amd64 de la página del release y
+recompilándolo desde su tag con la orden de abajo, tal cual:
+
+| release | Go (de `go version -m`) | commit del tag | sha256 del binario, publicado = recompilado | comprobado |
+|---|---|---|---|---|
+| `v0.1.0-alpha` | go1.27.1 | `03d71d8` | `3c6e55a488ed…35f5c7` | 2026-09-25 |
+| `v0.2.0-alpha` | go1.27.1 | `6442b03` | `771ab28a4567…33ac3c4` | 2026-09-25 |
+
+En los dos, además, el certificado de la firma lleva la identidad exacta del tag
+—`…/release.yml@refs/tags/v0.1.0-alpha` y `…@refs/tags/v0.2.0-alpha`— y el de
+v0.2.0-alpha declara el commit `6442b03` en su extensión de Sigstore
+(OID 1.3.6.1.4.1.57264.1.3), el mismo que dice el binario en `vcs.revision`.
 
 ```bash
 git clone https://github.com/nucleoledger/nucleo && cd nucleo
