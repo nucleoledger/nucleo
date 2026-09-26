@@ -26,7 +26,10 @@ export { ErrorDeContrato } from "./contrato.js";
 export class ErrorDeNucleo extends Error {
   constructor(mensaje, { exitCode = -1, stderr = "", clase = "" } = {}) {
     super(mensaje);
-    this.name = "ErrorDeNucleo";
+    // El nombre de la clase de VERDAD —ErrorDeSincronizacion, ErrorDeUso…—, no el de la
+    // base: es lo que sale en los logs del integrador, y "ErrorDeNucleo" para un testigo
+    // caído obliga a mirar el código de salida para saber qué pasó.
+    this.name = new.target.name;
     this.exitCode = exitCode;
     this.stderr = stderr;
     /**
@@ -73,14 +76,21 @@ export class Nucleo {
    * @param {string=} opciones.policyFile    política de verificación (ADR-017)
    * @param {number=} opciones.timeoutMs     cuánto esperar antes de darlo por colgado
    * @param {(nivel: string, mensaje: string) => void=} opciones.log  a dónde van los avisos
+   * @param {(alerta: object) => void=} opciones.onStale  se llama en CADA operación
+   *        mientras haya una alarma de frescura abierta y sin reconocer (ADR-028 §E).
+   *        Es un requisito de integración: el integrador elige el canal, Núcleo le
+   *        garantiza que se entera.
+   * @param {string=} opciones.staleAfter  umbral de frescura (`--stale-after`), p. ej. "72h"
    */
-  constructor({ binario, dir, passphraseFile, policyFile = null, timeoutMs = 60_000, log = null }) {
+  constructor({ binario, dir, passphraseFile, policyFile = null, timeoutMs = 60_000, log = null, onStale = null, staleAfter = null }) {
     this.binario = binario;
     this.dir = dir;
     this.passphraseFile = passphraseFile;
     this.policyFile = policyFile;
     this.timeoutMs = timeoutMs;
     this.log = log ?? ((nivel, mensaje) => console.error(`[nucleo:${nivel}] ${mensaje}`));
+    this.onStale = onStale;
+    this.staleAfter = staleAfter;
   }
 
   /**
@@ -90,7 +100,7 @@ export class Nucleo {
    * sin ella duplica el registro (ADR-020 §D). La firma lo pide como parámetro con
    * nombre para que no se pase por descuido.
    */
-  async sella({ payloadFile, tipo, tenant, idempotencyKey, cifrar = true }) {
+  async sella({ payloadFile, tipo, tenant, idempotencyKey, cifrar = true, fallaSiVieja = false }) {
     if (!idempotencyKey) {
       throw new ErrorDeUso(
         "sella() necesita idempotencyKey: sin ella, un reintento tras un timeout duplica el registro (ADR-020 §D)",
@@ -99,6 +109,9 @@ export class Nucleo {
     const args = ["seal", "--tenant", tenant, "--type", tipo, "--payload", payloadFile,
       "--passphrase-file", this.passphraseFile, "--idempotency-key", idempotencyKey];
     if (!cifrar) args.push("--no-encrypt");
+    // --fail-on-stale: con la atestación vieja NO sella y lanza ErrorDeSincronizacion
+    // (clase transient). Desactivado por omisión: un registro no sellado se pierde.
+    if (fallaSiVieja) args.push("--fail-on-stale");
     return contrato.sellado(await this.#ejecuta(args));
   }
 
@@ -162,6 +175,26 @@ export class Nucleo {
     }
   }
 
+  /** estadoDeAlarma devuelve la alarma de frescura (ADR-028): { state, … } del contrato. */
+  async estadoDeAlarma() {
+    const j = await this.#ejecuta(["alert", "status"]);
+    const a = contrato.alerta(j);
+    if (!a) throw new contrato.ErrorDeContrato("alert status no trajo el objeto alert: el binario es anterior a ADR-028");
+    return a;
+  }
+
+  /**
+   * reconoceAlarma dice que alguien se ha enterado. No la cierra —la cierra un sync que
+   * sale bien—, pero onStale deja de llamarse hasta el siguiente episodio. Llámalo cuando
+   * tu canal haya ENTREGADO el aviso, no dentro del propio hook.
+   */
+  async reconoceAlarma({ por = null } = {}) {
+    const args = ["alert", "ack"];
+    if (por) args.push("--by", por);
+    const j = await this.#ejecuta(args);
+    return { reconocida: contrato.booleano(j, "acked"), alerta: contrato.alerta(j) };
+  }
+
   /** compruebaEntorno mira lo que un despliegue puede tener mal, antes de ejecutar nada. */
   compruebaEntorno() {
     try {
@@ -205,7 +238,7 @@ export class Nucleo {
 
   /** La línea de comandos que se va a ejecutar, para poder ENSEÑARLA. */
   comando(args) {
-    return [this.binario, "--dir", this.dir, "--json", ...this.#conPolitica(args)]
+    return [this.binario, ...this.#globales(), ...this.#conPolitica(args)]
       .map((a) => (/\s/.test(a) ? JSON.stringify(a) : a))
       .join(" ");
   }
@@ -219,13 +252,48 @@ export class Nucleo {
    */
   #conPolitica(args) {
     if (!this.policyFile) return args;
-    const [sub, ...resto] = args;
-    return [sub, "--policy-file", this.policyFile, ...resto];
+    // `alert status` y `alert ack` son subcomandos de DOS palabras: la política va
+    // detrás de las dos, no entre ellas.
+    const n = args[0] === "alert" && args.length > 1 ? 2 : 1;
+    return [...args.slice(0, n), "--policy-file", this.policyFile, ...args.slice(n)];
+  }
+
+  /** globales son las banderas que van ANTES del subcomando. */
+  #globales() {
+    const g = ["--dir", this.dir, "--json"];
+    if (this.staleAfter) g.push("--stale-after", this.staleAfter);
+    return g;
+  }
+
+  /**
+   * avisaSiHayAlarma llama a onStale con una alarma abierta y sin reconocer.
+   *
+   * Al menos una vez (ADR-028 §E): se repite en cada operación hasta reconoceAlarma().
+   * Si el hook falla, el fallo va al log y la operación sigue: el sellado ya está hecho
+   * cuando se llama, y un aviso que no sale no puede convertirlo en uno fallido.
+   */
+  #avisaSiHayAlarma(j) {
+    if (!this.onStale || !Object.prototype.hasOwnProperty.call(j, "alert")) return;
+    let a;
+    try {
+      a = contrato.alerta(j);
+    } catch {
+      return; // un alert que no cumple lo rechaza el camino normal
+    }
+    if (!a || a.state !== "open") return;
+    try {
+      const r = this.onStale(a);
+      if (r && typeof r.catch === "function") {
+        r.catch((e) => this.log("alarma", `el hook onStale falló: ${e?.message ?? e}. La alarma sigue abierta desde ${a.stale_since}.`));
+      }
+    } catch (e) {
+      this.log("alarma", `el hook onStale falló: ${e?.message ?? e}. La alarma sigue abierta desde ${a.stale_since}.`);
+    }
   }
 
   async #ejecuta(args, { timeoutMs = null } = {}) {
     this.compruebaEntorno();
-    const cmd = [this.binario, "--dir", this.dir, "--json", ...this.#conPolitica(args)];
+    const cmd = [this.binario, ...this.#globales(), ...this.#conPolitica(args)];
     const limite = timeoutMs ?? this.timeoutMs;
 
     const { code, signal, stdout, stderr, spawnError } = await new Promise((resolve) => {
@@ -274,6 +342,10 @@ export class Nucleo {
     }
 
     const j = contrato.decode(stdout);
+    // La alarma, antes que nada: también cuando la CLI devuelve error. Un `sync` que no
+    // llega al testigo y un `seal --fail-on-stale` que se niega la traen en el objeto de
+    // error, y son justo los dos momentos en que más importa.
+    this.#avisaSiHayAlarma(j);
     if (code === 0) return j;
 
     // No todo código distinto de 0 trae un objeto de error, y esto lo descubrió el

@@ -18,7 +18,8 @@
 //   8. y enseña qué pasa cuando el binario falta y cuando el testigo no está
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -247,6 +248,51 @@ try {
 }
 const trasElCorte = await nucleo.estado();
 comprueba(trasElCorte.treeSize === 3, "el corte del testigo cambió el ledger");
+
+// ————— 9. la alarma de frescura: el testigo lleva caído más que el umbral —————
+
+paso("9", "El testigo sigue caído y la atestación envejece: se sigue sellando, y alguien se entera.");
+// El umbral se baja a 2 s para no esperar tres días; es el mismo mecanismo que en
+// producción con 72 h (--stale-after). El testigo está apagado desde el paso 8.
+const avisos = [];
+const vigilado = cfg.nucleo({ staleAfter: "2s", onStale: (a) => avisos.push(a) });
+await new Promise((r) => setTimeout(r, 3_000));
+
+const docAlarma = join(cfg.DIR_DOCUMENTOS, "alarma-1.json");
+writeFileSync(docAlarma, JSON.stringify({ alarma: 1, nonce: randomBytes(16).toString("hex") }));
+const conAlarma = await vigilado.sella({ payloadFile: docAlarma, tipo: "sri.factura.v1", tenant: "1790012345001", idempotencyKey: "alarma-1" });
+dice(`  sellado igual, bloque ${conAlarma.index}: un registro que no se sella se pierde (ADR-028 §A)`);
+comprueba(conAlarma.index === 3, `bloque ${conAlarma.index}, want 3`);
+comprueba(conAlarma.alerta?.state === "open", `alert = ${JSON.stringify(conAlarma.alerta)}`);
+comprueba(avisos.length === 1, `el hook se llamó ${avisos.length} veces, want 1`);
+dice(`  el hook se enteró: atestación vieja desde ${avisos[0]?.stale_since} (${avisos[0]?.reason})`);
+dice("  —sin leer stderr: la alarma vive en el ledger y viaja en el JSON—");
+
+const estadoAlarma = await vigilado.estadoDeAlarma();
+comprueba(estadoAlarma.state === "open", `alert status = ${estadoAlarma.state}`);
+comprueba(avisos.length === 2, "el hook tiene que repetirse en cada operación mientras nadie la reconozca");
+
+const ack = await vigilado.reconoceAlarma({ por: "demo" });
+comprueba(ack.reconocida && ack.alerta?.state === "acked", `ack = ${JSON.stringify(ack)}`);
+dice(`  reconocida por «demo»: el hook deja de avisar, y la alarma sigue abierta hasta un sync bueno`);
+
+const docAlarma2 = join(cfg.DIR_DOCUMENTOS, "alarma-2.json");
+writeFileSync(docAlarma2, JSON.stringify({ alarma: 2, nonce: randomBytes(16).toString("hex") }));
+await vigilado.sella({ payloadFile: docAlarma2, tipo: "sri.factura.v1", tenant: "1790012345001", idempotencyKey: "alarma-2" });
+comprueba(avisos.length === 2, `reconocida, el hook se llamó otra vez (${avisos.length})`);
+
+// fallaSiVieja: para quien tiene cola. No escribe, y lo dice con el tipo y la clase.
+const docAlarma3 = join(cfg.DIR_DOCUMENTOS, "alarma-3.json");
+writeFileSync(docAlarma3, JSON.stringify({ alarma: 3, nonce: randomBytes(16).toString("hex") }));
+const antes = (await vigilado.estado()).treeSize;
+try {
+  await vigilado.sella({ payloadFile: docAlarma3, tipo: "sri.factura.v1", tenant: "1790012345001", idempotencyKey: "alarma-3", fallaSiVieja: true });
+  comprueba(false, "fallaSiVieja selló con la atestación vieja");
+} catch (e) {
+  comprueba(e instanceof ErrorDeSincronizacion && e.clase === "transient", `llegó ${e?.name} clase ${e?.clase}`);
+  dice(`  con fallaSiVieja: no sella, ${e.name} clase ${e.clase} —para reintentar tras un sync—`);
+}
+comprueba((await vigilado.estado()).treeSize === antes, "fallaSiVieja escribió un bloque");
 
 // ————— el resumen —————
 

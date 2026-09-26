@@ -40,6 +40,29 @@ const erp = new ERP({
 
 // ————— las páginas —————
 
+/**
+ * bloqueDeAlarma pinta la alarma de frescura (ADR-028), o nada si no hay.
+ *
+ * Sale del objeto `alert` que trae `status`: la alarma vive en el ledger, así que la ve
+ * cualquiera que abra la pantalla, sin haber leído nunca stderr.
+ */
+function bloqueDeAlarma(alerta, { conBoton = false } = {}) {
+  if (!alerta || alerta.state === "none") return "";
+  const abierta = alerta.state === "open";
+  return `<div class="tarjeta ${abierta ? "grave" : "aviso"}">
+  <h2 style="margin-top:0">${abierta ? "✘ Alarma de frescura: nadie la ha reconocido" : "◐ Alarma de frescura reconocida"}</h2>
+  <p>La atestación está vieja desde <code>${esc(alerta.stale_since)}</code>: desde entonces,
+  lo que se sella aquí no lo ha visto ningún testigo. <strong>Se sigue sellando</strong>
+  —un registro que no se sella se pierde—, y la alarma se cierra sola con el próximo
+  <code>sync</code> que salga bien.</p>
+  ${abierta ? "" : `<p class="nota">Reconocida${alerta.acked_by ? " por " + esc(alerta.acked_by) : ""} el ${esc(alerta.alert_acked_at)}.</p>`}
+  ${abierta && conBoton ? `<form method="post" action="/estado/ack">
+    <button type="submit" class="suave">Me he enterado (alert ack)</button>
+  </form>` : ""}
+  ${comando(nucleo.comando(["alert", abierta ? "ack" : "status"]))}
+</div>`;
+}
+
 async function panel() {
   const est = await nucleo.estado();
   const facturas = erp.facturas();
@@ -58,6 +81,7 @@ async function panel() {
     .join("");
 
   const cuerpo = `
+${bloqueDeAlarma(est.alerta)}
 <div class="tarjeta">
   ${pares([
     ["Ledger", `<code>${esc(est.origin)}</code>`],
@@ -307,6 +331,7 @@ async function paginaDeEstado({ sync = null } = {}) {
 
   const cuerpo = `
 ${resultadoSync}
+${bloqueDeAlarma(est.alerta, { conBoton: true })}
 <h2>El ledger</h2>
 <div class="tarjeta">
   ${pares([
@@ -543,6 +568,11 @@ async function enruta(req, url) {
       ],
     });
     return { redirigeA: `/factura/${factura.numero}` };
+  }
+
+  if (ruta === "/estado/ack" && post) {
+    await nucleo.reconoceAlarma({ por: "pantalla de estado del ERP" });
+    return { redirigeA: "/estado" };
   }
 
   if (ruta === "/estado/sync" && post) {

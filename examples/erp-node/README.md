@@ -121,6 +121,24 @@ verificando: no depende del ERP.
 Ese cotejo sale con **código 2**, y eso no es un fallo del programa: encontrar una
 discrepancia es su trabajo. Por eso `src/nucleo.js` lee el informe en las dos ramas.
 
+### 6. La alarma de frescura, y quién se entera
+
+Si el testigo deja de contestar, la atestación envejece. Núcleo **sigue sellando** —un
+registro que no se sella se pierde; una atestación atrasada se recupera en el siguiente
+`sync`— y abre una **alarma** que guarda en el propio ledger
+([ADR-028](../../docs/adr/ADR-028-alarma-de-frescura-durable.md)). No depende de stderr,
+que en un hosting real no lee nadie: viaja en el JSON de cada comando.
+
+El envoltorio llama a **`onStale`** en cada operación mientras la alarma esté abierta y
+sin reconocer (`src/config.js`: en el ejemplo apunta la alarma y la enseña en el panel;
+en tu ERP, ahí va tu correo o tu WhatsApp). Deja de llamarse cuando alguien la reconoce
+—el botón de la pantalla de estado, o `reconoceAlarma()`— y la alarma se cierra sola con
+el próximo `sync` bueno. **Configurar `onStale` es un requisito de integración**, no un
+extra.
+
+Para verla sin esperar tres días: `NUCLEO_STALE_AFTER=30s npm start` con el testigo
+parado, emite una factura y espera medio minuto. La demo lo recorre en su paso 9.
+
 ## Manejo de errores
 
 Lo que el ejemplo hace en cada caso, porque un ERP que sella y no sabe qué hacer cuando
@@ -133,6 +151,7 @@ el sellado falla no es una integración:
 | El testigo no responde | `ErrorDeSincronizacion`, código 3 | Sigue sellando. No se ha perdido nada; falta el tercero que dé fe de la fecha |
 | El cotejo encuentra una discrepancia | código 2 con el informe completo | Enseña el informe. No reintenta: un 2 es un incidente |
 | La salida no encaja con el contrato | `ErrorDeContrato` | Se detiene. No rellena con valores por omisión: así es como una salida truncada parece un sellado correcto |
+| La atestación lleva vieja más que el umbral | `alert.state: "open"` en el JSON, y `onStale` | Sigue sellando y avisa por tu canal hasta que alguien la reconoce. Con `fallaSiVieja`, no sella y lanza `ErrorDeSincronizacion` transitorio |
 | Se pide el recibo de un bloque que ningún testigo cubrió | código 1 con `error_class: transient` | Sincroniza y reintenta. **No** es un error de la llamada, y el ERP lo sabe sin leer el mensaje ([ADR-027](../../docs/adr/ADR-027-clase-del-error-en-json.md)) |
 
 Cada rama tiene su página, y las tres contestan lo mismo: qué pasó, **qué hizo el ERP con

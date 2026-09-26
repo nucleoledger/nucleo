@@ -186,6 +186,7 @@ export function sellado(j) {
     signerVerified: booleano(firmante(j), "verified"),
     stale: booleano(frescura(j), "stale"),
     rollback: Object.prototype.hasOwnProperty.call(j, "rollback") ? objeto(j, "rollback") : null,
+    alerta: alerta(j),
     raw: j,
   };
 }
@@ -210,6 +211,7 @@ export function estado(j) {
     signer: firmante(j),
     freshness: frescura(j),
     rollback: Object.prototype.hasOwnProperty.call(j, "rollback") ? objeto(j, "rollback") : null,
+    alerta: alerta(j),
     raw: j,
   };
 }
@@ -254,6 +256,32 @@ export function cotejo(j) {
       : null,
     raw: j,
   };
+}
+
+/**
+ * alerta lee el objeto `alert` de la alarma de frescura (ADR-028), o null si la salida no
+ * lo trae.
+ *
+ * Opcional por lo mismo que error_class: un binario anterior a septiembre de 2026 no lo
+ * manda. Lo que no se tolera es un estado desconocido: "no sé si hay alarma" no puede
+ * acabar en "no hay alarma".
+ */
+export function alerta(j) {
+  if (!Object.prototype.hasOwnProperty.call(j, "alert")) return null;
+  const a = objeto(j, "alert");
+  const estado = unoDe(a, "state", ["none", "open", "acked"]);
+  booleano(a, "new");
+  booleano(a, "persisted");
+  if (estado !== "none") {
+    cadena(a, "stale_since", { vacia: false });
+    cadena(a, "alert_emitted_at", { vacia: false });
+    unoDe(a, "reason", ["age", "never_attested", "no_attestation_under_policy"]);
+    if (typeof a.threshold_hours !== "number") {
+      throw new ErrorDeContrato(`alert.threshold_hours tiene que ser un número y llegó ${JSON.stringify(a.threshold_hours)}`);
+    }
+  }
+  if (estado === "acked") cadena(a, "alert_acked_at", { vacia: false });
+  return a;
 }
 
 /** LAS CUATRO CLASES de error (ADR-027). Conjunto cerrado. */

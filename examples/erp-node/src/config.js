@@ -36,6 +36,21 @@ export const ORIGIN = process.env.NUCLEO_ORIGIN ?? "ejemplo.local/facturacion";
 export const TESTIGO = process.env.NUCLEO_TESTIGO ?? "http://127.0.0.1:8099";
 export const PUERTO = Number(process.env.PORT ?? 3000);
 
+/**
+ * ALARMA es la última alarma de frescura que llegó por el hook, o null.
+ *
+ * Es el canal del ejemplo: un banner en la pantalla de estado y una línea en el log. En
+ * producción, el hook es el sitio donde el integrador manda un correo o un WhatsApp; el
+ * ejemplo no envía nada porque no tiene credenciales de nadie, y no debe tenerlas.
+ */
+export const ALARMA = { actual: null };
+
+function avisaDeAlarma(alerta) {
+  ALARMA.actual = alerta;
+  console.error(`[nucleo:alarma] atestación vieja desde ${alerta.stale_since} (${alerta.reason}). ` +
+    "Nadie la ha reconocido todavía: `nucleo alert ack` cuando alguien se entere.");
+}
+
 /** DIARIO guarda los últimos avisos que Núcleo mandó por stderr, para poder ENSEÑARLOS. */
 export const DIARIO = [];
 
@@ -56,8 +71,14 @@ const vistos = new Map();
  * `conPolitica: false` es para el arranque, cuando la política todavía no existe: el
  * primer `init` es el que la produce. Pasado ese momento, va en todas las ejecuciones.
  */
-export function nucleo({ conPolitica = true, timeoutMs = 60_000 } = {}) {
+export function nucleo({ conPolitica = true, timeoutMs = 60_000, onStale = null, staleAfter = null } = {}) {
   return new Nucleo({
+    // El hook de ADR-028. Por omisión, el del ejemplo: lo apunta en ALARMAS y en el log
+    // del proceso. En tu ERP, aquí va tu canal —correo, WhatsApp, un ticket—.
+    onStale: onStale ?? avisaDeAlarma,
+    // NUCLEO_STALE_AFTER permite ver la alarma sin esperar tres días —p. ej. "30s"— y
+    // probar el hook propio. En producción no se toca: el umbral por omisión son 72 h.
+    staleAfter: staleAfter ?? process.env.NUCLEO_STALE_AFTER ?? null,
     binario: BINARIO,
     dir: DIR_LEDGER,
     passphraseFile: FICHERO_PASSPHRASE,
