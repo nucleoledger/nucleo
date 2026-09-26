@@ -86,6 +86,8 @@ function pruebasDeContrato(string $vectores): void
             igual($nombre . ': duplicate_of', $j['duplicate_of'] ?? [], $r->duplicateOf);
             igual($nombre . ': freshness.stale', $j['freshness']['stale'], $r->stale);
             igual($nombre . ': signer.verified', $j['signer']['verified'], $r->signerVerified);
+            // La alarma de frescura (ADR-028): la que dice el vector es la que queda.
+            igual($nombre . ': alert.state', $j['alert']['state'] ?? null, $r->alert['state'] ?? null);
             continue;
         }
         if (str_starts_with($nombre, 'valido-status')) {
@@ -122,6 +124,16 @@ function pruebasDeContrato(string $vectores): void
     comprueba('hay vectores de contrato', $n >= 30, sprintf('solo %d', $n));
     comprueba('hay válidos e inválidos', $validos >= 8 && $invalidos >= 20,
         sprintf('%d válidos, %d inválidos', $validos, $invalidos));
+
+    // Un binario anterior a ADR-028 no manda `alert`, y eso no rompe el sellado.
+    $sinAlerta = Contract::decode(leerJSON($vectores . '/cli-json/valido-seal.json')['stdout']);
+    unset($sinAlerta->alert);
+    try {
+        $r = SealResult::fromObject($sinAlerta);
+        comprueba('un binario sin alert sigue sellando', $r->alert === null);
+    } catch (\Throwable $e) {
+        comprueba('un binario sin alert sigue sellando', false, $e->getMessage());
+    }
 
     // La clase del error se deduce del código cuando el binario no la manda, que es lo
     // que pasa con un despliegue anterior a septiembre de 2026 (ADR-027 §C).

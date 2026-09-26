@@ -155,6 +155,58 @@ function selladoDePuntaAPunta(string $bin): void
         comprueba('política de otro log: se rechaza', false, 'tipo ' . get_class($e) . ': ' . $e->getMessage());
     }
 
+    // 8. La alarma de frescura y el hook (ADR-028). Este ledger nunca se ha
+    // sincronizado, así que tiene bloques sin atestiguar: la alarma está abierta desde
+    // el primer sellado, y el hook se llama en CADA operación hasta que alguien la
+    // reconoce.
+    //
+    // Primero, un hook que lanza: la excepción va al log de errores de PHP y el
+    // sellado, que ya estaba hecho, se devuelve igual. Un correo caído no puede hacer
+    // que el ERP dé por fallido un sellado bueno.
+    $roto = new Sealer($bin, $dir, $pass, null, 60, function (array $alert): void {
+        throw new \RuntimeException('el correo está caído');
+    });
+    try {
+        $r6 = $roto->sealBytes('{"alarma":0}', 'sri.factura.v1', '1790012345001', 'alarma-0');
+        comprueba('un hook que lanza no tumba el sellado', $r6->index === 4, 'índice ' . $r6->index);
+    } catch (\Throwable $e) {
+        comprueba('un hook que lanza no tumba el sellado', false, get_class($e) . ': ' . $e->getMessage());
+    }
+
+    $avisos = [];
+    $conHook = new Sealer($bin, $dir, $pass, null, 60, function (array $alert) use (&$avisos): void {
+        $avisos[] = $alert;
+    });
+    $conHook->sealBytes('{"alarma":1}', 'sri.factura.v1', '1790012345001', 'alarma-1');
+    $conHook->sealBytes('{"alarma":2}', 'sri.factura.v1', '1790012345001', 'alarma-2');
+    comprueba('el hook se llama en cada operación con la alarma abierta', count($avisos) === 2, (string) count($avisos));
+    comprueba('el hook recibe la alarma', ($avisos[0]['state'] ?? null) === 'open'
+        && ($avisos[0]['reason'] ?? null) === 'never_attested', json_encode($avisos[0] ?? null));
+
+    $alarma = $conHook->alertStatus();
+    comprueba('alertStatus la enseña abierta', ($alarma['alert']['state'] ?? null) === 'open',
+        json_encode($alarma['alert'] ?? null));
+    comprueba('alertStatus también avisa al hook', count($avisos) === 3, (string) count($avisos));
+
+    $ack = $conHook->alertAck('suite-php');
+    comprueba('alertAck la reconoce', ($ack['acked'] ?? null) === true
+        && ($ack['alert']['acked_by'] ?? null) === 'suite-php', json_encode($ack));
+    $conHook->sealBytes('{"alarma":3}', 'sri.factura.v1', '1790012345001', 'alarma-3');
+    comprueba('reconocida, el hook deja de llamarse', count($avisos) === 3, (string) count($avisos));
+
+    // failOnStale: con la atestación vieja no escribe, y lo dice con el tipo correcto.
+    $antes = $sealer->status()['tree_size'] ?? -1;
+    try {
+        $conHook->sealBytes('{"alarma":4}', 'sri.factura.v1', '1790012345001', 'alarma-4', true, true);
+        comprueba('failOnStale: no sella con la atestación vieja', false, 'debería haber lanzado');
+    } catch (Nucleo\SealSyncError $e) {
+        comprueba('failOnStale: SealSyncError, código 3, transitorio',
+            $e->exitCode === 3 && $e->errorClass === 'transient' && $e->esReintentable(),
+            $e->exitCode . ' ' . $e->errorClass);
+    }
+    comprueba('failOnStale: no se escribió nada',
+        ($sealer->status()['tree_size'] ?? -2) === $antes, (string) $antes);
+
     // Y el despliegue se borra: es un test, no un despliegue.
     borrarArbol($dir);
 }

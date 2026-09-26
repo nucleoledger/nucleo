@@ -93,6 +93,41 @@ reintento tras un timeout no duplique el registro, y un ERP que reintenta es exa
 el caso que lo hace falta ([ADR-020](../../docs/adr/ADR-020-idempotencia-y-atomicidad-del-sellado.md)).
 La clave está acotada por tenant, así que `factura-001` es de cualquiera.
 
+### La alarma de frescura: `onStale` es obligatorio
+
+Si el testigo deja de contestar, la atestación envejece y Núcleo abre una **alarma de
+frescura** que guarda en el propio ledger ([ADR-028](../../docs/adr/ADR-028-alarma-de-frescura-durable.md)).
+El sellado **no se detiene**: un registro que no se sella se pierde, y una atestación
+atrasada se recupera en el siguiente `sync`. Pero alguien tiene que enterarse, y en un
+hosting compartido stderr no lo lee nadie. Para eso está el sexto argumento:
+
+```php
+$sealer = new Nucleo\Sealer($bin, $dir, $pass, $politica, 60,
+    function (array $alert): void {
+        // Tu canal: correo, WhatsApp, un ticket. Núcleo no envía nada por ti.
+        mail('operaciones@tuempresa.ec', 'Núcleo: atestación vieja',
+            "Sin atestación desde {$alert['stale_since']}. Revisa el testigo y el cron de sync.");
+    });
+```
+
+- Se llama en **cada** operación —`seal`, `sealBytes`, `status`, `sync`, `alertStatus`—
+  mientras la alarma esté **abierta y sin reconocer**, con el objeto `alert` de
+  [docs/CLI-JSON.md](../../docs/CLI-JSON.md). Al menos una vez: si tu correo falla hoy,
+  mañana vuelve a avisar.
+- Deja de llamarse cuando alguien dice que se ha enterado:
+  `$sealer->alertAck('nombre')`. Llámalo cuando el aviso se haya **entregado**, no dentro
+  del hook: si el correo falla y ya la reconociste, nadie lo sabe.
+- La alarma se cierra sola con el próximo `$sealer->sync($urlDelTestigo)` que salga bien.
+- Si tu hook lanza una excepción, **no** sale de `seal()`: va al log de errores de PHP
+  (`error_log`) y el sellado, que ya estaba hecho, se devuelve igual.
+- `$r->alert` trae la alarma en cada resultado de sellado, o `null` con un binario
+  anterior a ADR-028.
+
+¿Prefieres que el sellado **no** siga con la atestación vieja? Eso es otra cosa y la
+decide cada integrador: `sealBytes(..., failOnStale: true)` —`--fail-on-stale` en la CLI—
+no escribe y lanza `SealSyncError` (código 3, `errorClass` `transient`), para reintentar
+con la misma clave después de un `sync`. Por omisión está desactivado.
+
 ### En hosting compartido
 
 - El binario de Go es estático: se sube por FTP o por el gestor de ficheros, `chmod 0700`.

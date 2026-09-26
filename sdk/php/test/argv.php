@@ -135,6 +135,18 @@ function pruebasDeArgv(): void
     comprueba('seal: la passphrase NO aparece en los argumentos',
         !in_array('correcta caballo bateria grapa', $argv, true), implode(' ', $argv));
 
+    // `alert status` es un subcomando de DOS palabras: la política va detrás de las dos.
+    // Con el orden de un subcomando normal quedaría entre ellas —`alert --policy-file X
+    // status`— y la CLI contestaría con un error de uso (ADR-028).
+    @unlink($e['argv']);
+    $sealer->alertStatus();
+    $argv = argvDe($e);
+    $j = array_search('--json', $argv, true);
+    comprueba('alert status: las dos palabras van juntas tras las globales',
+        $j !== false && ($argv[$j + 1] ?? '') === 'alert' && ($argv[$j + 2] ?? '') === 'status', implode(' ', $argv));
+    comprueba('alert status: --policy-file va detrás de las dos',
+        $j !== false && array_search('--policy-file', $argv, true) === $j + 3, implode(' ', $argv));
+
     // ---- sin política: no se inventa ninguna ---------------------------------------
     $e2 = entornoFalso('sinpolitica');
     (new Sealer($e2['bin'], $e2['dir'], $e2['pass']))->status();

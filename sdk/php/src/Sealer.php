@@ -25,6 +25,8 @@ final class Sealer
     private string $passphraseFile;
     private ?string $policyFile;
     private int $timeout;
+    /** @var callable|null */
+    private $onStale;
 
     /**
      * @param string $binary         ruta del ejecutable `nucleo`
@@ -33,19 +35,25 @@ final class Sealer
      * @param string|null $policyFile fichero de política; se pasa a la CLI como
      *                                --policy-file en TODA ejecución (ADR-017)
      * @param int $timeout           segundos antes de declarar colgado el sellado
+     * @param callable|null $onStale  function (array $alert): void — se llama en CADA
+     *                                operación mientras haya una alarma de frescura
+     *                                abierta y sin reconocer (ADR-028 §E). Es un
+     *                                requisito de integración: ver docs/OPERACION.md.
      */
     public function __construct(
         string $binary,
         string $dir,
         string $passphraseFile,
         ?string $policyFile = null,
-        int $timeout = 60
+        int $timeout = 60,
+        ?callable $onStale = null
     ) {
         $this->binary = $binary;
         $this->dir = $dir;
         $this->passphraseFile = $passphraseFile;
         $this->policyFile = $policyFile;
         $this->timeout = $timeout;
+        $this->onStale = $onStale;
     }
 
     /**
@@ -55,13 +63,19 @@ final class Sealer
      * registro (ADR-020 §D): con la misma clave y el mismo documento, la CLI no escribe
      * nada y contesta lo del sellado original, y el resultado lo dice en ->idempotent.
      * Un ERP que reintenta debería pasarla SIEMPRE.
+     *
+     * $failOnStale: con la atestación vieja, NO sella y lanza SealSyncError (código 3,
+     * errorClass "transient") en vez de sellar igualmente. Está desactivado por omisión a
+     * propósito (ADR-028 §A): un registro que no se sella se pierde. Es para quien tiene
+     * una cola y reintenta, con la misma clave, después de un sync.
      */
     public function seal(
         string $payloadFile,
         string $type,
         string $tenant,
         ?string $idempotencyKey = null,
-        bool $encrypt = true
+        bool $encrypt = true,
+        bool $failOnStale = false
     ): SealResult {
         $args = ['seal', '--tenant', $tenant, '--type', $type, '--payload', $payloadFile,
             '--passphrase-file', $this->passphraseFile];
@@ -71,6 +85,9 @@ final class Sealer
         }
         if (!$encrypt) {
             $args[] = '--no-encrypt';
+        }
+        if ($failOnStale) {
+            $args[] = '--fail-on-stale';
         }
         return SealResult::fromObject($this->run($args));
     }
@@ -86,7 +103,8 @@ final class Sealer
         string $type,
         string $tenant,
         ?string $idempotencyKey = null,
-        bool $encrypt = true
+        bool $encrypt = true,
+        bool $failOnStale = false
     ): SealResult {
         $tmp = tempnam(sys_get_temp_dir(), 'nucleo-');
         if ($tmp === false) {
@@ -99,7 +117,7 @@ final class Sealer
             if (file_put_contents($tmp, $payload) === false) {
                 throw new SealEnvironmentError('no se pudo escribir el documento en ' . $tmp);
             }
-            return $this->seal($tmp, $type, $tenant, $idempotencyKey, $encrypt);
+            return $this->seal($tmp, $type, $tenant, $idempotencyKey, $encrypt, $failOnStale);
         } finally {
             @unlink($tmp);
         }
@@ -115,6 +133,58 @@ final class Sealer
     public function status(): array
     {
         return Contract::status($this->run(['status']));
+    }
+
+    /**
+     * sync pide atestación al testigo. Es lo que el cron del ERP ejecuta cada hora.
+     *
+     * Si el testigo no contesta, lanza SealSyncError —y antes llama a onStale si la
+     * alarma de frescura está abierta: es justo el momento en que se produce—.
+     *
+     * @return array<string, mixed> el --json de `nucleo sync`
+     */
+    public function sync(string $witnessUrl): array
+    {
+        $j = $this->run(['sync', '--witness', $witnessUrl, '--passphrase-file', $this->passphraseFile]);
+        Contract::boolField($j, 'attested');
+        Contract::alert($j);
+        return Contract::toArray($j);
+    }
+
+    /**
+     * alertStatus devuelve la alarma de frescura (ADR-028): el objeto `alert` con su
+     * `state` —"none", "open" o "acked"—, y la frescura con la que se juzgó.
+     *
+     * @return array<string, mixed>
+     */
+    public function alertStatus(): array
+    {
+        $j = $this->run(['alert', 'status']);
+        $a = Contract::alert($j);
+        if ($a === null) {
+            throw new SealContractError('alert status no trajo el objeto alert: el binario es anterior a ADR-028');
+        }
+        return Contract::toArray($j);
+    }
+
+    /**
+     * alertAck deja constancia de que alguien se ha enterado. No cierra la alarma —la
+     * cierra un sync que sale bien—, pero onStale deja de llamarse hasta el siguiente
+     * episodio. Llámalo cuando tu canal haya ENTREGADO el aviso, no antes: si lo llamas
+     * dentro del propio hook y el correo falla, la alarma queda reconocida y nadie lo sabe.
+     *
+     * @return array<string, mixed>
+     */
+    public function alertAck(?string $by = null): array
+    {
+        $args = ['alert', 'ack'];
+        if ($by !== null) {
+            $args[] = '--by';
+            $args[] = $by;
+        }
+        $j = $this->run($args);
+        Contract::boolField($j, 'acked');
+        return Contract::toArray($j);
     }
 
     /**
@@ -159,9 +229,15 @@ final class Sealer
         // El orden importa y no es adorno: --dir y --json son banderas GLOBALES y van
         // antes del subcomando, mientras --policy-file lo registra cada subcomando y va
         // DESPUÉS. Con el orden al revés, la CLI contesta "subcomando desconocido".
-        $subcomando = array_shift($args);
+        // `alert status` y `alert ack` son subcomandos de DOS palabras: la política va
+        // detrás de las dos, no entre ellas.
+        $subcomando = [array_shift($args)];
+        if ($subcomando[0] === 'alert' && $args !== []) {
+            $subcomando[] = array_shift($args);
+        }
         $cmd = array_merge(
-            [$this->binary, '--dir', $this->dir, '--json', $subcomando],
+            [$this->binary, '--dir', $this->dir, '--json'],
+            $subcomando,
             $this->politica(),
             $args
         );
@@ -218,6 +294,10 @@ final class Sealer
             $e2 = SealError::make($e->getMessage(), $code, $err);
             throw $code === 0 ? $e : $e2;
         }
+        // La alarma, antes que nada: también cuando la CLI devuelve un error. Un `sync`
+        // que no llega al testigo y un `seal --fail-on-stale` que se niega traen `alert`
+        // en el objeto de error, y son justo los dos momentos en que más importa.
+        $this->avisaSiHayAlarma($j);
         if ($code !== 0 || ($j->ok ?? null) === false) {
             // La clase viaja en la excepción (ADR-027). Se lee con el mismo lector que
             // los vectores, así que una clase desconocida es un error de contrato y no
@@ -230,6 +310,45 @@ final class Sealer
             );
         }
         return $j;
+    }
+
+    /**
+     * avisaSiHayAlarma llama a onStale si la salida trae una alarma abierta sin reconocer.
+     *
+     * Al menos una vez (ADR-028 §E): se repite en cada operación hasta que alguien
+     * ejecuta alertAck(), porque un hook que avisara solo la primera vez perdería el
+     * aviso el día que el correo estuviera caído.
+     *
+     * Si el hook lanza, la excepción NO sale de aquí: se escribe en el log de errores de
+     * PHP con error_log() y la operación sigue. El sellado ya está hecho cuando se llama
+     * al hook, y una excepción de un correo que no sale convertiría un sellado bueno en
+     * uno que el ERP daría por fallido.
+     */
+    private function avisaSiHayAlarma(\stdClass $j): void
+    {
+        if ($this->onStale === null || !property_exists($j, 'alert')) {
+            return;
+        }
+        try {
+            $a = Contract::alert($j);
+        } catch (SealContractError $e) {
+            // Un alert que no cumple el contrato lo rechaza el camino normal; aquí no se
+            // llama al hook con algo que no se entiende.
+            return;
+        }
+        if ($a === null || ($a['state'] ?? null) !== 'open') {
+            return;
+        }
+        try {
+            ($this->onStale)($a);
+        } catch (\Throwable $e) {
+            error_log(sprintf(
+                '[nucleo] el hook onStale lanzó %s: %s. La alarma de frescura sigue abierta desde %s.',
+                get_class($e),
+                $e->getMessage(),
+                (string) ($a['stale_since'] ?? '?')
+            ));
+        }
     }
 
     /**

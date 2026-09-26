@@ -34,6 +34,11 @@ final class SealResult
     public bool $signerVerified;
     /** @var array el objeto --json completo, para lo que este SDK no modele todavía */
     public array $raw;
+    /**
+     * @var array<string, mixed>|null la alarma de frescura (ADR-028), o null si el binario
+     * es anterior y no la manda. Con state "open", nadie la ha reconocido todavía.
+     */
+    public ?array $alert = null;
 
     /**
      * fromCliJson lee el stdout literal de la CLI. Es el camino que usa el Sealer, y el
@@ -74,6 +79,7 @@ final class SealResult
         $r->signerVerified = Contract::boolField(Contract::signer($j), 'verified');
         $r->stale = Contract::boolField(Contract::freshness($j), 'stale');
         $r->raw = Contract::toArray($j);
+        $r->alert = Contract::alert($j);
 
         // Dos afirmaciones que la CLI no puede contradecir sin que algo esté muy mal, y
         // que aquí cuestan una comparación: `attested` es exactamente

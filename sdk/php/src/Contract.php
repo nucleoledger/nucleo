@@ -253,6 +253,40 @@ final class Contract
         };
     }
 
+    /**
+     * alert lee el objeto `alert` de la alarma de frescura (ADR-028), o null si la
+     * salida no lo trae.
+     *
+     * Opcional por lo mismo que error_class: un binario anterior a septiembre de 2026 no
+     * lo manda, y exigirlo rompería contra un despliegue sin actualizar. Lo que no se
+     * tolera es un objeto que no cumple: un estado desconocido no se interpreta a la
+     * baja, porque "no sé si hay alarma" no puede acabar en "no hay alarma".
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function alert(\stdClass $j): ?array
+    {
+        if (!property_exists($j, 'alert')) {
+            return null;
+        }
+        $a = self::objField($j, 'alert');
+        $estado = self::enumField($a, 'state', ['none', 'open', 'acked']);
+        self::boolField($a, 'new');
+        self::boolField($a, 'persisted');
+        if ($estado !== 'none') {
+            self::strField($a, 'stale_since', false);
+            self::strField($a, 'alert_emitted_at', false);
+            self::enumField($a, 'reason', ['age', 'never_attested', 'no_attestation_under_policy']);
+            if (!is_int($a->threshold_hours ?? null) && !is_float($a->threshold_hours ?? null)) {
+                throw self::wrong('alert.threshold_hours', 'un número', $a->threshold_hours ?? null);
+            }
+        }
+        if ($estado === 'acked') {
+            self::strField($a, 'alert_acked_at', false);
+        }
+        return self::toArray($a);
+    }
+
     /** signer comprueba el objeto compartido `signer`. */
     public static function signer(\stdClass $j): \stdClass
     {
