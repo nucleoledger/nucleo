@@ -380,3 +380,78 @@ func (s *Store) ClearRollback() error {
 	_, err := s.db.Exec(`DELETE FROM log_state WHERE k = ?`, RollbackKey)
 	return errDB("store: borrado del registro de rollback", nil, err)
 }
+
+// StaleAlarmKey es la clave de log_state donde vive la alarma de frescura (ADR-028).
+//
+// Existe porque la alarma que se escribía solo por stderr no la leía nadie: en el
+// hosting real el cron termina en `> /dev/null 2>&1` y el ERP que invoca `seal` desde
+// PHP tira stderr. Guardada aquí, cualquier comando posterior —y el hook del SDK— la
+// ve, dure lo que dure el problema.
+//
+// Como la de rollback, no es una defensa criptográfica: log_state es mutable por diseño
+// (ADR-009) y quien pueda escribir el fichero puede borrar la fila. Lo que no puede es
+// hacer que mienta sobre el presente: cada comando la recalcula a partir del veredicto
+// de frescura, y si se borra con la atestación todavía vieja, el siguiente la reabre.
+const StaleAlarmKey = "log/stale-alarm/v1"
+
+// StaleAlarm es lo que se guarda bajo esa clave. Los instantes van en RFC 3339, UTC.
+type StaleAlarm struct {
+	// StaleSince es desde cuándo está vieja la atestación: la última que cuenta más el
+	// umbral, o el momento en que se observó si no hubo ninguna que cuente.
+	StaleSince string `json:"stale_since"`
+	// EmittedAt es cuándo la registró Núcleo por primera vez.
+	EmittedAt string `json:"alert_emitted_at"`
+	// AckedAt es cuándo alguien dijo «me he enterado», o vacío.
+	AckedAt string `json:"alert_acked_at,omitempty"`
+	// AckedBy es quién lo dijo, si lo dijo.
+	AckedBy string `json:"acked_by,omitempty"`
+	// ThresholdHours es el umbral con el que se abrió.
+	ThresholdHours float64 `json:"threshold_hours"`
+	// Reason es por qué: "age", "never_attested" o "no_attestation_under_policy".
+	Reason string `json:"reason"`
+}
+
+// PutStaleAlarm guarda la alarma, sustituyendo la que hubiera.
+func (s *Store) PutStaleAlarm(a StaleAlarm) error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	raw, err := json.Marshal(a)
+	if err != nil {
+		return fmt.Errorf("store: serialización de la alarma de frescura: %w", err)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return insertState(s.db, StaleAlarmKey, string(raw))
+}
+
+// StaleAlarm devuelve la alarma guardada, si hay alguna.
+func (s *Store) StaleAlarm() (StaleAlarm, bool, error) {
+	if s.db == nil {
+		return StaleAlarm{}, false, ErrClosed
+	}
+	v, err := s.State(StaleAlarmKey)
+	if errors.Is(err, ErrNotFound) {
+		return StaleAlarm{}, false, nil
+	}
+	if err != nil {
+		return StaleAlarm{}, false, err
+	}
+	var a StaleAlarm
+	if err := json.Unmarshal([]byte(v), &a); err != nil {
+		return StaleAlarm{}, false, fmt.Errorf("store: alarma de frescura ilegible: %w", err)
+	}
+	return a, true, nil
+}
+
+// ClearStaleAlarm borra la alarma. La cierra quien observa la atestación fresca otra
+// vez; no hay otra forma de cerrarla (ADR-028 §C).
+func (s *Store) ClearStaleAlarm() error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM log_state WHERE k = ?`, StaleAlarmKey)
+	return errDB("store: borrado de la alarma de frescura", nil, err)
+}

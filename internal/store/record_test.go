@@ -261,3 +261,53 @@ func TestRollbackRegistradoDuraHastaQueSeResuelve(t *testing.T) {
 		t.Errorf("borrar dos veces: %v", err)
 	}
 }
+
+// TestAlarmaDeFrescuraDuraHastaQueSeCierra (ADR-028 §C): la alarma sobrevive a cerrar
+// y reabrir el ledger, conserva el reconocimiento, y borrarla dos veces no es un error.
+func TestAlarmaDeFrescuraDuraHastaQueSeCierra(t *testing.T) {
+	s := openTemp(t)
+
+	if _, hay, err := s.StaleAlarm(); err != nil || hay {
+		t.Fatalf("un ledger nuevo no tiene alarma: hay=%v err=%v", hay, err)
+	}
+
+	a := StaleAlarm{
+		StaleSince:     "2026-09-20T10:00:00Z",
+		EmittedAt:      "2026-09-26T08:00:00Z",
+		ThresholdHours: 72,
+		Reason:         "age",
+	}
+	if err := s.PutStaleAlarm(a); err != nil {
+		t.Fatal(err)
+	}
+	// Reconocerla es reescribirla con los dos campos del ack: el resto no se toca.
+	a.AckedAt, a.AckedBy = "2026-09-26T09:30:00Z", "operador@ejemplo"
+	if err := s.PutStaleAlarm(a); err != nil {
+		t.Fatal(err)
+	}
+
+	path := s.path
+	s.Close()
+	s2, _, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	got, hay, err := s2.StaleAlarm()
+	if err != nil || !hay {
+		t.Fatalf("tras reabrir: hay=%v err=%v", hay, err)
+	}
+	if got != a {
+		t.Errorf("alarma = %+v, want %+v", got, a)
+	}
+
+	if err := s2.ClearStaleAlarm(); err != nil {
+		t.Fatal(err)
+	}
+	if _, hay, _ := s2.StaleAlarm(); hay {
+		t.Error("ClearStaleAlarm no la borró")
+	}
+	if err := s2.ClearStaleAlarm(); err != nil {
+		t.Errorf("borrar dos veces: %v", err)
+	}
+}
