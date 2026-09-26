@@ -125,6 +125,11 @@ binarios y nada más.
    de mirar los artefactos antes de que exista para el mundo.
 2. Verifica tu propio release con el procedimiento de abajo, desde otra máquina
    y descargando de la página. Si no puedes verificarlo tú, tus usuarios tampoco.
+   Con las **dos** recetas mientras se publiquen las dos firmas: `--bundle` con
+   `checksums.txt.sigstore.json`, y `--signature`/`--certificate` con `.sig` y `.pem`.
+   El primer release con bundle es el primero en que esa receta se ejecuta sobre un
+   artefacto de este repositorio: antes se comprobó sobre un bundle equivalente
+   (goreleaser v2.18.2) y sobre uno escrito por el mismo cosign que usa CI.
 3. Publica el borrador.
 
 ### Errores y cómo deshacerlos
@@ -153,21 +158,28 @@ Son unos treinta segundos.
 
 De la página del release, tres ficheros:
 
-- el archivo de tu plataforma, p. ej. `nucleo_0.2.0-alpha_linux_amd64.tar.gz`
+- el archivo de tu plataforma, p. ej. `nucleo_0.3.0_linux_amd64.tar.gz`
 - `checksums.txt`
-- `checksums.txt.sig` y `checksums.txt.pem`
+- `checksums.txt.sigstore.json` —el **bundle** de Sigstore: la firma, el certificado y
+  la prueba de inclusión en Rekor, en un solo fichero—
+
+Los releases **v0.1.0-alpha y v0.2.0-alpha no tienen bundle**: se publicaron con
+`checksums.txt.sig` y `checksums.txt.pem`, y se verifican con la
+[receta anterior](#releases-sin-bundle-v010-alpha-y-v020-alpha). El bundle se publica
+a partir del siguiente release.
 
 ### 2. Comprueba quién firmó los checksums
 
 ```bash
 cosign verify-blob checksums.txt \
-  --signature checksums.txt.sig \
-  --certificate checksums.txt.pem \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github\.com/nucleoledger/nucleo/\.github/workflows/release\.yml@refs/tags/v[0-9]' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Debe imprimir `Verified OK`.
+Debe imprimir `Verified OK`. Funciona igual con cosign 2 y con cosign 3; comprobado con
+2.5.2 y 3.1.3 sobre un bundle keyless firmado desde GitHub Actions, que es lo que produce
+`release.yml`.
 
 **Los dos `--certificate-*` no son opcionales.** Sin ellos, cosign comprueba que
 la firma es válida pero no *de quién*, y cualquiera puede producir una firma
@@ -182,6 +194,30 @@ descargaste, es mejor aún la identidad exacta, como en el script de abajo.
 La identidad es la que lleva el certificado: el del release `v0.1.0-alpha` dice
 `https://github.com/nucleoledger/nucleo/.github/workflows/release.yml@refs/tags/v0.1.0-alpha`
 (leído con `openssl x509 -ext subjectAltName`).
+
+**Por qué el bundle.** cosign 3 da por obsoletos `--signature` y `--certificate`
+(*«please use --bundle»*): la receta anterior funciona hoy, con un aviso, y dejará de
+funcionar cuando los quite. `--bundle` es la que queda, y es la que ya usan sigstore y
+goreleaser para sus propios releases.
+
+### Releases sin bundle: v0.1.0-alpha y v0.2.0-alpha
+
+Estos dos se firmaron solo con `.sig` y `.pem`. Descarga `checksums.txt.sig` y
+`checksums.txt.pem` en lugar del bundle, y:
+
+```bash
+cosign verify-blob checksums.txt \
+  --signature checksums.txt.sig \
+  --certificate checksums.txt.pem \
+  --certificate-identity "https://github.com/nucleoledger/nucleo/.github/workflows/release.yml@refs/tags/v0.2.0-alpha" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Comprobado el 2026-09-26 sobre los dos releases publicados: `Verified OK` con cosign
+2.5.2, y con cosign 3.1.3 también, precedido de dos avisos de obsolescencia
+(`Flag --signature has been deprecated…`). Esos avisos son esperables y no afectan al
+resultado. El día que cosign quite las banderas, para verificar estos dos releases hará
+falta un cosign anterior a esa versión, y se dirá aquí.
 
 ### 3. Comprueba que tu archivo es uno de los que se firmaron
 
@@ -210,18 +246,28 @@ set -euo pipefail
 VER=0.2.0-alpha
 BASE=https://github.com/nucleoledger/nucleo/releases/download/v$VER
 ARCHIVO=nucleo_${VER}_linux_amd64.tar.gz
+# La identidad EXACTA: el workflow release.yml sobre el tag de esta versión, no
+# sobre cualquier tag.
+ID="https://github.com/nucleoledger/nucleo/.github/workflows/release.yml@refs/tags/v$VER"
+ISSUER=https://token.actions.githubusercontent.com
 
 curl -fsSLO "$BASE/$ARCHIVO"
 curl -fsSLO "$BASE/checksums.txt"
-curl -fsSLO "$BASE/checksums.txt.sig"
-curl -fsSLO "$BASE/checksums.txt.pem"
 
-# La identidad EXACTA: el workflow release.yml sobre el tag de esta versión, no
-# sobre cualquier tag.
-cosign verify-blob checksums.txt \
-  --signature checksums.txt.sig --certificate checksums.txt.pem \
-  --certificate-identity "https://github.com/nucleoledger/nucleo/.github/workflows/release.yml@refs/tags/v$VER" \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+# Desde el release siguiente a v0.2.0-alpha, con bundle; v0.1.0-alpha y v0.2.0-alpha
+# solo tienen .sig y .pem. Las dos ramas exigen la misma identidad: no es una
+# verificación más débil, es el mismo hecho en otro envoltorio. La sonda va sin -S:
+# que un release antiguo no tenga bundle no es un error, y no debe parecerlo.
+if curl -fsLO "$BASE/checksums.txt.sigstore.json"; then
+  cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+    --certificate-identity "$ID" --certificate-oidc-issuer "$ISSUER"
+else
+  curl -fsSLO "$BASE/checksums.txt.sig"
+  curl -fsSLO "$BASE/checksums.txt.pem"
+  cosign verify-blob checksums.txt \
+    --signature checksums.txt.sig --certificate checksums.txt.pem \
+    --certificate-identity "$ID" --certificate-oidc-issuer "$ISSUER"
+fi
 
 sha256sum --ignore-missing -c checksums.txt
 tar xzf "$ARCHIVO"
