@@ -19,6 +19,7 @@ import (
 	"github.com/nucleoledger/nucleo/internal/logsync"
 	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/witness"
+	"golang.org/x/term"
 )
 
 func cmdSync(e *env, args []string) error {
@@ -339,7 +340,12 @@ func cmdWitness(e *env, args []string) error {
 		e.printf("   cosignatures anteriores dejan de poder verificarse)\n")
 	}
 	e.printf("  log servido: %s\n", *logOrigin)
-	e.printf("\nCtrl-C para parar.\n")
+	// Solo con un terminal delante. Como servicio de systemd, esta línea acababa en el
+	// journal, donde «Ctrl-C» no significa nada (guía de operación, Sprint 12): ahí lo
+	// para `systemctl stop`, y eso lo sabe quien escribió la unidad.
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		e.printf("\nCtrl-C para parar.\n")
+	}
 
 	srv := &http.Server{Handler: witness.NewServer(w).Handler()}
 	done := make(chan os.Signal, 1)
