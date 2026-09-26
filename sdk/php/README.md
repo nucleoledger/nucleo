@@ -1,5 +1,20 @@
 # SDK de PHP de Núcleo
 
+> **Lo que tu hosting tiene que permitir, antes que nada:** PHP 8.0+ con `ext-sodium`,
+> `proc_open` habilitada, el binario `nucleo` en un sistema de ficheros **sin `noexec`**, y
+> **≥ ~800 MiB de memoria virtual** por proceso. Si falta algo, el SDK lo dice en el primer
+> uso, con lo que hay que pedir:
+>
+> | si falta | lo que verás | qué hacer |
+> |---|---|---|
+> | `ext-sodium` | el SDK no carga: *«necesita la extensión PHP "sodium"»* | pedir al proveedor que la active (viene con PHP desde 7.2) |
+> | `proc_open` | `SealEnvironmentError`: *«proc_open está deshabilitada… (disable_functions)»* | pedir que la quite de `disable_functions` para tu cuenta, o sellar desde un VPS |
+> | ejecutar el binario | `SealEnvironmentError`: *«existe pero no se puede ejecutar… puede estar montado noexec»* | `chmod 0700`; si sigue, `findmnt -no OPTIONS --target /ruta/del/binario` dirá `noexec`: pon el binario en otro sitio o pídelo al proveedor |
+> | memoria virtual | `SealEnvironmentError`: *«terminó con código 2 sin escribir su respuesta… Se quedó sin memoria»* | pedir que suban el límite de memoria virtual (el «VMEM»). El `memory_limit` de PHP no cuenta |
+>
+> Cada fila está comprobada; el detalle, y cómo operar el resto —el testigo, la política,
+> la passphrase—, en [docs/OPERACION.md](../../docs/OPERACION.md).
+
 Dos cosas, y la distinción es el ADR entero ([ADR-021](../../docs/adr/ADR-021-sdk-php.md)):
 
 | | qué es | por qué así |
