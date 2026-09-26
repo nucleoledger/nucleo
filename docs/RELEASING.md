@@ -130,7 +130,23 @@ binarios y nada más.
    El primer release con bundle es el primero en que esa receta se ejecuta sobre un
    artefacto de este repositorio: antes se comprobó sobre un bundle equivalente
    (goreleaser v2.18.2) y sobre uno escrito por el mismo cosign que usa CI.
-3. Publica el borrador.
+3. Escribe las notas del release en **`docs/releases/vX.Y.Z.md`**, commitéalas y
+   aplícalas desde ahí:
+
+   ```bash
+   gh release view vX.Y.Z --json body --jq .body   # el cuerpo que dejó goreleaser
+   # docs/releases/vX.Y.Z.md = ese cuerpo + lo que se añade, en un commit propio
+   gh release edit vX.Y.Z --notes-file docs/releases/vX.Y.Z.md
+   gh release view vX.Y.Z                           # comprobar que quedó aplicado
+   ```
+
+   Las notas viven en el historial del repositorio y no solo en la interfaz de
+   GitHub: las de v0.2.0-alpha se escribieron primero fuera del repositorio y se
+   perdieron. `gh release edit --notes-file` cambia el texto y nada más —ni los
+   artefactos ni las firmas—. Qué llevan como mínimo: el enlace al CHANGELOG del
+   tag, cómo instalar el SDK y comprobar su procedencia, cómo verificar esa
+   descarga, y el estado sin adornos. Ejemplo: [`releases/v0.2.0-alpha.md`](releases/v0.2.0-alpha.md).
+4. Publica el borrador.
 
 ### Errores y cómo deshacerlos
 
