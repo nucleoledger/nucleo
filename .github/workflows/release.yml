@@ -45,7 +45,17 @@ jobs:
         with:
           go-version: 'stable'
 
+      # cosign FIJADO en 2.5.2, que es el que firmó v0.1.0-alpha y v0.2.0-alpha. Antes
+      # venía por omisión del instalador; ahora se dice, y hay un motivo concreto para
+      # no subir a cosign 3 todavía: en 3.1.3, `sign-blob` con --output-signature y
+      # --output-certificate sin --bundle falla («must specify --bundle with
+      # --new-bundle-format»), y la primera firma de .goreleaser.yaml es exactamente esa.
+      # Con 2.5.2 salen las dos firmas —.sig/.pem y el bundle—, y el bundle que escribe
+      # lo verifica cosign 3 (comprobado el 2026-09-26). Pasar a cosign 3 es pasar a
+      # publicar solo el bundle: una decisión, no una actualización.
       - uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.5.2'
 
       - name: Comprobaciones antes de publicar
         # El release corre los tests por su cuenta (hook `before` de

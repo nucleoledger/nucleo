@@ -70,6 +70,21 @@ checksum:
 # perder, y la identidad que firmó queda registrada en un log que ni nosotros
 # podemos reescribir. Es la misma idea que este proyecto vende, aplicada a sí
 # mismo.
+#
+# Dos firmas del mismo checksums.txt, y las dos keyless:
+#
+#   · `checksums`: .sig + .pem, el formato con el que se publicaron v0.1.0-alpha y
+#     v0.2.0-alpha. Se mantiene porque hay recetas de verificación en uso que lo
+#     esperan, y cosign lo sigue aceptando —con un aviso de obsolescencia—.
+#   · `bundle`: checksums.txt.sigstore.json, un bundle de Sigstore (formato v0.3)
+#     con la firma, el certificado y la prueba de Rekor en un solo fichero. Es lo
+#     que cosign 3 pide verificar con --bundle, y lo que durará cuando quite
+#     --signature y --certificate. El nombre sigue la convención de sigstore y de
+#     goreleaser para sus propios releases.
+#
+# `--new-bundle-format` hace falta porque el cosign de CI es 2.5.2 (ver release.yml):
+# sin él, cosign 2 escribe el bundle ANTIGUO, que no es el que cosign 3 verifica. Se
+# comprobó el 2026-09-26 que un bundle escrito así por 2.5.2 lo verifica cosign 3.1.3.
 signs:
   - id: checksums
     cmd: cosign
@@ -79,6 +94,17 @@ signs:
       - sign-blob
       - "--output-signature=${signature}"
       - "--output-certificate=${certificate}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+  - id: bundle
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "--new-bundle-format"
       - "${artifact}"
       - "--yes"
     artifacts: checksum
