@@ -40,6 +40,7 @@ nucleo/
 │   ├── adr/                # decisiones registradas (leer antes de diseñar nada)
 │   ├── RELEASING.md        # publicar y verificar un release; config de npm
 │   ├── TUTORIAL-es.md      # integrar en una hora, con salidas reales
+│   ├── OPERACION.md        # operar sin llamar a nadie: testigo, política, llaves, hosting
 │   └── CONCEPTO-v1.2-es.md # visión completa del proyecto
 ├── testdata/vectors/       # vectores compartidos Go↔TS  [NO MODIFICAR SIN ADR]
 └── .github/workflows/      # ci.yml, release.yml, publish-npm.yml (no tocar sin instrucción)

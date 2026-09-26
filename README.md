@@ -344,6 +344,7 @@ The protocol and every design decision, with sources:
 - [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — normative specification
 - [`docs/adr/`](docs/adr/) — architecture decision records, including the amendments where a measurement contradicted an earlier assumption
 - [`docs/TUTORIAL-es.md`](docs/TUTORIAL-es.md) — integration guide (Spanish)
+- [`docs/OPERACION.md`](docs/OPERACION.md) — operating it without calling anyone: the witness (systemd, TLS, backup, loss), the policy, the passphrase, hosting requirements and the freshness alarm, every instruction checked (Spanish)
 - [`examples/erp-node`](examples/erp-node) — the integration example, with its own CI job so it cannot rot ([ADR-026](docs/adr/ADR-026-ejemplo-de-integracion.md))
 - [`docs/RELEASING.md`](docs/RELEASING.md) — how releases are built, signed and verified
 - [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) — concept document (Spanish)

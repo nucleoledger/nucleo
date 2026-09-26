@@ -11,6 +11,53 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Added: the freshness alarm no longer depends on stderr, and an operations guide (Sprint 12)
+
+**The alarm ([ADR-028](docs/adr/ADR-028-alarma-de-frescura-durable.md)).** Since Sprint 7 a
+stale attestation was announced on stderr, on the theory that a cron sends stderr to
+someone's mail. On real hosting the cron line ends in `> /dev/null 2>&1` and the ERP calls
+`seal` from PHP and throws stderr away. Now:
+
+- `seal` **always seals** by default: a record that is not sealed is lost, a late
+  attestation is recovered by the next `sync`. `--fail-on-stale` (exit 3, transient, nothing
+  written) is there for whoever has a queue and can retry.
+- Every command that judges freshness —`seal`, `status`, `verify`, `reconcile`, `sync`,
+  also when `sync` **fails**— records the alarm in the ledger (`stale_since`,
+  `alert_emitted_at`, `alert_acked_at`) and publishes it as `alert` in `--json`, including
+  in the error object of a failed `sync`. `nucleo alert status [--exit-code] | ack [--by]`.
+- An **`onStale` hook** in the PHP SDK and the Node example, called on every operation until
+  someone acknowledges, and documented as an **integration requirement**: the integrator
+  picks the channel, Núcleo guarantees they find out. The PHP `Sealer` also gains `sync()`,
+  `alertStatus()`, `alertAck()` and `failOnStale`.
+
+**[`docs/OPERACION.md`](docs/OPERACION.md)**: how to operate Núcleo without calling anyone
+—the witness (a systemd unit, TLS with Caddy, backup of its key *and* memory, and recovering
+from losing it without breaking the receipts already delivered), the policy (publishing it
+and anchoring its hash), the passphrase, hosting requirements and the alarm. **Every
+instruction was executed** and says how; what could not be run here —root, a public domain,
+a physical memory limit— says so. The PHP SDK README now opens with the hosting requirements
+and what to do when one is missing.
+
+**Checking every instruction found five things that were wrong**, all fixed with tests:
+
+- Under **~800 MiB of virtual memory** the Go runtime dies on startup with exit code **2** and
+  no JSON — and 2 means «verification failed». The PHP SDK turned it into a
+  `SealIntegrityError`; the Node example called it a contract violation. The rule is now in
+  `docs/CLI-JSON.md`: a non-zero code **without** the CLI's JSON is not a verdict, it is the
+  environment.
+- A witness TLS certificate the machine did not trust reached the user raw, classed
+  `transient`, and any other wording fell into «check the firewall». Now it is `environment`
+  and says what to do.
+- The product promised that `nucleo restore` recovers a vault whose passphrase was lost. It
+  does not: it proves the cards belong to the vault and cannot set a new passphrase. The
+  message, `restore`'s own output and the tutorial now say what is true.
+- The witness printed «Ctrl-C to stop» into the systemd journal.
+- `alert ack` did not accept `--policy-file`, which the SDKs pass on every call.
+
+Also: the two «external audit» reports were reviews by AI models and are now named
+`docs/revision-externa-modelo-*.md`, with their citations updated. The reports themselves
+are untouched.
+
 ## [0.2.0-alpha] — 2026-09-25
 
 ### What this version is

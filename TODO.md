@@ -51,6 +51,12 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       cierra CONCEPTO §18
 - [ ] Decidir sobre ADR-012 (VRF). ADR-014 y ADR-015 están aceptadas e implementadas
       desde el Sprint 7b
+- [ ] Decidir si `restore` debe poder fijar una passphrase nueva (re-envolviendo la clave
+      de datos). Hoy perder la passphrase deja el vault sin poder sellar aunque se tengan
+      las tarjetas —comprobado en el Sprint 12—; tocar eso es criptografía y va con ADR
+- [ ] Decidir si `sync` debe aceptar una política con varios testigos y elegir uno por
+      nombre. Tras perder un testigo, el cron necesita un fichero de política distinto del
+      de los clientes (docs/OPERACION.md §1)
 
 ## Sprint 7 — cerrar la revisión externa
 - [x] Ningún binario compilado en el árbol; `.gitignore` con rutas ancladas (P0)
@@ -67,6 +73,13 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       honrados por `Unlock`, y el coste de ambos perfiles MEDIDO
 - [x] Fuzzers de todos los formatos de cable: note firmada, checkpoint,
       cosignature, recibo y cuerpo de la petición del testigo
+
+## Sprint 12 — que funcione como promete y se opere sin ayuda
+- [x] ADR-028: la alarma de frescura durable, `alert status|ack`, `--fail-on-stale` y el hook
+      `onStale` en el SDK de PHP y el ejemplo Node — test sin leer stderr
+- [x] `docs/OPERACION.md`, cada instrucción comprobada
+- [x] Los requisitos del hosting, lo primero del README del SDK de PHP
+- [x] Las «auditorías externas» renombradas como lo que fueron: revisiones de un modelo
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
