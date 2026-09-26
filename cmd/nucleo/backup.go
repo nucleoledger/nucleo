@@ -108,6 +108,11 @@ func cmdRestore(e *env, args []string) error {
 		e.printf("  este vault: unas tarjetas de otro respaldo también reconstruyen\n")
 		e.printf("  algo. Lo que acaba de demostrarlo es que con ella se ha podido\n")
 		e.printf("  desenvolver la clave de datos de ESTE vault.\n")
+		// Lo que NO hace, dicho en el mismo sitio: quien llega aquí suele venir de haber
+		// perdido la passphrase, y un "✔" sin más le haría creer que ya puede sellar.
+		e.printf("\n  Lo que NO hace: no fija una passphrase nueva. Con este vault se sella con la\n")
+		e.printf("  passphrase de siempre; si la has perdido, para seguir sellando hace falta un\n")
+		e.printf("  ledger nuevo (`nucleo init` en otro --dir). Este sigue siendo verificable.\n")
 	})
 	return nil
 }

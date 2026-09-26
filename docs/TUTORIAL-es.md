@@ -730,7 +730,7 @@ Conviene decirlo para que nadie construya sobre una expectativa falsa.
 | síntoma | qué mirar |
 |---|---|
 | `no hay ledger en ...` | te falta `init`, o el `--dir` no es el que crees |
-| `no se pudo abrir el vault` | passphrase incorrecta; no hay forma de recuperarla salvo las tarjetas |
+| `la passphrase no es la de este vault` | se tecleó mal o el fichero lleva algo de más; si se perdió, ver abajo: con ese vault ya no se sella |
 | `SIN ATESTIGUAR` | no has ejecutado `sync`, o el testigo no responde |
 | código 3 repetido | el testigo lleva rato inalcanzable: **míralo**, no lo silencies |
 | `dígito verificador incorrecto` | la clave de acceso está mal tecleada o mal generada |
@@ -746,14 +746,22 @@ Conviene decirlo para que nadie construya sobre una expectativa falsa.
 | `frescura : ⚠ ninguna atestación verifica bajo la política` | con política, el registro local de `sync` no cuenta: faltan los checkpoints cosignados o no los avala tu testigo. Ejecuta `sync` |
 | `no se sella: los N bloques de este ledger los firma …` | la cadena la firma otra clave que la de tu vault: o la reescribieron entera, o ese vault no es el de ese ledger. **No sigas sellando**: abre con `--policy-file` e investiga |
 
-Y si perdiste la passphrase pero tienes las tarjetas:
+Y si perdiste la passphrase: **con ese vault ya no se puede sellar**, ni con las
+tarjetas. `restore` comprueba que dos tarjetas reconstruyen la clave **de este vault**
+—no una cualquiera—, pero hoy no fija una passphrase nueva:
 
 ```bash
 ./nucleo --dir ./mi-empresa restore
 ```
 
-Escribe dos mnemónicos y comprobará que reconstruyen la clave **de este vault**,
-no solo una clave cualquiera.
+Lo que no se pierde: el ledger sigue siendo verificable (`status`, `verify --full`
+funcionan sin passphrase) y los recibos que ya entregaste siguen valiendo, porque se
+verifican con la política y no con tu vault. Para seguir sellando hace falta un ledger
+nuevo —`init` en otro `--dir`— y su política. Por eso la passphrase necesita su propio
+respaldo, aparte de las copias del ledger: [docs/OPERACION.md](OPERACION.md).
+
+> **Corregido el 2026-09-26.** Este apartado decía que con las tarjetas se recuperaba
+> el vault. Se comprobó que no: tras `restore`, una passphrase nueva sigue sin abrirlo.
 
 ---
 

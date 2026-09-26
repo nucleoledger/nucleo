@@ -196,8 +196,15 @@ func (e *env) unlock(s *store.Store, passphraseFile string, prompt string) (*vau
 				"  Si la escribiste a mano, mira las mayúsculas y la distribución del teclado.\n" +
 				"  Si viene de un fichero con --passphrase-file, comprueba que no lleva espacios\n" +
 				"  ni saltos de línea de más: se usa tal cual, salvo el salto final.\n" +
-				"  Si la has perdido, las tarjetas SLIP-0039 del `init` son la única vuelta:\n" +
-				"  `nucleo restore`. Sin passphrase ni tarjetas, el contenido cifrado no se abre.")
+				// Este consejo decía «si la has perdido, las tarjetas son la única vuelta:
+				// `nucleo restore`», y restore no devuelve la capacidad de sellar: comprueba
+				// que las tarjetas son las de este vault y nada más. Salió al comprobar la
+				// guía de operación (Sprint 12), por la regla de los mensajes de CLAUDE.md.
+				"  Si la has perdido: con este vault no se puede volver a sellar. `nucleo restore`\n" +
+				"  comprueba que tus tarjetas SLIP-0039 son las de este vault, pero hoy no fija una\n" +
+				"  passphrase nueva. El ledger sigue siendo verificable —status, verify— y los\n" +
+				"  recibos ya entregados siguen valiendo; para seguir sellando hace falta un ledger\n" +
+				"  nuevo, con `nucleo init` en otro --dir, y su política.")
 		}
 		return nil, nil, usageErr("no se pudo abrir el vault: %v", err)
 	}
