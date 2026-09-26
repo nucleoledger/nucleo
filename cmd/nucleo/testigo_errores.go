@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"runtime"
 	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/witness"
@@ -99,6 +102,14 @@ func clasificaFalloDeTestigo(u string, err error) (frase, consejo, clase string)
 		}
 	}
 
+	// 1b. Contestó, y su certificado TLS no se acepta. Va ANTES que los fallos de red:
+	// el error de TLS también es un *net.OpError y caería en "no se pudo conectar", con un
+	// consejo —el cortafuegos, que esté levantado— que no tiene nada que ver. Salió al
+	// comprobar la guía de operación con el testigo detrás de Caddy (Sprint 12).
+	if frase, consejo, ok := falloDeCertificado(u, err); ok {
+		return frase, consejo, claseEntorno
+	}
+
 	// 2. No contestó a tiempo.
 	if errors.Is(err, context.DeadlineExceeded) || esTimeout(err) {
 		return fmt.Sprintf("el testigo %s no contestó dentro del tiempo de espera", u),
@@ -140,4 +151,46 @@ func clasificaFalloDeTestigo(u string, err error) (frase, consejo, clase string)
 func esTimeout(err error) bool {
 	var t interface{ Timeout() bool }
 	return errors.As(err, &t) && t.Timeout()
+}
+
+// falloDeCertificado reconoce un certificado TLS del testigo que esta máquina no acepta.
+//
+// Es de entorno y no transitorio: reintentar da lo mismo hasta que alguien toque la
+// configuración de uno de los dos lados.
+func falloDeCertificado(u string, err error) (frase, consejo string, ok bool) {
+	var (
+		desconocida x509.UnknownAuthorityError
+		nombre      x509.HostnameError
+		invalido    x509.CertificateInvalidError
+		verif       *tls.CertificateVerificationError
+	)
+	switch {
+	case errors.As(err, &nombre):
+		return fmt.Sprintf("el certificado TLS del testigo %s es de otro nombre", u),
+			"La URL tiene que usar el nombre para el que se emitió el certificado; comprueba el host de --witness y el de la política.",
+			true
+	case errors.As(err, &invalido) && invalido.Reason == x509.Expired:
+		return fmt.Sprintf("el certificado TLS del testigo %s está caducado o todavía no es válido", u),
+			"Mira la hora de esta máquina —un reloj desplazado hace inválido un certificado bueno— y, si está bien, la renovación del certificado del testigo.",
+			true
+	case errors.As(err, &desconocida) ||
+		errors.As(err, &invalido) ||
+		(errors.As(err, &verif) && verif != nil):
+		return fmt.Sprintf("el certificado TLS del testigo %s lo firmó una autoridad que esta máquina no reconoce", u),
+			consejoDeAutoridad(),
+			true
+	}
+	return "", "", false
+}
+
+// consejoDeAutoridad depende del sistema, porque cada uno busca las raíces en un sitio y
+// un consejo que no funciona donde se imprime es peor que ninguno (CLAUDE.md).
+func consejoDeAutoridad() string {
+	switch runtime.GOOS {
+	case "linux":
+		// SSL_CERT_FILE: comprobado en la guía de operación con la CA interna de Caddy.
+		return "Si el testigo usa un certificado de una CA propia, apunta SSL_CERT_FILE al certificado raíz de esa CA al ejecutar nucleo, o añádelo al almacén del sistema (update-ca-certificates). Si es de una CA pública, al almacén de esta máquina le faltan raíces: instala o actualiza el paquete ca-certificates."
+	default:
+		return "Si el testigo usa un certificado de una CA propia, añade su certificado raíz al almacén de certificados del sistema. Si es de una CA pública, el almacén de esta máquina está incompleto o desactualizado."
+	}
 }

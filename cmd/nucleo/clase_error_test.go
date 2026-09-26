@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -118,6 +119,28 @@ func TestClaseDelErrorEnLosCasosQueLaPiden(t *testing.T) {
 	t.Run("un ledger de otra regla de hoja es entorno", func(t *testing.T) {
 		if claseDelError(fmt.Errorf("abrir: %w", store.ErrLeafRule), exitUsage) != claseEntorno {
 			t.Errorf("ErrLeafRule no se clasifica como %q", claseEntorno)
+		}
+	})
+
+	// Salió al comprobar la guía de operación con el testigo detrás de Caddy: el error
+	// de TLS es también un *net.OpError y caía en "no se pudo conectar… que ningún
+	// cortafuegos lo tapa", clase transient. Ni el consejo ni la clase eran ciertos.
+	t.Run("un testigo con un certificado que esta máquina no acepta es entorno", func(t *testing.T) {
+		pol := politicaDeTest(t, c, "w1", strings.Repeat("ab", 32))
+		srv := httptest.NewTLSServer(http.NotFoundHandler()) // certificado de una CA de prueba
+		defer srv.Close()
+		code, clase, mensaje := claseDe(t, c, "sync", "--policy-file", pol, "--witness", srv.URL)
+		if code != exitSyncFail || clase != claseEntorno {
+			t.Errorf("código %d, clase %q; want %d y %q", code, clase, exitSyncFail, claseEntorno)
+		}
+		if !strings.Contains(mensaje, "una autoridad que esta máquina no reconoce") {
+			t.Errorf("el mensaje no dice qué pasa con el certificado:\n%s", mensaje)
+		}
+		if strings.Contains(mensaje, "cortafuegos") {
+			t.Errorf("sigue dando el consejo de red, que no es:\n%s", mensaje)
+		}
+		if runtime.GOOS == "linux" && !strings.Contains(mensaje, "SSL_CERT_FILE") {
+			t.Errorf("en Linux el consejo tiene que nombrar SSL_CERT_FILE:\n%s", mensaje)
 		}
 	})
 
