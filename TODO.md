@@ -89,7 +89,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] CodeQL, registro en claro (3): falso positivo —setup.js imprime rutas, no contenido—, ahora comprobado en CI
 - [x] CodeQL, permisos de los workflows (6): `ci.yml`, y revisar `release.yml` y `publish-npm.yml`
 - [x] `NOTICE` (y `AUTHORS`) dentro de los archivos del release
-- [ ] El nombre legal completo del titular en los avisos de copyright
+- [x] El nombre legal completo del titular en los avisos de copyright
 - [ ] La procedencia de los vectores RFC 6962
 
 ## Pendiente de producto

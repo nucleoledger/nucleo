@@ -225,5 +225,5 @@ ML-DSA en PHP—, pero tampoco se cuenta como "clave desconocida": aparece en
 
 ## Licencia
 
-Copyright (C) 2026 Sergio U. AGPL-3.0-or-later, como el resto de Núcleo
+Copyright (C) 2026 Sergio Iván Ullaguari Alvarado. AGPL-3.0-or-later, como el resto de Núcleo
 ([`LICENSE`](../../LICENSE)).

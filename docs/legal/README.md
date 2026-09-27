@@ -14,7 +14,7 @@ Estado a 2026-09-26.
 | pieza | dónde | qué es |
 |---|---|---|
 | Autor | [`AUTHORS`](../../AUTHORS) | la identidad que firma los 245 commits del historial; no hay otro autor |
-| Aviso de copyright | [`README.md`](../../README.md) (§License), [`NOTICE`](../../NOTICE), los README de `sdk/ts` y `sdk/php`, `author` de `sdk/ts/package.json` | la misma línea en todos: «Copyright (C) 2026 Sergio U», el nombre tal como consta en git |
+| Aviso de copyright | [`README.md`](../../README.md) (§License), [`NOTICE`](../../NOTICE), los README de `sdk/ts` y `sdk/php`, `author` de `sdk/ts/package.json` | la misma línea en todos: «Copyright (C) 2026 Sergio Iván Ullaguari Alvarado», el nombre legal completo del titular |
 | Historial | `git log` | desde el 2026-09-03; cada cambio con su motivo en el mensaje del commit |
 | Asistencia de IA | los trailers `Co-Authored-By:` de los commits | la mayoría de los commits nombran un modelo de IA (Claude) como coautor; [`AUTHORS`](../../AUTHORS) lo registra sin interpretarlo |
 
@@ -77,9 +77,10 @@ Sin valorarlos: son cosas que están así, y que quien redacte o revise debería
    firmado son los artefactos de cada release (`checksums.txt`, con cosign keyless) y
    el paquete de npm (procedencia).
 2. **La mayoría de los commits lleva un `Co-Authored-By:` de un modelo de IA.**
-3. **El nombre del aviso de copyright es el que consta en git** («Sergio U»). Si el
-   titular legal se escribe de otra forma, hay que cambiarlo en los cinco sitios de la
-   tabla de titularidad.
+3. **El aviso de copyright lleva el nombre legal completo** («Sergio Iván Ullaguari Alvarado»); git
+   registra al autor en forma abreviada, «Sergio U», con el mismo correo. [`AUTHORS`](../../AUTHORS)
+   deja escritas las dos formas. Los releases `v0.1.0-alpha` y `v0.2.0-alpha` y el
+   paquete `@nucleoledger/verify@0.2.0-alpha.0` se publicaron con la forma abreviada.
 4. **Los archivos de `v0.1.0-alpha` y `v0.2.0-alpha` no incluyen `NOTICE`**; los del
    siguiente release sí, junto a `AUTHORS` (`.goreleaser.yaml`, comprobado con un build
    snapshot de las seis plataformas). Es lo que piden, literalmente, las licencias de
