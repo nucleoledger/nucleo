@@ -24,6 +24,10 @@ jobs:
     # de qué imagen le toque al runner ese mes.
     runs-on: ubuntu-24.04
     permissions:
+      # Explícito aunque arriba ya esté: los permisos de un job SUSTITUYEN a los del
+      # workflow, no se suman. Con solo id-token, este job corría con contents: none y
+      # el checkout funcionaba únicamente porque el repositorio es público.
+      contents: read
       # El token OIDC es toda la autenticación. Sin esto, npm no tiene forma de
       # saber quién publica y rechaza la petición.
       id-token: write

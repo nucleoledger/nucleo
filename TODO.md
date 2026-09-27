@@ -87,7 +87,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] CodeQL, reserva de memoria (1): tope explícito `MaxNoteBody` al cuerpo cosignado
 - [ ] CodeQL, hash débil (2): `checkpoint/mldsa.go`
 - [ ] CodeQL, registro en claro (3): `examples/erp-node/bin/setup.js`
-- [ ] CodeQL, permisos de los workflows (6): `ci.yml`, y revisar `release.yml` y `publish-npm.yml`
+- [x] CodeQL, permisos de los workflows (6): `ci.yml`, y revisar `release.yml` y `publish-npm.yml`
 - [ ] `NOTICE` dentro de los archivos del release
 - [ ] El nombre legal completo del titular en los avisos de copyright
 - [ ] La procedencia de los vectores RFC 6962

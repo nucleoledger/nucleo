@@ -1,5 +1,16 @@
 name: ci
 on: [push, pull_request]
+
+# Lo mínimo, para todos los jobs: leer el código. El CI no publica, no comenta, no
+# etiqueta ni escribe nada en el repositorio, así que ningún job amplía esto. Sin la
+# declaración, el GITHUB_TOKEN recibe los permisos por defecto de la organización o
+# del repositorio, que pueden incluir escritura; con ella, un paso comprometido —una
+# acción de terceros, una dependencia de npm en el `npm ci`— no puede usar el token
+# para escribir en el repositorio. (actions/upload-artifact del job fuzz no usa este
+# token: sube con la credencial propia del runner.)
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
