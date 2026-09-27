@@ -32,16 +32,33 @@ const TimestampedSignatureSize = 8 + ed25519.SignatureSize
 // ErrCosignature indica una cosignature malformada o que no verifica.
 var ErrCosignature = errors.New("witness: cosignature inválida")
 
+// MaxNoteBody es el tamaño máximo del cuerpo de nota que se cosigna o cuya
+// cosignature se verifica. El cuerpo llega de fuera —la petición de un log, la
+// respuesta de un testigo, un recibo en disco— y el mensaje cosignado es una
+// copia de él, así que sin tope propio el tamaño de la reserva de memoria lo
+// decidiría quien lo envía. El cuerpo de un checkpoint de Núcleo son tres
+// líneas, menos de 200 bytes; 64 KiB es el mismo tope que maxRequestBody pone a
+// la petición entera, de modo que nada legítimo lo alcanza.
+const MaxNoteBody = 64 << 10
+
+// errNoteTooLarge indica un cuerpo de nota que pasa de MaxNoteBody.
+var errNoteTooLarge = fmt.Errorf("witness: el cuerpo de la nota pasa del máximo de %d bytes", MaxNoteBody)
+
 // cosignedMessage arma el mensaje que realmente se firma en cosignature v1: dos
 // líneas de cabecera y, a continuación, el cuerpo íntegro de la nota del
 // checkpoint. No se firma el cuerpo a secas, de modo que una firma de testigo
 // nunca puede confundirse con la firma del propio log.
-func cosignedMessage(timestamp uint64, noteBody []byte) []byte {
+//
+// Un cuerpo mayor que MaxNoteBody se rechaza antes de reservar nada.
+func cosignedMessage(timestamp uint64, noteBody []byte) ([]byte, error) {
+	if len(noteBody) > MaxNoteBody {
+		return nil, errNoteTooLarge
+	}
 	prefix := "cosignature/v1\ntime " + strconv.FormatUint(timestamp, 10) + "\n"
 	msg := make([]byte, 0, len(prefix)+len(noteBody))
 	msg = append(msg, prefix...)
 	msg = append(msg, noteBody...)
-	return msg
+	return msg, nil
 }
 
 // Signer firma checkpoints como cosignature v1. Implementa note.Signer, así que
@@ -107,7 +124,11 @@ func (s *Signer) Sign(noteBody []byte) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %d < %d", ErrClockRewind, timestamp, s.lastTime)
 	}
 
-	sig := ed25519.Sign(s.priv, cosignedMessage(timestamp, noteBody))
+	msg, err := cosignedMessage(timestamp, noteBody)
+	if err != nil {
+		return nil, err
+	}
+	sig := ed25519.Sign(s.priv, msg)
 	out := make([]byte, TimestampedSignatureSize)
 	binary.BigEndian.PutUint64(out[:8], timestamp)
 	copy(out[8:], sig)
@@ -146,7 +167,11 @@ func (v *Verifier) Verify(noteBody, sig []byte) bool {
 		return false
 	}
 	timestamp := binary.BigEndian.Uint64(sig[:8])
-	return ed25519.Verify(v.pub, cosignedMessage(timestamp, noteBody), sig[8:])
+	msg, err := cosignedMessage(timestamp, noteBody)
+	if err != nil {
+		return false
+	}
+	return ed25519.Verify(v.pub, msg, sig[8:])
 }
 
 // Timestamp extrae el instante declarado por una cosignature ya verificada.

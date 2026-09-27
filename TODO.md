@@ -81,6 +81,17 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] Los requisitos del hosting, lo primero del README del SDK de PHP
 - [x] Las «auditorías externas» renombradas como lo que fueron: revisiones de un modelo
 
+## Sprint 13 — higiene de seguridad y procedencia
+- [x] CodeQL, conversiones de enteros (6): tamaños de árbol que llegan de fuera, con
+      comprobación de rango y test en el límite
+- [x] CodeQL, reserva de memoria (1): tope explícito `MaxNoteBody` al cuerpo cosignado
+- [ ] CodeQL, hash débil (2): `checkpoint/mldsa.go`
+- [ ] CodeQL, registro en claro (3): `examples/erp-node/bin/setup.js`
+- [ ] CodeQL, permisos de los workflows (6): `ci.yml`, y revisar `release.yml` y `publish-npm.yml`
+- [ ] `NOTICE` dentro de los archivos del release
+- [ ] El nombre legal completo del titular en los avisos de copyright
+- [ ] La procedencia de los vectores RFC 6962
+
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
 - [ ] **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo
