@@ -63,7 +63,13 @@ func (a *StoreLog) ConsistencyProof(old, size uint64) ([][]byte, error) {
 	if size > uint64(len(leaves)) {
 		return nil, fmt.Errorf("logsync: se pidió una prueba hasta %d y hay %d hojas", size, len(leaves))
 	}
-	return ledger.ConsistencyProof(leaves[:size], int(old))
+	// old es lo que el testigo dice haber cosignado: llega de la red. Sin comprobar el
+	// rango, un uint64 enorme se volvía negativo al convertirlo (Sprint 13, CodeQL).
+	oldN, err := ledger.SizeToInt(old)
+	if err != nil {
+		return nil, fmt.Errorf("logsync: el tamaño anterior del testigo: %w", err)
+	}
+	return ledger.ConsistencyProof(leaves[:size], oldN)
 }
 
 // SignCheckpoint emite el checkpoint del tamaño dado.

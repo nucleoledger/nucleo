@@ -263,6 +263,19 @@ func (w *Witness) cosign(declaredOld *uint64, msg []byte, consistencyProof [][]b
 // checkExtension aplica, en el orden del spec, todo lo que separa un checkpoint
 // aceptable de un 422.
 func checkExtension(old uint64, seen bool, last, c checkpoint.Checkpoint, proof [][]byte) error {
+	// Lo primero, y para TODOS los caminos: un tamaño que esta implementación no puede
+	// representar se rechaza por lo que es. El formato admite cualquier uint64; este
+	// testigo trabaja con int, y un primer checkpoint gigante —que no pasa por la
+	// prueba de consistencia— quedaría guardado y dejaría el log bloqueado aquí para
+	// siempre (Sprint 13, alertas de CodeQL go/incorrect-integer-conversion).
+	newN, err := ledger.SizeToInt(c.Size)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrUnprocessable, err)
+	}
+	oldN, err := ledger.SizeToInt(old)
+	if err != nil {
+		return fmt.Errorf("%w: tamaño anterior: %w", ErrUnprocessable, err)
+	}
 	if old > c.Size {
 		return fmt.Errorf("%w: anterior %d, checkpoint %d", ErrOldSize, old, c.Size)
 	}
@@ -297,7 +310,7 @@ func checkExtension(old uint64, seen bool, last, c checkpoint.Checkpoint, proof 
 	// último que el testigo cosignó— y su cuerpo es ese tamaño, que es
 	// justamente lo que aquí no hay que devolver: el cliente declaró el tamaño
 	// correcto, lo que falla es su prueba.
-	if err := ledger.VerifyConsistency(int(old), int(c.Size), last.RootHash, c.RootHash, proof); err != nil {
+	if err := ledger.VerifyConsistency(oldN, newN, last.RootHash, c.RootHash, proof); err != nil {
 		return fmt.Errorf("%w: la prueba de consistencia de %d a %d no verifica: %w",
 			ErrUnprocessable, old, c.Size, err)
 	}

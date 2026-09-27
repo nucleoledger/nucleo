@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
+	"github.com/nucleoledger/nucleo/internal/ledger"
 )
 
 // PutCheckpoint guarda una nota de checkpoint tal cual, con sus cosignatures.
@@ -27,12 +28,19 @@ func (s *Store) PutCheckpoint(note []byte) error {
 	if err != nil {
 		return err
 	}
+	// La clave de la tabla es un entero de SQLite, con signo. El tamaño sale de la
+	// nota —del cuerpo firmado, que puede venir de fuera— y un uint64 mayor que
+	// MaxInt64 se guardaría NEGATIVO (Sprint 13, CodeQL).
+	size, err := ledger.SizeToInt64(c.Size)
+	if err != nil {
+		return fmt.Errorf("store: checkpoint: %w", err)
+	}
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
 	var existing string
-	err = s.db.QueryRow(`SELECT note FROM checkpoints WHERE tree_size = ?`, int64(c.Size)).Scan(&existing)
+	err = s.db.QueryRow(`SELECT note FROM checkpoints WHERE tree_size = ?`, size).Scan(&existing)
 	switch {
 	case err == nil:
 		if existing == string(note) {
@@ -44,7 +52,7 @@ func (s *Store) PutCheckpoint(note []byte) error {
 	}
 
 	if _, err := s.db.Exec(`INSERT INTO checkpoints (tree_size, note) VALUES (?, ?)`,
-		int64(c.Size), string(note)); err != nil {
+		size, string(note)); err != nil {
 		return errDB(fmt.Sprintf("store: inserción del checkpoint %d", c.Size), ErrAppendOnly, err)
 	}
 	return nil
@@ -71,8 +79,12 @@ func (s *Store) Checkpoint(treeSize uint64) ([]byte, error) {
 	if s.db == nil {
 		return nil, ErrClosed
 	}
+	size, err := ledger.SizeToInt64(treeSize)
+	if err != nil {
+		return nil, fmt.Errorf("store: checkpoint: %w", err)
+	}
 	var note string
-	err := s.db.QueryRow(`SELECT note FROM checkpoints WHERE tree_size = ?`, int64(treeSize)).Scan(&note)
+	err = s.db.QueryRow(`SELECT note FROM checkpoints WHERE tree_size = ?`, size).Scan(&note)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
