@@ -34,7 +34,6 @@ otro modelo**.
 El backlog atómico está en `TODO.md`. En resumen:
 
 **Del dev, fuera del código**
-- Activar el reporte privado de vulnerabilidades en GitHub.
 - El tutorial cronometrado con alguien de fuera del proyecto, sobre el ejemplo Node.
   La parte mecánica está medida (~15 s de clon a recibo verificado); falta la de
   comprensión, que es la mitad de CONCEPTO §18 que no se puede fabricar desde dentro.

@@ -97,6 +97,3 @@ Sin valorarlos: son cosas que están así, y que quien redacte o revise debería
    un commit fijado, y se recalcularon desde RFC 9162: coinciden todos. El detalle,
    con los sha256, está en [`testdata/vectors/README.md`](../../testdata/vectors/README.md).
    Solo están en el código fuente; no viajan en ningún artefacto publicado.
-6. **`SECURITY.md` anuncia el reporte privado de vulnerabilidades de GitHub**, que según
-   [`TODO.md`](../../TODO.md) está pendiente de activar. El buzón
-   security@nucleoledger.com está operativo.

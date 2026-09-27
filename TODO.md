@@ -42,8 +42,9 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       el 2026-09-25
 - [x] Publicar `v0.2.0-alpha` y verificarla desde un directorio limpio con la receta
       de RELEASING — hecho por el dev el 2026-09-25 (cosign v3.1.3)
-- [ ] Activar el reporte privado de vulnerabilidades en GitHub — verificar:
-      Settings → Security → la opción aparece habilitada
+- [x] Activar el reporte privado de vulnerabilidades en GitHub — activado por el dev el
+      2026-09-25; comprobado el 2026-09-26 con la API
+      (`repos/nucleoledger/nucleo/private-vulnerability-reporting` → `{"enabled":true}`)
 - [ ] Cronometrar el tutorial con alguien de fuera del proyecto, sobre el ejemplo
       Node (`examples/erp-node`) — verificar: una hora medida, no estimada por quien
       lo escribió. La parte mecánica ya está medida (de clon a recibo verificado,
