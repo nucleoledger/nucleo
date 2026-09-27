@@ -90,8 +90,13 @@ Sin valorarlos: son cosas que están así, y que quien redacte o revise debería
      and/or other materials provided with the distribution.»*
    - MIT: *«The above copyright notice and this permission notice shall be included in
      all copies or substantial portions of the Software.»*
-5. **Los vectores de prueba RFC 6962** (`testdata/vectors/merkle/rfc6962`) no tienen
-   registrado el repositorio del que se tomaron. Los de SLIP-0039 sí (el de Trezor).
+5. **Los vectores de prueba RFC 6962** (`testdata/vectors/merkle/rfc6962`) son los
+   datos de prueba de Merkle del proyecto Certificate Transparency de Google, hoy en
+   `transparency-dev/merkle` (Apache-2.0). De dónde se copiaron al añadirlos no quedó
+   registrado; el 2026-09-26 se contrastaron valor a valor contra ese repositorio, en
+   un commit fijado, y se recalcularon desde RFC 9162: coinciden todos. El detalle,
+   con los sha256, está en [`testdata/vectors/README.md`](../../testdata/vectors/README.md).
+   Solo están en el código fuente; no viajan en ningún artefacto publicado.
 6. **`SECURITY.md` anuncia el reporte privado de vulnerabilidades de GitHub**, que según
    [`TODO.md`](../../TODO.md) está pendiente de activar. El buzón
    security@nucleoledger.com está operativo.

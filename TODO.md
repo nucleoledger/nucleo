@@ -90,7 +90,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] CodeQL, permisos de los workflows (6): `ci.yml`, y revisar `release.yml` y `publish-npm.yml`
 - [x] `NOTICE` (y `AUTHORS`) dentro de los archivos del release
 - [x] El nombre legal completo del titular en los avisos de copyright
-- [ ] La procedencia de los vectores RFC 6962
+- [x] La procedencia de los vectores RFC 6962: transparency-dev/merkle, contrastada valor a valor
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

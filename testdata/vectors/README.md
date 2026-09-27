@@ -8,7 +8,34 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
 - merkle/    RFC 6962 roots and proofs (8 canonical leaves, roots n=1..8,
              consistency proofs (1,8), (6,8), (2,5),
              inclusion paths (0,1), (0,8), (5,8), (2,3), (1,5))
-             vectores oficiales RFC 6962; adición autorizada por el dev (auditoría 2fd2745)
+             adición autorizada por el dev (auditoría 2fd2745)
+
+             PROCEDENCIA (registrada el 2026-09-26, Sprint 13). Al añadirlos (commits
+             8bb4125 y 72bf7bd, 2026-09-04) no se anotó de dónde salían, y el campo
+             "source" de los JSON dice «RFC 6962 reference test data», que es impreciso:
+             la RFC 6962 no contiene vectores numéricos. El origen de la sesión que los
+             escribió no se puede reconstruir. Lo que sí se ha comprobado, valor a valor:
+
+             - Son los datos de prueba del proyecto Certificate Transparency de Google,
+               hoy en github.com/transparency-dev/merkle (Apache-2.0, © Google LLC),
+               commit fbbcd741c3d1c69d8498487baa8edc9e5824847c:
+                 testonly/constants.go      LeafInputs, RootHashes, EmptyRootHash
+                   sha256 6faf1957b5727c99593412ca0375f7e1f90ba10d7747dc42624585f948da32a8
+                 testonly/reference_test.go TestRefInclusionProof, TestRefConsistencyProof
+                   sha256 1891314f4c1e551c532190e4f072a41d103b42c952ea4a9454a9bc75dba5333f
+               Las 8 hojas, la raíz vacía, las 8 raíces, los 5 caminos de inclusión y
+               las 3 pruebas de consistencia coinciden con esas tablas; ninguno falta
+               en ellas ni difiere.
+             - Además se recalcularon todos desde la especificación (RFC 9162 §2.1:
+               MTH, PATH y SUBPROOF) con Python y hashlib, sin una línea de este
+               repositorio: coinciden todos. Una mutación de un solo nibble en
+               cualquier fichero la detectan las dos comparaciones.
+
+             sha256 de los ficheros tal como están:
+               f23bf514af9ac6e23726bf62f5b32e6d6da97b1fc71fc2c5f5c223e8094fc0e9  consistency.json
+               b33e05a58ddcc07d1052849822d4275a286e1d3ed4e2cc6005adebb8a188b6b0  inclusion.json
+               b8290a09414ef888ac2ea64e4729a494207798acf9457c2c3566347459cac62d  leaves.json
+               18c90345ba9c292d8ea867df151a101ce6fa4d6006fd685277681c05993bc10c  roots.json
 - slip39/    45 official SatoshiLabs vectors (15 valid + 30 that MUST be rejected)
              descargados del repositorio canónico de Trezor (python-shamir-mnemonic),
              NO del testdata de la biblioteca que se evalúa; adición autorizada por

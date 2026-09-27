@@ -148,9 +148,14 @@ Only in the source tree, in no published artifact:
     downloaded from Trezor's python-shamir-mnemonic repository, whose license
     GitHub reports as MIT. sha256 recorded in testdata/vectors/README.md.
   * testdata/vectors/jcs/rfc8785-3.2.3 — the example of RFC 8785 §3.2.3.
-  * testdata/vectors/merkle/rfc6962 — described in testdata/vectors/README.md as
-    official RFC 6962 vectors. The repository does NOT record which upstream
-    repository they were taken from.
+  * testdata/vectors/merkle/rfc6962 — the Merkle tree test data of Google's
+    Certificate Transparency project, as found today in
+    github.com/transparency-dev/merkle (testonly/constants.go and
+    testonly/reference_test.go, commit fbbcd741), whose license is Apache-2.0,
+    Copyright Google LLC. Where they were copied from when they were added
+    (2026-09-04) was not recorded; on 2026-09-26 every value was compared with
+    that repository and recomputed from RFC 9162 §2.1, and all of them match.
+    Details and sha256 in testdata/vectors/README.md.
   * internal/keys/keys_test.go — the test vectors of RFC 8032 §7.1.
 
 =====================================================================
