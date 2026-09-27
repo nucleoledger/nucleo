@@ -199,5 +199,5 @@ tree.
 
 ## License
 
-AGPL-3.0-or-later. Commercial licenses are available for embedding Núcleo in
+Copyright (C) 2026 Sergio U. AGPL-3.0-or-later. Commercial licenses are available for embedding Núcleo in
 proprietary software.

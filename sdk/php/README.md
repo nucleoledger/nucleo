@@ -222,3 +222,8 @@ Abrir un ledger, el vault, SLIP-0039, `sync`, el testigo: son del emisor, y el e
 tiene la CLI. Y la firma ML-DSA-44 adicional del log (ADR-007) no se verifica —no hay
 ML-DSA en PHP—, pero tampoco se cuenta como "clave desconocida": aparece en
 `logAdditionalSignatures`, igual que en TypeScript.
+
+## Licencia
+
+Copyright (C) 2026 Sergio U. AGPL-3.0-or-later, como el resto de Núcleo
+([`LICENSE`](../../LICENSE)).
