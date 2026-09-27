@@ -104,9 +104,26 @@ jobs:
           node-version-file: sdk/ts/.nvmrc
       - name: El binario que el ejemplo invoca
         run: go build -o nucleo ./cmd/nucleo
+      # La salida de setup se guarda y se revisa: no puede contener la passphrase ni
+      # ninguna de las tarjetas SLIP-0039, aunque sean de juguete. Imprime las RUTAS de
+      # los ficheros, no su contenido; esta comprobación es lo que lo sostiene, y no una
+      # promesa en un comentario (Sprint 13, alertas js/clear-text-logging de CodeQL).
       - name: Arranque del despliegue (npm run setup)
         working-directory: examples/erp-node
-        run: npm run setup
+        # pipefail: sin `shell:` explícito GitHub ejecuta `bash -e`, sin pipefail, y el
+        # tee se tragaría un setup que falla.
+        run: |
+          set -o pipefail
+          npm run setup 2>&1 | tee setup.log
+          if grep -qF -f datos/passphrase.txt setup.log; then
+            echo "la salida de setup contiene la passphrase"
+            exit 1
+          fi
+          if grep -qF -f datos/tarjetas-DE-JUGUETE.txt setup.log; then
+            echo "la salida de setup contiene una tarjeta de respaldo"
+            exit 1
+          fi
+          rm setup.log
       # El verificador que usa el ejemplo es el PUBLICADO: @nucleoledger/verify fijado
       # por versión y por hash en package-lock.json, no el SDK de este repositorio
       # (setup falla si encuentra un enlace a una carpeta local). Y se comprueba su
