@@ -1,20 +1,23 @@
 # Contributing to Núcleo
 
-Thanks for looking. This project is young and the fastest way to help right now
-is probably not a pull request.
+Thanks for looking.
 
-## Issues before pull requests, for now
+## Issues: yes. Pull requests: not for now.
 
-The protocol is frozen but the implementation is moving, and several parts are
-waiting on decisions recorded as open ADRs. A pull request against a piece that
-is about to change is work thrown away — yours and the reviewer's.
+**Pull requests are not accepted for now — issues are.** Núcleo is also offered under
+a commercial license, which needs every line of code to have a clear owner, and until
+a contribution agreement exists to settle that, code comes only from its author.
 
-**Open an issue first.** Describe what you hit or what you would change. If it is
-a bug, that is already the most valuable contribution: a reproducible case beats
-a patch you had to guess at.
+A pull request opened now will be closed without review, whatever its size — a typo
+included. That is not a judgement on the patch: it is the only way to keep the rule
+simple enough to hold.
 
-Small, obvious fixes — a typo, a broken link, a wrong error message — go straight
-to a pull request without asking.
+**Open an issue instead.** Describe what you hit or what you would change. If it is a
+bug, that is already the most valuable contribution there is: a reproducible case
+beats a patch. Say what you ran, what you expected and what you got — the commands
+below are the ones this project uses to decide whether something is broken.
+
+This section will change when a contribution agreement exists, and it will say so.
 
 ## Running the tests
 
@@ -142,6 +145,5 @@ Do **not** open a public issue for a vulnerability. See
 
 ## License
 
-Contributions are accepted under AGPL-3.0-or-later, the project's license. By
-opening a pull request you confirm you have the right to contribute the code
-under those terms.
+Núcleo is licensed under AGPL-3.0-or-later (see [`LICENSE`](LICENSE)). Pull requests
+are not accepted for now: see the first section.
