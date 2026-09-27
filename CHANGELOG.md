@@ -11,6 +11,34 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Security: the 18 CodeQL alerts, and provenance (Sprint 13)
+
+Every open code-scanning alert ended **fixed with a test** or **dismissed in GitHub with the
+reason written down**; none was dismissed silently.
+
+- **Fixed (7).** Tree sizes that arrive from outside —a checkpoint note, a witness's
+  answer— were converted from `uint64` to `int`/`int64` without a range check
+  (`witness.go`, `store/checkpoints.go`, `logsync/adapter.go`). Reproduced at the limit
+  before fixing: the witness *accepted and remembered* a first checkpoint of size 2^63,
+  locking that log out of it, and the store saved it under a negative key. Now
+  `ledger.SizeToInt`/`SizeToInt64` reject it. The cosigned message had no size limit of its
+  own: `witness.MaxNoteBody` (64 KiB) is now checked before allocating.
+- **Workflow permissions (6).** `ci.yml` declares `contents: read` and no job widens it.
+  Reviewing the two workflows CodeQL does not flag found a real one: `publish-npm.yml`'s job
+  declared only `id-token: write`, and job permissions *replace* the workflow's, so it ran
+  with `contents: none`; it now says `contents: read` explicitly.
+- **Dismissed as false positives (5).** `checkpoint/mldsa.go` hashes the signed-note key ID
+  —the public origin line and the public key—; CodeQL took the origin for a password because
+  the identity comes out of the vault. `examples/erp-node/bin/setup.js` prints the *path* of
+  the passphrase file, never the passphrase nor the backup cards; the CI `ejemplo` job now
+  fails if the setup output contains either.
+
+**Provenance and legal.** The release archives now include `NOTICE` and `AUTHORS`. The
+copyright notice carries the holder's full legal name. The RFC 6962 test vectors are
+recorded as the Certificate Transparency test data in `transparency-dev/merkle`, compared
+value by value at a pinned commit and recomputed from RFC 9162. GitHub private vulnerability
+reporting is enabled.
+
 ### Added: the freshness alarm no longer depends on stderr, and an operations guide (Sprint 12)
 
 **The alarm ([ADR-028](docs/adr/ADR-028-alarma-de-frescura-durable.md)).** Since Sprint 7 a
