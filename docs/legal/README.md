@@ -80,10 +80,10 @@ Sin valorarlos: son cosas que están así, y que quien redacte o revise debería
 3. **El nombre del aviso de copyright es el que consta en git** («Sergio U»). Si el
    titular legal se escribe de otra forma, hay que cambiarlo en los cinco sitios de la
    tabla de titularidad.
-4. **Los archivos del release no incluyen hoy `NOTICE`**: llevan `LICENSE`,
-   `README.md`, `CHANGELOG.md` y tres documentos de `docs/`. Lo que dicen, literalmente,
-   las licencias de las dependencias que van dentro del binario (sus textos completos
-   están en `NOTICE`):
+4. **Los archivos de `v0.1.0-alpha` y `v0.2.0-alpha` no incluyen `NOTICE`**; los del
+   siguiente release sí, junto a `AUTHORS` (`.goreleaser.yaml`, comprobado con un build
+   snapshot de las seis plataformas). Es lo que piden, literalmente, las licencias de
+   las dependencias que van dentro del binario (sus textos completos están en `NOTICE`):
    - BSD-3-Clause: *«Redistributions in binary form must reproduce the above copyright
      notice, this list of conditions and the following disclaimer in the documentation
      and/or other materials provided with the distribution.»*

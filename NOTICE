@@ -66,8 +66,9 @@ Inside modernc.org/sqlite, the sqlite-vec extension (MIT) is not compiled into
 the binary on any platform, and the logo of modernc.org/memory is an image that
 is not compiled either.
 
-The release archives also contain LICENSE, README.md, CHANGELOG.md and three
-documents from docs/. They do not contain this NOTICE today.
+The release archives contain this NOTICE, next to LICENSE, AUTHORS, README.md,
+CHANGELOG.md and three documents from docs/ (from the first release after
+2026-09-26; v0.1.0-alpha and v0.2.0-alpha did not include it).
 
 1.2  The npm package @nucleoledger/verify
 ------------------------------------------

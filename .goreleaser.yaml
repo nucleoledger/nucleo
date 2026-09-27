@@ -51,6 +51,11 @@ archives:
         formats: [zip]
     files:
       - LICENSE
+      # NOTICE reproduce las licencias de lo que va DENTRO del binario (la BSD-3-Clause
+      # y la MIT piden que el aviso acompañe a la distribución binaria). AUTHORS, porque
+      # el aviso de copyright del README remite a él.
+      - NOTICE
+      - AUTHORS
       - README.md
       - CHANGELOG.md
       - src: docs/TUTORIAL-es.md

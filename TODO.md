@@ -88,7 +88,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] CodeQL, hash débil (2): falso positivo —es el key ID de signed-note, sobre el origin y la clave pública—, descartado en GitHub con la justificación
 - [x] CodeQL, registro en claro (3): falso positivo —setup.js imprime rutas, no contenido—, ahora comprobado en CI
 - [x] CodeQL, permisos de los workflows (6): `ci.yml`, y revisar `release.yml` y `publish-npm.yml`
-- [ ] `NOTICE` dentro de los archivos del release
+- [x] `NOTICE` (y `AUTHORS`) dentro de los archivos del release
 - [ ] El nombre legal completo del titular en los avisos de copyright
 - [ ] La procedencia de los vectores RFC 6962
 
