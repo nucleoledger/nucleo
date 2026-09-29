@@ -86,12 +86,16 @@ func PrepareRekey(ms MetaStore, oldKEK, newPassphrase []byte) (*Rekey, error) {
 	// es la misma DEK. Un fallo aquí es un error en pantalla; descubierto después del
 	// Commit, sería un vault que no abre nada.
 	check, err := UnwrapDEK(newKEK, newWrapped, vaultID)
-	if err != nil || !bytes.Equal(check, dek) {
-		zero(check)
+	if err != nil {
 		zero(newKEK)
-		return nil, fmt.Errorf("vault: el envoltorio nuevo no devuelve la misma DEK: %v", err)
+		return nil, fmt.Errorf("vault: el envoltorio nuevo no se desenvuelve: %w", err)
 	}
+	igual := bytes.Equal(check, dek)
 	zero(check)
+	if !igual {
+		zero(newKEK)
+		return nil, errors.New("vault: el envoltorio nuevo devuelve OTRA DEK")
+	}
 
 	newEncoded, err := json.Marshal(newParams)
 	if err != nil {
