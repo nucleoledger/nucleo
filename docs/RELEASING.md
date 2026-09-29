@@ -97,10 +97,17 @@ ls dist/
 
 ### El tag
 
+Desde `v0.3.0-alpha`, el tag va **firmado** con una clave SSH (`-s` en vez de `-a`; ver
+[Firmar el tag con una clave SSH](#firmar-el-tag-con-una-clave-ssh)):
+
 ```bash
-git tag -a v0.2.0-alpha -m "v0.2.0-alpha"
-git push origin v0.2.0-alpha
+git tag -s v0.3.0-alpha -m "v0.3.0-alpha"
+git tag -v v0.3.0-alpha        # código 0 y «Good "git" signature for <tu correo>»
+git push origin v0.3.0-alpha
 ```
+
+`v0.1.0-alpha`, `v0.2.0-alpha` y `vsdk-0.2.0-alpha.0` son tags anotados **sin** firma
+(`git tag -a`); lo que está firmado de esos releases son los artefactos.
 
 El push del tag es lo que dispara el workflow. **Nada más lo dispara**: un push
 a `main` no publica, y **un tag del SDK tampoco**.
@@ -147,6 +154,61 @@ binarios y nada más.
    tag, cómo instalar el SDK y comprobar su procedencia, cómo verificar esa
    descarga, y el estado sin adornos. Ejemplo: [`releases/v0.2.0-alpha.md`](releases/v0.2.0-alpha.md).
 4. Publica el borrador.
+
+### Firmar el tag con una clave SSH
+
+Lo que firma un tag no son los binarios —eso lo hace cosign desde el CI, sin clave de
+nadie—, sino **quién decidió que este commit es la versión**. Con git ≥ 2.34 basta una
+clave SSH; no hace falta GPG. La clave es del dev y la configura el dev: aquí solo va la
+receta.
+
+Una vez, en este repositorio (o con `--global`):
+
+```bash
+git config gpg.format ssh
+git config user.signingkey ~/.ssh/id_ed25519.pub     # la PÚBLICA de la clave con la que firmas
+```
+
+Para **verificar** —tú, y cualquiera—, git necesita una lista de firmantes de confianza:
+una línea por clave, con el correo con el que git firma los tags (`user.email`).
+
+```bash
+mkdir -p ~/.config/git
+echo "$(git config user.email) namespaces=\"git\" $(cat ~/.ssh/id_ed25519.pub)" >> ~/.config/git/allowed_signers
+git config gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
+```
+
+Firmar y comprobar:
+
+```bash
+git tag -s v0.3.0-alpha -m "v0.3.0-alpha"
+git tag -v v0.3.0-alpha
+```
+
+Lo que cuenta es el **código de salida 0** y la línea con **`for <correo>`**:
+
+```
+Good "git" signature for <tu user.email> with ED25519 key SHA256:…
+```
+
+Cuidado con la parecida: con una clave que **no** está en `allowed_signers`, git imprime
+*«Good "git" signature with ED25519 key …»* —sin `for`— seguido de *«No principal
+matched.»* y sale con **1**. La firma es matemáticamente buena, pero de una clave que no es
+la tuya. Sin `gpg.ssh.allowedSignersFile`, `git tag -v` falla con *«gpg.ssh.allowedSignersFile
+needs to be configured and exist»*.
+
+Comprobado el 2026-09-28 con git 2.34.1 y OpenSSH 8.9 en un repositorio desechable y una
+clave de usar y tirar: los tres casos —clave de la lista (0), clave ajena (1), sin lista
+(error)— dan exactamente lo de arriba, y el tag firmado sigue siendo un tag anotado
+(`git for-each-ref` dice `tag`), que es lo que leen `release.yml` y goreleaser.
+
+Para que GitHub lo marque como **Verified**, sube la misma clave pública en
+*Settings → SSH and GPG keys* como **Signing key** (no como clave de autenticación). Eso no
+se ha comprobado aquí: depende de la cuenta. Y para que un tercero lo verifique sin GitHub,
+publica la línea de `allowed_signers` —correo y clave pública— junto a la política o en el
+README.
+
+El tag del SDK (`vsdk-*`) se firma igual: `git tag -s vsdk-0.3.0-alpha.0 -m "sdk 0.3.0-alpha.0"`.
 
 ### Errores y cómo deshacerlos
 
@@ -425,11 +487,11 @@ aprobar desde una máquina con `npm stage list @nucleoledger/verify` y
 
 ```bash
 # 1. La versión en sdk/ts/package.json es la que manda.
-cd sdk/ts && npm version 0.2.0-alpha.0 --no-git-tag-version
-# 2. Commit y, ya en la raíz, el tag con el MISMO número.
-git commit -am "chore(sdk): versión 0.2.0-alpha.0"
-git tag -a vsdk-0.2.0-alpha.0 -m "sdk 0.2.0-alpha.0"
-git push origin main vsdk-0.2.0-alpha.0
+cd sdk/ts && npm version 0.3.0-alpha.0 --no-git-tag-version
+# 2. Commit y, ya en la raíz, el tag FIRMADO con el MISMO número.
+git commit -am "chore(sdk): versión 0.3.0-alpha.0"
+git tag -s vsdk-0.3.0-alpha.0 -m "sdk 0.3.0-alpha.0"
+git push origin main vsdk-0.3.0-alpha.0
 ```
 
 El workflow comprueba que el tag y `package.json` coinciden antes de tocar la
