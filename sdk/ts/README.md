@@ -14,6 +14,13 @@ part of the platform. Nothing else is needed.
 npm install @nucleoledger/verify
 ```
 
+## Upgrading from 0.2.0-alpha.0
+
+Nothing to change. 0.3.0-alpha.0 has the same code as 0.2.0-alpha.0 and reads the same
+receipts (`nucleo.org/receipt@v2`); what changed is the package metadata —the `author`
+field now carries the copyright holder's full legal name—, published alongside `nucleo`
+v0.3.0-alpha.
+
 ## Upgrading from 0.1.0-alpha.0
 
 0.1.0-alpha.0 predates the current receipt format, and the two versions do not read
