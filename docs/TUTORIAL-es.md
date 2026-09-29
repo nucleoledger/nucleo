@@ -80,8 +80,9 @@ Después imprime esto:
   · Quien reúna 2 tarjetas abre el vault. Repártelas pensando en
     eso, no solo en no perderlas.
   · Esta pantalla NO se puede volver a ver. Se pueden emitir
-    tarjetas nuevas con `nucleo backup`, pero solo si aún tienes
-    la passphrase.
+    tarjetas nuevas con `nucleo backup` si tienes la passphrase;
+    si la pierdes, 2 tarjetas fijan otra con `nucleo restore
+    --new-passphrase` (y emiten tarjetas nuevas).
 ```
 
 Antes de terminar te pedirá **teclear una palabra concreta de la tarjeta 1**. No
@@ -746,22 +747,27 @@ Conviene decirlo para que nadie construya sobre una expectativa falsa.
 | `frescura : ⚠ ninguna atestación verifica bajo la política` | con política, el registro local de `sync` no cuenta: faltan los checkpoints cosignados o no los avala tu testigo. Ejecuta `sync` |
 | `no se sella: los N bloques de este ledger los firma …` | la cadena la firma otra clave que la de tu vault: o la reescribieron entera, o ese vault no es el de ese ledger. **No sigas sellando**: abre con `--policy-file` e investiga |
 
-Y si perdiste la passphrase: **con ese vault ya no se puede sellar**, ni con las
-tarjetas. `restore` comprueba que dos tarjetas reconstruyen la clave **de este vault**
-—no una cualquiera—, pero hoy no fija una passphrase nueva:
+Y si perdiste la passphrase: con **dos tarjetas** fijas una nueva
+([ADR-029](adr/ADR-029-restore-fija-passphrase-nueva.md)):
 
 ```bash
-./nucleo --dir ./mi-empresa restore
+./nucleo --dir ./mi-empresa restore --new-passphrase
 ```
 
-Lo que no se pierde: el ledger sigue siendo verificable (`status`, `verify --full`
-funcionan sin passphrase) y los recibos que ya entregaste siguen valiendo, porque se
-verifican con la política y no con tu vault. Para seguir sellando hace falta un ledger
-nuevo —`init` en otro `--dir`— y su política. Por eso la passphrase necesita su propio
-respaldo, aparte de las copias del ledger: [docs/OPERACION.md](OPERACION.md).
+Te pide las tarjetas y la passphrase nueva, comprueba que las tarjetas son **de este
+vault** —no unas cualquiera—, te da **tarjetas nuevas** y te pide una palabra de la
+primera, como `init`. Al terminar dice *«✔ passphrase nueva fijada»*, y desde ese momento
+**las tarjetas viejas no sirven**: destrúyelas. Si la palabra no coincide, no cambia nada.
 
-> **Corregido el 2026-09-26.** Este apartado decía que con las tarjetas se recuperaba
-> el vault. Se comprobó que no: tras `restore`, una passphrase nueva sigue sin abrirlo.
+Sin tarjetas no hay vuelta: con ese vault ya no se sella. Lo que no se pierde es el
+ledger, que sigue siendo verificable (`status`, `verify --full` funcionan sin
+passphrase), ni los recibos que ya entregaste, que se verifican con la política y no con
+tu vault. Por eso la passphrase necesita su propio respaldo, aparte de las copias del
+ledger, y las tarjetas, repartidas: [docs/OPERACION.md](OPERACION.md) §3.
+
+> **Corregido dos veces.** Hasta el 2026-09-26 este apartado decía que con las tarjetas
+> se recuperaba el vault, y no era verdad: `restore` solo las comprobaba. Desde ADR-029
+> (2026-09-28) lo es, y el apartado lo dice con la orden que lo hace.
 
 ---
 

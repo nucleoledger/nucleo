@@ -31,7 +31,7 @@ final class Sealer
     /**
      * @param string $binary         ruta del ejecutable `nucleo`
      * @param string $dir            directorio del despliegue (el que lleva nucleo.db)
-     * @param string $passphraseFile fichero con la passphrase, en modo 0600
+     * @param string $passphraseFile fichero con la passphrase, en modo 0600 o 0640 (grupo de solo lectura)
      * @param string|null $policyFile fichero de política; se pasa a la CLI como
      *                                --policy-file en TODA ejecución (ADR-017)
      * @param int $timeout           segundos antes de declarar colgado el sellado
@@ -438,12 +438,16 @@ final class Sealer
                 ));
             }
         }
+        // El grupo puede LEER, y nada más (ADR-029 §D): `0640 root:www-data` es la receta
+        // habitual de un VPS, y es más segura que 0600 del propio usuario web, que podría
+        // reescribir o borrar la passphrase. Escribir o ejecutar para el grupo, o cualquier
+        // permiso para otros, se rechaza.
         if (!self::esWindows()) {
             $modo = @fileperms($this->passphraseFile);
-            if ($modo !== false && ($modo & 0077) !== 0) {
+            if ($modo !== false && ($modo & 0037) !== 0) {
                 throw new SealEnvironmentError(sprintf(
-                    'el fichero de passphrase %s tiene permisos %04o: lo puede leer alguien más. ' .
-                    'Ponlo en 0600.',
+                    'el fichero de passphrase %s tiene permisos %04o: lo puede leer o cambiar alguien más. ' .
+                    'Ponlo en 0600, o en 0640 con un grupo que solo lee (p. ej. root:www-data).',
                     $this->passphraseFile,
                     $modo & 0777
                 ));

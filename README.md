@@ -78,7 +78,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 | `reconcile` | compares the live system against what was sealed |
 | `sync` | obtains attestation from a witness |
 | `witness serve` · `witness key` | runs a witness; prints its public key |
-| `backup` · `restore` | re-issues the SLIP-0039 cards; rebuilds the KEK from them |
+| `backup` · `restore` | re-issues the SLIP-0039 cards; with two cards, `restore --new-passphrase` sets a new passphrase and issues new cards ([ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md)) |
 
 **Exit codes are contract** — scripts read them, so they will not change silently:
 

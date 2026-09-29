@@ -182,8 +182,9 @@ func printCards(e *env, cards []string, threshold int) {
 	e.printf("  · Quien reúna %d tarjetas abre el vault. Repártelas pensando en\n", threshold)
 	e.printf("    eso, no solo en no perderlas.\n")
 	e.printf("  · Esta pantalla NO se puede volver a ver. Se pueden emitir\n")
-	e.printf("    tarjetas nuevas con `nucleo backup`, pero solo si aún tienes\n")
-	e.printf("    la passphrase.\n")
+	e.printf("    tarjetas nuevas con `nucleo backup` si tienes la passphrase;\n")
+	e.printf("    si la pierdes, %d tarjetas fijan otra con `nucleo restore\n", threshold)
+	e.printf("    --new-passphrase` (y emiten tarjetas nuevas).\n")
 	e.printf("\n")
 }
 
@@ -194,18 +195,11 @@ func printCards(e *env, cards []string, threshold int) {
 // error más común —seguir adelante pensando en apuntarlas luego— no se detecta
 // hasta el día en que hacen falta.
 func confirmCard(e *env, cards []string, threshold int) error {
-	const cardIdx, wordIdx = 0, 3
-	words := strings.Fields(cards[cardIdx])
-	if len(words) <= wordIdx {
-		return fmt.Errorf("la tarjeta 1 tiene %d palabras", len(words))
-	}
-
-	fmt.Fprintf(e.stderr, "Para confirmar que has copiado las tarjetas, escribe la palabra número %d de la TARJETA 1: ", wordIdx+1)
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	ok, err := tecleaLaPalabra(e, cards)
 	if err != nil {
-		return usageErr("no se pudo leer la confirmación: %v", err)
+		return err
 	}
-	if strings.TrimSpace(line) != words[wordIdx] {
+	if !ok {
 		return usageErr("la palabra no coincide.\n\n"+
 			"  El vault y el ledger quedan creados en %s, pero las tarjetas de\n"+
 			"  esta pantalla son las ÚNICAS que existen. Cópialas ahora, o vuelve\n"+
@@ -214,6 +208,24 @@ func confirmCard(e *env, cards []string, threshold int) error {
 	}
 	e.printf("✔ confirmado. Guarda las tarjetas como se ha explicado.\n")
 	return nil
+}
+
+// tecleaLaPalabra pide la cuarta palabra de la tarjeta 1 y dice si coincide. Es la
+// confirmación de ADR-004, compartida por init y por restore (ADR-029 §B); cada uno
+// explica a su manera qué significa que no coincida.
+func tecleaLaPalabra(e *env, cards []string) (bool, error) {
+	const cardIdx, wordIdx = 0, 3
+	words := strings.Fields(cards[cardIdx])
+	if len(words) <= wordIdx {
+		return false, fmt.Errorf("la tarjeta 1 tiene %d palabras", len(words))
+	}
+
+	fmt.Fprintf(e.stderr, "Para confirmar que has copiado las tarjetas, escribe la palabra número %d de la TARJETA 1: ", wordIdx+1)
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		return false, usageErr("no se pudo leer la confirmación: %v", err)
+	}
+	return strings.TrimSpace(line) == words[wordIdx], nil
 }
 
 // newIdentity genera las identidades, o las deriva de la semilla de pruebas.

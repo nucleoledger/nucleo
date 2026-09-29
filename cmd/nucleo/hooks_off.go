@@ -29,6 +29,9 @@ func hookSeed() ([]byte, bool) { return nil, false }
 // hookPassphrase no existe en producción.
 func hookPassphrase() (string, bool) { return "", false }
 
+// hookDieAt no existe en producción: no mata nada.
+func hookDieAt(string) {}
+
 // checkHooks aborta si alguna variable de gancho está definida.
 //
 // FALLO CERRADO, y a propósito. La alternativa —seguir adelante con un aviso—

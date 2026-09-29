@@ -95,7 +95,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 ## Sprint 14 — las dos decisiones pendientes del Sprint 12, y preparar v0.3.0-alpha
 - [x] ADR-029: el cambio de passphrase atómico en el vault (`store.ReplaceMeta`,
       `vault.PrepareRekey`), probado matando el proceso a medias de la transacción
-- [ ] `restore --new-passphrase[-file]` con tarjetas nuevas y confirmación tecleada,
+- [x] `restore --new-passphrase[-file]` con tarjetas nuevas y confirmación tecleada,
       probado matando el proceso en cada frontera; el `Sealer` acepta `0640 root:www-data`;
       OPERACION y el tutorial corregidos
 - [ ] `sync` con la política de los clientes: varios testigos y `--witness-name` para elegir

@@ -18,7 +18,7 @@ SUBCOMANDOS
   sync        pide atestación a un testigo
   witness     witness serve — levanta un testigo · witness key — su clave pública
   backup      vuelve a emitir las tarjetas SLIP-0039 de la KEK
-  restore     reconstruye la KEK desde las tarjetas
+  restore     comprueba las tarjetas; con --new-passphrase fija otra passphrase
   alert       alert status — la alarma de frescura · alert ack — «me he enterado»
 
 BANDERAS GLOBALES

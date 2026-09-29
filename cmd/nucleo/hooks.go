@@ -20,10 +20,13 @@ const (
 	envClock = "NUCLEO_TEST_CLOCK"
 	// envPassphrase evitaría el terminal y pasaría la passphrase por el entorno.
 	envPassphrase = "NUCLEO_TEST_PASSPHRASE"
+	// envDieAt mataría el proceso en una frontera con nombre (hookDieAt), para probar
+	// que un cambio interrumpido no deja el vault sin forma de abrirse (ADR-029 §C).
+	envDieAt = "NUCLEO_TEST_DIE_AT"
 )
 
 // hookVars son todas, para poder comprobarlas de una vez.
-var hookVars = []string{envSeed, envClock, envPassphrase}
+var hookVars = []string{envSeed, envClock, envPassphrase, envDieAt}
 
 // now es el reloj de la CLI.
 func now() time.Time { return hookClock() }

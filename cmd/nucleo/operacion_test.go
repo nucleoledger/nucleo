@@ -356,15 +356,15 @@ func TestLaErgonomiaQueElEnsayoCorrigio(t *testing.T) {
 		if code != exitUsage {
 			t.Fatalf("código %d, esperado %d\n%s", code, exitUsage, c.ultima())
 		}
-		for _, quiere := range []string{"la passphrase no es la de este vault", "restore", "tarjetas",
-			"no fija una", "ledger\n  nuevo"} {
+		for _, quiere := range []string{"la passphrase no es la de este vault", "tarjetas",
+			"restore --new-passphrase", "Sin tarjetas"} {
 			if !strings.Contains(errOut, quiere) {
 				t.Errorf("el mensaje no dice %q:\n%s", quiere, c.ultima())
 			}
 		}
-		// Lo que decía antes, y no era verdad: restore no devuelve la capacidad de sellar
-		// (comprobado en el Sprint 12: tras restore, una passphrase nueva sigue sin abrir).
-		if strings.Contains(errOut, "la única vuelta") {
+		// Lo que decía en el Sprint 12 y dejó de ser verdad con ADR-029: que con las
+		// tarjetas no se volvía a sellar.
+		if strings.Contains(errOut, "la única vuelta") || strings.Contains(errOut, "no fija una") {
 			t.Errorf("el mensaje vuelve a prometer que restore recupera el vault:\n%s", c.ultima())
 		}
 		for _, sobra := range []string{"chacha20poly1305", "DEK", "authentication failed"} {

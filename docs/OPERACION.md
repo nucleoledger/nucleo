@@ -230,44 +230,75 @@ de las copias de seguridad del ledger**: un respaldo robado con la passphrase de
 el vault entero.
 
 ```bash
-install -d -m 0700 -o www-data -g www-data /etc/nucleo
-install -m 0600 -o www-data -g www-data /dev/null /etc/nucleo/passphrase
+install -d -m 0750 -o root -g www-data /etc/nucleo
+install -m 0640 -o root -g www-data /dev/null /etc/nucleo/passphrase
 # escribe la passphrase en /etc/nucleo/passphrase, sin espacios ni líneas de más
 ```
 
 `www-data` es el usuario que ejecuta el ERP —el de PHP-FPM—, porque es quien la lee al
-sellar. **Tiene que ser `0600` y suya**: el `Sealer` de PHP se niega a sellar si el fichero
-tiene cualquier permiso para el grupo u otros (*«lo puede leer alguien más. Ponlo en
-0600»*), así que la receta habitual `root:www-data 0640` **no funciona con el SDK**.
+sellar. Con `0640 root:www-data` la **lee pero no puede cambiarla**, y como el directorio
+es de `root`, **tampoco borrarla**: una aplicación comprometida no puede dejar al ERP sin
+passphrase ni sustituirla. Es la receta que el `Sealer` de PHP acepta desde ADR-029; se
+niega si **otros** pueden leer el fichero o si **el grupo** puede escribirlo (*«lo puede
+leer o cambiar alguien más»*). `0600` del propio `www-data` también vale, y es peor por lo
+dicho.
 
 | | cómo se comprobó |
 |---|---|
-| el rechazo de `0640` del `Sealer` | leído en `Sealer::checkEntorno` (`$modo & 0077`); se ejerce en la suite de PHP en Linux (CI). Aquí el PHP disponible es el de Windows, donde esa comprobación no aplica |
-| `install -m 0600 /dev/null …` | crea el fichero vacío en `0600`; comprobado sin `-o`/`-g` |
-| `install -o www-data` | **no ejecutado aquí**: exige root |
+| la regla del `Sealer` (`0600`, `0640` y `0440` sí; `0644`, `0660`, `0604` no) | la suite de PHP la ejerce en Linux (CI). Aquí el PHP disponible es el de Windows, donde esa comprobación no aplica: se comprobó solo la aritmética de la máscara (`$modo & 0037`) |
+| `install -d -m 0750` y `install -m 0640 /dev/null …` | crean el directorio en `0750` y el fichero vacío en `0640`; comprobado sin `-o`/`-g` |
+| `install -o root -g www-data` | **no ejecutado aquí**: exige root |
 
 La passphrase necesita **su propio respaldo**, aparte del ledger: un gestor de contraseñas
-o un sobre cerrado en otro sitio. El motivo, en la sección siguiente.
+o un sobre cerrado en otro sitio. Si se pierde, lo que la sustituye son las tarjetas.
 
 ### Si se pierde la passphrase
 
-**Con ese vault ya no se vuelve a sellar**, tampoco con las tarjetas. Comprobado con el
-binario publicado:
+Con **dos tarjetas**, `restore` fija una passphrase nueva (ADR-029):
 
-- `nucleo restore` con dos tarjetas responde *«✔ clave reconstruida con 2 tarjetas y
-  comprobada contra este vault»*… y un `seal` con una passphrase nueva sigue diciendo
-  *«la passphrase no es la de este vault»*. Hoy `restore` **comprueba** que las tarjetas son
-  las de este vault; no fija una passphrase nueva.
-- Lo que no se pierde: `status` y `verify --full` funcionan sin passphrase, y los recibos
-  ya entregados siguen valiendo, porque se verifican con la política.
-- Para seguir sellando hace falta un **ledger nuevo** (`nucleo init` en otro `--dir`) y su
-  política —comprobado—, que hay que publicar y anclar como la primera.
+```bash
+printf '%s\n' 'la passphrase nueva' > /root/passphrase-nueva   # o sin fichero: --new-passphrase la pide por terminal
+nucleo --dir /var/lib/nucleo restore --new-passphrase-file /root/passphrase-nueva
+```
+
+Pide las tarjetas por terminal (o `--shares-file`), comprueba que son **de este vault**,
+enseña **tarjetas nuevas** y pide teclear una palabra de la primera, como `init`. Solo
+entonces escribe, y termina con *«✔ passphrase nueva fijada»*. Después, la passphrase
+nueva va a `/etc/nucleo/passphrase` (receta de arriba) y se borra el fichero temporal.
+
+Lo que hay que saber, y está comprobado con el binario de `main` el 2026-09-28:
+
+- **Las tarjetas viejas dejan de valer** para este vault: `restore` con ellas responde
+  *«NO es la de este vault, o son tarjetas de antes de un cambio de passphrase: esas
+  quedaron sin valor»*. Valen las nuevas. Destruye las viejas.
+- **Una copia del ledger hecha antes del cambio** se sigue abriendo con las tarjetas
+  viejas —y con la passphrase vieja—: se comprobó sellando en una copia hecha justo antes.
+  Guarda esas copias como guardarías las tarjetas, o destruye las tarjetas viejas.
+- **La cadena no se toca**: la clave de datos es la misma, solo cambia la cerradura.
+  Se sella con la passphrase nueva y `verify --full` sigue en verde.
+- **Si el proceso muere a medias**, el vault queda como estaba o con la passphrase nueva,
+  nunca sin forma de abrirse: los tests lo matan en cada frontera y lo comprueban.
+- Si la palabra no coincide, **no cambia nada** y las tarjetas de la pantalla no sirven.
+- El camino interactivo —tarjetas, passphrase nueva dos veces y la palabra, todo por
+  terminal— se recorrió con un pseudo-terminal: con la palabra buena termina en
+  *«✔ passphrase nueva fijada»* y se sella con la nueva; con una mala sale con código 1 y
+  la passphrase y las tarjetas de antes siguen abriendo.
+- Con `--json` hace falta `--assume-confirmed`, y las tarjetas nuevas salen en el JSON
+  (`new_shares`).
+
+**Sin tarjetas** no hay vuelta: con ese vault no se vuelve a sellar. Lo que no se pierde:
+`status` y `verify --full` funcionan sin passphrase, y los recibos ya entregados siguen
+valiendo, porque se verifican con la política. Para seguir sellando hace falta un **ledger
+nuevo** (`nucleo init` en otro `--dir`) y su política, que hay que publicar y anclar como
+la primera.
 
 ### Las tarjetas SLIP-0039
 
 `init` entrega tres tarjetas, y dos reconstruyen la clave. **Repártelas**: dos tarjetas en
-el mismo cajón son una sola. Quien reúna dos tiene la clave del vault. Hoy sirven para
-demostrar que la clave es esta (`restore`), no para volver a sellar.
+el mismo cajón son una sola. Quien reúna dos tiene la clave del vault, y desde ADR-029
+puede además fijar una passphrase nueva: son tan valiosas como la passphrase. `backup`
+emite tarjetas nuevas **que conviven** con las viejas (misma clave); `restore
+--new-passphrase` emite tarjetas nuevas **que sustituyen** a las viejas.
 
 ### Por qué en hosting compartido no hay un buen sitio
 
@@ -358,11 +389,12 @@ corre en CI.
 
 | | |
 |---|---|
-| **Ejecutado** | la unidad systemd del testigo (verificada y levantada), `sync` por HTTPS a través de Caddy, el respaldo y la restauración del testigo, la recuperación con un testigo nuevo y los recibos viejos y nuevos verificando, el anclaje del hash de la política, la pérdida de la passphrase y lo que sigue funcionando, `proc_open`, `noexec`, `ext-sodium`, los umbrales de memoria virtual y los picos de memoria real, el `memory_limit` de PHP, y la alarma de frescura |
-| **No ejecutado aquí** | lo que exige root (`useradd`, `install -o`, `update-ca-certificates`, una unidad de sistema como tal), el certificado ACME de un dominio público, un límite de memoria **real** por cgroups, y el rechazo de `0640` del `Sealer` en un PHP de Linux (lo cubre el CI) |
+| **Ejecutado** | la unidad systemd del testigo (verificada y levantada), `sync` por HTTPS a través de Caddy, el respaldo y la restauración del testigo, la recuperación con un testigo nuevo y los recibos viejos y nuevos verificando, el anclaje del hash de la política, la pérdida de la passphrase y su sustitución con dos tarjetas (`restore --new-passphrase-file`, con una copia del ledger de antes del cambio), `proc_open`, `noexec`, `ext-sodium`, los umbrales de memoria virtual y los picos de memoria real, el `memory_limit` de PHP, y la alarma de frescura |
+| **No ejecutado aquí** | lo que exige root (`useradd`, `install -o`, `update-ca-certificates`, una unidad de sistema como tal), el certificado ACME de un dominio público, un límite de memoria **real** por cgroups, y la regla de permisos del `Sealer` en un PHP de Linux (lo cubre el CI) |
 
 Cuatro fallos salieron de escribir esta guía y están arreglados en el mismo sprint:
 un binario que moría sin memoria se daba por fallo de integridad; un certificado TLS no
 aceptado se explicaba como un problema de red; el testigo decía «Ctrl-C para parar» en el
 journal de systemd; y el producto prometía que `restore` recuperaba un vault cuya
-passphrase se había perdido.
+passphrase se había perdido. Esa promesa es verdad desde ADR-029 (Sprint 14), que es cuando
+se cumplió: la guía dijo lo contrario mientras no lo era.

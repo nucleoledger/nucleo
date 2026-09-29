@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/nucleoledger/nucleo/internal/store"
 )
 
 // Binario DE PRUEBAS: aquí sí existen los ganchos.
@@ -45,6 +47,24 @@ func hookSeed() ([]byte, bool) {
 func hookPassphrase() (string, bool) {
 	v := os.Getenv(envPassphrase)
 	return v, v != ""
+}
+
+// codigoMuerte es el código con el que sale un proceso matado por hookDieAt: distinto
+// de todos los de la CLI, para que un test sepa que murió donde se pidió.
+const codigoMuerte = 97
+
+// hookDieAt mata el proceso —os.Exit, sin que corra ningún defer— si NUCLEO_TEST_DIE_AT
+// nombra esta frontera. Es la muerte a medias de un proceso de verdad: nada de lo que
+// no llegó a disco se escribe después.
+func hookDieAt(frontera string) {
+	if os.Getenv(envDieAt) == frontera {
+		os.Exit(codigoMuerte)
+	}
+}
+
+// Dentro de la transacción de vault_meta, las fronteras se llaman "meta-tx:<clave>".
+func init() {
+	store.SetMetaTxHook(func(clave string) { hookDieAt("meta-tx:" + clave) })
 }
 
 // checkHooks avisa de que este binario SÍ los admite, que es lo peligroso.

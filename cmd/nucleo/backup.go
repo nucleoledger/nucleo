@@ -2,12 +2,15 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/vault"
+	"golang.org/x/term"
 )
 
 func cmdBackup(e *env, args []string) error {
@@ -61,8 +64,32 @@ func cmdRestore(e *env, args []string) error {
 	fs := flag.NewFlagSet("restore", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	file := fs.String("shares-file", "", "fichero con un mnemónico por línea (si no, se piden por terminal)")
+	newPassFile := fs.String("new-passphrase-file", "", "fija esta passphrase nueva, leída de un fichero (ADR-029)")
+	newPassPrompt := fs.Bool("new-passphrase", false, "fija una passphrase nueva, pedida por terminal (ADR-029)")
+	shares := fs.Int("shares", defaultShares, "número de tarjetas nuevas, si se fija una passphrase nueva")
+	threshold := fs.Int("threshold", defaultThreshold, "tarjetas nuevas necesarias para restaurar")
+	yes := fs.Bool("assume-confirmed", false, "salta la confirmación tecleada de las tarjetas nuevas (solo automatización)")
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
+	}
+	fijar := *newPassFile != "" || *newPassPrompt
+	if *newPassFile != "" && *newPassPrompt {
+		return usageErr("--new-passphrase-file y --new-passphrase son dos fuentes de la misma passphrase: usa una")
+	}
+	// Lo mismo que init (ADR-004): con --json no hay a quién pedirle la palabra, y se
+	// comprueba ANTES de tocar nada.
+	if fijar && e.json && !*yes {
+		return usageErr("restore --json no puede pedir que se teclee la confirmación de las tarjetas nuevas: " +
+			"pasa --assume-confirmed explícitamente (y guarda las tarjetas que salen en el JSON)")
+	}
+	// --new-passphrase la pide por terminal. Sin terminal, readPassphrase diría "usa
+	// --passphrase-file", que aquí es la bandera equivocada: se dice la buena, y antes de
+	// leer tarjetas.
+	if *newPassPrompt {
+		if _, ok := hookPassphrase(); !ok && !term.IsTerminal(int(os.Stdin.Fd())) {
+			return usageErr("--new-passphrase pide la passphrase por terminal y aquí no hay: " +
+				"usa --new-passphrase-file FICHERO")
+		}
 	}
 	s, _, err := e.openStore()
 	if err != nil {
@@ -93,26 +120,105 @@ func cmdRestore(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	// El detalle del AEAD no se imprime: "message authentication failed" no le dice nada
+	// a quien tiene las tarjetas en la mano, y las dos causas posibles sí.
 	if _, err := vault.UnwrapDEK(kek, wrapped, string(rawID)); err != nil {
-		return verifyErr("las tarjetas reconstruyen una clave, pero NO es la de este vault: %v", err)
+		return verifyErr("las tarjetas reconstruyen una clave, pero NO es la de este vault, o son tarjetas\n" +
+			"  de antes de un cambio de passphrase: esas quedaron sin valor (ADR-029)")
+	}
+	hookDieAt("restore:tarjetas-comprobadas")
+
+	if !fijar {
+		e.out(map[string]any{
+			"restored": true,
+			"vault_id": string(rawID),
+			"shares":   len(cards),
+		}, func() {
+			e.printf("✔ clave reconstruida con %d tarjetas y comprobada contra este vault\n", len(cards))
+			e.printf("  vault: %s\n", rawID)
+			e.printf("\n  Reconstruir la clave no es lo mismo que demostrar que es la de\n")
+			e.printf("  este vault: unas tarjetas de otro respaldo también reconstruyen\n")
+			e.printf("  algo. Lo que acaba de demostrarlo es que con ella se ha podido\n")
+			e.printf("  desenvolver la clave de datos de ESTE vault.\n")
+			// Quien llega aquí suele venir de haber perdido la passphrase: se le dice cómo
+			// seguir, con la orden que de verdad lo hace.
+			e.printf("\n  No se ha cambiado nada. Si perdiste la passphrase, fija una nueva con estas\n")
+			e.printf("  mismas tarjetas, desde un terminal (recibirás tarjetas nuevas que copiar):\n\n")
+			e.printf("      nucleo --dir %s restore --new-passphrase\n", e.dir)
+		})
+		return nil
 	}
 
+	newPass, err := readPassphrase(e, *newPassFile, "Passphrase NUEVA del vault (no se verá lo que escribes): ", true)
+	if err != nil {
+		return err
+	}
+	rk, err := vault.PrepareRekey(s, kek, newPass)
+	if err != nil {
+		return err
+	}
+	defer rk.Close()
+	nuevas, err := vault.BackupKEK(rk.NewKEK(), *shares, *threshold)
+	if err != nil {
+		return err
+	}
+
+	// Las tarjetas nuevas se enseñan y se confirman ANTES de escribir nada (ADR-029 §B):
+	// si nadie confirma, el vault queda como estaba y valen las viejas.
+	if !e.json {
+		e.printf("✔ las tarjetas son de este vault (%s)\n", rawID)
+		e.printf("\n  Estas son las tarjetas NUEVAS. Valen desde que veas «✔ passphrase nueva\n")
+		e.printf("  fijada»; hasta entonces no ha cambiado nada y siguen valiendo las viejas.\n")
+		printCards(e, nuevas, *threshold)
+	}
+	hookDieAt("restore:tarjetas-nuevas-emitidas")
+	if !*yes {
+		ok, err := tecleaLaPalabra(e, nuevas)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return usageErr("la palabra no coincide. NO se ha cambiado nada.\n\n" +
+				"  La passphrase y las tarjetas de antes siguen siendo las de este vault; las de\n" +
+				"  esta pantalla NO sirven para nada, destrúyelas. Vuelve a ejecutar restore\n" +
+				"  cuando puedas copiar las tarjetas nuevas.")
+		}
+	}
+	hookDieAt("restore:confirmado")
+
+	if err := rk.Commit(s); err != nil {
+		if errors.Is(err, store.ErrMetaChanged) {
+			return usageErr("la passphrase de este vault cambió mientras restore trabajaba (¿otro restore a la\n" +
+				"  vez?). No se ha escrito nada: las tarjetas de esta pantalla NO sirven. Vuelve a\n" +
+				"  ejecutar restore con las tarjetas que valgan ahora.")
+		}
+		return err
+	}
+	hookDieAt("restore:fijada")
+
+	// Se comprueba lo que quedó ESCRITO, no lo que se quiso escribir: la passphrase nueva
+	// abre el vault desde la base.
+	v, err := vault.Unlock(s, newPass)
+	if err != nil {
+		return fmt.Errorf("la passphrase nueva se escribió pero no abre el vault: %w", err)
+	}
+	v.Close()
+
 	e.out(map[string]any{
-		"restored": true,
-		"vault_id": string(rawID),
-		"shares":   len(cards),
+		"restored":           true,
+		"vault_id":           string(rawID),
+		"shares":             len(cards),
+		"passphrase_changed": true,
+		"new_shares":         nuevas,
+		"threshold":          *threshold,
 	}, func() {
-		e.printf("✔ clave reconstruida con %d tarjetas y comprobada contra este vault\n", len(cards))
-		e.printf("  vault: %s\n", rawID)
-		e.printf("\n  Reconstruir la clave no es lo mismo que demostrar que es la de\n")
-		e.printf("  este vault: unas tarjetas de otro respaldo también reconstruyen\n")
-		e.printf("  algo. Lo que acaba de demostrarlo es que con ella se ha podido\n")
-		e.printf("  desenvolver la clave de datos de ESTE vault.\n")
-		// Lo que NO hace, dicho en el mismo sitio: quien llega aquí suele venir de haber
-		// perdido la passphrase, y un "✔" sin más le haría creer que ya puede sellar.
-		e.printf("\n  Lo que NO hace: no fija una passphrase nueva. Con este vault se sella con la\n")
-		e.printf("  passphrase de siempre; si la has perdido, para seguir sellando hace falta un\n")
-		e.printf("  ledger nuevo (`nucleo init` en otro --dir). Este sigue siendo verificable.\n")
+		e.printf("✔ passphrase nueva fijada. El vault %s se abre con ella.\n", rawID)
+		e.printf("\n  Las tarjetas ANTERIORES ya no sirven para este vault: destrúyelas. Valen las\n")
+		e.printf("  de esta pantalla.\n")
+		e.printf("\n  Una copia del fichero del ledger hecha ANTES de este cambio se sigue abriendo\n")
+		e.printf("  con las tarjetas viejas: guarda esas copias como guardarías las tarjetas, o\n")
+		e.printf("  destruye las tarjetas viejas y esa puerta queda cerrada.\n")
+		e.printf("\n  Pon la passphrase nueva donde la lee quien sella (docs/OPERACION.md §3).\n")
 	})
 	return nil
 }

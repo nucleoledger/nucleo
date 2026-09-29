@@ -250,16 +250,36 @@ foreach ($casos as [$nombre, $sealer, $dice]) {
         comprueba('sellador ' . $nombre, str_contains($e->getMessage(), $dice), $e->getMessage());
     }
 }
-// Y el fichero de passphrase legible por otros, donde los permisos significan algo.
+// Y los permisos del fichero de passphrase, donde significan algo. Se rechaza que otros
+// la lean o que el grupo la escriba; el grupo con solo lectura —0640 root:www-data— se
+// acepta (ADR-029 §D).
 if (DIRECTORY_SEPARATOR !== '\\') {
-    $passMal = $tmp . '/nucleo-pass-abierta.txt';
+    $passMal = $tmp . '/nucleo-pass-permisos.txt';
     file_put_contents($passMal, "x\n");
-    chmod($passMal, 0644);
-    try {
-        (new Nucleo\Sealer(PHP_BINARY, $tmp, $passMal))->status();
-        comprueba('sellador passphrase legible por otros', false, 'debería haber lanzado');
-    } catch (Nucleo\SealEnvironmentError $e) {
-        comprueba('sellador passphrase legible por otros', str_contains($e->getMessage(), 'lo puede leer alguien más'), $e->getMessage());
+    foreach ([0644 => 'legible por otros', 0660 => 'escribible por el grupo', 0604 => 'legible por otros sin grupo'] as $modo => $caso) {
+        chmod($passMal, $modo);
+        clearstatcache();
+        try {
+            (new Nucleo\Sealer(PHP_BINARY, $tmp, $passMal))->status();
+            comprueba('sellador passphrase ' . $caso, false, 'debería haber lanzado');
+        } catch (Nucleo\SealEnvironmentError $e) {
+            comprueba('sellador passphrase ' . $caso, str_contains($e->getMessage(), 'lo puede leer o cambiar alguien más'), $e->getMessage());
+        } catch (\Throwable $e) {
+            comprueba('sellador passphrase ' . $caso, false, 'lanzó otra cosa: ' . $e->getMessage());
+        }
+    }
+    // 0640 y 0600 pasan la comprobación de permisos. Lo que venga después —aquí el
+    // «binario» es el propio PHP— puede fallar por otra razón, pero no por esta.
+    foreach ([0640, 0600, 0440] as $modo) {
+        chmod($passMal, $modo);
+        clearstatcache();
+        $motivo = '';
+        try {
+            (new Nucleo\Sealer(PHP_BINARY, $tmp, $passMal))->status();
+        } catch (\Throwable $e) {
+            $motivo = $e->getMessage();
+        }
+        comprueba(sprintf('sellador passphrase en %04o se acepta', $modo), !str_contains($motivo, 'fichero de passphrase'), $motivo);
     }
     @unlink($passMal);
 }

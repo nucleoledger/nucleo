@@ -147,9 +147,11 @@ con la misma clave después de un `sync`. Por omisión está desactivado.
 
 - El binario de Go es estático: se sube por FTP o por el gestor de ficheros, `chmod 0700`.
   No hay que compilar nada en el servidor.
-- La passphrase va en un fichero en **modo 0600**. El sellador se niega a seguir si lo
-  puede leer alguien más, y nunca la pasa por argumento —la lista de procesos la ve toda
-  la máquina— ni por entorno, que en muchos paneles es legible.
+- La passphrase va en un fichero en **modo 0600**, o **0640** con un grupo que solo lee
+  (en un VPS, `root:www-data`: PHP la lee pero no puede cambiarla ni borrarla; ADR-029).
+  El sellador se niega a seguir si otros pueden leerla o el grupo escribirla, y nunca la
+  pasa por argumento —la lista de procesos la ve toda la máquina— ni por entorno, que en
+  muchos paneles es legible.
 - Si el proveedor tiene `proc_open` en `disable_functions`, o `/home` montado `noexec`,
   **no se puede sellar desde ahí** y el sellador lo dice con lo que hay que pedirle. No
   hay degradado silencioso: un sellador que sigue adelante sin sellar es lo peor que
