@@ -52,9 +52,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       cierra CONCEPTO §18
 - [ ] Decidir sobre ADR-012 (VRF). ADR-014 y ADR-015 están aceptadas e implementadas
       desde el Sprint 7b
-- [ ] Decidir si `restore` debe poder fijar una passphrase nueva (re-envolviendo la clave
-      de datos). Hoy perder la passphrase deja el vault sin poder sellar aunque se tengan
-      las tarjetas —comprobado en el Sprint 12—; tocar eso es criptografía y va con ADR
+- [x] Decidir si `restore` debe poder fijar una passphrase nueva (re-envolviendo la clave
+      de datos) — decidido que sí por el dev el 2026-09-28: ADR-029, Sprint 14
 - [ ] Decidir si `sync` debe aceptar una política con varios testigos y elegir uno por
       nombre. Tras perder un testigo, el cron necesita un fichero de política distinto del
       de los clientes (docs/OPERACION.md §1)
@@ -92,6 +91,16 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] `NOTICE` (y `AUTHORS`) dentro de los archivos del release
 - [x] El nombre legal completo del titular en los avisos de copyright
 - [x] La procedencia de los vectores RFC 6962: transparency-dev/merkle, contrastada valor a valor
+
+## Sprint 14 — las dos decisiones pendientes del Sprint 12, y preparar v0.3.0-alpha
+- [x] ADR-029: el cambio de passphrase atómico en el vault (`store.ReplaceMeta`,
+      `vault.PrepareRekey`), probado matando el proceso a medias de la transacción
+- [ ] `restore --new-passphrase[-file]` con tarjetas nuevas y confirmación tecleada,
+      probado matando el proceso en cada frontera; el `Sealer` acepta `0640 root:www-data`;
+      OPERACION y el tutorial corregidos
+- [ ] `sync` con la política de los clientes: varios testigos y `--witness-name` para elegir
+- [ ] Preparar v0.3.0-alpha: CHANGELOG, notas del release, `sdk/ts` 0.3.0-alpha.0, tag
+      firmado con SSH en RELEASING
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -117,6 +118,65 @@ func (s *Store) PutMeta(key string, value []byte) error {
 	defer s.writeMu.Unlock()
 
 	return insertMeta(s.db, key, value)
+}
+
+// ErrMetaChanged indica que una fila de vault_meta ya no tiene el valor que se leyó:
+// otro proceso la cambió entre la lectura y la escritura, y no se pisa su cambio.
+var ErrMetaChanged = errors.New("store: vault_meta cambió desde que se leyó")
+
+// hookMetaTx, si no es nil, se llama dentro de la transacción de ReplaceMeta después
+// de cada escritura, con la clave escrita. Solo lo fija un binario de pruebas
+// (hooks_testhooks.go) para matar el proceso A MEDIAS de la transacción y comprobar
+// que no queda nada escrito (ADR-029 §C). En producción es nil siempre.
+var hookMetaTx func(clave string)
+
+// ReplaceMeta sustituye varias filas de vault_meta en UNA transacción, y solo si las
+// filas de expected siguen teniendo exactamente ese valor; si no, ErrMetaChanged y no
+// se escribe nada.
+//
+// Existe para el cambio de passphrase (ADR-029): el salt y la DEK envuelta van juntos
+// o no van. Un salt nuevo con la DEK envuelta vieja dejaría un vault que no abre ni la
+// passphrase vieja ni la nueva. La comprobación previa es la que evita pisar el cambio
+// de otro proceso que hiciera lo mismo a la vez.
+func (s *Store) ReplaceMeta(expected, updates map[string][]byte) error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return errDB("store: apertura de la transacción de vault_meta", nil, err)
+	}
+	// Rollback tras un Commit correcto no hace nada: el defer es para el camino de error.
+	defer func() { _ = tx.Rollback() }()
+
+	for _, k := range clavesOrdenadas(expected) {
+		var v []byte
+		err := tx.QueryRow(`SELECT v FROM vault_meta WHERE k = ?`, k).Scan(&v)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: falta %s", ErrMetaChanged, k)
+		}
+		if err != nil {
+			return errDB(fmt.Sprintf("store: lectura de vault_meta[%s]", k), nil, err)
+		}
+		if !bytes.Equal(v, expected[k]) {
+			return fmt.Errorf("%w: %s", ErrMetaChanged, k)
+		}
+	}
+	for _, k := range clavesOrdenadas(updates) {
+		if err := insertMeta(tx, k, updates[k]); err != nil {
+			return err
+		}
+		if hookMetaTx != nil {
+			hookMetaTx(k)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return errDB("store: cierre de la transacción de vault_meta", nil, err)
+	}
+	return nil
 }
 
 // GetMeta lee un valor de vault_meta, o ErrNotFound.
