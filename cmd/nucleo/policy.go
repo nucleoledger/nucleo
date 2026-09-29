@@ -115,6 +115,65 @@ func (pf policyFlags) resolve(e *env) (*store.WitnessPolicy, *policy.File, error
 	return wp, nil, nil
 }
 
+// resolveSync es resolve para sync, que habla con UN testigo y tiene que saber con cuál.
+//
+// Admite además --policy-file con --witness-name (sin --witness-key ni --signer-key):
+// la política de los clientes, con todos sus testigos, y el nombre elige a cuál se
+// llama. Tras perder un testigo, la política de verificación lleva el viejo y el nuevo
+// para siempre, y antes el cron necesitaba OTRO fichero con solo el nuevo porque sync
+// exigía exactamente uno. Dos ficheros de política son dos fuentes de verdad que acaban
+// divergiendo; ahora basta el de siempre y un nombre.
+//
+// Con un fichero de un solo testigo, el nombre sobra (si se da, tiene que ser ese). Con
+// varios, es obligatorio: elegir en silencio es peor que pedirlo.
+func (pf policyFlags) resolveSync(e *env) (wp *store.WitnessPolicy, f *policy.File, name string, err error) {
+	if pf.file.set && pf.file.v != "" && *pf.witnessName != "" && *pf.witnessKey == "" && *pf.signerKey == "" {
+		if f, err = loadPolicyFile(e, pf.file.v); err != nil {
+			return nil, nil, "", err
+		}
+		wp = f.WitnessPolicy()
+		if _, ok := wp.Witnesses[*pf.witnessName]; !ok {
+			return nil, nil, "", usageErr("la política %q no tiene ningún testigo llamado %q; los que tiene son: %s",
+				pf.file.v, *pf.witnessName, strings.Join(sortedKeys(wp.Witnesses), ", "))
+		}
+		return wp, f, *pf.witnessName, nil
+	}
+	if wp, f, err = pf.resolve(e); err != nil || wp == nil {
+		return wp, f, "", err
+	}
+	if f == nil {
+		// Banderas sueltas: un solo testigo, el de --witness-name.
+		return wp, nil, *pf.witnessName, nil
+	}
+	if len(wp.Witnesses) != 1 {
+		return nil, nil, "", usageErr("la política %q trae %d testigos (%s) y sync habla con uno: "+
+			"elige cuál con --witness-name NOMBRE",
+			pf.file.v, len(wp.Witnesses), strings.Join(sortedKeys(wp.Witnesses), ", "))
+	}
+	for n := range wp.Witnesses {
+		name = n
+	}
+	return wp, f, name, nil
+}
+
+// docDePolitica convierte el fichero leído en el documento que escribe la CLI, para
+// devolver en el "policy" de sync --json la política ENTERA con la que se abrió —todos
+// sus testigos y su quórum— y no solo el testigo con el que se habló. Si el fichero no
+// traía signerKey, se completa con la del ledger, que es lo que exige ADR-017.
+func docDePolitica(f *policy.File, signerKey ed25519.PublicKey) policyDoc {
+	d := policyDoc{
+		Origin: f.Origin, LogKey: f.LogKey, SignerKey: f.SignerKey,
+		Witnesses: map[string]string{}, Quorum: f.Quorum,
+	}
+	if d.SignerKey == "" {
+		d.SignerKey = hex.EncodeToString(signerKey)
+	}
+	for n, k := range f.Witnesses {
+		d.Witnesses[n] = k
+	}
+	return d
+}
+
 // loadPolicyFile lee y valida el fichero con internal/policy.
 //
 // Avisa, sin fallar, si el fichero tiene permisos distintos de 0600 y 0644. La

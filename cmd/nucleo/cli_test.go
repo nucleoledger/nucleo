@@ -518,11 +518,18 @@ func startTestWitness(t *testing.T, logPubHex string) (url, name, keyHex string)
 // cuando alguien reproduce una respuesta antigua (H2 de la cuarta auditoría).
 func startTestWitnessAt(t *testing.T, logPubHex string, desfase time.Duration) (url, name, keyHex string) {
 	t.Helper()
-	name = "witness.example/w1"
+	return startTestWitnessComo(t, logPubHex, "witness.example/w1", 200, desfase)
+}
+
+// startTestWitnessComo levanta un testigo con el nombre y la semilla dados: dos
+// semillas distintas son dos testigos distintos, con claves distintas.
+func startTestWitnessComo(t *testing.T, logPubHex, nombre string, semilla byte, desfase time.Duration) (url, name, keyHex string) {
+	t.Helper()
+	name = nombre
 
 	seed := make([]byte, 32)
 	for i := range seed {
-		seed[i] = byte(200 + i)
+		seed[i] = semilla + byte(i)
 	}
 	priv := ed25519.NewKeyFromSeed(seed)
 

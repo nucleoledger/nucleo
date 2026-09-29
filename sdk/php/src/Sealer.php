@@ -141,11 +141,19 @@ final class Sealer
      * Si el testigo no contesta, lanza SealSyncError —y antes llama a onStale si la
      * alarma de frescura está abierta: es justo el momento en que se produce—.
      *
+     * Con una política de VARIOS testigos —la que queda tras sustituir uno, con el viejo y
+     * el nuevo— hay que decir con cuál se habla: $witnessName. Con uno solo, sobra.
+     *
      * @return array<string, mixed> el --json de `nucleo sync`
      */
-    public function sync(string $witnessUrl): array
+    public function sync(string $witnessUrl, ?string $witnessName = null): array
     {
-        $j = $this->run(['sync', '--witness', $witnessUrl, '--passphrase-file', $this->passphraseFile]);
+        $args = ['sync', '--witness', $witnessUrl, '--passphrase-file', $this->passphraseFile];
+        if ($witnessName !== null) {
+            $args[] = '--witness-name';
+            $args[] = $witnessName;
+        }
+        $j = $this->run($args);
         Contract::boolField($j, 'attested');
         Contract::alert($j);
         return Contract::toArray($j);

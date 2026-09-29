@@ -160,18 +160,31 @@ arregla reintentando»*. El camino, comprobado de punta a punta:
    `nucleo --dir LEDGER status --policy-file politica-vieja.json`. Con la atestación
    verificada, `attested_size` es lo último que cosignó; tu `tree_size` tiene que ser igual
    o mayor. Si es **menor**, alguien ha recortado el ledger: no sigas, investígalo. Hazlo
-   antes del paso 3, porque después el último checkpoint es del testigo nuevo y la política
+   antes del paso 4: después, el último checkpoint es del testigo nuevo y la política
    vieja ya no lo verifica.
 2. Levanta el testigo de reemplazo **con un nombre nuevo** —`testigo.ejemplo.ec/w2`— **desde
    su primer arranque**. Si arranca con el nombre viejo y llega a cosignar, guarda esa nota en
    su memoria y, renombrado después, la sigue sirviendo firmada con el nombre viejo: el `sync`
    falla. (Pasó en la prueba; se arregla borrando su memoria y arrancándolo ya con el nuevo.)
-3. Primer `sync` con **confianza inicial explícita** en su clave, que te da quien lo opera:
-   `nucleo --dir LEDGER sync --witness https://… --witness-name testigo.ejemplo.ec/w2 --witness-key <su clave>`.
-4. La **política de verificación** lleva los **dos** testigos, con `quorum: 1`, **para
-   siempre**: los recibos que ya entregaste los cosignó el viejo.
-5. El **cron** sincroniza con una política que lleva **solo el testigo nuevo**: `sync` exige
-   exactamente uno.
+3. La **política** lleva desde ahora los **dos** testigos, con `quorum: 1`, **para
+   siempre**: los recibos que ya entregaste los cosignó el viejo. Añade el nuevo, con la
+   clave que te da quien lo opera, a la que ya tenías.
+4. `sync` usa **esa misma política** y elige con qué testigo hablar por su nombre —también
+   el primer `sync` con el nuevo, porque la confianza en su clave ya viene de la política:
+   `nucleo --dir LEDGER sync --policy-file politica.json --witness https://… --witness-name testigo.ejemplo.ec/w2`.
+   Sin `--witness-name`, con una política de dos testigos, `sync` no elige por ti: *«la
+   política … trae 2 testigos (…) y sync habla con uno: elige cuál con --witness-name
+   NOMBRE»*.
+5. El **cron** es esa misma línea. Un solo fichero de política para todo: el que publicas,
+   el que usan los clientes y el que usa el cron.
+
+Comprobado con el binario de `main` el 2026-09-28, con dos testigos levantados con
+`witness serve`: tras perder `w1`, con la política de los dos, `sync` sin nombre sale con
+código 1 y la lista de testigos; con `--witness-name …/w2` termina en *«✔ atestación
+obtenida del testigo testigo.ejemplo.ec/w2»* sin haber dado su clave por banderas; y
+`status --policy-file` con la misma política da `attestation: verified`, con la cabeza
+atestiguada. Hasta `v0.2.0-alpha`, `sync` exigía exactamente un testigo y el cron
+necesitaba **otro** fichero de política con solo el nuevo.
 
 Comprobado con el verificador publicado en npm: con la política de los dos, el recibo
 viejo (cosignado por `w1`) y el nuevo (por `w2`) son válidos; con la del nuevo solo, el

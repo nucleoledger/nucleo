@@ -129,9 +129,13 @@ export class Nucleo {
     return contrato.sellado(await this.#ejecuta(args));
   }
 
-  /** sincroniza con el testigo. Devuelve lo que contestó, ya comprobado. */
-  async sincroniza({ witnessURL, timeoutMs = null }) {
+  /**
+   * sincroniza con el testigo. Devuelve lo que contestó, ya comprobado. Con una política
+   * de varios testigos —tras sustituir uno—, witnessName dice con cuál se habla.
+   */
+  async sincroniza({ witnessURL, witnessName = null, timeoutMs = null }) {
     const args = ["sync", "--witness", witnessURL, "--passphrase-file", this.passphraseFile];
+    if (witnessName) args.push("--witness-name", witnessName);
     const j = await this.#ejecuta(args, { timeoutMs: timeoutMs ?? this.timeoutMs });
     contrato.booleano(j, "ok");
     return {

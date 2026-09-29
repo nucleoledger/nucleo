@@ -147,6 +147,27 @@ function pruebasDeArgv(): void
     comprueba('alert status: --policy-file va detrás de las dos',
         $j !== false && array_search('--policy-file', $argv, true) === $j + 3, implode(' ', $argv));
 
+    // sync con una política de varios testigos elige uno por nombre. El JSON del binario
+    // falso no es el de sync, así que lo que conteste da igual: se mira la línea.
+    foreach ([null, 'witness.example/w2'] as $nombre) {
+        @unlink($e['argv']);
+        try {
+            $sealer->sync('https://testigo.example', $nombre);
+        } catch (\Throwable $ex) {
+            // el contrato de sync no se cumple con la salida falsa; no es lo que se prueba
+        }
+        $argv = argvDe($e);
+        $k = array_search('--witness-name', $argv, true);
+        if ($nombre === null) {
+            comprueba('sync sin nombre: no pasa --witness-name', $k === false, implode(' ', $argv));
+        } else {
+            comprueba('sync con nombre: --witness-name y el nombre detrás',
+                $k !== false && ($argv[$k + 1] ?? '') === $nombre, implode(' ', $argv));
+            comprueba('sync con nombre: la política va también',
+                in_array('--policy-file', $argv, true), implode(' ', $argv));
+        }
+    }
+
     // ---- un binario que muere sin contestar no da un veredicto ----------------------
     // Con memoria virtual limitada por debajo de ~800 MiB, el runtime de Go muere antes
     // de escribir nada y sale con 2 —medido con el binario publicado de v0.2.0-alpha—.

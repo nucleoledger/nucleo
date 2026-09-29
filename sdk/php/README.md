@@ -133,6 +133,8 @@ $sealer = new Nucleo\Sealer($bin, $dir, $pass, $politica, 60,
   `$sealer->alertAck('nombre')`. Llámalo cuando el aviso se haya **entregado**, no dentro
   del hook: si el correo falla y ya la reconociste, nadie lo sabe.
 - La alarma se cierra sola con el próximo `$sealer->sync($urlDelTestigo)` que salga bien.
+  Con una política de varios testigos —la que queda tras sustituir uno—, di con cuál
+  hablar: `$sealer->sync($urlDelTestigo, 'testigo.ejemplo.ec/w2')`.
 - Si tu hook lanza una excepción, **no** sale de `seal()`: va al log de errores de PHP
   (`error_log`) y el sellado, que ya estaba hecho, se devuelve igual.
 - `$r->alert` trae la alarma en cada resultado de sellado, o `null` con un binario

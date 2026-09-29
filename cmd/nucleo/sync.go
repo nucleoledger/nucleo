@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/logsync"
+	"github.com/nucleoledger/nucleo/internal/policy"
 	"github.com/nucleoledger/nucleo/internal/store"
 	"github.com/nucleoledger/nucleo/internal/witness"
 	"golang.org/x/term"
@@ -42,23 +43,16 @@ func cmdSync(e *env, args []string) error {
 	if err := validaURLDeTestigo(*url); err != nil {
 		return err
 	}
-	wp, file, err := pf.resolve(e)
+	// sync habla con UN testigo: el único de la política, o el que nombre
+	// --witness-name entre los de una política de varios (resolveSync).
+	wp, file, name, err := pf.resolveSync(e)
 	if err != nil {
 		return err
 	}
 	if wp == nil {
 		return usageErr("sync necesita el testigo: --policy-file, o --witness-name y --witness-key")
 	}
-	// sync habla con UN testigo. Con un fichero de varios habría que elegir, y
-	// elegir en silencio es peor que pedirlo.
-	if len(wp.Witnesses) != 1 {
-		return usageErr("sync necesita exactamente un testigo en la política; este fichero trae %d", len(wp.Witnesses))
-	}
-	var name string
-	var pub ed25519.PublicKey
-	for n, k := range wp.Witnesses {
-		name, pub = n, k
-	}
+	pub := wp.Witnesses[name]
 	client, err := witness.NewClient(*url, name, pub)
 	if err != nil {
 		return usageErr("%v", err)
@@ -231,7 +225,7 @@ func cmdSync(e *env, args []string) error {
 		// La política lista para guardar: lo que hace falta para volver a abrir
 		// este ledger con atestación verificada, y lo mismo que la contraparte
 		// necesita para verificar sus recibos (ADR-017 c).
-		"policy": jsonPolicy(id.Origin, id.LogPublic(), id.TenantPublic(), name, pub),
+		"policy": politicaDeSalida(file, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub),
 		"alert":  alarma.json(),
 	}, func() {
 		e.printf("✔ atestación obtenida del testigo %s\n", name)
@@ -253,6 +247,16 @@ func cmdSync(e *env, args []string) error {
 		}
 	})
 	return nil
+}
+
+// politicaDeSalida es la política que sync devuelve: la del fichero con el que se abrió,
+// entera, si lo hubo; si no, la de un testigo que acaba de construirse con las banderas.
+func politicaDeSalida(file *policy.File, origin string, logKey, signerKey ed25519.PublicKey,
+	name string, pub ed25519.PublicKey) policyDoc {
+	if file != nil {
+		return docDePolitica(file, signerKey)
+	}
+	return jsonPolicy(origin, logKey, signerKey, name, pub)
 }
 
 // MaxEdadCosignature es el umbral del aviso de replay: cuánto puede tener la

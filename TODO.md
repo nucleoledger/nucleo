@@ -54,9 +54,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       desde el Sprint 7b
 - [x] Decidir si `restore` debe poder fijar una passphrase nueva (re-envolviendo la clave
       de datos) — decidido que sí por el dev el 2026-09-28: ADR-029, Sprint 14
-- [ ] Decidir si `sync` debe aceptar una política con varios testigos y elegir uno por
-      nombre. Tras perder un testigo, el cron necesita un fichero de política distinto del
-      de los clientes (docs/OPERACION.md §1)
+- [x] Decidir si `sync` debe aceptar una política con varios testigos y elegir uno por
+      nombre — decidido que sí por el dev el 2026-09-28; hecho en el Sprint 14
 
 ## Sprint 7 — cerrar la revisión externa
 - [x] Ningún binario compilado en el árbol; `.gitignore` con rutas ancladas (P0)
@@ -98,7 +97,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] `restore --new-passphrase[-file]` con tarjetas nuevas y confirmación tecleada,
       probado matando el proceso en cada frontera; el `Sealer` acepta `0640 root:www-data`;
       OPERACION y el tutorial corregidos
-- [ ] `sync` con la política de los clientes: varios testigos y `--witness-name` para elegir
+- [x] `sync` con la política de los clientes: varios testigos y `--witness-name` para elegir
 - [ ] Preparar v0.3.0-alpha: CHANGELOG, notas del release, `sdk/ts` 0.3.0-alpha.0, tag
       firmado con SSH en RELEASING
 
