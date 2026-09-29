@@ -5,7 +5,7 @@ que pediría una due diligence o que necesita el abogado para redactar la licenc
 comercial y el acuerdo de contribución. No contiene cláusulas, no interpreta ninguna
 licencia y no afirma nada jurídico. Donde algo no existe todavía, lo dice.
 
-Estado a 2026-09-26.
+Estado a 2026-09-28.
 
 ---
 
@@ -32,7 +32,7 @@ Estado a 2026-09-26.
 | pieza | dónde |
 |---|---|
 | Especificación normativa | [`docs/PROTOCOL.md`](../PROTOCOL.md) |
-| Decisiones registradas | [`docs/adr/`](../adr/), ADR-001 a ADR-028, con sus enmiendas —los sitios donde una medición contradijo una afirmación anterior y el registro lo dice— |
+| Decisiones registradas | [`docs/adr/`](../adr/), ADR-001 a ADR-029, con sus enmiendas —los sitios donde una medición contradijo una afirmación anterior y el registro lo dice— |
 | Historia de cambios | [`CHANGELOG.md`](../../CHANGELOG.md) |
 
 ## Revisiones de seguridad
@@ -72,10 +72,11 @@ adversariales hechas por modelos de IA, dentro y fuera del proyecto, y ejercicio
 
 Sin valorarlos: son cosas que están así, y que quien redacte o revise debería conocer.
 
-1. **Ningún commit ni ningún tag está firmado con GPG.** Los tags `v0.1.0-alpha`,
+1. **Ningún commit ni ningún tag está firmado todavía.** Los tags `v0.1.0-alpha`,
    `v0.2.0-alpha` y `vsdk-0.2.0-alpha.0` son tags anotados, sin firma. Lo que está
    firmado son los artefactos de cada release (`checksums.txt`, con cosign keyless) y
-   el paquete de npm (procedencia).
+   el paquete de npm (procedencia). Desde `v0.3.0-alpha`, [`docs/RELEASING.md`](../RELEASING.md)
+   firma el tag con una clave SSH del dev (`git tag -s`).
 2. **La mayoría de los commits lleva un `Co-Authored-By:` de un modelo de IA.**
 3. **El aviso de copyright lleva el nombre legal completo** («Sergio Iván Ullaguari Alvarado»); git
    registra al autor en forma abreviada, «Sergio U», con el mismo correo. [`AUTHORS`](../../AUTHORS)

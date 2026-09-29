@@ -11,6 +11,75 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+## [0.3.0-alpha] — 2026-09-28
+
+### What this version is
+
+Three sprints after `v0.2.0-alpha`, all of them about operating Núcleo without calling
+anyone, and none of them about the wire format:
+
+- **Losing the passphrase is no longer losing the vault** (Sprint 14,
+  [ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md)). Two SLIP-0039 cards set a
+  new one with `nucleo restore --new-passphrase`, which issues new cards in the same act.
+- **One policy file for everything** (Sprint 14). `sync` accepts the clients' policy with
+  several witnesses and picks one with `--witness-name`; replacing a witness no longer
+  needs a second policy file for the cron.
+- **The freshness alarm is stored in the ledger** and reaches the integrator through a hook,
+  not through a stderr nobody reads (Sprint 12, [ADR-028](docs/adr/ADR-028-alarma-de-frescura-durable.md)),
+  and **[`docs/OPERACION.md`](docs/OPERACION.md)** explains how to run all of it, with every
+  instruction executed.
+- **Security hygiene** (Sprint 13): the 18 CodeQL alerts, fixed with tests or dismissed with
+  the reason written down; `NOTICE` and `AUTHORS` inside the release archives.
+
+### Upgrading from 0.2.0-alpha
+
+Nothing to migrate. Checked with the **published** `v0.2.0-alpha` linux/amd64 binary (sha256
+`771ab28a…c3c4`): a ledger it created opens with this version —`status` verified,
+`verify --full`, `seal`, `sync`, `receipt`, and a passphrase change with `restore`— and the
+old binary keeps working on that same ledger afterwards, with the new passphrase. Receipts
+are still `nucleo.org/receipt@v2`: `@nucleoledger/verify@0.2.0-alpha.0` verifies the ones
+this version issues, and `0.3.0-alpha.0` differs from it only in its package metadata.
+
+What does change, and may matter to your code:
+
+- **`--json` gains fields**, which the contract allows (ADR-025 §B): `alert` in the
+  commands that judge freshness (Sprint 12), and `passphrase_changed`, `new_shares` and
+  `threshold` in `restore` when it sets a passphrase. `restore`'s `shares` is still the
+  number of cards read.
+- **`sync --json` returns the whole policy** it was opened with when given
+  `--policy-file` —all its witnesses and its quorum— instead of a one-witness policy.
+  With a one-witness file the result is the same as before.
+- **`sync` with a policy of several witnesses** used to fail («exactamente un testigo»);
+  now it asks for `--witness-name`. PHP: `Sealer::sync($url, $witnessName)`.
+- **The PHP `Sealer` accepts a passphrase file in `0640`** with a read-only group
+  (`root:www-data`), which it used to reject; it still rejects anything readable by others
+  or writable by the group.
+- **After `restore --new-passphrase`, the old cards are worthless** for that vault. A copy of
+  the ledger made before the change still opens with them.
+
+### Added: a new passphrase from two cards, and one policy for `sync` (Sprint 14)
+
+**`nucleo restore --new-passphrase[-file]`
+([ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md)).** The cards rebuild the KEK,
+unwrap this vault's DEK —which proves they are this vault's—, and the same DEK is rewrapped
+under a KEK derived from the new passphrase with the stored Argon2id parameters and a new
+salt. New cards are shown and confirmed by typing a word, as in `init`, **before** anything is
+written; if the word does not match, nothing changes. Salt and wrapped DEK are replaced in
+one SQLite transaction that also checks they are still what was read. The DEK does not change,
+so identity, blobs and the chain are untouched, and so is the protocol (PROTOCOL.md §6).
+
+Tested by **killing the process** (`os.Exit`, no deferred code) at six points —cards
+checked, new cards shown, confirmed, after each write inside the transaction, after the
+`COMMIT`—: the vault is always either the old one or the new one, never unopenable. Without
+the transaction, dying after the first write leaves a vault that opens with nothing, and the
+test catches it.
+
+**`sync --policy-file P --witness-name N`.** After replacing a witness, the verification
+policy keeps the old one and the new one forever; `sync` now uses that same file and talks to
+`N`, including the first time, since trust in the new key comes from the policy.
+[`docs/OPERACION.md`](docs/OPERACION.md) §1 and §3 are rewritten accordingly, with outputs of
+the binary.
+
 ### Security: the 18 CodeQL alerts, and provenance (Sprint 13)
 
 Every open code-scanning alert ended **fixed with a test** or **dismissed in GitHub with the
@@ -78,7 +147,8 @@ and what to do when one is missing.
   and says what to do.
 - The product promised that `nucleo restore` recovers a vault whose passphrase was lost. It
   does not: it proves the cards belong to the vault and cannot set a new passphrase. The
-  message, `restore`'s own output and the tutorial now say what is true.
+  message, `restore`'s own output and the tutorial now say what is true. *(Sprint 14 then
+  made the promise true: `restore --new-passphrase`, above.)*
 - The witness printed «Ctrl-C to stop» into the systemd journal.
 - `alert ack` did not accept `--policy-file`, which the SDKs pass on every call.
 
@@ -861,6 +931,7 @@ First tagged version. The success criterion of the project
 - Witness cosignatures are Ed25519, not ML-DSA-44, which `tlog-witness` states as
   a SHOULD.
 
-[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.2.0-alpha...HEAD
+[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.3.0-alpha...HEAD
+[0.3.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.2.0-alpha...v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.1.0-alpha...v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/nucleoledger/nucleo/releases/tag/v0.1.0-alpha

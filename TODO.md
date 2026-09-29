@@ -45,6 +45,9 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] Activar el reporte privado de vulnerabilidades en GitHub — activado por el dev el
       2026-09-25; comprobado el 2026-09-26 con la API
       (`repos/nucleoledger/nucleo/private-vulnerability-reporting` → `{"enabled":true}`)
+- [ ] Publicar `v0.3.0-alpha` y `vsdk-0.3.0-alpha.0` con los tags firmados con SSH
+      (docs/RELEASING.md), completar el sha256 en `docs/releases/v0.3.0-alpha.md` y, con
+      el SDK ya en npm, subir `examples/erp-node` a `@nucleoledger/verify@0.3.0-alpha.0`
 - [ ] Cronometrar el tutorial con alguien de fuera del proyecto, sobre el ejemplo
       Node (`examples/erp-node`) — verificar: una hora medida, no estimada por quien
       lo escribió. La parte mecánica ya está medida (de clon a recibo verificado,
@@ -98,8 +101,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       probado matando el proceso en cada frontera; el `Sealer` acepta `0640 root:www-data`;
       OPERACION y el tutorial corregidos
 - [x] `sync` con la política de los clientes: varios testigos y `--witness-name` para elegir
-- [ ] Preparar v0.3.0-alpha: CHANGELOG, notas del release, `sdk/ts` 0.3.0-alpha.0, tag
-      firmado con SSH en RELEASING
+- [x] Preparar v0.3.0-alpha: CHANGELOG, notas del release, `sdk/ts` 0.3.0-alpha.0, tag
+      firmado con SSH en RELEASING — sin tag ni push
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

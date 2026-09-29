@@ -5,7 +5,11 @@ Estado: **post-lanzamiento de `v0.2.0-alpha`**, publicada como pre-release el
 `docs/RELEASING.md` desde un directorio limpio (cosign `Verified OK` con la identidad
 exacta del tag, sha256 OK, cero ganchos de prueba en el binario), y recompilando el
 binario linux/amd64 desde el tag, que coincide byte a byte. `@nucleoledger/verify@0.2.0-alpha.0`
-está en npm, publicado desde CI con procedencia. El siguiente sprint lo fija el dev.
+está en npm, publicado desde CI con procedencia.
+
+**`v0.3.0-alpha` está preparada, sin tag ni push** (Sprint 14, 2026-09-28): CHANGELOG,
+notas en `docs/releases/v0.3.0-alpha.md` y `sdk/ts` en 0.3.0-alpha.0. La publica el dev
+siguiendo `docs/RELEASING.md`, con el tag firmado con SSH.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 11: cinco rondas
 adversariales, el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
@@ -34,6 +38,8 @@ otro modelo**.
 El backlog atómico está en `TODO.md`. En resumen:
 
 **Del dev, fuera del código**
+- Publicar `v0.3.0-alpha` y `vsdk-0.3.0-alpha.0` (tags firmados con SSH), completar el
+  sha256 de las notas y, con el SDK ya en npm, subir el ejemplo Node a 0.3.0-alpha.0.
 - El tutorial cronometrado con alguien de fuera del proyecto, sobre el ejemplo Node.
   La parte mecánica está medida (~15 s de clon a recibo verificado); falta la de
   comprensión, que es la mitad de CONCEPTO §18 que no se puede fabricar desde dentro.
@@ -82,6 +88,9 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
 - La salida `--json` es un formato de cable, con **clase de error** ortogonal al código
   de salida — ADR-025, ADR-027. El ejemplo de integración vive en este repositorio y
   usa el SDK publicado — ADR-026.
+- La alarma de frescura se guarda en el ledger y `seal` sella siempre por omisión — ADR-028.
+- Con dos tarjetas, `restore` fija una passphrase nueva y emite tarjetas nuevas, en una
+  transacción; el `Sealer` acepta `0640 root:www-data` — ADR-029.
 
 # ✅ MÓDULOS ESTABLES (NO TOCAR)
 
