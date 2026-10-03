@@ -39,7 +39,8 @@ registros de sus usuarios, aplicada a su propia distribución.
 ### Lo que NO va en el binario publicado
 
 Los ganchos de prueba —`NUCLEO_TEST_SEED`, `NUCLEO_TEST_CLOCK`,
-`NUCLEO_TEST_PASSPHRASE`— viven tras el build tag `testhooks`, y goreleaser
+`NUCLEO_TEST_PASSPHRASE` y, desde v0.3.0-alpha, `NUCLEO_TEST_DIE_AT`, que mata el proceso
+a medias de un cambio de passphrase para probar ADR-029— viven tras el build tag `testhooks`, y goreleaser
 compila **sin** ese tag. Ese código no está en el ejecutable que se publica.
 
 Un binario publicado que los honrara permitiría fijar desde el entorno del
@@ -55,9 +56,13 @@ descargado:
 ```bash
 # El código de los ganchos no está:
 strings nucleo | grep -c "HONRA los ganchos de prueba"   # → 0
+strings nucleo | grep -c "SetMetaTxHook"                 # → 0 (el de ADR-029)
 # Y el rechazo sí:
 NUCLEO_TEST_SEED=x ./nucleo status ; echo $?             # → 1
+NUCLEO_TEST_DIE_AT=x ./nucleo status ; echo $?           # → 1
 ```
+
+Comprobado sobre el binario linux/amd64 de v0.3.0-alpha: 0, 0, 1 y 1.
 
 Se firma **el fichero de checksums**, no cada archivo por separado. El
 `checksums.txt` contiene el SHA-256 de todos los artefactos, así que una firma
@@ -391,7 +396,7 @@ go build -o nucleo ./cmd/nucleo
 
 Eso da un binario que funciona igual, pero no los mismos bytes que el publicado: las
 compilaciones de release llevan `-trimpath`, `-ldflags "-s -w"` y tres valores
-incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado con los dos
+incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado con los tres
 releases publicados, bajando el binario linux/amd64 de la página del release y
 recompilándolo desde su tag con la orden de abajo, tal cual:
 
@@ -399,6 +404,7 @@ recompilándolo desde su tag con la orden de abajo, tal cual:
 |---|---|---|---|
 | `v0.1.0-alpha` | go1.27.1 | `03d71d8` | 2026-09-25 |
 | `v0.2.0-alpha` | go1.27.1 | `6442b03` | 2026-09-25 |
+| `v0.3.0-alpha` | go1.27.1 | `b417cb4` | 2026-10-02, sobre el binario del release aún en borrador, desde un clon limpio |
 
 Y el sha256 del binario linux/amd64, el mismo publicado y recompilado, **entero**: un
 hash abreviado a mano ya se copió mal una vez en esta tabla.
@@ -406,12 +412,16 @@ hash abreviado a mano ya se copió mal una vez en esta tabla.
 ```
 3c6e55a488ed6877a7977792598097ce1ddceb1fe0538a61edfdcd131035f5c7  v0.1.0-alpha
 771ab28a4567b2a35525b04d783b877f7cb5f175064efc79577cbda4337ac3c4  v0.2.0-alpha
+189090c88c0bbea8d7f3e17957c7ac8508f9b648325d128d2634e2477dab6212  v0.3.0-alpha
 ```
 
-En los dos, además, el certificado de la firma lleva la identidad exacta del tag
-—`…/release.yml@refs/tags/v0.1.0-alpha` y `…@refs/tags/v0.2.0-alpha`— y el de
-v0.2.0-alpha declara el commit `6442b03` en su extensión de Sigstore
-(OID 1.3.6.1.4.1.57264.1.3), el mismo que dice el binario en `vcs.revision`.
+En los tres, además, el certificado de la firma lleva la identidad exacta del tag
+—`…/release.yml@refs/tags/v0.1.0-alpha`, `…@refs/tags/v0.2.0-alpha` y
+`…@refs/tags/v0.3.0-alpha`—, y los de v0.2.0-alpha y v0.3.0-alpha declaran en su extensión
+de Sigstore (OID 1.3.6.1.4.1.57264.1.3) el commit del tag —`6442b03` y
+`b417cb4f4f4847571ec86337056002143847c3e8`—, el mismo que dice el binario en
+`vcs.revision`. El tag `v0.3.0-alpha` es además el primero **firmado con SSH**: GitHub lo
+da por válido (`verification.verified: true`, firmante `security@nucleoledger.com`).
 
 ```bash
 git clone https://github.com/nucleoledger/nucleo && cd nucleo
