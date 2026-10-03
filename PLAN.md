@@ -1,17 +1,17 @@
 # PLAN.md — Fase actual
 
-Estado: **post-lanzamiento de `v0.2.0-alpha`**, publicada como pre-release el
-25-sep-2026 (commit `6442b03`) y verificada dos veces: por el dev, con la receta de
-`docs/RELEASING.md` desde un directorio limpio (cosign `Verified OK` con la identidad
-exacta del tag, sha256 OK, cero ganchos de prueba en el binario), y recompilando el
-binario linux/amd64 desde el tag, que coincide byte a byte. `@nucleoledger/verify@0.2.0-alpha.0`
-está en npm, publicado desde CI con procedencia.
+Estado: **`v0.3.0-alpha` publicada y verificada** (2 de octubre de 2026). El tag
+`v0.3.0-alpha` (commit `b417cb4`) está firmado con SSH —GitHub lo da por válido,
+`security@nucleoledger.com`— y el release, verificado dos veces: por el dev desde un
+directorio limpio (bundle de Sigstore `Verified OK` sin avisos, `.sig`/`.pem` `Verified OK`,
+sha256 OK, `NOTICE` y `AUTHORS` dentro, cero ganchos de prueba), y recompilando el binario
+linux/amd64 desde el tag, que coincide byte a byte (sha256
+`189090c88c0bbea8d7f3e17957c7ac8508f9b648325d128d2634e2477dab6212`).
+`@nucleoledger/verify@0.3.0-alpha.0` está en npm (`latest` y `alpha`) con procedencia, y el
+ejemplo Node ya lo usa. Lo último: aplicar `docs/releases/v0.3.0-alpha.md` al borrador y
+publicarlo. El siguiente sprint lo fija el dev.
 
-**`v0.3.0-alpha` está preparada, sin tag ni push** (Sprint 14, 2026-09-28): CHANGELOG,
-notas en `docs/releases/v0.3.0-alpha.md` y `sdk/ts` en 0.3.0-alpha.0. La publica el dev
-siguiendo `docs/RELEASING.md`, con el tag firmado con SSH.
-
-El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 11: cinco rondas
+El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: cinco rondas
 adversariales, el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
 en `CHANGELOG.md` y en `docs/adr/`, no aquí.
 
@@ -38,8 +38,7 @@ otro modelo**.
 El backlog atómico está en `TODO.md`. En resumen:
 
 **Del dev, fuera del código**
-- Publicar `v0.3.0-alpha` y `vsdk-0.3.0-alpha.0` (tags firmados con SSH), completar el
-  sha256 de las notas y, con el SDK ya en npm, subir el ejemplo Node a 0.3.0-alpha.0.
+- Publicar el borrador de `v0.3.0-alpha` una vez aplicadas sus notas.
 - El tutorial cronometrado con alguien de fuera del proyecto, sobre el ejemplo Node.
   La parte mecánica está medida (~15 s de clon a recibo verificado); falta la de
   comprensión, que es la mitad de CONCEPTO §18 que no se puede fabricar desde dentro.
