@@ -1,12 +1,17 @@
 # Authors of Núcleo
 
-Sergio Iván Ullaguari Alvarado <cheobmx13@gmail.com>
+Sergio Iván Ullaguari Alvarado <security@nucleoledger.com>
 
-This is the author of every commit in the repository's history: 245 commits,
-from 2026-09-03 to 2026-09-25. There is no other author. Git records the
-author's name in short form, as "Sergio U", with the same e-mail address.
+This is the author of every commit in the repository's history. There is no
+other author.
 
-Most of those commits also carry a `Co-Authored-By:` trailer naming an AI model
-(Claude, by Anthropic), which the author used to write code and documentation.
-This file records that fact as it appears in the history; it does not state what
-it means for authorship or ownership.
+Since 2026-10-02 the author commits and signs the release tags as the identity
+above. Commits made before 2026-10-02 (from 2026-09-03 to 2026-09-28) record the
+same person under the short name "Sergio U" and a different, personal e-mail
+address. The history is left as it is: rewriting it would change every commit
+hash after the first one, including those named by the published release tags.
+
+Most commits also carry a `Co-Authored-By:` trailer naming an AI model (Claude,
+by Anthropic), which the author used to write code and documentation. This file
+records that fact as it appears in the history; it does not state what it means
+for authorship or ownership.

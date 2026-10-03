@@ -5,7 +5,7 @@ que pediría una due diligence o que necesita el abogado para redactar la licenc
 comercial y el acuerdo de contribución. No contiene cláusulas, no interpreta ninguna
 licencia y no afirma nada jurídico. Donde algo no existe todavía, lo dice.
 
-Estado a 2026-09-28.
+Estado a 2026-10-02.
 
 ---
 
@@ -13,7 +13,7 @@ Estado a 2026-09-28.
 
 | pieza | dónde | qué es |
 |---|---|---|
-| Autor | [`AUTHORS`](../../AUTHORS) | la identidad que firma los 245 commits del historial; no hay otro autor |
+| Autor | [`AUTHORS`](../../AUTHORS) | el autor de todos los commits del historial, con la identidad que usa desde el 2026-10-02; no hay otro autor |
 | Aviso de copyright | [`README.md`](../../README.md) (§License), [`NOTICE`](../../NOTICE), los README de `sdk/ts` y `sdk/php`, `author` de `sdk/ts/package.json` | la misma línea en todos: «Copyright (C) 2026 Sergio Iván Ullaguari Alvarado», el nombre legal completo del titular |
 | Historial | `git log` | desde el 2026-09-03; cada cambio con su motivo en el mensaje del commit |
 | Asistencia de IA | los trailers `Co-Authored-By:` de los commits | la mayoría de los commits nombran un modelo de IA (Claude) como coautor; [`AUTHORS`](../../AUTHORS) lo registra sin interpretarlo |
@@ -78,10 +78,14 @@ Sin valorarlos: son cosas que están así, y que quien redacte o revise debería
    el paquete de npm (procedencia). Desde `v0.3.0-alpha`, [`docs/RELEASING.md`](../RELEASING.md)
    firma el tag con una clave SSH del dev (`git tag -s`).
 2. **La mayoría de los commits lleva un `Co-Authored-By:` de un modelo de IA.**
-3. **El aviso de copyright lleva el nombre legal completo** («Sergio Iván Ullaguari Alvarado»); git
-   registra al autor en forma abreviada, «Sergio U», con el mismo correo. [`AUTHORS`](../../AUTHORS)
-   deja escritas las dos formas. Los releases `v0.1.0-alpha` y `v0.2.0-alpha` y el
-   paquete `@nucleoledger/verify@0.2.0-alpha.0` se publicaron con la forma abreviada.
+3. **El aviso de copyright lleva el nombre legal completo** («Sergio Iván Ullaguari Alvarado»).
+   Desde el 2026-10-02, los commits y los tags van con ese nombre y
+   `security@nucleoledger.com`; los anteriores (del 2026-09-03 al 2026-09-28) registran al
+   mismo autor como «Sergio U», con un correo personal. La historia no se reescribe, y
+   [`AUTHORS`](../../AUTHORS) explica las dos identidades. Los releases `v0.1.0-alpha` y
+   `v0.2.0-alpha` y el paquete `@nucleoledger/verify@0.2.0-alpha.0` se publicaron con la
+   forma abreviada; `v0.3.0-alpha` lleva en su archivo el `AUTHORS` anterior a este cambio,
+   con el correo personal.
 4. **Los archivos de `v0.1.0-alpha` y `v0.2.0-alpha` no incluyen `NOTICE`**; los del
    siguiente release sí, junto a `AUTHORS` (`.goreleaser.yaml`, comprobado con un build
    snapshot de las seis plataformas). Es lo que piden, literalmente, las licencias de
