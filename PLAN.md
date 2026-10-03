@@ -8,8 +8,8 @@ sha256 OK, `NOTICE` y `AUTHORS` dentro, cero ganchos de prueba), y recompilando 
 linux/amd64 desde el tag, que coincide byte a byte (sha256
 `189090c88c0bbea8d7f3e17957c7ac8508f9b648325d128d2634e2477dab6212`).
 `@nucleoledger/verify@0.3.0-alpha.0` está en npm (`latest` y `alpha`) con procedencia, y el
-ejemplo Node ya lo usa. Lo último: aplicar `docs/releases/v0.3.0-alpha.md` al borrador y
-publicarlo. El siguiente sprint lo fija el dev.
+ejemplo Node ya lo usa. Las notas de `docs/releases/v0.3.0-alpha.md` están aplicadas y el
+release está publicado como pre-release. El siguiente sprint lo fija el dev.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: cinco rondas
 adversariales, el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
@@ -38,7 +38,6 @@ otro modelo**.
 El backlog atómico está en `TODO.md`. En resumen:
 
 **Del dev, fuera del código**
-- Publicar el borrador de `v0.3.0-alpha` una vez aplicadas sus notas.
 - El tutorial cronometrado con alguien de fuera del proyecto, sobre el ejemplo Node.
   La parte mecánica está medida (~15 s de clon a recibo verificado); falta la de
   comprensión, que es la mitad de CONCEPTO §18 que no se puede fabricar desde dentro.

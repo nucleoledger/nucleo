@@ -51,8 +51,9 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       SDK, en npm como `latest` y `alpha`
 - [x] Completar el sha256 y la verificación en `docs/releases/v0.3.0-alpha.md`
 - [x] Subir `examples/erp-node` a `@nucleoledger/verify@0.3.0-alpha.0`
-- [ ] Aplicar las notas al borrador (`gh release edit v0.3.0-alpha --notes-file …`) y
-      publicarlo
+- [x] Aplicar las notas al borrador (`gh release edit v0.3.0-alpha --notes-file …`) y
+      publicarlo — notas aplicadas el 2026-10-02; publicado por el dev como pre-release
+      (2026-10-03T04:43:29Z UTC)
 - [ ] Cronometrar el tutorial con alguien de fuera del proyecto, sobre el ejemplo
       Node (`examples/erp-node`) — verificar: una hora medida, no estimada por quien
       lo escribió. La parte mecánica ya está medida (de clon a recibo verificado,
