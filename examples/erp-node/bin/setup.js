@@ -38,8 +38,8 @@ async function main() {
   // Del REGISTRO, fijado por versión exacta y por hash en package-lock.json: lo mismo
   // que instalaría cualquiera que clone esto. Hasta el 25 de septiembre de 2026 el
   // ejemplo dependía del SDK del repositorio (file:../../sdk/ts), porque la versión
-  // publicada era anterior al recibo @v2 (ADR-026). Ya no: 0.2.0-alpha.0 está en npm
-  // con procedencia, y el ejemplo comprueba lo que un tercero de verdad obtiene.
+  // publicada era anterior al recibo @v2 (ADR-026). Ya no: desde 0.2.0-alpha.0 está en
+  // npm con procedencia, y el ejemplo comprueba lo que un tercero de verdad obtiene.
   await corre(npm(), ["ci", "--no-audit", "--no-fund"], { cwd: cfg.RAIZ, heredaSalida: true });
   const instalado = join(cfg.RAIZ, "node_modules", "@nucleoledger", "verify");
   if (lstatSync(instalado).isSymbolicLink()) {
