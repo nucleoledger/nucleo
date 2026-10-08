@@ -200,6 +200,21 @@ LA CLAVE DEL TESTIGO
   puede decir "está bien" cuando no lo está da una confianza que no se ha
   ganado. Allí, restringe la ACL a tu cuenta (ver docs/RELEASING.md).
 
+PASSPHRASE OLVIDADA O ROBADA
+  Si se te OLVIDÓ, dos tarjetas fijan otra:
+
+    nucleo restore --new-passphrase
+
+  y entregan tarjetas nuevas; las viejas dejan de servir para este vault.
+
+  Si te la ROBARON, cambiarla no basta. La passphrase abre la clave de datos y
+  las claves de firma, y esas no cambian con ella: quien tuvo la passphrase y
+  una copia del ledger —el fichero o un respaldo— pudo llevárselas. Entonces las
+  claves están comprometidas y hace falta un log NUEVO (init en otro --dir, con
+  otro --origin) y retirar el viejo. Si estás seguro de que nadie pudo tener
+  ninguna copia del ledger, restore --new-passphrase sí cierra las copias que se
+  hagan desde ahora. Ver docs/OPERACION.md §3 y ADR-029.
+
 La passphrase se pide por terminal sin eco. Nunca se pasa por argumento: los
 argumentos son visibles en la lista de procesos de toda la máquina.
 `

@@ -66,8 +66,8 @@ func cmdRestore(e *env, args []string) error {
 	fs := flag.NewFlagSet("restore", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	file := fs.String("shares-file", "", "fichero con un mnemónico por línea (si no, se piden por terminal)")
-	newPassFile := fs.String("new-passphrase-file", "", "fija esta passphrase nueva, leída de un fichero (ADR-029)")
-	newPassPrompt := fs.Bool("new-passphrase", false, "fija una passphrase nueva, pedida por terminal (ADR-029)")
+	newPassFile := fs.String("new-passphrase-file", "", "fija esta passphrase nueva, leída de un fichero (ADR-029; para una passphrase OLVIDADA, no robada: ver nucleo -h)")
+	newPassPrompt := fs.Bool("new-passphrase", false, "fija una passphrase nueva, pedida por terminal (ADR-029; para una passphrase OLVIDADA, no robada: ver nucleo -h)")
 	shares := fs.Int("shares", defaultShares, "número de tarjetas nuevas, si se fija una passphrase nueva")
 	threshold := fs.Int("threshold", defaultThreshold, "tarjetas nuevas necesarias para restaurar")
 	yes := fs.Bool("assume-confirmed", false, "salta la confirmación tecleada de las tarjetas nuevas (solo automatización)")
@@ -226,6 +226,10 @@ func cmdRestore(e *env, args []string) error {
 		e.printf("  con las tarjetas viejas: guarda esas copias como guardarías las tarjetas, o\n")
 		e.printf("  destruye las tarjetas viejas y esa puerta queda cerrada.\n")
 		e.printf("\n  Pon la passphrase nueva donde la lee quien sella (docs/OPERACION.md §3).\n")
+		// Lo que este cambio NO hace, en el mismo sitio (enmienda de ADR-029, §F).
+		e.printf("\n  Esto sirve para una passphrase OLVIDADA. Si te la ROBARON y alguien pudo tener\n")
+		e.printf("  una copia del ledger, cambiarla no le quita las claves que ya pudo sacar: hace\n")
+		e.printf("  falta un log nuevo. Ver `nucleo -h`, «PASSPHRASE OLVIDADA O ROBADA».\n")
 	})
 	return nil
 }

@@ -757,7 +757,18 @@ Y si perdiste la passphrase: con **dos tarjetas** fijas una nueva
 Te pide las tarjetas y la passphrase nueva, comprueba que las tarjetas son **de este
 vault** —no unas cualquiera—, te da **tarjetas nuevas** y te pide una palabra de la
 primera, como `init`. Al terminar dice *«✔ passphrase nueva fijada»*, y desde ese momento
-**las tarjetas viejas no sirven**: destrúyelas. Si la palabra no coincide, no cambia nada.
+**las tarjetas viejas no sirven para este vault**: destrúyelas. Si la palabra no coincide,
+no cambia nada.
+
+Un matiz que no hay que perder: **una copia del ledger hecha antes del cambio** —un
+respaldo, un fichero copiado a otra máquina— **se sigue abriendo con las tarjetas viejas**
+(y con la passphrase vieja), porque lleva dentro la cerradura de antes. Guarda esas copias
+como guardarías las tarjetas, o destruye las tarjetas viejas y esa puerta queda cerrada.
+
+Y una distinción que importa más: esto es para una passphrase **olvidada**. Si te la
+**robaron** y alguien pudo tener una copia del ledger, cambiarla no basta —las claves de
+firma no cambian con ella, y pudo llevárselas—: hace falta **un log nuevo** y retirar el
+viejo. Cómo, en [docs/OPERACION.md](OPERACION.md) §3, «Si te la robaron».
 
 Sin tarjetas no hay vuelta: con ese vault ya no se sella. Lo que no se pierde es el
 ledger, que sigue siendo verificable (`status`, `verify --full` funcionan sin

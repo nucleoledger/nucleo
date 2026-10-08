@@ -305,6 +305,45 @@ valiendo, porque se verifican con la política. Para seguir sellando hace falta 
 nuevo** (`nucleo init` en otro `--dir`) y su política, que hay que publicar y anclar como
 la primera.
 
+### Si te la robaron
+
+`restore --new-passphrase` es para una passphrase **olvidada**. Cambia la cerradura, no lo
+que hay dentro: la clave de datos y las claves de firma —del firmante y del log— **no
+cambian**. Quien tuvo la passphrase **y una copia del ledger** —el fichero de producción o
+cualquier respaldo— pudo sacar esas claves, y cambiar la passphrase no se las quita
+([ADR-029](adr/ADR-029-restore-fija-passphrase-nueva.md), enmienda §F). Por eso:
+
+| la passphrase… | qué hacer |
+|---|---|
+| se **olvidó** | `restore --new-passphrase`, arriba |
+| se **filtró** y estás **seguro** de que nadie pudo tener ninguna copia del ledger | `restore --new-passphrase` cierra las copias que se hagan desde ahora; las de antes se siguen abriendo con la vieja: destrúyelas |
+| se **filtró** y alguien pudo tener una copia, **o no lo sabes** | las claves están comprometidas: **log nuevo**, y el viejo retirado |
+
+El log nuevo, paso a paso:
+
+1. **Anota hasta dónde es tuyo el viejo**: `nucleo --dir VIEJO status --json`, su
+   `tree_size`. Desde el robo, el ladrón puede firmar como tú en ese log; un recibo del
+   log viejo con un bloque posterior a ese tamaño no es tuyo, y hay que poder decirlo.
+2. **Crea el nuevo con otro origin**: `nucleo --dir NUEVO init --origin ejemplo.ec/empresa-2`,
+   con tarjetas nuevas y una passphrase nueva que no se parezca a la robada.
+3. **Que el testigo deje de servir el viejo** y pase al nuevo: `witness serve` atiende un
+   origin, el de `--log-origin`; quien lo opera lo reinicia con el del log nuevo y su clave.
+   La memoria y la clave del testigo pueden seguir siendo las mismas.
+4. **Publica la política nueva** y su hash (§2), y con ella la retirada del viejo: hasta qué
+   `tree_size` es tuyo y desde cuándo no lo es.
+
+Ensayado con el binario de `main` el 2026-10-07: tras el paso 3, el `sync` del log nuevo
+termina en *«✔ atestación obtenida»* con el mismo testigo, y el del viejo sale con código 3:
+*«contestó 404 … un testigo solo responde por los origins que tiene configurados … origin
+desconocido»*. Lo que no se ensayó, porque no es del programa: la publicación de la
+retirada.
+
+Lo que **no** cambia con el log nuevo: los recibos que entregaste del viejo siguen
+verificando con su política, y los contenidos que se cifraron con la clave de datos vieja
+los puede descifrar quien la tenga; la supresión —borrar el contenido— sigue en tu mano.
+La rotación de claves dentro del mismo log está en el protocolo (PROTOCOL.md §6) pero **no
+implementada**: hoy, una clave comprometida es un log nuevo.
+
 ### Las tarjetas SLIP-0039
 
 `init` entrega tres tarjetas, y dos reconstruyen la clave. **Repártelas**: dos tarjetas en
