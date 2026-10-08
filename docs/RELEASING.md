@@ -40,7 +40,8 @@ registros de sus usuarios, aplicada a su propia distribución.
 
 Los ganchos de prueba —`NUCLEO_TEST_SEED`, `NUCLEO_TEST_CLOCK`,
 `NUCLEO_TEST_PASSPHRASE` y, desde v0.3.0-alpha, `NUCLEO_TEST_DIE_AT`, que mata el proceso
-a medias de un cambio de passphrase para probar ADR-029— viven tras el build tag `testhooks`, y goreleaser
+a medias de un cambio de passphrase para probar ADR-029, y desde v0.3.1-alpha
+`NUCLEO_TEST_PAUSE_AT`, que lo detiene en una frontera— viven tras el build tag `testhooks`, y goreleaser
 compila **sin** ese tag. Ese código no está en el ejecutable que se publica.
 
 Un binario publicado que los honrara permitiría fijar desde el entorno del
@@ -60,6 +61,7 @@ strings nucleo | grep -c "SetMetaTxHook"                 # → 0 (el de ADR-029)
 # Y el rechazo sí:
 NUCLEO_TEST_SEED=x ./nucleo status ; echo $?             # → 1
 NUCLEO_TEST_DIE_AT=x ./nucleo status ; echo $?           # → 1
+NUCLEO_TEST_PAUSE_AT=x ./nucleo status ; echo $?         # → 1 (desde v0.3.1-alpha)
 ```
 
 Comprobado sobre el binario linux/amd64 de v0.3.0-alpha: 0, 0, 1 y 1.

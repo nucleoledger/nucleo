@@ -78,7 +78,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 | `reconcile` | compares the live system against what was sealed |
 | `sync` | obtains attestation from a witness |
 | `witness serve` · `witness key` | runs a witness; prints its public key |
-| `backup` · `restore` | re-issues the SLIP-0039 cards; with two cards, `restore --new-passphrase` sets a new passphrase and issues new cards ([ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md)) |
+| `backup` · `restore` | re-issues the SLIP-0039 cards; with two cards, `restore --new-passphrase` sets a new passphrase and issues new cards — for a *forgotten* passphrase, not a stolen one ([ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md) and its amendment) |
 
 **Exit codes are contract** — scripts read them, so they will not change silently:
 
@@ -327,8 +327,12 @@ by the very code they judged — the anti-circularity amendment above
 ([report](docs/revision-externa-modelo-20260913.md)). A second external review found the PHP
 SDK's first real bug, lax casts over the CLI's `--json` output, which made that output a
 wire format with its own vectors ([ADR-025](docs/adr/ADR-025-json-como-formato-de-cable.md),
-[report](docs/revision-externa-modelo-20260919.md)). The operations rehearsal and the integration
-example are in the [status](#status) above and in the CHANGELOG.
+[report](docs/revision-externa-modelo-20260919.md)). A third one, on v0.3.0-alpha's
+passphrase change, found no way to leave a vault unopenable, and its main observation led
+to saying plainly what that change is for: a *forgotten* passphrase, not a stolen one
+([ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md) amendment,
+[report](docs/revision-externa-modelo-20261003.md)). The operations rehearsal and the
+integration example are in the [status](#status) above and in the CHANGELOG.
 
 **No professional security audit has been performed.** The reviews above — internal and
 external alike — were adversarial reviews by AI models, thorough and with executed

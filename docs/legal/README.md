@@ -42,7 +42,7 @@ adversariales hechas por modelos de IA, dentro y fuera del proyecto, y ejercicio
 
 | pieza | dónde |
 |---|---|
-| Las dos revisiones externas, hechas por modelos | [`docs/revision-externa-modelo-20260913.md`](../revision-externa-modelo-20260913.md), [`docs/revision-externa-modelo-20260919.md`](../revision-externa-modelo-20260919.md) |
+| Las tres revisiones externas, hechas por modelos | [`docs/revision-externa-modelo-20260913.md`](../revision-externa-modelo-20260913.md), [`docs/revision-externa-modelo-20260919.md`](../revision-externa-modelo-20260919.md), [`docs/revision-externa-modelo-20261003.md`](../revision-externa-modelo-20261003.md) (ADR-029) |
 | Hallazgos y cómo se cerró cada uno | README, §Security & audits; CHANGELOG, secciones «Security» de los Sprints 7c a 9 |
 | Ensayo de operación | [`docs/ensayo-de-operacion-20260923.md`](../ensayo-de-operacion-20260923.md) |
 | Informe del ejemplo de integración | [`docs/ejemplo-de-integracion-20260923.md`](../ejemplo-de-integracion-20260923.md) |
