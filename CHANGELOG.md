@@ -11,6 +11,55 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+## [0.3.1-alpha] — 2026-10-07
+
+### What this version is
+
+A patch release after a review of v0.3.0-alpha's passphrase change by an AI model
+([report](docs/revision-externa-modelo-20261003.md), recovered from the session it was
+written in and versioned verbatim). It found no way to leave a vault unopenable. Its
+three findings are closed, and the first one led to an amendment that matters more than
+the finding: **`restore --new-passphrase` is for a forgotten passphrase, not a stolen
+one** ([ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md), amendment of
+2026-10-07).
+
+### Upgrading from 0.3.0-alpha
+
+Nothing to migrate: no format, ledger or `--json` change, and the SDKs are unchanged
+(`@nucleoledger/verify@0.3.0-alpha.0` stays current). Two visible differences: `restore`
+ends with one more warning paragraph when it sets a passphrase, and `nucleo -h` has a new
+section. The
+published binary also refuses to start if `NUCLEO_TEST_PAUSE_AT` is set, like every other
+test hook.
+
+### Security: a forgotten passphrase is not a stolen one (ADR-029 amendment)
+
+- **Setting a new passphrase changes the lock, not what is inside.** The data key and the
+  signing keys do not change, so whoever had the passphrase *and a copy of the ledger*
+  could already take them. `nucleo -h` («PASSPHRASE OLVIDADA O ROBADA»), `restore`'s own
+  output and flags, the tutorial and [`docs/OPERACION.md`](docs/OPERACION.md) §3 («Si te la
+  robaron») now say what to do in each case: forgotten → `restore --new-passphrase`;
+  leaked with a possible copy of the ledger → a new log with another origin, the old one's
+  `tree_size` published as the end of what is yours, and the witness no longer serving it
+  — rehearsed with the binary. Key rotation within a log is in PROTOCOL.md §6 and not
+  implemented.
+- **A `seal` already unlocked when `restore` commits finishes, and its block is valid**
+  (MEDIUM finding). Kept, not blocked, and pinned by a test that pauses a `seal` right
+  after unlocking (`NUCLEO_TEST_PAUSE_AT`, test builds only), runs `restore`, and lets it
+  continue: the block verifies, and a new `seal` with the old passphrase fails. Why a lock
+  would buy nothing is in the amendment, §E.
+
+### Fixed
+
+- **Secrets are wiped from memory as soon as they are no longer needed** (LOW finding).
+  `vault.CheckKEK` tells whether a KEK is this vault's without returning the data key;
+  `vault.Wipe` zeroes the KEK from the cards, the new passphrase, `init`'s and `backup`'s
+  passphrase and KEK, and every command's passphrase once the vault is open; a passphrase
+  read from a file no longer goes through a `string`. The limit is written down: Go cannot
+  promise there are no other copies.
+- **The tutorial repeats that a copy of the ledger made before the change still opens with
+  the old cards** (LOW, documentation), with a test that keeps it there.
+
 ## [0.3.0-alpha] — 2026-09-28
 
 ### What this version is
@@ -931,7 +980,8 @@ First tagged version. The success criterion of the project
 - Witness cosignatures are Ed25519, not ML-DSA-44, which `tlog-witness` states as
   a SHOULD.
 
-[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.3.0-alpha...HEAD
+[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.3.1-alpha...HEAD
+[0.3.1-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.3.0-alpha...v0.3.1-alpha
 [0.3.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.2.0-alpha...v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.1.0-alpha...v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/nucleoledger/nucleo/releases/tag/v0.1.0-alpha

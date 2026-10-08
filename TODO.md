@@ -54,6 +54,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] Aplicar las notas al borrador (`gh release edit v0.3.0-alpha --notes-file …`) y
       publicarlo — notas aplicadas el 2026-10-02; publicado por el dev como pre-release
       (2026-10-03T04:43:29Z UTC)
+- [ ] Publicar `v0.3.1-alpha` (tag firmado con SSH) y completar el sha256 y la
+      verificación en `docs/releases/v0.3.1-alpha.md`
 - [ ] Cronometrar el tutorial con alguien de fuera del proyecto, sobre el ejemplo
       Node (`examples/erp-node`) — verificar: una hora medida, no estimada por quien
       lo escribió. La parte mecánica ya está medida (de clon a recibo verificado,
@@ -109,6 +111,15 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] `sync` con la política de los clientes: varios testigos y `--witness-name` para elegir
 - [x] Preparar v0.3.0-alpha: CHANGELOG, notas del release, `sdk/ts` 0.3.0-alpha.0, tag
       firmado con SSH en RELEASING — sin tag ni push
+
+## Revisión del 2026-10-03 (ADR-029) y v0.3.1-alpha
+- [x] El informe, recuperado de la sesión de OpenCode y versionado tal cual
+- [x] MEDIA: el seal ya desbloqueado durante restore — se deja, con test y razón escrita
+- [x] La enmienda de ADR-029: passphrase olvidada frente a robada, en la CLI, OPERACION y
+      el tutorial
+- [x] BAJA: KEK, DEK y passphrase borradas de memoria en cuanto sobran, con el límite escrito
+- [x] BAJA documental: el tutorial repite lo de las copias antiguas, con test
+- [x] Preparar v0.3.1-alpha: CHANGELOG y notas, sin tag ni push
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
