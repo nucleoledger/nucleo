@@ -32,6 +32,7 @@ func cmdBackup(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer vault.Wipe(pass)
 	// Se abre el vault aunque solo hagan falta la KEK y los parámetros: es la
 	// forma de comprobar que la passphrase es la correcta ANTES de imprimir unas
 	// tarjetas que no abrirían nada.
@@ -45,6 +46,7 @@ func cmdBackup(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer vault.Wipe(kek)
 	cards, err := vault.BackupKEK(kek, *shares, *threshold)
 	if err != nil {
 		return err
@@ -106,6 +108,10 @@ func cmdRestore(e *env, args []string) error {
 	if err != nil {
 		return usageErr("no se pudo reconstruir la clave: %v", err)
 	}
+	// La KEK de las tarjetas, la passphrase nueva y la DEK de la comprobación se borran en
+	// cuanto dejan de hacer falta (revisión del 2026-10-03; el límite de lo que eso
+	// garantiza en Go, en vault.Wipe y en la enmienda de ADR-029).
+	defer vault.Wipe(kek)
 
 	// Reconstruir NO es demostrar identidad. Un conjunto válido de tarjetas de
 	// OTRO vault también reconstruye una clave, y sin este segundo paso el
@@ -122,7 +128,7 @@ func cmdRestore(e *env, args []string) error {
 	}
 	// El detalle del AEAD no se imprime: "message authentication failed" no le dice nada
 	// a quien tiene las tarjetas en la mano, y las dos causas posibles sí.
-	if _, err := vault.UnwrapDEK(kek, wrapped, string(rawID)); err != nil {
+	if err := vault.CheckKEK(kek, wrapped, string(rawID)); err != nil {
 		return verifyErr("las tarjetas reconstruyen una clave, pero NO es la de este vault, o son tarjetas\n" +
 			"  de antes de un cambio de passphrase: esas quedaron sin valor (ADR-029)")
 	}
@@ -153,6 +159,7 @@ func cmdRestore(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer vault.Wipe(newPass)
 	rk, err := vault.PrepareRekey(s, kek, newPass)
 	if err != nil {
 		return err

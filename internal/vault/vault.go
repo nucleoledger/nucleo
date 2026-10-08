@@ -67,6 +67,15 @@ func open(key, aad, ciphertext, nonce []byte) ([]byte, error) {
 	return aead.Open(nil, nonce, ciphertext, aad)
 }
 
+// Wipe sobrescribe con ceros un secreto que ya no hace falta: una passphrase, una KEK.
+//
+// Reduce la ventana en la que el secreto está en memoria; no la cierra. Lo que Go
+// garantiza es que ESTE slice queda a cero, no que no haya copias: el recolector puede
+// haber movido o duplicado el array antes, un string creado a partir de los bytes es
+// inmutable y no se puede borrar, y lo que el sistema operativo llevara a swap o a un
+// volcado de memoria queda fuera de su alcance. Ver la enmienda de ADR-029.
+func Wipe(b []byte) { zero(b) }
+
 // zero sobrescribe material sensible.
 func zero(b []byte) {
 	if len(b) == 0 {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
@@ -185,6 +186,8 @@ func (e *env) unlock(s *store.Store, passphraseFile string, prompt string) (*vau
 		return nil, nil, err
 	}
 	v, err := vault.Unlock(s, pass)
+	// La passphrase ya hizo su trabajo: lo que queda abierto es la DEK, dentro del vault.
+	vault.Wipe(pass)
 	if err != nil {
 		// La passphrase equivocada es el error más común de todos y salía como
 		// "no se pudo abrir el vault: vault: no se pudo desenvolver la DEK:
@@ -227,7 +230,9 @@ func readPassphrase(e *env, file, prompt string, confirm bool) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		pass := []byte(strings.TrimRight(string(raw), "\r\n"))
+		// Sin pasar por string: un string no se puede borrar, y la passphrase se borra en
+		// cuanto deja de hacer falta (vault.Wipe). pass comparte memoria con raw.
+		pass := bytes.TrimRight(raw, "\r\n")
 		if len(pass) == 0 {
 			return nil, usageErr("el fichero de passphrase %q está vacío", file)
 		}
@@ -256,7 +261,10 @@ func readPassphrase(e *env, file, prompt string, confirm bool) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if string(again) != string(pass) {
+		iguales := bytes.Equal(again, pass)
+		vault.Wipe(again)
+		if !iguales {
+			vault.Wipe(pass)
 			return nil, usageErr("las dos passphrases no coinciden")
 		}
 	}

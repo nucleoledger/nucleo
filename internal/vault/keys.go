@@ -193,6 +193,16 @@ func UnwrapDEK(kek, wrapped []byte, vaultID string) ([]byte, error) {
 	return dek, nil
 }
 
+// CheckKEK dice si kek desenvuelve la DEK de este vault —es decir, si es la suya—, sin
+// devolverla: la DEK desenvuelta se borra antes de volver. Es lo que necesita quien solo
+// quiere saber si unas tarjetas son de este vault (restore), que antes recibía la DEK y la
+// dejaba en memoria hasta que pasara el recolector.
+func CheckKEK(kek, wrapped []byte, vaultID string) error {
+	dek, err := UnwrapDEK(kek, wrapped, vaultID)
+	zero(dek)
+	return err
+}
+
 // MetaStore es lo que el vault necesita de la persistencia. Se declara aquí, y
 // no se importa internal/store, para que el vault se pueda probar sin base.
 type MetaStore interface {

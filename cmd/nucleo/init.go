@@ -57,6 +57,7 @@ func cmdInit(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer vault.Wipe(pass)
 
 	s, _, err := store.Open(e.dbPath())
 	if err != nil {
@@ -107,6 +108,7 @@ func cmdInit(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer vault.Wipe(kek)
 	cards, err := vault.BackupKEK(kek, *shares, *threshold)
 	if err != nil {
 		return err
