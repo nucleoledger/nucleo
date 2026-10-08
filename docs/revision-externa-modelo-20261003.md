@@ -24,6 +24,15 @@ en la sesión.
 | **Método** | ejecutó `go test ./... -race` y `go test -tags testhooks ./... -race` (los dos pasan) y evaluó por lectura |
 | **Longitud** | 13.232 caracteres, 240 líneas, tal como se recuperaron |
 
+## Dónde se cerró cada hallazgo
+
+| hallazgo del informe | veredicto | cerrado en | decisión escrita |
+|---|---|---|---|
+| MEDIA — un `seal` ya desbloqueado termina después del cambio | **se deja**, y un test fija el comportamiento: el bloque vale, la passphrase vieja ya no abre nada nuevo | `e9e597d` | [ADR-029](adr/ADR-029-restore-fija-passphrase-nueva.md), enmienda §E |
+| lo que esa observación destapa: el cambio no sirve para una passphrase **robada** | documentado en la CLI, OPERACION §3 («Si te la robaron», ensayado) y el tutorial | `19d9cb2` | enmienda §F |
+| BAJA — secretos de `restore` en memoria más de lo necesario | **arreglado**: `vault.CheckKEK`, `vault.Wipe`, la passphrase sin pasar por `string`; con su límite escrito | `7bff9af` | enmienda §G |
+| BAJA documental — el tutorial no repetía lo de las copias antiguas | **arreglado**, con un test que lo vigila | `19d9cb2` | enmienda §H |
+
 FIN DEL PREÁMBULO
 
 ---
