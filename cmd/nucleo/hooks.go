@@ -23,10 +23,14 @@ const (
 	// envDieAt mataría el proceso en una frontera con nombre (hookDieAt), para probar
 	// que un cambio interrumpido no deja el vault sin forma de abrirse (ADR-029 §C).
 	envDieAt = "NUCLEO_TEST_DIE_AT"
+	// envPauseAt detendría el proceso en una frontera con nombre hasta que aparezca un
+	// fichero (hookPauseAt), para probar qué pasa cuando otro proceso actúa en medio: un
+	// seal ya desbloqueado mientras restore cambia la passphrase (revisión 2026-10-03).
+	envPauseAt = "NUCLEO_TEST_PAUSE_AT"
 )
 
 // hookVars son todas, para poder comprobarlas de una vez.
-var hookVars = []string{envSeed, envClock, envPassphrase, envDieAt}
+var hookVars = []string{envSeed, envClock, envPassphrase, envDieAt, envPauseAt}
 
 // now es el reloj de la CLI.
 func now() time.Time { return hookClock() }

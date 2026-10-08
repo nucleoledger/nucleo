@@ -95,6 +95,7 @@ func cmdSeal(e *env, args []string) error {
 		return err
 	}
 	defer v.Close()
+	hookPauseAt("seal:desbloqueado")
 	if err := checkChainSigner(res, id, "sella"); err != nil {
 		return err
 	}

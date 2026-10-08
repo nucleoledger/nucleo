@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nucleoledger/nucleo/internal/vault"
 )
@@ -261,4 +262,67 @@ func estadoDelVault(t *testing.T, dir string, viejas []string) estadoVault {
 		tarjetasViejas: errTarjetas == nil,
 		nueva:          abre(passNueva),
 	}
+}
+
+// TestSealYaDesbloqueadoDuranteRestore fija lo que pasa con un seal que desbloqueó el
+// vault con la passphrase VIEJA y todavía no ha escrito cuando restore cambia la
+// passphrase (MEDIA de la revisión del 2026-10-03, decidida en la enmienda de ADR-029):
+//
+//   - el seal termina y su bloque es válido: la DEK y las claves de firma no cambian con
+//     el cambio de passphrase, así que lo que firma es tan bueno como antes;
+//   - a partir del cambio, la passphrase vieja ya no abre nada: un seal NUEVO con ella
+//     falla.
+//
+// Es decir, el cambio invalida las aperturas nuevas, no las que ya estaban hechas. Para
+// una passphrase olvidada es lo correcto; para una robada, ningún cambio de passphrase
+// basta, y ADR-029 dice qué hacer.
+func TestSealYaDesbloqueadoDuranteRestore(t *testing.T) {
+	c := newCLI(t)
+	viejas := initConTarjetas(t, c)
+	c.sealFile(`{"factura":"antes"}`)
+
+	barrera := t.TempDir() + "/sigue"
+	doc := ficheroUnico(t, c.dir, "doc-*.json", `{"factura":"en medio"}`)
+	args, _ := json.Marshal([]string{"--dir", c.dir, "--json", "seal", "--tenant", testTenant,
+		"--type", "sri.factura.v1", "--payload", doc})
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSubprocesoCLI$")
+	cmd.Env = append(os.Environ(), envSubprocesoCLI+"="+string(args),
+		envPauseAt+"=seal:desbloqueado="+barrera)
+	var salida strings.Builder
+	cmd.Stdout, cmd.Stderr = &salida, &salida
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	// El seal ya tiene la DEK y las claves en memoria, abiertas con la passphrase vieja.
+	for i := 0; ; i++ {
+		if _, err := os.Stat(barrera + ".llego"); err == nil {
+			break
+		}
+		if i > 3000 {
+			t.Fatalf("el seal no llegó a desbloquear:\n%s", salida.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	nueva := ficheroUnico(t, c.dir, "nueva-*.txt", passNueva+"\n")
+	c.mustRun("--json", "restore", "--shares-file", ficheroDeTarjetas(t, c, viejas[:2]...),
+		"--new-passphrase-file", nueva, "--assume-confirmed")
+
+	if err := os.WriteFile(barrera, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("el seal que ya estaba desbloqueado no terminó (%v):\n%s", err, salida.String())
+	}
+	if !strings.Contains(salida.String(), `"index"`) {
+		t.Fatalf("el seal no devolvió su bloque:\n%s", salida.String())
+	}
+
+	// Su bloque es válido, y la cadena entera también.
+	c.mustRun("verify", "--full")
+	// La passphrase vieja ya no abre: un seal nuevo con ella falla.
+	vieja := ficheroUnico(t, c.dir, "vieja-*.txt", testPassphrase+"\n")
+	otro := ficheroUnico(t, c.dir, "doc-*.json", `{"factura":"despues, con la vieja"}`)
+	c.runWant(t, exitUsage, "seal", "--tenant", testTenant, "--type", "sri.factura.v1",
+		"--payload", otro, "--passphrase-file", vieja)
 }

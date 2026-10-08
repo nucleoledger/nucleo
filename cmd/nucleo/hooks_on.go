@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/store"
@@ -60,6 +61,26 @@ func hookDieAt(frontera string) {
 	if os.Getenv(envDieAt) == frontera {
 		os.Exit(codigoMuerte)
 	}
+}
+
+// hookPauseAt detiene el proceso si NUCLEO_TEST_PAUSE_AT es «frontera=RUTA»: crea
+// RUTA.llego para avisar de que ha llegado, y espera a que exista RUTA. Si en un minuto
+// nadie la crea, sale con codigoMuerte+1: un test colgado tiene que fallar, no esperar.
+func hookPauseAt(frontera string) {
+	v := os.Getenv(envPauseAt)
+	nombre, ruta, ok := strings.Cut(v, "=")
+	if !ok || nombre != frontera || ruta == "" {
+		return
+	}
+	if err := os.WriteFile(ruta+".llego", nil, 0o600); err != nil {
+		os.Exit(codigoMuerte + 1)
+	}
+	for limite := time.Now().Add(time.Minute); time.Now().Before(limite); time.Sleep(20 * time.Millisecond) {
+		if _, err := os.Stat(ruta); err == nil {
+			return
+		}
+	}
+	os.Exit(codigoMuerte + 1)
 }
 
 // Dentro de la transacción de vault_meta, las fronteras se llaman "meta-tx:<clave>".

@@ -32,6 +32,9 @@ func hookPassphrase() (string, bool) { return "", false }
 // hookDieAt no existe en producción: no mata nada.
 func hookDieAt(string) {}
 
+// hookPauseAt no existe en producción: no detiene nada.
+func hookPauseAt(string) {}
+
 // checkHooks aborta si alguna variable de gancho está definida.
 //
 // FALLO CERRADO, y a propósito. La alternativa —seguir adelante con un aviso—
