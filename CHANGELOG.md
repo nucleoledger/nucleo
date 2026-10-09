@@ -60,6 +60,14 @@ test hook.
 - **The tutorial repeats that a copy of the ledger made before the change still opens with
   the old cards** (LOW, documentation), with a test that keeps it there.
 
+### Build
+
+- **The CI lint job uses golangci-lint v2.14.0.** With Go 1.27.2 —what `go-version:
+  'stable'` resolves to since early October— v2.13.2 failed in typecheck («export data
+  version 5 is greater than maximum supported version 4»); nothing in the code was wrong.
+  **`scripts/lint.sh`** now runs the CI's own golangci-lint and Go locally, read from
+  `ci.yml`, so a green local lint means what a green CI lint means.
+
 ## [0.3.0-alpha] — 2026-09-28
 
 ### What this version is
