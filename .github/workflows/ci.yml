@@ -303,9 +303,14 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: 'stable'
+      # La versión de golangci-lint tiene que poder leer el Go de `stable`. Con Go
+      # 1.27.2, v2.13.2 fallaba en typecheck —«export data version 5 is greater than
+      # maximum supported version 4»— porque trae golang.org/x/tools v0.49.0; v2.14.0
+      # trae v0.50.0 (run 38002811302). scripts/lint.sh lee ESTA línea e instala esta
+      # misma versión, para que el lint local sea el del CI.
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.14.0
       # Segunda pasada con el tag, para que el código de los ganchos de prueba
       # también se analice. Sin esto, hooks_on.go no lo vería nadie.
       - name: Lint (con ganchos de prueba)
