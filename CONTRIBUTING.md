@@ -24,7 +24,7 @@ This section will change when a contribution agreement exists, and it will say s
 ```bash
 go test ./... -race                      # must be green
 go test -tags testhooks ./... -race      # and so must this
-golangci-lint run ./...                  # must report 0 issues
+./scripts/lint.sh                        # must report 0 issues — the CI's own golangci-lint and Go
 ```
 
 ### The `testhooks` build tag

@@ -120,6 +120,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] BAJA: KEK, DEK y passphrase borradas de memoria en cuanto sobran, con el límite escrito
 - [x] BAJA documental: el tutorial repite lo de las copias antiguas, con test
 - [x] Preparar v0.3.1-alpha: CHANGELOG y notas, sin tag ni push
+- [x] El lint del CI en rojo (run 38002811302): golangci-lint v2.14.0, y `scripts/lint.sh`
+      para que el lint local use la versión y el Go que fija ci.yml
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

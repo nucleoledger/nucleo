@@ -78,7 +78,8 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
 
 - [ ] `go test ./... -race` en verde.
 - [ ] `go test -tags testhooks ./... -race` en verde.
-- [ ] `golangci-lint run ./...` sin issues.
+- [ ] `./scripts/lint.sh` sin issues: es el lint del CI, con su versión y su Go (abajo,
+      [El lint local es el del CI](#el-lint-local-es-el-del-ci)).
 - [ ] `./scripts/demo-criterio-exito.sh` en verde. Es el criterio del proyecto:
       si falla, no hay versión que publicar.
 - [ ] `cd sdk/ts && npm ci && npm run typecheck && npm test` en verde.
@@ -101,6 +102,25 @@ Una prueba en seco, que compila los seis binarios sin publicar nada:
 goreleaser release --snapshot --clean --skip=sign
 ls dist/
 ```
+
+### El lint local es el del CI
+
+`./scripts/lint.sh` lee del job `lint` de `.github/workflows/ci.yml` la versión de
+golangci-lint y la de Go, descarga ese binario oficial —comprobando su sha256 contra el
+`checksums.txt` del release— a `~/.cache/nucleo/`, y hace las dos pasadas del CI: sin tags
+y con `-tags testhooks`. Si el job dice `go-version: 'stable'`, pregunta a go.dev cuál es
+hoy y lo usa con `GOTOOLCHAIN`, que es lo que obtiene `setup-go` en el CI; sin red, falla
+en vez de suponerlo. Para cambiar de versión se cambia **una** línea, la de `ci.yml`.
+
+Existe porque el 2026-10-09 el CI falló (run 38002811302) con la compuerta local en verde:
+mismo golangci-lint, v2.13.2, distinto Go. El CI ya tenía Go 1.27.2 y aquí había 1.27.1, y
+con 1.27.2 esa versión no lee los datos de exportación del compilador —*«export data
+version 5 is greater than maximum supported version 4»*—, porque trae
+`golang.org/x/tools` v0.49.0. Con la `ci.yml` de ese commit, el script reproduce los mismos
+dos errores; con v2.14.0 (x/tools v0.50.0), 0 issues en las dos pasadas. Comprobado
+también que rechaza un binario cuyo sha256 no coincide, y que falla sin red.
+
+Funciona en Linux y macOS (amd64 y arm64); en Windows, desde WSL.
 
 ### El tag
 
