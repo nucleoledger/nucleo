@@ -33,6 +33,18 @@ codes, and any golden test vector in `testdata/vectors/`.
   on any warning, since verify exits 0 on a misspelled directive; `caddy validate`; the
   example configuration actually served).
 
+### Added: the system map, and a test that keeps it honest (Sprint 16)
+
+- [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md): every component and the real import graph
+  (from `go list`), each flow step by step with file and function, the trust boundaries and
+  every persistent table, with Mermaid diagrams that import into Excalidraw.
+- [`docs/GARANTIAS.md`](docs/GARANTIAS.md): each guarantee with the ADR that decides it and the
+  test that pins it, and each limit with where it is documented; what has no test says so.
+- `cmd/nucleo/mapa_test.go` fails CI if either document cites a file, function, test or ADR
+  that does not exist, and proves it bites with invented citations of every kind.
+- **A retired log's key is now checked** (ADR-030 amendment): if the witness remembers that log,
+  its memory must be signed by that key, or `witness serve` refuses to start.
+
 ### Changed
 
 - **Go is pinned** in `go.mod` (`toolchain go1.27.2`) and every workflow reads it

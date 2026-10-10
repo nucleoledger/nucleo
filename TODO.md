@@ -136,6 +136,17 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       (`scripts/valida-kit-testigo.sh`), con su guía
 - [x] 4. El CONCEPTO enmendado a la vista: no hay `nucleod`, y el VRF no va en el ledger
 
+## Sprint 16 — el mapa del sistema, y que no se desfase
+- [x] 1. `docs/ARQUITECTURA.md`: componentes con el grafo real de imports, los flujos con
+      fichero y función, fronteras de confianza y estados persistentes; once bloques Mermaid
+      validados
+- [x] 2. `docs/GARANTIAS.md`: 37 garantías con su ADR y su test, 19 límites; lo que no tiene
+      test, marcado
+- [x] 3. `cmd/nucleo/mapa_test.go`: el CI falla si el mapa cita algo que no existe, con un
+      autotest que demuestra que muerde
+- [x] 4. La clave de un log retirado comprueba su memoria (enmienda de ADR-030)
+- [ ] 5. Decidir sobre los hallazgos del mapa (informe del Sprint 16)
+
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
 - [ ] **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo

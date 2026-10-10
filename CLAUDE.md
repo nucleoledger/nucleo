@@ -44,6 +44,8 @@ nucleo/
 │   ├── RELEASING.md        # publicar y verificar un release; config de npm
 │   ├── TUTORIAL-es.md      # integrar en una hora, con salidas reales
 │   ├── OPERACION.md        # operar sin llamar a nadie: testigo, política, llaves, hosting
+│   ├── ARQUITECTURA.md     # el mapa del sistema, desde el código (lo vigila mapa_test.go)
+│   ├── GARANTIAS.md        # cada garantía con su ADR y su test; los límites
 │   ├── legal/              # índice para due diligence (NO texto legal); ver NOTICE y AUTHORS
 │   └── CONCEPTO-v1.2-es.md # visión completa del proyecto
 ├── testdata/vectors/       # vectores compartidos Go↔TS  [NO MODIFICAR SIN ADR]
