@@ -508,6 +508,12 @@ llega solo también es un cambio que nadie revisó.
 Los parches de seguridad de Go hay que mirarlos y subirlos así, a propósito; ya no llegan
 solos.
 
+Comprobado al fijarlo (commit `ffe947d`): dos clones limpios en rutas distintas, uno con
+`GOTOOLCHAIN=auto` —que cambia solo del go1.27.1 instalado al go1.27.2 de `go.mod`— y otro
+con `GOTOOLCHAIN=go1.27.2` explícito, compilados con la receta de «Compilar desde el
+código», dan **el mismo binario byte a byte**. Y el mismo commit compilado con go1.27.1 da
+otro: la versión de Go no es un detalle, es parte de lo que se reproduce.
+
 
 ---
 
