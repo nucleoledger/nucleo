@@ -11,15 +11,25 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 // testigoEnMarcha es un `nucleo witness serve` corriendo en un subproceso.
 type testigoEnMarcha struct {
-	url    string
-	salida *strings.Builder
-	cmd    *exec.Cmd
+	url string
+	cmd *exec.Cmd
+	// salida la escribe la goroutine que lee el proceso y la lee el test: mu la protege.
+	mu  sync.Mutex
+	out strings.Builder
+}
+
+// salida devuelve lo que el testigo ha escrito hasta ahora.
+func (tm *testigoEnMarcha) salida() string {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	return tm.out.String()
 }
 
 var escuchandoEn = regexp.MustCompile(`escuchando en (http://\S+)`)
@@ -39,13 +49,15 @@ func levantaTestigo(t *testing.T, args ...string) *testigoEnMarcha {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	tm := &testigoEnMarcha{salida: &strings.Builder{}, cmd: cmd}
+	tm := &testigoEnMarcha{cmd: cmd}
 	url := make(chan string, 1)
 	go func() {
 		sc := bufio.NewScanner(out)
 		for sc.Scan() {
 			l := sc.Text()
-			tm.salida.WriteString(l + "\n")
+			tm.mu.Lock()
+			tm.out.WriteString(l + "\n")
+			tm.mu.Unlock()
 			if m := escuchandoEn.FindStringSubmatch(l); m != nil {
 				url <- m[1]
 			}
@@ -56,7 +68,7 @@ func levantaTestigo(t *testing.T, args ...string) *testigoEnMarcha {
 	select {
 	case tm.url = <-url:
 	case <-time.After(30 * time.Second):
-		t.Fatalf("el testigo no dijo dónde escucha:\n%s", tm.salida.String())
+		t.Fatalf("el testigo no dijo dónde escucha:\n%s", tm.salida())
 	}
 	// Lo que imprime después de «escuchando» llega enseguida; se le da un instante.
 	time.Sleep(200 * time.Millisecond)
@@ -109,8 +121,8 @@ func TestTestigoDeVariosLogs(t *testing.T) {
 	escribe(`{"name": "` + nombre + `", "logs": {"ejemplo.ec/uno": "` + k1 + `", "ejemplo.ec/dos": "` + k2 + `"}}`)
 
 	tm := levantaTestigo(t, "--db", db, "--config", config)
-	if !strings.Contains(tm.salida.String(), "logs servidos (2)") {
-		t.Errorf("el arranque no dice qué logs sirve:\n%s", tm.salida.String())
+	if !strings.Contains(tm.salida(), "logs servidos (2)") {
+		t.Errorf("el arranque no dice qué logs sirve:\n%s", tm.salida())
 	}
 	sync := func(c *cli) (string, string, int) {
 		return c.run("--json", "sync", "--witness", tm.url, "--witness-name", nombre, "--witness-key", clave)
@@ -125,8 +137,8 @@ func TestTestigoDeVariosLogs(t *testing.T) {
 	tm.para()
 	escribe(`{"name": "` + nombre + `", "logs": {"ejemplo.ec/dos": "` + k2 + `"}, "retired": {"ejemplo.ec/uno": "` + k1 + `"}}`)
 	tm = levantaTestigo(t, "--db", db, "--config", config)
-	if !strings.Contains(tm.salida.String(), "logs retirados (1)") || !strings.Contains(tm.salida.String(), "ejemplo.ec/uno") {
-		t.Errorf("el arranque no dice qué está retirado:\n%s", tm.salida.String())
+	if !strings.Contains(tm.salida(), "logs retirados (1)") || !strings.Contains(tm.salida(), "ejemplo.ec/uno") {
+		t.Errorf("el arranque no dice qué está retirado:\n%s", tm.salida())
 	}
 
 	uno.sealFile(`{"factura":"uno-2"}`)
@@ -147,8 +159,8 @@ func TestTestigoDeVariosLogs(t *testing.T) {
 	tm.para()
 	escribe(`{"name": "` + nombre + `", "logs": {"ejemplo.ec/dos": "` + k2 + `"}}`)
 	tm = levantaTestigo(t, "--db", db, "--config", config)
-	if !strings.Contains(tm.salida.String(), "que la configuración ya no menciona") {
-		t.Errorf("el arranque no avisa de la memoria sin configurar:\n%s", tm.salida.String())
+	if !strings.Contains(tm.salida(), "que la configuración ya no menciona") {
+		t.Errorf("el arranque no avisa de la memoria sin configurar:\n%s", tm.salida())
 	}
 }
 
@@ -160,8 +172,8 @@ func TestTestigoDeUnLogSigueIgual(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "testigo.db")
 	clave := strings.TrimSpace(c.mustRun("witness", "key", "--db", db))
 	tm := levantaTestigo(t, "--db", db, "--name", "w.ejemplo.ec/w1", "--log-origin", testOrigin, "--log-key", claveDelLog(t, c))
-	if !strings.Contains(tm.salida.String(), "log servido: "+testOrigin) {
-		t.Errorf("el arranque cambió:\n%s", tm.salida.String())
+	if !strings.Contains(tm.salida(), "log servido: "+testOrigin) {
+		t.Errorf("el arranque cambió:\n%s", tm.salida())
 	}
 	c.mustRun("sync", "--witness", tm.url, "--witness-name", "w.ejemplo.ec/w1", "--witness-key", clave)
 }
