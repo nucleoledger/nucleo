@@ -43,7 +43,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: 'stable'
+          go-version-file: go.mod
 
       # cosign FIJADO en 2.5.2, que es el que firmó v0.1.0-alpha y v0.2.0-alpha. Antes
       # venía por omisión del instalador; ahora se dice, y hay un motivo concreto para
@@ -61,7 +61,14 @@ jobs:
         # El release corre los tests por su cuenta (hook `before` de
         # goreleaser), pero el criterio de éxito del proyecto se comprueba aquí
         # explícitamente: si esa demo no pasa, no hay versión que publicar.
+        #
+        # Y el Go: el binario se publica con el de la directiva toolchain de go.mod, y
+        # con ningún otro. Es el que hace falta para recompilarlo byte a byte.
         run: |
+          quiere=$(awk '$1 == "toolchain" {print $2}' go.mod)
+          tiene=$(go env GOVERSION)
+          echo "go.mod: $quiere · instalado: $tiene"
+          [ -n "$quiere" ] && [ "$quiere" = "$tiene" ]
           go test ./... -race
           ./scripts/demo-criterio-exito.sh
 

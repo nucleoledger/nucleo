@@ -2,6 +2,11 @@ module github.com/nucleoledger/nucleo
 
 go 1.27.1
 
+// El Go con el que se compila, se prueba y se publica: los workflows lo leen de aquí
+// (go-version-file) y en local GOTOOLCHAIN=auto cambia a él. Subirlo es una decisión, con
+// su commit: docs/RELEASING.md, «La versión de Go».
+toolchain go1.27.2
+
 require (
 	github.com/shurlinet/go-slip39 v0.1.0
 	golang.org/x/crypto v0.56.0

@@ -33,9 +33,14 @@ jobs:
       # de toolchain, que interactúa con el `go 1.27.1` de go.mod, y eso solo se
       # comprueba ejecutando el CI: se subió junto con fail-fast: false, y el run
       # de ese push es la comprobación.
+      #
+      # El Go sale de la directiva `toolchain` de go.mod (Sprint 15). Antes era
+      # 'stable', y un Go nuevo publicado un martes rompió el lint sin que nadie
+      # cambiara nada aquí (run 38002811302). El job lint comprueba que el Go que
+      # instala setup-go es exactamente el de go.mod.
       - uses: actions/setup-go@v7
         with:
-          go-version: 'stable'
+          go-version-file: go.mod
       - name: Format
         if: runner.os != 'Windows'
         run: test -z "$(gofmt -l .)"
@@ -98,7 +103,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: 'stable'
+          go-version-file: go.mod
       - uses: actions/setup-node@v7
         with:
           node-version-file: sdk/ts/.nvmrc
@@ -187,7 +192,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: 'stable'
+          go-version-file: go.mod
       - name: Fuzz de los formatos de cable
         run: |
           set -e
@@ -233,7 +238,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: 'stable'
+          go-version-file: go.mod
       - uses: actions/setup-node@v7
         with:
           node-version-file: sdk/ts/.nvmrc
@@ -302,12 +307,21 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: 'stable'
+          go-version-file: go.mod
       # La versión de golangci-lint tiene que poder leer el Go de `stable`. Con Go
       # 1.27.2, v2.13.2 fallaba en typecheck —«export data version 5 is greater than
       # maximum supported version 4»— porque trae golang.org/x/tools v0.49.0; v2.14.0
       # trae v0.50.0 (run 38002811302). scripts/lint.sh lee ESTA línea e instala esta
       # misma versión, para que el lint local sea el del CI.
+      # El Go de este job tiene que ser EXACTAMENTE el de la directiva toolchain de
+      # go.mod: si setup-go eligiera otro, el lint y los tests correrían con un Go
+      # que no es el que se publica, que es justo lo que este cambio vino a evitar.
+      - name: El Go es el de go.mod
+        run: |
+          quiere=$(awk '$1 == "toolchain" {print $2}' go.mod)
+          tiene=$(go env GOVERSION)
+          echo "go.mod: $quiere · instalado: $tiene"
+          [ -n "$quiere" ] && [ "$quiere" = "$tiene" ]
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14.0

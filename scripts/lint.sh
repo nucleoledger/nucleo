@@ -11,14 +11,15 @@
 #
 #   · la versión de golangci-lint la LEE de .github/workflows/ci.yml y descarga ese
 #     binario oficial, comprobando su sha256 contra el checksums.txt del release;
-#   · el Go lo toma también del job lint de ci.yml: si dice 'stable', pregunta a go.dev
-#     cuál es hoy y lo usa con GOTOOLCHAIN, que es lo que obtiene setup-go en el CI.
+#   · el Go lo toma también del job lint de ci.yml: desde el Sprint 15 es
+#     `go-version-file: go.mod`, y entonces usa la directiva `toolchain` de go.mod con
+#     GOTOOLCHAIN, que es lo que instala setup-go. (Si algún día volviera a decir
+#     'stable', preguntaría a go.dev cuál es hoy; sin red, fallaría.)
 #
 # Y hace las dos pasadas del CI: sin tags y con -tags testhooks.
 #
 #   ./scripts/lint.sh
 #
-# Sin red no puede saber qué Go usa hoy el CI, y entonces FALLA en vez de suponerlo.
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,9 +37,16 @@ JOB="$(awk '/^  lint:$/ {dentro=1; next} dentro && /^  [a-z][a-z-]*:$/ {exit} de
 VERSION="$(printf '%s\n' "$JOB" | awk '/golangci-lint-action@/ {accion=1} accion && /version:/ {print $2; exit}')"
 [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || falla "la versión de golangci-lint en $CI no se entiende: «$VERSION»"
 
+GOFILE="$(printf '%s\n' "$JOB" | awk '/go-version-file:/ {gsub(/[\x27"]/, "", $2); print $2; exit}')"
 GOCI="$(printf '%s\n' "$JOB" | awk '/go-version:/ {gsub(/[\x27"]/, "", $2); print $2; exit}')"
-[ -n "$GOCI" ] || falla "no encuentro go-version en el job lint de $CI"
-if [ "$GOCI" = "stable" ]; then
+if [ -n "$GOFILE" ]; then
+	# Lo que lee setup-go de un go.mod: la directiva toolchain si está; si no, la go.
+	[ -f "$RAIZ/$GOFILE" ] || falla "el job lint lee el Go de $GOFILE y no existe"
+	GOTC="$(awk '$1 == "toolchain" {print $2; exit}' "$RAIZ/$GOFILE")"
+	[ -n "$GOTC" ] || GOTC="go$(awk '$1 == "go" {print $2; exit}' "$RAIZ/$GOFILE")"
+elif [ -z "$GOCI" ]; then
+	falla "no encuentro go-version ni go-version-file en el job lint de $CI"
+elif [ "$GOCI" = "stable" ]; then
 	GOTC="$(curl -fsSL 'https://go.dev/dl/?mode=json' |
 		python3 -c 'import json,sys; print(next(x["version"] for x in json.load(sys.stdin) if x["stable"]))')" ||
 		falla "ci.yml usa Go 'stable' y no he podido preguntar a go.dev cuál es: sin eso, el lint de aquí no es el del CI"

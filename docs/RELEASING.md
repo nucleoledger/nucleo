@@ -110,9 +110,10 @@ ls dist/
 `./scripts/lint.sh` lee del job `lint` de `.github/workflows/ci.yml` la versión de
 golangci-lint y la de Go, descarga ese binario oficial —comprobando su sha256 contra el
 `checksums.txt` del release— a `~/.cache/nucleo/`, y hace las dos pasadas del CI: sin tags
-y con `-tags testhooks`. Si el job dice `go-version: 'stable'`, pregunta a go.dev cuál es
-hoy y lo usa con `GOTOOLCHAIN`, que es lo que obtiene `setup-go` en el CI; sin red, falla
-en vez de suponerlo. Para cambiar de versión se cambia **una** línea, la de `ci.yml`.
+y con `-tags testhooks`. El Go lo toma de donde lo toma el job: desde el Sprint 15,
+`go-version-file: go.mod`, es decir, la directiva `toolchain` de `go.mod` (abajo, «La versión
+de Go»), y lo usa con `GOTOOLCHAIN`. Para cambiar golangci-lint se cambia **una** línea, la
+de `ci.yml`; para cambiar el Go, otra, la de `go.mod`.
 
 Existe porque el 2026-10-09 el CI falló (run 38002811302) con la compuerta local en verde:
 mismo golangci-lint, v2.13.2, distinto Go. El CI ya tenía Go 1.27.2 y aquí había 1.27.1, y
@@ -468,8 +469,45 @@ commit del tag**, porque Go incrusta el commit y si había cambios sin commitear
 con las dos el tuyo no coincide con el publicado, eso es exactamente el tipo de cosa
 que queremos saber.
 
-`release.yml` compila con `go-version: 'stable'`, la última de Go en el momento del
-tag: por eso la versión hay que leerla del binario y no se puede suponer.
+Hasta v0.3.1-alpha, `release.yml` compilaba con `go-version: 'stable'`, la última de Go en
+el momento del tag, y por eso la versión había que leerla del binario. Desde el Sprint 15
+sale de la directiva `toolchain` de `go.mod` del propio tag: sigue siendo la primera línea
+de `go version -m`, y ahora además se puede leer en el repositorio.
+
+### La versión de Go
+
+El Go con el que se compila, se prueba, se pasa el lint y se publica es **uno**, y está
+escrito en `go.mod`:
+
+```
+go 1.27.1          # la versión mínima del lenguaje
+toolchain go1.27.2 # el Go que se usa
+```
+
+Todos los `setup-go` de los workflows lo leen con `go-version-file: go.mod`, el job `lint` y
+`release.yml` comprueban que el Go instalado es **exactamente** ese antes de seguir, y en local
+`GOTOOLCHAIN=auto` (el valor por omisión) cambia solo a él al trabajar dentro del módulo, y
+`scripts/lint.sh` lo usa también.
+
+Antes no estaba fijado (`go-version: 'stable'`), con la idea de recibir los parches de Go
+solos. El precio salió el 2026-10-09: Go 1.27.2 se publicó, el CI lo tomó sin que nadie
+cambiara nada aquí, y el lint dejó de funcionar (run 38002811302). Un parche de seguridad que
+llega solo también es un cambio que nadie revisó.
+
+**Subirlo es una decisión, con su commit**:
+
+1. Mira qué trae la versión nueva (las notas de go.dev/doc/devel/release) y si alguna
+   herramienta del CI necesita subir con ella —golangci-lint ya lo necesitó una vez—.
+2. Cambia la línea `toolchain` de `go.mod` —`go mod edit -toolchain=go1.27.3`— y nada más
+   en ese commit. La línea `go` solo sube si el código empieza a usar algo de una versión
+   nueva del lenguaje.
+3. Compuerta completa en local: `go version` dentro del repositorio ya dice la nueva, y
+   `./scripts/lint.sh` también.
+4. Push y CI en verde: los jobs comprueban que su Go es el de `go.mod`.
+
+Los parches de seguridad de Go hay que mirarlos y subirlos así, a propósito; ya no llegan
+solos.
+
 
 ---
 

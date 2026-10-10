@@ -64,9 +64,9 @@ El backlog atómico está en `TODO.md`. En resumen:
   vez `.sig`/`.pem` y el bundle de Sigstore; cosign 3 ya no produce los primeros sin
   bundle. Pasar a cosign 3 es pasar a publicar solo el bundle: una decisión, no una
   actualización (ver `release.yml` y `docs/RELEASING.md`).
-- **La versión de Go de los releases** no está fijada (`go-version: 'stable'`): recibe
-  los parches de seguridad sola, a cambio de que la versión se lea del binario y no del
-  repositorio para reproducirlo.
+- **La versión de Go está fijada** en la directiva `toolchain` de `go.mod` (Sprint 15): los
+  parches de Go ya no llegan solos y hay que subirlos a propósito (RELEASING, «La versión
+  de Go»).
 
 # 🧠 DECISIONES YA TOMADAS (no se re-litigan)
 
