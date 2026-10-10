@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/ledger"
@@ -379,15 +381,16 @@ func cmdReceipt(e *env, args []string) error {
 		return err
 	}
 
-	if *out != "" {
-		if err := os.WriteFile(*out, data, 0o600); err != nil {
-			return usageErr("no se pudo escribir %q: %v", *out, err)
-		}
-	}
-
-	res, err := r.Verify(pol)
-	if err != nil {
-		return verifyErr("el recibo recién emitido no verifica: %v", err)
+	// Primero se verifica y solo después se escribe (revisión del 2026-10-10, hallazgo
+	// ALTO): antes, con --out, el recibo quedaba en disco aunque la autoverificación
+	// fallara, y un fichero de recibo es un artefacto entregable.
+	var res proof.Result
+	if err := entregaRecibo(*out, data, func() error {
+		var errV error
+		res, errV = r.Verify(pol)
+		return errV
+	}); err != nil {
+		return err
 	}
 	provable := ""
 	if len(res.Cosigners) > 0 {
@@ -451,3 +454,48 @@ const metaLogPubKey = store.MetaLogPubKey
 // metaOriginKey guarda el origin del log, también en claro y por lo mismo:
 // configurar un testigo o una política no debería exigir abrir el vault.
 const metaOriginKey = store.MetaOriginKey
+
+// entregaRecibo verifica el recibo con verifica y, SOLO si verifica, lo escribe en out
+// (si out no está vacío). Nunca queda en disco un recibo que no verificó.
+//
+// La escritura es atómica: un temporal en el mismo directorio, fsync, y rename al
+// nombre final. Así un corte a medias tampoco deja un recibo truncado con el nombre
+// que alguien va a entregar; como mucho, un temporal oculto que se borra en el camino
+// de error.
+func entregaRecibo(out string, data []byte, verifica func() error) error {
+	if err := verifica(); err != nil {
+		return verifyErr("el recibo recién emitido no verifica, y no se ha escrito: %v", err)
+	}
+	if out == "" {
+		return nil
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(out), ".recibo-*.tmp")
+	if err != nil {
+		return usageErr("no se pudo escribir %q: %v", out, err)
+	}
+	nombre := tmp.Name()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = tmp.Close()
+			_ = os.Remove(nombre)
+		}
+	}()
+	if err := tmp.Chmod(0o600); err != nil && runtime.GOOS != "windows" {
+		return usageErr("no se pudo escribir %q: %v", out, err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		return usageErr("no se pudo escribir %q: %v", out, err)
+	}
+	if err := tmp.Sync(); err != nil {
+		return usageErr("no se pudo escribir %q: %v", out, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return usageErr("no se pudo escribir %q: %v", out, err)
+	}
+	if err := os.Rename(nombre, out); err != nil {
+		return usageErr("no se pudo escribir %q: %v", out, err)
+	}
+	ok = true
+	return nil
+}
