@@ -141,12 +141,22 @@ func printReport(e *env, rep *reconcile.Report) {
 	e.printf("comparados : %d\n", rep.Checked)
 	e.printf("coinciden  : %d\n", rep.Verified)
 	e.printf("hallazgos  : %d\n", len(rep.Findings))
+	if len(rep.Erased) > 0 {
+		e.printf("suprimidos : %d\n", len(rep.Erased))
+	}
 	if rep.FullVerify != nil {
 		if rep.FullVerify.OK {
 			e.printf("ledger     : ✔ verificación exhaustiva superada\n")
 		} else {
 			e.printf("ledger     : ✘ %s\n", rep.FullVerify.Err)
 		}
+	}
+	for _, x := range rep.Erased {
+		e.printf("\n")
+		e.printf("  · contenido SUPRIMIDO (ADR-031): no es un hallazgo\n")
+		e.printf("      bloque         : %d\n", x.Index)
+		e.printf("      hash sellado   : %s\n", x.SealedHash)
+		e.printf("      suprimido en   : el bloque %d, el %s  (tiempo declarado)\n", x.ErasedBy, x.ErasedAt)
 	}
 	if len(rep.Findings) == 0 {
 		e.printf("\n✔ el sistema vivo coincide con lo sellado en los %d registros comparados\n", rep.Checked)

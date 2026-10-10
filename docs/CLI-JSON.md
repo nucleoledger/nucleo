@@ -318,6 +318,19 @@ error de uso. Un reintento idempotente trae **los mismos campos** que un sellado
 | `cosigners` | array de nombres de testigo cuya cosignature verificó |
 | `provable_time` | RFC 3339 — tiempo demostrable (ADR-002), o vacío si no hay cosignature aceptada |
 
+### `erase`
+
+Suprime el contenido de un bloque (ADR-031). En `--json` exige `--assume-confirmed`.
+
+| campo | tipo |
+|---|---|
+| `erased_payload_hash` | hex — el contenido suprimido |
+| `blocks` | array de enteros — todos los bloques que sellaron ese contenido; la copia cifrada era la misma |
+| `already_erased` | bool — `true` si ya estaba suprimido: no se ha sellado nada |
+| `index`, `hash` | el bloque del evento `nucleo.erasure.v1` (el nuevo, o el que ya había) |
+| `wal_purged` | bool — `false` si otro proceso leía el ledger y el WAL no se pudo vaciar: una copia del contenido puede seguir ahí; repetir la orden lo reintenta |
+| `freshness`, `attestation`, `attested`, `attested_head`, `attested_size`, `signer`, `alert`, `rollback` | como en `seal`, solo cuando se ha sellado el evento |
+
 ### `reconcile`
 
 El informe de `internal/reconcile` más el estado de la historia:
@@ -326,6 +339,7 @@ El informe de `internal/reconcile` más el estado de la historia:
 |---|---|
 | `tree_size`, `checked`, `verified` | enteros — bloques, registros comparados, coincidentes |
 | `findings` | array —**siempre array**, vacío cuando el cotejo cuadra— de `{status, index, sealed_hash, current_hash, sealed_at, tenant, type}`; `status` es `"discrepancia"` (el vivo cambió), `"faltante"` (el vivo ya no lo tiene) o `"no sellado"` (el vivo tiene algo que el ledger no); `sealed_at` es el tiempo **declarado** del bloque |
+| `erased` | array —**siempre array**— de `{index, sealed_hash, sealed_at, erased_by, erased_at}`: bloques que el sistema vivo no tiene porque su contenido se **suprimió** (ADR-031). **No son hallazgos** y no cambian `ok` ni el código de salida; `erased_by` es el bloque del evento `nucleo.erasure.v1`, y `erased_at` su tiempo declarado |
 | `full_verify` | `{run, ok, error}`. **`--full` vale `true` por omisión en `reconcile`**: el cotejo recomprueba todas las firmas históricas salvo que se pase `--full=false`, y entonces el campo no sale |
 | `attestation`, `attested`, `attested_size`, `signer`, `freshness` | misma semántica que `status`: un cotejo que coincide sobre una historia sin atestiguar coincide con un ledger que podría estar truncado |
 | `ok` | `true` sin hallazgos (y `full_verify.ok` si se pidió); con `false` el código de salida es `2` |

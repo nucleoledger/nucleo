@@ -120,6 +120,7 @@ var commands = map[string]func(*env, []string) error{
 	"status":    cmdStatus,
 	"verify":    cmdVerify,
 	"seal":      cmdSeal,
+	"erase":     cmdErase,
 	"receipt":   cmdReceipt,
 	"reconcile": cmdReconcile,
 	"sync":      cmdSync,

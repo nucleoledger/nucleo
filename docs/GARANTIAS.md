@@ -58,6 +58,9 @@ del repositorio la fija. Este documento no añade tests; los señala.
 | G35 | El binario publicado se recompila byte a byte desde su tag | `docs/RELEASING.md` | — | **sin test**: comprobación a mano en cada release, registrada en la tabla de RELEASING |
 | G36 | Los artefactos del release van firmados con cosign keyless | `docs/RELEASING.md` | — | **sin test** en el repositorio: lo hace `release.yml` y se comprueba a mano al verificar cada release |
 | G37 | La página web verifica sin red | README «What works today» | — | **sin test** de que no use la red; `sdk/ts/test/bundle.test.ts` comprueba que el bundle da el mismo veredicto que la biblioteca |
+| G38 | Suprimir el contenido de un registro (`erase`) borra su copia cifrada y sus compromisos, deja la cadena y los recibos ya emitidos verificando, y sella un evento sin datos personales | README «The CLI» | ADR-031 | `cmd/nucleo/erase_test.go#TestLaSupresionDejaLaCadenaYLosRecibos`, `internal/store/supresion_test.go#TestLaSupresionVaConSuEventoONoVa` |
+| G39 | Lo suprimido no queda en el disco del ledger: ni en el fichero principal ni en el WAL | ADR-031 §D | ADR-031 | `internal/store/supresion_test.go#TestLaSupresionNoDejaElContenidoEnElDisco` |
+| G40 | `reconcile` informa un registro suprimido como suprimido y no como faltante, y solo si hay un evento sellado posterior; sin él, sigue siendo un hallazgo | `docs/CLI-JSON.md` | ADR-031 | `internal/reconcile/supresion_test.go#TestUnRegistroSuprimidoNoEsUnFaltante`, `internal/reconcile/supresion_test.go#TestSinEventoUnRegistroBorradoEsUnFaltante`, `cmd/nucleo/erase_test.go#TestSealNoAceptaTiposReservados` |
 
 ---
 
@@ -82,7 +85,7 @@ del repositorio la fija. Este documento no añade tests; los señala.
 | L15 | **Un VRF da verificabilidad, no privacidad**; el compromiso del ledger es y seguirá siendo HMAC | README «Limits we document»; enmienda de CONCEPTO | ADR-003 y ADR-012; **sin test** (el VRF no está implementado) |
 | L16 | **El perfil de acta de SAS no está conectado a la CLI** | README «What works today» | `cmd/nucleo/profile_test.go#TestPerfilesExpuestos` |
 | L17 | **En un testigo mutuo, cada empresa opera un servicio para la otra**: si uno se cae, la alarma de la otra suena por algo que no puede arreglar | `docs/OPERACION.md` §1 | **sin test** |
-| L18 | **La supresión es la mitad técnica de un derecho de borrado, no una opinión legal** —y hoy la CLI no la ofrece: existe en la biblioteca, sin comando— | README «What works today»; PROTOCOL §5 | `internal/vault/erase_test.go#TestEraseBlobLeavesLedgerProvable` (biblioteca); **sin test** de CLI, porque no hay comando |
+| L18 | **La supresión es la mitad técnica de un derecho de borrado, no una opinión legal.** No alcanza a las copias de seguridad anteriores ni al sistema del integrador, y el hash sigue en la cadena (ADR-031, «Lo que NO resuelve») | README «What works today»; PROTOCOL §5 | — |
 | L19 | **No ha habido auditoría profesional de seguridad, y nadie lo usa en producción** | README «Status» y «Security & audits» | — |
 
 ---

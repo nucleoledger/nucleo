@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nucleoledger/nucleo/internal/erasure"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/store"
 )
@@ -79,6 +80,20 @@ type Finding struct {
 	Type   string `json:"type,omitempty"`
 }
 
+// Erased es un bloque cuyo contenido se suprimió.
+type Erased struct {
+	// Index es el bloque cuyo contenido se suprimió.
+	Index uint64 `json:"index"`
+	// SealedHash es su payload_hash, que sigue en la cadena.
+	SealedHash string `json:"sealed_hash"`
+	// SealedAt es su tiempo declarado.
+	SealedAt string `json:"sealed_at"`
+	// ErasedBy es el bloque del evento de supresión.
+	ErasedBy uint64 `json:"erased_by"`
+	// ErasedAt es el tiempo declarado del evento.
+	ErasedAt string `json:"erased_at"`
+}
+
 // Report es el resultado de un recorrido completo.
 type Report struct {
 	// TreeSize es el número de bloques del ledger en el momento del cotejo.
@@ -89,6 +104,9 @@ type Report struct {
 	Verified int `json:"verified"`
 	// Findings son los que no. Van ordenados por índice.
 	Findings []Finding `json:"findings"`
+	// Erased son los bloques que el sistema vivo ya no tiene porque su contenido se
+	// suprimió (ADR-031). No son hallazgos: hay un evento sellado que lo dice.
+	Erased []Erased `json:"erased"`
 	// FullVerify recoge el resultado de VerifyFull si se pidió.
 	FullVerify *FullVerifyResult `json:"full_verify,omitempty"`
 }
@@ -160,7 +178,17 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 	// contrato de docs/CLI-JSON.md promete un array. Un consumidor estricto
 	// (ADR-025) que lo lea como array se rompería justo en el caso bueno —el cotejo
 	// que cuadra— si esto fuera nil.
-	rep := &Report{TreeSize: uint64(n), Findings: []Finding{}}
+	rep := &Report{TreeSize: uint64(n), Findings: []Finding{}, Erased: []Erased{}}
+
+	// Los eventos de supresión, por el payload_hash que llevan. Se leen del ledger
+	// firmado y de nada más: la reconciliación no abre el vault, y un marcador fuera de
+	// la cadena lo podría poner cualquiera que escriba el fichero.
+	eventos := map[string][]*ledger.Block{}
+	for _, b := range blocks {
+		if b.Header.Type == erasure.Type {
+			eventos[b.Header.PayloadHash] = append(eventos[b.Header.PayloadHash], b)
+		}
+	}
 	seen := make(map[uint64]bool, len(blocks))
 
 	err = src(func(rec Record) error {
@@ -210,6 +238,20 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 		if seen[b.Header.Index] {
 			continue
 		}
+		// Los eventos de supresión los sella Núcleo, no el sistema vivo: no le faltan.
+		if b.Header.Type == erasure.Type {
+			continue
+		}
+		if ev := eventoQueSuprime(eventos, b); ev != nil {
+			rep.Erased = append(rep.Erased, Erased{
+				Index:      b.Header.Index,
+				SealedHash: b.Header.PayloadHash,
+				SealedAt:   b.Header.Timestamp,
+				ErasedBy:   ev.Header.Index,
+				ErasedAt:   ev.Header.Timestamp,
+			})
+			continue
+		}
 		rep.Findings = append(rep.Findings, Finding{
 			Status:     StatusMissing,
 			Index:      b.Header.Index,
@@ -233,6 +275,22 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 		}
 	}
 	return rep, nil
+}
+
+// eventoQueSuprime devuelve el primer evento de supresión POSTERIOR a b que suprime
+// su contenido, o nil. Un evento anterior no cuenta: suprimió una copia anterior del
+// mismo contenido, y el bloque b la volvió a sellar después.
+func eventoQueSuprime(eventos map[string][]*ledger.Block, b *ledger.Block) *ledger.Block {
+	h, err := erasure.EventPayloadHash(b.Header.PayloadHash)
+	if err != nil {
+		return nil
+	}
+	for _, ev := range eventos[h] {
+		if ev.Header.Index > b.Header.Index {
+			return ev
+		}
+	}
+	return nil
 }
 
 // sortFindings ordena por índice y, a igual índice, por estado, para que dos

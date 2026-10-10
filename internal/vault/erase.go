@@ -12,6 +12,9 @@ type BlobEraser interface {
 // que prueba qué se selló y cuándo permanece en la cadena. Tras el borrado, la
 // cadena sigue verificando y el recibo de ese bloque sigue siendo válido, porque
 // nada de lo que demuestran dependía del contenido en claro.
+//
+// La CLI no la usa: `nucleo erase` borra en la misma transacción en la que sella el
+// evento de supresión, y además borra los compromisos (ADR-031).
 func EraseBlob(be BlobEraser, payloadHash string) error {
 	return be.DeleteBlob(payloadHash)
 }

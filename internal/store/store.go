@@ -123,6 +123,11 @@ func connect(path string) (*Store, error) {
 		"&_pragma=synchronous(FULL)" +
 		"&_pragma=foreign_keys(ON)" +
 		"&_pragma=busy_timeout(5000)" +
+		// secure_delete: lo que se borra se sobrescribe con ceros en vez de quedarse en
+		// una página libre del fichero. El único borrado de contenido que hay es la
+		// supresión (ADR-031), y sin esto el dato suprimido seguía en el disco, legible
+		// con un editor hexadecimal, hasta que SQLite reutilizara la página.
+		"&_pragma=secure_delete(ON)" +
 		// Transacciones en modo IMMEDIATE: el candado de escritura se toma al abrir la
 		// transacción y no en la primera escritura. Con el modo diferido —el de por
 		// omisión— SQLite en WAL devuelve BUSY INMEDIATO si otra transacción confirmó
@@ -195,4 +200,24 @@ func (s *Store) Pragma(name string) (string, error) {
 		return "", fmt.Errorf("store: PRAGMA %s: %w", name, err)
 	}
 	return v, nil
+}
+
+// PurgeWAL vuelca el WAL al fichero principal y lo deja vacío (PRAGMA
+// wal_checkpoint(TRUNCATE)). Devuelve false, sin error, si otra conexión lo estaba
+// leyendo y no se pudo vaciar entero.
+//
+// Lo necesita la supresión (ADR-031): secure_delete pone ceros en la página del
+// fichero principal, pero una copia de esa página escrita hace poco puede seguir en el
+// WAL hasta el siguiente checkpoint, y el dato suprimido seguiría en el disco.
+func (s *Store) PurgeWAL() (bool, error) {
+	if s.db == nil {
+		return false, ErrClosed
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	var busy, frames, volcados int
+	if err := s.db.QueryRow(`PRAGMA wal_checkpoint(TRUNCATE)`).Scan(&busy, &frames, &volcados); err != nil {
+		return false, errDB("store: vaciado del WAL", nil, err)
+	}
+	return busy == 0, nil
 }

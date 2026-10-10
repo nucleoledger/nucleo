@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/nucleoledger/nucleo/internal/erasure"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
 	"github.com/nucleoledger/nucleo/internal/receipt"
@@ -57,6 +58,12 @@ func cmdSeal(e *env, args []string) error {
 	}
 	if *maxPayload <= 0 {
 		return usageErr("--max-payload debe ser positivo")
+	}
+	// Los tipos nucleo.* los sella Núcleo: un evento de supresión sellado a mano haría
+	// pasar en la reconciliación un registro desaparecido por uno suprimido (ADR-031).
+	if erasure.Reserved(*typ) {
+		return usageErr("el tipo %q está reservado: los tipos %s* los sella Núcleo por su cuenta (ADR-031)",
+			*typ, erasure.ReservedPrefix)
 	}
 	data, err := readLimited(*payload, *maxPayload, "el documento")
 	if err != nil {

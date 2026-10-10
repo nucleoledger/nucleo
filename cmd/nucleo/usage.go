@@ -11,6 +11,7 @@ USO
 SUBCOMANDOS
   init        crea el vault y el ledger, y entrega las tarjetas de respaldo
   seal        sella un registro en el ledger
+  erase       suprime el contenido de un registro; la cadena no cambia (ADR-031)
   status      muestra el estado del ledger y si está atestiguado
   verify      verifica la integridad del ledger  (--full para la exhaustiva)
   receipt     emite el recibo FIRMADO de un bloque para un destinatario
@@ -69,6 +70,20 @@ SELLAR DOS VECES EL MISMO DOCUMENTO
   El mismo contenido desde DOS tenants distintos se rechaza: su copia cifrada
   está atada al tenant (AAD de PROTOCOL §5) y el otro no podría descifrarla.
   Con --no-encrypt sí cabe, porque no hay copia que atar. Ver ADR-020.
+
+SUPRIMIR UN REGISTRO
+  Cuando el titular de un dato pide que se borre (LOPDP), el contenido se
+  suprime y la cadena se queda como está:
+
+    nucleo erase --block 7
+
+  Se borran la copia cifrada del contenido y sus compromisos, de ese bloque y
+  de cualquier otro que sellara el mismo contenido, y se sella un evento —tipo
+  nucleo.erasure.v1— que solo lleva el hash suprimido. La cadena, las pruebas y
+  los recibos ya emitidos siguen verificando, porque demuestran el hash y no el
+  contenido; y reconcile informa ese registro como suprimido, no como
+  desaparecido. Pide teclear el principio del hash: no tiene vuelta atrás. Las
+  copias de seguridad anteriores aún lo contienen. Ver ADR-031.
 
 LÍMITES DE LECTURA
   documento a sellar         64 MiB   (--max-payload para subirlo)

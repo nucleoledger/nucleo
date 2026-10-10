@@ -72,6 +72,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 |---|---|
 | `init` | creates vault and ledger, prints SLIP-0039 backup cards, requires typed confirmation |
 | `seal` | seals a record; `--profile` interprets the document and commits sensitive fields |
+| `erase` | erases a record's stored content on request (LOPDP) and seals an erasure event; the chain and issued receipts keep verifying, and `reconcile` reports it as erased, not missing ([ADR-031](docs/adr/ADR-031-supresion.md)) |
 | `status` | tree size, root, and **whether the history is attested** |
 | `verify` | integrity check; `--full` recomputes every signature |
 | `receipt` | issues an offline-verifiable receipt for a recipient |

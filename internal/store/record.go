@@ -27,6 +27,14 @@ type Record struct {
 	Meta map[string][]byte
 	// State son entradas de log_state: la clave de idempotencia va aquí.
 	State map[string]string
+	// EraseBlob es el payload_hash cuyo contenido cifrado se borra en la misma
+	// transacción, o vacío. Es la supresión (ADR-031): el bloque de Record es el evento
+	// que la deja sellada, y el evento sin el borrado —o el borrado sin el evento—
+	// sería una supresión que dice lo que no pasó.
+	EraseBlob string
+	// DeleteMeta son entradas de vault_meta que se borran en la misma transacción: los
+	// compromisos del contenido suprimido.
+	DeleteMeta []string
 }
 
 // AppendRecord escribe el registro entero en una transacción.
@@ -70,6 +78,16 @@ func (s *Store) AppendRecord(r Record) error {
 	}
 	if err := insertBlock(tx, r.Block); err != nil {
 		return err
+	}
+	if r.EraseBlob != "" {
+		if _, err := tx.Exec(`DELETE FROM blobs WHERE payload_hash = ?`, r.EraseBlob); err != nil {
+			return errDB(fmt.Sprintf("store: supresión del contenido %s", r.EraseBlob), nil, err)
+		}
+	}
+	for _, k := range r.DeleteMeta {
+		if _, err := tx.Exec(`DELETE FROM vault_meta WHERE k = ?`, k); err != nil {
+			return errDB(fmt.Sprintf("store: borrado de vault_meta[%s]", k), nil, err)
+		}
 	}
 	for _, k := range clavesOrdenadas(r.Meta) {
 		if err := insertMeta(tx, k, r.Meta[k]); err != nil {

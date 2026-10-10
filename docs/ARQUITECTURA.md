@@ -67,6 +67,7 @@ flowchart TD
   cli[cmd/nucleo]
   checkpoint[checkpoint]
   commit[commit]
+  erasure[erasure]
   estricto[estricto]
   identity[identity]
   jcs[jcs]
@@ -82,6 +83,7 @@ flowchart TD
   ecuador[profiles/ecuador]
   cli --> checkpoint
   cli --> commit
+  cli --> erasure
   cli --> identity
   cli --> ledger
   cli --> logsync
@@ -93,6 +95,7 @@ flowchart TD
   cli --> vault
   cli --> witness
   cli --> ecuador
+  erasure --> jcs
   identity --> checkpoint
   identity --> vault
   ledger --> jcs
@@ -109,6 +112,7 @@ flowchart TD
   receipt --> checkpoint
   receipt --> ledger
   receipt --> proof
+  reconcile --> erasure
   reconcile --> ledger
   reconcile --> store
   store --> checkpoint
@@ -138,6 +142,7 @@ ADR-010) y `golang.org/x/term` (cmd/nucleo).
 | `internal/checkpoint/` | notas firmadas C2SP, el `Log` que firma checkpoints sin retroceder nunca, y la firma extra ML-DSA-44 (ADR-007) | `internal/checkpoint/log.go#Log.Sign`, `internal/checkpoint/checkpoint.go#Verify` |
 | `internal/store/` | el ledger en SQLite: tablas, triggers append-only, verificación al abrir (ADR-016) y escritura atómica del sellado (ADR-020) | `internal/store/store.go#Open`, `internal/store/record.go#Store.AppendRecord` |
 | `internal/vault/` | passphrase → Argon2id → KEK → DEK; blobs y secretos cifrados; respaldo SLIP-0039; cambio de passphrase (ADR-029) | `internal/vault/keys.go#Unlock`, `internal/vault/rekey.go#PrepareRekey` |
+| `internal/erasure/` | el evento de supresión: su tipo reservado y su contenido (ADR-031) | `internal/erasure/erasure.go#Payload` |
 | `internal/commit/` | compromisos HMAC-SHA-256 con subclave por tenant (ADR-003) | `internal/commit/commit.go#CommitField` |
 | `internal/identity/` | las claves del firmante y del log, guardadas cifradas en el vault | `internal/identity/identity.go#Load` |
 | `internal/witness/` | el testigo: cosignatures, memoria persistente, servidor y cliente HTTP de `tlog-witness`, configuración de varios logs | `internal/witness/witness.go#Witness.CosignAt` |
@@ -369,6 +374,24 @@ de cada uno con el `payload_hash` sellado y, salvo `--full=false` —está activ
 añade `Store.VerifyFull`. Una comparación que no se
 puede hacer no es un veredicto (ADR-022).
 
+Un bloque que el sistema vivo ya no tiene no es siempre un hallazgo: si hay un evento de
+supresión **posterior** que nombra su contenido, sale en `erased` y no en `findings`
+(`internal/reconcile/reconcile.go#eventoQueSuprime`, ADR-031 §E). El evento se busca por el
+`payload_hash` que llevaría (`internal/erasure/erasure.go#EventPayloadHash`), sin abrir el
+vault; los propios eventos no se cuentan como faltantes.
+
+### 2.6a `erase` — suprimir un contenido (ADR-031)
+
+`cmd/nucleo/erase.go#cmdErase` lee el bloque, comprueba que hay algo guardado de su contenido
+—la copia cifrada o los compromisos— y, si ya hay un evento posterior, contesta
+`already_erased` sin escribir. Si no, desbloquea el vault, comprueba el firmante de la cadena,
+pide teclear el principio del hash (`cmd/nucleo/erase.go#tecleaElHash`; `--assume-confirmed`
+en `--json`) y, en **una** transacción (`internal/store/record.go#Store.AppendRecord`, campos
+`EraseBlob` y `DeleteMeta`), sella el evento `nucleo.erasure.v1` y borra la copia cifrada y
+los compromisos. Después vacía el WAL (`internal/store/store.go#Store.PurgeWAL`); la base se
+abre con `secure_delete`, así que lo borrado queda en ceros. `seal` rechaza los tipos
+`nucleo.*` (`internal/erasure/erasure.go#Reserved`).
+
 ### 2.7 `restore --new-passphrase` (ADR-029)
 
 `cmd/nucleo/backup.go#cmdRestore`:
@@ -511,7 +534,7 @@ Lo que entra de fuera y quién lo comprueba antes de usarlo.
 | tabla | qué guarda | quién escribe | mutable |
 |---|---|---|---|
 | `blocks` | la cadena de bloques firmados | `seal` (`internal/store/record.go#Store.AppendRecord`) | **append-only**: triggers `blocks_no_update` y `blocks_no_delete` |
-| `blobs` | el contenido cifrado de cada documento | `seal` (`AppendRecord`) | sin UPDATE (trigger `blobs_no_update`); **sí** DELETE —la supresión, `internal/store/blobs.go#Store.DeleteBlob`—, que hoy solo llama la biblioteca (`internal/vault/erase.go#EraseBlob`), ningún comando |
+| `blobs` | el contenido cifrado de cada documento | `seal` (`AppendRecord`) | sin UPDATE (trigger `blobs_no_update`); **sí** DELETE: la supresión, que `erase` hace dentro de la transacción de su evento (ADR-031); `internal/store/blobs.go#Store.DeleteBlob`, que llama la biblioteca (`internal/vault/erase.go#EraseBlob`), no lo usa ningún comando |
 | `checkpoints` | las notas cosignadas, una por tamaño | `sync` (`internal/store/checkpoints.go#Store.PutCheckpoint`) | **append-only**: triggers `checkpoints_no_update` y `checkpoints_no_delete` |
 | `vault_meta` | clave → valor, mutable por diseño | ver abajo | sí |
 | `log_state` | clave → valor, mutable por diseño | ver abajo | sí |

@@ -145,7 +145,16 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. `cmd/nucleo/mapa_test.go`: el CI falla si el mapa cita algo que no existe, con un
       autotest que demuestra que muerde
 - [x] 4. La clave de un log retirado comprueba su memoria (enmienda de ADR-030)
-- [ ] 5. Decidir sobre los hallazgos del mapa (informe del Sprint 16)
+- [x] 5. Decidir sobre los hallazgos del mapa (informe del Sprint 16): decididos en el
+      Sprint 17
+
+## Sprint 17 — la revisión del 2026-10-10, y los hallazgos del mapa
+- [x] 1. El informe de OpenCode versionado tal cual
+      (`docs/revision-externa-modelo-20261010.md`)
+- [x] 2. ALTA: con `--out`, `receipt` ya no deja en disco un recibo que no verificó
+- [x] 3. Medias y bajas del informe: ARQUITECTURA y GARANTIAS corregidas donde tenía razón
+- [x] 4. Supresión: ADR-031 (propuesta) y `nucleo erase`, con evento sellado sin datos
+      personales, `reconcile` que la distingue de un faltante y el dato fuera del disco
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
