@@ -36,8 +36,9 @@ nucleo/
 ├── sdk/php/                # verificador nativo + sellador envoltorio (sin composer)
 ├── web/verify/             # verificador HTML estático, sin red
 ├── deploy/witness/         # kit del operador del testigo: unidad systemd, Caddyfile, config, guía
-├── scripts/                # demo-criterio-exito.sh, lint.sh (el del CI), ensayo-testigo-mutuo.sh,
-│                           # valida-kit-testigo.sh
+├── scripts/                # compuerta.sh (LA compuerta, una orden), demo-criterio-exito.sh,
+│                           # lint.sh (el del CI), ensayo-testigo-mutuo.sh, valida-kit-testigo.sh
+├── tools/mermaid/          # validador de los Mermaid de ARQUITECTURA (dev, con su lockfile)
 ├── docs/
 │   ├── PROTOCOL.md         # LA LEY. Todo cambio de formato exige ADR + bump aquí
 │   ├── adr/                # decisiones registradas (leer antes de diseñar nada)
@@ -67,12 +68,14 @@ La IA **lee** en `docs/` y `internal/`; **escribe** en `internal/`, `cmd/nucleo/
 - **PROTOCOL.md manda:** si una tarea contradice el protocolo, DETENERSE y preguntar; el cambio de protocolo es decisión del dev vía ADR.
 - **Regla de los mensajes:** ningún mensaje sugiere una acción sin que esa acción funcione en el entorno donde se imprime. Si el consejo depende del entorno, se comprueba antes de darlo (o se da otro). Dos sprints seguidos encontraron consejos imposibles de seguir: la receta de cron que fallaba dentro de un cron por no llevar `--passphrase-file` (Sprint 10) y el `chmod 600` de la clave del testigo en un sistema de ficheros que no guarda permisos (Sprint 11). Un consejo que no se puede obedecer es peor que no dar ninguno: manda a buscar el problema donde no está.
 - No borrar comentarios ni código existente salvo que la tarea lo pida.
-- REGLA DE CIERRE: tarea completa = `gofmt -l .` vacío + `go vet ./...` + `go test ./... -race` en verde, y el lint con `./scripts/lint.sh` —nunca con un golangci-lint cualquiera: el 2026-10-09 eso dio «0 issues» en local y rojo en el CI—. Tras cada tarea: 1 commit atómico descriptivo + marcar checkbox en TODO.md. Reversible con un solo `git revert`.
+- REGLA DE CIERRE: tarea completa = `./scripts/compuerta.sh` en verde. Corre, con una orden, todo lo que antes se copiaba a mano: gofmt, vet y tests `-race` con y sin `testhooks`, el lint con `./scripts/lint.sh` —nunca con un golangci-lint cualquiera: el 2026-10-09 eso dio «0 issues» en local y rojo en el CI—, el SDK de TS, la suite de PHP con el binario, el diferencial de los TRES verificadores, los scripts de demo y del testigo, el ejemplo y los Mermaid. Sale con 1 si falla cualquier paso. Necesita PHP con ext-sodium (`NUCLEO_PHP` si no es `php`). Tras cada tarea: 1 commit atómico descriptivo + marcar checkbox en TODO.md. Reversible con un solo `git revert`.
 - PROHIBIDO `git push` — lo hace siempre el dev tras revisar.
 - Tarea ambigua o riesgosa → DETENERSE y preguntar.
 
 # ⚙️ RECURRENT COMMANDS & LOGS
 ```bash
+./scripts/compuerta.sh         # LA compuerta completa; sale ≠ 0 si algo falla
+NUCLEO_PHP="/ruta/php -d extension=sodium" ./scripts/compuerta.sh   # PHP en otro sitio
 go build ./...                 # compilar todo
 gofmt -l . && go vet ./...     # formato + análisis estático (salida vacía = OK)
 ./scripts/lint.sh              # el lint del CI: su golangci-lint y su Go, con y sin testhooks

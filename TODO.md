@@ -159,6 +159,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       PLAN; verificar recibos ajenos desde la CLI, anotado en TODO
 - [x] 6. Mermaid en el CI: `tools/mermaid/` con su lockfile, autoprueba que demuestra que
       rechaza un bloque roto, y el job `mermaid`
+- [x] 7. `scripts/compuerta.sh` sustituye a `Taskfile.yml`: la compuerta completa con una
+      orden, sale con 1 si falla un paso; documentada en CONTRIBUTING, CLAUDE.md y AGENTS.md
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

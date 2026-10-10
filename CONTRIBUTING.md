@@ -21,6 +21,22 @@ This section will change when a contribution agreement exists, and it will say s
 
 ## Running the tests
 
+**The whole gate, with one command:**
+
+```bash
+./scripts/compuerta.sh
+```
+
+It runs every check below —gofmt, vet and the race-enabled tests with and without
+`testhooks`, the lint, the TypeScript SDK, the PHP suite with the binary, the
+three-verifier differential, the demo and witness scripts, the integration example and
+the Mermaid blocks of `docs/ARQUITECTURA.md`— keeps going after a failure so one run
+shows everything that is broken, and **exits non-zero if any step failed**. It needs Go,
+Node, Python 3 and PHP with ext-sodium (see below; `NUCLEO_PHP` if PHP is not `php` on
+the PATH). Without PHP the PHP steps fail: two verifiers are not three.
+
+The pieces, one by one:
+
 ```bash
 go test ./... -race                      # must be green
 go test -tags testhooks ./... -race      # and so must this
@@ -81,7 +97,7 @@ php sdk/php/test/run.php                   # the shared vectors, in PHP
 go build -o /tmp/nucleo ./cmd/nucleo
 NUCLEO_BIN=/tmp/nucleo php sdk/php/test/run.php   # adds real sealing through the binary
 
-NUCLEO_DIFERENCIAL_OUT=/tmp/catalogo.json   go test ./internal/receipt -run TestDiferencialGeneraCatalogo
+NUCLEO_DIFERENCIAL_OUT=/tmp/catalogo.json   go test -count=1 ./internal/receipt -run TestDiferencialGeneraCatalogo
 cd sdk/ts && npm run bundle
 NUCLEO_DIFERENCIAL_EXIGE_PHP=1 node scripts/diferencial.mjs /tmp/catalogo.json
 ```
@@ -93,6 +109,9 @@ Three environment variables, and what each one buys:
 | `NUCLEO_DIFERENCIAL_EXIGE_PHP=1` | **the absence of PHP becomes a failure** instead of a printed warning. Set it whenever you intend to reproduce the three-verifier claim; CI sets it always. Without it the script runs two of three and says so. |
 | `NUCLEO_PHP` | the PHP command, if it is not `php` on the PATH. It may carry arguments: `NUCLEO_PHP="/c/xampp/php/php.exe -d extension=php_sodium.dll"`. |
 | `NUCLEO_BIN` | the `nucleo` binary, so the PHP suite also covers sealing end to end. Without it the suite **warns** that that part was not checked. |
+
+`-count=1` matters: without it `go test` may answer from its cache and not write the
+catalogue, and the differential then dies with an `ENOENT` that looks like a verdict.
 
 A green run prints `✔ los TRES verificadores coinciden en todas las mutaciones`. If it
 says `PHP: NO SE COMPROBÓ`, you reproduced two verifiers, not three.
