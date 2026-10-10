@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -26,6 +27,10 @@ var (
 	ErrConflict = errors.New("witness: el tamaño anterior no es el último cosignado")
 	// ErrUnknownLog indica un origin del que el testigo no conoce la clave.
 	ErrUnknownLog = errors.New("witness: log desconocido")
+	// ErrRetiredLog indica un log que el testigo atendía y que quien lo opera
+	// retiró (ADR-030): no se cosigna más, pero su memoria se conserva. Para el
+	// protocolo es un 404, como un origin desconocido; el cuerpo lo distingue.
+	ErrRetiredLog = errors.New("witness: log retirado")
 	// ErrClockRewind indica que el reloj del testigo retrocedió.
 	ErrClockRewind = errors.New("witness: el reloj retrocedió respecto a la última cosignature")
 	// ErrBadSignature indica una nota sin ninguna firma válida de la clave que
@@ -83,7 +88,10 @@ type Witness struct {
 	mu     sync.Mutex
 	signer *Signer
 	logs   map[string]note.Verifier
-	state  State
+	// retired son los logs retirados (ADR-030): se recuerdan y se publican en la
+	// ruta de monitorización, pero no se cosignan.
+	retired map[string]bool
+	state   State
 }
 
 // New crea un testigo con memoria en RAM. Si now es nil se usa el reloj del
@@ -102,7 +110,7 @@ func NewWithState(name string, priv ed25519.PrivateKey, now func() time.Time, st
 	if st == nil {
 		return nil, errors.New("witness: se requiere un State")
 	}
-	return &Witness{signer: s, logs: make(map[string]note.Verifier), state: st}, nil
+	return &Witness{signer: s, logs: make(map[string]note.Verifier), retired: make(map[string]bool), state: st}, nil
 }
 
 // Name devuelve el nombre del testigo.
@@ -127,8 +135,52 @@ func (w *Witness) AddLog(origin string, pub ed25519.PublicKey) error {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.retired[origin] {
+		return fmt.Errorf("witness: %q está retirado y no puede estar también activo", origin)
+	}
 	w.logs[origin] = v
 	return nil
+}
+
+// RetireLog registra un log retirado (ADR-030): el testigo no lo cosigna más,
+// pero no olvida lo que ya cosignó y lo sigue publicando en la ruta de
+// monitorización. Volver a activarlo —AddLog en un arranque posterior— continúa
+// desde esa memoria. La clave se valida igual que en AddLog: un log retirado se
+// configura con la clave que tenía.
+func (w *Witness) RetireLog(origin string, pub ed25519.PublicKey) error {
+	if _, err := checkpoint.NewVerifier(origin, pub); err != nil {
+		return err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, activo := w.logs[origin]; activo {
+		return fmt.Errorf("witness: %q está activo y no puede estar también retirado", origin)
+	}
+	w.retired[origin] = true
+	return nil
+}
+
+// Logs devuelve los origins que el testigo cosigna, en orden.
+func (w *Witness) Logs() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return ordenados(w.logs)
+}
+
+// RetiredLogs devuelve los origins retirados, en orden.
+func (w *Witness) RetiredLogs() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return ordenados(w.retired)
+}
+
+func ordenados[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Last devuelve el último checkpoint cosignado para un origin.
@@ -186,7 +238,11 @@ func (w *Witness) cosign(declaredOld *uint64, msg []byte, consistencyProof [][]b
 	}
 	w.mu.Lock()
 	logVerifier, known := w.logs[declared.Origin]
+	retirado := w.retired[declared.Origin]
 	w.mu.Unlock()
+	if retirado {
+		return nil, fmt.Errorf("%w: %q", ErrRetiredLog, declared.Origin)
+	}
 	if !known {
 		return nil, fmt.Errorf("%w: %q", ErrUnknownLog, declared.Origin)
 	}
@@ -333,6 +389,13 @@ func (w *Witness) originByHash(hash string) (string, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	for origin := range w.logs {
+		if OriginHash(origin) == hash {
+			return origin, true
+		}
+	}
+	// Un log retirado se sigue publicando: su último checkpoint cosignado es el
+	// «hasta aquí» que hay que poder enseñar al retirarlo (ADR-030, ADR-029 §F).
+	for origin := range w.retired {
 		if OriginHash(origin) == hash {
 			return origin, true
 		}

@@ -70,6 +70,10 @@ func (s *Server) addCheckpoint(w http.ResponseWriter, r *http.Request) {
 func (s *Server) failCosign(w http.ResponseWriter, err error) {
 	var conflict *ConflictError
 	switch {
+	case errors.Is(err, ErrRetiredLog):
+		// 404, como un origin desconocido: el testigo no sirve ese log. El cuerpo
+		// lo distingue para quien sepa leerlo (ADR-030).
+		fail(w, http.StatusNotFound, "%s", RetiredBody)
 	case errors.Is(err, ErrUnknownLog):
 		fail(w, http.StatusNotFound, "origin desconocido")
 	case errors.Is(err, ErrBadSignature):
@@ -123,11 +127,16 @@ func (s *Server) monitorCheckpoint(w http.ResponseWriter, r *http.Request) {
 	w.Write(note)
 }
 
+// RetiredBody es el cuerpo del 404 de un log retirado (ADR-030).
+const RetiredBody = "log retirado"
+
 // fail escribe un error con su código.
 //
 // SPEC-CHECK: el spec solo especifica el cuerpo de la respuesta 409. Para el
 // resto se emite una línea de texto en claro, pensada para que un operador
-// humano lea el motivo en un log. Ningún cliente debe parsearla.
+// humano lea el motivo en un log. Ningún cliente debe DEPENDER de ella: la CLI de
+// Núcleo reconoce RetiredBody para dar un mensaje mejor que el de un 404 genérico
+// (ADR-030), y si no lo reconociera seguiría siendo un 404 correcto.
 func fail(w http.ResponseWriter, code int, format string, args ...any) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(code)

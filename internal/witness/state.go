@@ -39,6 +39,11 @@ type State interface {
 	// ErrNoState.
 	Latest(origin string) ([]byte, error)
 
+	// Origins devuelve, en orden, los origins de los que hay memoria. Lo usa el
+	// arranque para decir qué recuerda el testigo de logs que la configuración ya
+	// no menciona (ADR-030).
+	Origins() ([]string, error)
+
 	// Close libera los recursos.
 	Close() error
 }
@@ -73,6 +78,12 @@ func (m *MemState) Latest(origin string) ([]byte, error) {
 		return nil, ErrNoState
 	}
 	return append([]byte(nil), n...), nil
+}
+
+func (m *MemState) Origins() ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return ordenados(m.notes), nil
 }
 
 func (m *MemState) Close() error { return nil }
@@ -162,6 +173,23 @@ func (p *PersistentState) Latest(origin string) ([]byte, error) {
 		return nil, fmt.Errorf("witness: lectura del estado de %q: %w", origin, err)
 	}
 	return []byte(stored), nil
+}
+
+func (p *PersistentState) Origins() ([]string, error) {
+	rows, err := p.db.Query(`SELECT origin FROM witness_logs ORDER BY origin`)
+	if err != nil {
+		return nil, fmt.Errorf("witness: lectura de los origins: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var o string
+		if err := rows.Scan(&o); err != nil {
+			return nil, fmt.Errorf("witness: lectura de los origins: %w", err)
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
 }
 
 func (p *PersistentState) Close() error {
