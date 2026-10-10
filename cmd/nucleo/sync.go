@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -287,6 +289,7 @@ func cmdWitness(e *env, args []string) error {
 	}
 	if len(args) == 0 || args[0] != "serve" {
 		return usageErr("uso:\n" +
+			"  nucleo witness serve --addr :8080 --db testigo.db --config testigo.json\n" +
 			"  nucleo witness serve --addr :8080 --db testigo.db --name w --log-origin O --log-key HEX\n" +
 			"  nucleo witness key --db testigo.db")
 	}
@@ -297,18 +300,14 @@ func cmdWitness(e *env, args []string) error {
 	logOrigin := fs.String("log-origin", "", "origin del log al que sirve")
 	logKey := fs.String("log-key", "", "clave pública de ese log, en hexadecimal")
 	name := fs.String("name", "", "nombre de este testigo, p. ej. witness.example/w1")
+	config := fs.String("config", "", "fichero de configuración de un testigo de varios logs (ADR-030)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return usageErr("%v", err)
 	}
-	switch {
-	case *db == "":
+	if *db == "" {
 		return usageErr("witness serve necesita --db")
-	case *name == "":
-		return usageErr("witness serve necesita --name")
-	case *logOrigin == "" || *logKey == "":
-		return usageErr("witness serve necesita --log-origin y --log-key")
 	}
-	pub, err := hexKey(*logKey)
+	cfg, err := configDelTestigo(e, *config, *name, *logOrigin, *logKey)
 	if err != nil {
 		return err
 	}
@@ -322,11 +321,18 @@ func cmdWitness(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
-	w, err := witness.NewWithState(*name, priv, now, st)
+	w, err := witness.NewWithState(cfg.Name, priv, now, st)
 	if err != nil {
 		return err
 	}
-	if err := w.AddLog(*logOrigin, pub); err != nil {
+	if err := cfg.Apply(w); err != nil {
+		return usageErr("la configuración del testigo: %v", err)
+	}
+	// La memoria de origins que la configuración ya no menciona se queda donde está
+	// —ni se usa ni se borra—, pero quien opera el testigo tiene que saber que existe
+	// (ADR-030 §C).
+	huerfanos, err := memoriaSinConfigurar(st, cfg)
+	if err != nil {
 		return err
 	}
 
@@ -336,14 +342,33 @@ func cmdWitness(e *env, args []string) error {
 	}
 	defer ln.Close()
 
-	e.printf("testigo %s escuchando en http://%s\n", *name, ln.Addr())
+	e.printf("testigo %s escuchando en http://%s\n", cfg.Name, ln.Addr())
 	e.printf("  memoria    : %s\n", *db)
 	e.printf("  clave      : %s\n", hexOf(priv.Public().(ed25519.PublicKey)))
 	if created {
 		e.printf("  (clave nueva, guardada junto a la memoria; si la pierdes, tus\n")
 		e.printf("   cosignatures anteriores dejan de poder verificarse)\n")
 	}
-	e.printf("  log servido: %s\n", *logOrigin)
+	if activos := w.Logs(); len(activos) == 1 {
+		e.printf("  log servido: %s\n", activos[0])
+	} else {
+		e.printf("  logs servidos (%d):\n", len(activos))
+		for _, o := range activos {
+			e.printf("    · %s\n", o)
+		}
+	}
+	if retirados := w.RetiredLogs(); len(retirados) > 0 {
+		e.printf("  logs retirados (%d) —se recuerdan y se publican, no se cosignan—:\n", len(retirados))
+		for _, o := range retirados {
+			e.printf("    · %s\n", o)
+		}
+	}
+	if len(huerfanos) > 0 {
+		e.printf("  memoria de %d log(s) que la configuración ya no menciona —ni se usa ni se borra—:\n", len(huerfanos))
+		for _, o := range huerfanos {
+			e.printf("    · %s\n", o)
+		}
+	}
 	// Solo con un terminal delante. Como servicio de systemd, esta línea acababa en el
 	// journal, donde «Ctrl-C» no significa nada (guía de operación, Sprint 12): ahí lo
 	// para `systemctl stop`, y eso lo sabe quien escribió la unidad.
@@ -447,4 +472,81 @@ func cmdWitnessKey(e *env, args []string) error {
 		e.printf("%s\n", pub)
 	})
 	return nil
+}
+
+// configDelTestigo devuelve la configuración del testigo: la del fichero de --config
+// (ADR-030) o, como siempre, la de un solo log con --name, --log-origin y --log-key.
+// Las dos a la vez son dos fuentes de configuración que se contradicen en silencio.
+func configDelTestigo(e *env, fichero, name, logOrigin, logKey string) (*witness.Config, error) {
+	sueltas := name != "" || logOrigin != "" || logKey != ""
+	if fichero != "" {
+		if sueltas {
+			return nil, usageErr("--config no se combina con --name, --log-origin ni --log-key: " +
+				"el nombre y los logs van en el fichero (ADR-030)")
+		}
+		raw, err := readLimited(fichero, witness.MaxConfigSize, "la configuración del testigo")
+		if err != nil {
+			return nil, err
+		}
+		avisoDePermisosDeConfig(e, fichero)
+		cfg, err := witness.ParseConfig(raw)
+		if err != nil {
+			return nil, usageErr("la configuración del testigo %q no es válida: %v", fichero, err)
+		}
+		return cfg, nil
+	}
+	switch {
+	case name == "":
+		return nil, usageErr("witness serve necesita --config, o --name con --log-origin y --log-key")
+	case logOrigin == "" || logKey == "":
+		return nil, usageErr("witness serve necesita --log-origin y --log-key (o --config, para varios logs)")
+	}
+	pub, err := hexKey(logKey)
+	if err != nil {
+		return nil, err
+	}
+	return &witness.Config{Name: name, Logs: map[string]ed25519.PublicKey{logOrigin: pub}}, nil
+}
+
+// avisoDePermisosDeConfig avisa, sin fallar, si otros pueden escribir la
+// configuración: quien la escribe decide qué cosigna el testigo. Mismo criterio que
+// la política (0600 o 0644), y el mismo matiz para un directorio que no guarda
+// permisos POSIX. En Windows esos bits no significan lo mismo y no se mira.
+func avisoDePermisosDeConfig(e *env, path string) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	perm := st.Mode().Perm()
+	if perm == 0o600 || perm == 0o644 {
+		return
+	}
+	if guardaPermisos(filepath.Dir(path)) {
+		fmt.Fprintf(e.stderr, "AVISO: la configuración del testigo %q tiene permisos %04o. Quien pueda\n"+
+			"       escribirla decide qué cosigna el testigo; déjala en 0600 o 0644.\n", path, perm)
+		return
+	}
+	fmt.Fprintf(e.stderr, "AVISO: la configuración del testigo %q tiene permisos %04o y su directorio NO\n"+
+		"       guarda permisos POSIX (típico de /mnt/c bajo WSL): el chmod no va a cambiarlo.\n", path, perm)
+}
+
+// memoriaSinConfigurar devuelve los origins de los que el testigo tiene memoria y que
+// la configuración no menciona, ni como activos ni como retirados.
+func memoriaSinConfigurar(st witness.State, cfg *witness.Config) ([]string, error) {
+	origins, err := st.Origins()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, o := range origins {
+		_, activo := cfg.Logs[o]
+		_, retirado := cfg.Retired[o]
+		if !activo && !retirado {
+			out = append(out, o)
+		}
+	}
+	return out, nil
 }

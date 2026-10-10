@@ -190,6 +190,19 @@ ATESTACIÓN VIEJA
   dos relojes discrepan tanto que la atestación parece del futuro, se avisa de
   eso en vez de dar la frescura por buena.
 
+UN TESTIGO PARA VARIOS LOGS
+  witness serve --config testigo.json atiende a varios logs en un solo proceso
+  (ADR-030):
+
+    {"name": "testigo.ejemplo.ec/w1",
+     "logs":    {"<origin>": "<clave hex>", ...},
+     "retired": {"<origin>": "<clave hex>", ...}}
+
+  Un log en "retired" deja de cosignarse —al log le llega un 404 «log retirado»—
+  pero su memoria se conserva y se sigue publicando. Altas y bajas: editar el
+  fichero y reiniciar; la memoria vive en --db. --config no se combina con
+  --name, --log-origin ni --log-key, que siguen sirviendo para un solo log.
+
 LA CLAVE DEL TESTIGO
   witness serve guarda su clave privada junto a su base de datos, la crea en
   exclusiva (nunca pisa una existente) y, en Linux y macOS, rehúsa arrancar si

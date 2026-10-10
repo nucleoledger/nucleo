@@ -79,6 +79,12 @@ func clasificaFalloDeTestigo(u string, err error) (frase, consejo, clase string)
 	var he *witness.HTTPError
 	if errors.As(err, &he) {
 		switch {
+		case he.Status == 404 && strings.Contains(he.Body, witness.RetiredBody):
+			// El testigo dice que RETIRÓ este log (ADR-030): no es una URL equivocada.
+			return fmt.Sprintf("el testigo %s dejó de cosignar este log: lo retiró quien lo opera", u),
+				"Esto NO se arregla reintentando. Si no lo esperabas, habla con quien opera el testigo. Si este " +
+					"log se retiró porque su clave se robó (ADR-029, enmienda §F), lo que hay que sincronizar es el log nuevo.",
+				claseEntorno
 		case he.Status == 404:
 			return fmt.Sprintf("el testigo %s contestó 404: ahí no hay lo que se le pidió", u),
 				"Comprueba la URL, y que ESE testigo sirva a ESTE log: un testigo solo responde por los origins que tiene configurados.",
