@@ -45,8 +45,40 @@ codes, and any golden test vector in `testdata/vectors/`.
 - **A retired log's key is now checked** (ADR-030 amendment): if the witness remembers that log,
   its memory must be signed by that key, or `witness serve` refuses to start.
 
+### Added: erasure has a command, and the map's review is closed (Sprint 17)
+
+- **`nucleo erase --block N`** ([ADR-031](docs/adr/ADR-031-supresion.md), proposed): erases a
+  record's stored content —its encrypted copy and its commitments, for every block that sealed
+  the same content— after a typed confirmation (`--assume-confirmed` required with `--json`).
+  In the same transaction it seals an erasure event, type `nucleo.erasure.v1`, whose content
+  is only `{"erased_payload_hash": …}`: nothing that was not already in the chain. The chain,
+  the receipts already issued and new receipts keep verifying. The database now opens with
+  `secure_delete`, and the WAL is emptied after an erasure, so the erased bytes are not left on
+  disk. `nucleo.*` types are reserved: `seal` rejects them.
+- **`reconcile --json` gains `erased`** (always an array): blocks the live system no longer has
+  because their content was erased, with the event that says so. They are not findings and do
+  not change the exit code; without a later event, a missing record is still a finding.
+- **`scripts/compuerta.sh`**: the whole gate in one command —gofmt, vet, lint, race tests with
+  and without `testhooks`, the TypeScript SDK, the PHP suite, the three-verifier differential,
+  the demo and witness scripts, the integration example and the Mermaid blocks—; it runs every
+  step, shows what failed and exits non-zero. It replaces `Taskfile.yml`, which covered four of
+  those steps and nobody used.
+- **The Mermaid blocks of `docs/ARQUITECTURA.md` are validated in CI** (job `mermaid`), with the
+  validator isolated in `tools/mermaid/` and its own lockfile.
+
+### Fixed
+
+- **`receipt --out` no longer leaves on disk a receipt that failed its own verification**: it
+  verifies first and then writes atomically. Found by an AI model's review of the map
+  ([report](docs/revision-externa-modelo-20261010.md), versioned verbatim, with where each
+  finding was closed).
+
 ### Changed
 
+- **PROTOCOL §3, §6 and §9 and ADR-005 amended in plain sight** with what is and is not
+  implemented: no daemon and no OpenAPI, no importable Go module (everything is under
+  `internal/`), one signing key per vault rather than per tenant, no identity rotation, no QR
+  codes and no `tlog-tiles`. No normative change, so no version bump.
 - **Go is pinned** in `go.mod` (`toolchain go1.27.2`) and every workflow reads it
   (`go-version-file`); the lint job and `release.yml` check that the installed Go is exactly
   that one. `stable` had already broken the lint once. Raising it is now a deliberate commit

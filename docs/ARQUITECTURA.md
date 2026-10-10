@@ -203,7 +203,8 @@ sequenceDiagram
 `cmd/nucleo/seal.go#cmdSeal`:
 
 1. Lee el documento con tope (`cmd/nucleo/limits.go#readLimited`) y, si se pide, aplica el
-   perfil (`cmd/nucleo/profile.go#applyProfile`).
+   perfil (`cmd/nucleo/profile.go#applyProfile`). Un tipo `nucleo.*` se rechaza: lo reserva la
+   supresión (`internal/erasure/erasure.go#Reserved`, ADR-031).
 2. Resuelve la política (`cmd/nucleo/policy.go#policyFlags.resolve`) y abre el ledger
    verificándolo (`cmd/nucleo/env.go#env.openStoreWith`, §2.5).
 3. Abre el vault y carga la identidad (`cmd/nucleo/env.go#env.unlock`) y exige que la cadena la
@@ -213,7 +214,10 @@ sequenceDiagram
    primero sin escribir (`cmd/nucleo/reseal.go#sealIdempotente`).
 5. Con `--fail-on-stale` y la atestación vieja, no sella (`cmd/nucleo/stale.go#checkStaleness`,
    ADR-028).
-6. Construye el bloque: `internal/ledger/block.go#NewHeader` sobre el último
+6. Dentro de cada intento —va en un bucle, ver el paso 8— vuelve a mirar la clave de
+   idempotencia, por si quien ganó la carrera era su propio reintento, y busca los bloques que
+   ya sellaron ese contenido (`internal/store/record.go#Store.BlocksWithPayload`) para nombrar
+   el duplicado. Construye el bloque: `internal/ledger/block.go#NewHeader` sobre el último
    (`internal/store/blocks.go#Store.LastBlock`), comprueba el reloj
    (`cmd/nucleo/reloj.go#relojCoherente`) y lo firma (`internal/ledger/block.go#Seal`).
 7. Cifra el contenido (`cmd/nucleo/reseal.go#contenidoParaSellar` →

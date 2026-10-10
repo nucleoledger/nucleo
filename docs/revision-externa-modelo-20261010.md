@@ -25,7 +25,20 @@ otra escritura sobre él en la sesión.
 
 ## Dónde se cerró cada hallazgo
 
-(Se completa al cerrar el triaje del Sprint 17.)
+Triaje del Sprint 17. Cada hallazgo se contrastó con el código antes de aceptarlo; ninguno
+resultó falso, uno tenía razón solo a medias.
+
+| hallazgo | veredicto del triaje | dónde se cerró |
+|---|---|---|
+| **ALTA** — con `--out`, `receipt` escribe el recibo antes de autoverificarlo | **con razón**: el orden era escribir y después verificar | `5c7f821`: verifica primero y escribe de forma atómica (`cmd/nucleo/seal.go#entregaRecibo`); `cmd/nucleo/entrega_test.go#TestUnReciboQueNoVerificaNoSeEscribe` falla con el orden viejo. Una verificación que falle de verdad no se puede provocar desde fuera —un testigo equivocado falla antes, al emitir—, así que el test la inyecta, y el commit lo dice |
+| MEDIA — el flujo de `receipt` misatribuye pasos | **con razón**: faltaba el desbloqueo, y la firma la hace `Issue` (`internal/receipt/format.go#Sign`), no `Format` | `906421f`, ARQUITECTURA §2.4 |
+| MEDIA — el orden de verificación no es común a los tres verificadores | **con razón**: Go para en el primer fallo; PHP acumula motivos y compara el texto al final | `906421f`, ARQUITECTURA §2.5: «las mismas propiedades», no «el mismo orden» |
+| MEDIA — «tres verificadores» depende de PHP | **con razón a medias**. La afirmación ya estaba documentada con su receta (README, CONTRIBUTING), y el job `diferencial` del CI la comprueba en cada push con `NUCLEO_DIFERENCIAL_EXIGE_PHP=1`. Lo que sí faltaba: G13 no lo decía, y la compuerta local era una lista copiada a mano | `906421f`: G13 lo dice; Sprint 17: `scripts/compuerta.sh` corre la suite de PHP y el diferencial con PHP exigido, y falla sin PHP |
+| MEDIA — GARANTIAS no recoge afirmaciones de PROTOCOL y del README | **con razón** | GARANTIAS §3, nueva: las veinte afirmaciones de la lista del informe, cada una con su estado comprobado —con test, sin test, sin implementar o límite—, y L19 con «nadie lo usa en producción». PROTOCOL §3, §6 y §9 llevan además enmiendas a la vista con lo que no está implementado (`811c63f`) |
+| BAJA — `sync`, `verify`, `reconcile` y el testigo, imprecisos | **con razón, las cuatro** | `906421f`: `validaURLDeTestigo` primero y `ClearRollback` antes de `PutLastCosignature` (§2.3); `checkLeafRule` en `store.open`, antes de `VerifyIntegrity` (§2.5); JSONL perezoso y `--full` activado por omisión (§2.6); clave nueva `O_EXCL 0600` frente a `checkKeyPerms` para la existente, y `ErrOldSize` antes de `Advance` (§2.8) |
+| Tabla de flujos: a §2.2 `seal` le faltaban la búsqueda de duplicados y la relectura de la idempotencia en cada intento | **con razón** | ARQUITECTURA §2.2, paso 6 |
+| Veredictos G22 y L18: la supresión no tenía comando | **con razón**, y era el hallazgo 1 del Sprint 16 | `dc15885`: `nucleo erase` y ADR-031; G22 y L18 actualizados, G38–G40 nuevas |
+| Veredictos G35, G36 y G37: «sin test» | ya lo decía GARANTIAS | nada que cambiar: el informe confirma lo que el documento declara |
 
 FIN DEL PREÁMBULO
 

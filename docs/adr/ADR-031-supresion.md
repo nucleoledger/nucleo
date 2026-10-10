@@ -69,6 +69,14 @@ bloque más:
 - `payload_cid`: `none://` — el contenido del evento no se guarda, porque se reconstruye a
   partir del hash.
 
+**No lleva el campo aleatorio** que PROTOCOL §5 exige a los payloads que construye Núcleo,
+y es a propósito. Esa regla existe para que nadie confirme el contenido de un documento
+adivinándolo desde su hash; aquí el contenido es el propio hash suprimido, que ya es público
+en la cadena, así que adivinarlo no revela nada. Y el determinismo es lo que hace que el
+evento sirva: la reconciliación y un tercero lo encuentran recalculándolo. Con un campo
+aleatorio habría que guardar el contenido del evento fuera de la cadena para poder leerlo, y
+la reconciliación pasaría a depender de un dato aparte que se puede perder.
+
 No lleva datos personales: el hash suprimido ya estaba en la cadena, en el bloque N. Ni
 el índice del bloque, ni un motivo, ni quién lo pidió: el motivo de una supresión puede ser
 en sí un dato personal, y su registro corresponde al sistema del integrador.
