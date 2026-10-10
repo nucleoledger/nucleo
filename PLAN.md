@@ -104,13 +104,18 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
   para una passphrase olvidada; si se robó, hace falta un log nuevo.
 - Un testigo para varios logs, con un fichero de configuración estricto y logs retirados que
   conservan su memoria — ADR-030.
+- La supresión tiene comando: `nucleo erase` borra el contenido y sus compromisos, sella un
+  evento sin datos personales y `reconcile` la distingue de un faltante — ADR-031, propuesta
+  pendiente de aceptación.
 
 # ✅ MÓDULOS ESTABLES (NO TOCAR)
 
 - `internal/jcs` — RFC 8785 nativo; pasa los vectores oficiales. Congelado.
 - `internal/ledger` — header/hash/firma/cadena y Merkle RFC 6962 con inclusión y
   consistencia. Ampliar, no reescribir.
-- `internal/keys` — helpers Ed25519.
+- `internal/keys` — helpers Ed25519. **Solo lo usan los históricos** —`cmd/nucleo-demo/` y los
+  `cmd/nucleo-poc*/`— y un benchmark de `internal/ledger/`; ningún paquete del producto lo
+  importa (comprobado con `go list` en el Sprint 17). Se queda como está, igual que ellos.
 - `cmd/nucleo-demo`, `cmd/nucleo-poc*` — pruebas de concepto históricas. Compilan y
   se quedan como referencia de cómo se llegó hasta aquí; **no se editan**. El
   producto es `cmd/nucleo`.

@@ -1,6 +1,6 @@
 # Núcleo Protocol Specification
 
-**Version: 0.5-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; wire formats stabilize at v1.0)**
+**Version: 0.5-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; wire formats stabilize at v1.0)**
 
 > **0.3-draft changes what a verifier ACCEPTS, not what an issuer emits**
 > ([ADR-018](adr/ADR-018-politica-formato-de-cable.md)). Every receipt produced under
@@ -129,6 +129,19 @@ Núcleo is a C2SP-compatible log. Pinned specs (record exact versions in ADR-001
 - **Witness cosignatures**: `c2sp.org/tlog-cosignature@v1` (72-byte timestamped_signature). Witness protocol: `c2sp.org/tlog-witness` — the witness MUST persist the new checkpoint atomically with the consistency check before responding (rollback-race prevention).
 - **Receipt / proof bundle**: `c2sp.org/tlog-proof` — self-contained offline-verifiable proof (checkpoint + cosignatures + index + inclusion proof + extra data). The Núcleo *receipt* IS a tlog-proof plus a human-readable wrapper. QR codes carry a URL to the static verifier + the entry hash, NOT the full proof.
 - **Archived segments**: `c2sp.org/tlog-tiles` static tiles.
+
+> **Amendment 2026-10-10 (Sprint 17): implementation status.** The heading still says
+> *"pending implementation"*; it is left as written, and it is stale. Implemented as of
+> v0.3.1-alpha: the checkpoint (three body lines, extension lines rejected), the Ed25519 log
+> signature (0x01), the additional ML-DSA-44 signature (ADR-007, added to every checkpoint
+> the log signs), witness cosignatures with key ID algorithm byte 0x04, the witness protocol
+> with transactional persistence (ADR-011, one process for many logs since ADR-030), and the
+> receipt as a `tlog-proof` plus its wrapper (§3.1). **Not implemented**: QR codes, and
+> archived segments as `tlog-tiles` (§7). The origin line has no imposed scheme: the operator
+> chooses it with `nucleo init --origin`, and the example `nucleoledger.com/<tenant-log-id>`
+> is only an example. The witness only witnesses logs whose checkpoints have exactly three
+> body lines — that is, Núcleo logs; verbatim-preserving parsing for other logs is still
+> not implemented. Where each item is tested: `docs/GARANTIAS.md`, §1 and §3.
 
 ### 3.1 Receipt format (normative)
 
@@ -315,6 +328,17 @@ position on the legal one (corrected 2026-09-13, fourth audit).
 - Backup: **SLIP-0039** mnemonic shares protecting the KEK, default threshold 2-of-3 (3-of-5 for multi-partner orgs). Guided backup UX is a v1 requirement.
 - Identity rotation: a special block type signed by the outgoing key authorizing the new key. If the old key is lost: new identity anchored via witnesses + an out-of-band partner attestation; the discontinuity MUST be visible in the chain.
 
+> **Amendment 2026-10-10 (Sprint 17): implementation status.** The heading's *"pending
+> implementation"* is left as written; it is half stale. Implemented: the at-rest
+> hierarchy (passphrase → Argon2id → KEK → DEK) and the SLIP-0039 backup of the KEK, 2-of-3
+> by default (`--shares` and `--threshold` allow 3-of-5), with the guided, typed
+> confirmation (ADR-004, ADR-010); a new passphrase from the cards (ADR-029). **Not as
+> written**: the signing identity is **one Ed25519 key per vault**, not per tenant — the
+> tenants of a ledger share the block-signing key, and the log has its own key for
+> checkpoints. **Not implemented**: identity rotation, in either form. Today a lost or
+> compromised key means a new log, and the old one is retired at its witnesses
+> (ADR-029, amendment §F; ADR-030 §C).
+
 ## 7. Segments (normative, pending implementation)
 
 Periods (monthly or yearly by volume) close with a witnessed checkpoint. Historical segments are archived as static tiles. Cross-segment verification uses RFC 9162 consistency proofs between closing checkpoints (Rekor-v2-style sharding).
@@ -328,6 +352,15 @@ SQLite, pure-Go driver, WAL, `synchronous=FULL`, single writer. The blocks table
 1. **CLI (primary)**: `nucleo seal|verify|...` invocable per execution (shared-hosting compatible).
 2. **Daemon (optional)**: localhost HTTP / Unix socket, OpenAPI-described; thin clients per language (TS → PHP → Python → Java).
 3. **Go module**: direct import for Go integrators.
+
+> **Amendment 2026-10-10 (Sprint 17): implementation status.** Only mode 1 exists. The
+> daemon of mode 2 does not exist and is **not planned for v1** (amendment to CONCEPTO,
+> Sprint 15; ADR-005 and its amendment), so there is no OpenAPI description either. The thin
+> clients exist without it: `@nucleoledger/verify` (TypeScript, verification only) and the
+> PHP SDK (native verifier, and a sealer that wraps the CLI binary, ADR-021). Mode 3 does not
+> exist as written: every Go package lives under `internal/`, which Go forbids importing from
+> another module, so a Go integrator calls the CLI like everyone else. Exposing a public Go
+> API would be a decision of its own, with its ADR.
 
 ## 10. Out of scope of the protocol
 

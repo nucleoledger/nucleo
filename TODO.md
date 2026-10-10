@@ -155,6 +155,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. Medias y bajas del informe: ARQUITECTURA y GARANTIAS corregidas donde tenía razón
 - [x] 4. Supresión: ADR-031 (propuesta) y `nucleo erase`, con evento sellado sin datos
       personales, `reconcile` que la distingue de un faltante y el dato fuera del disco
+- [x] 5. Enmiendas a la vista: PROTOCOL §3, §6 y §9, y ADR-005; `internal/keys` anotado en
+      PLAN; verificar recibos ajenos desde la CLI, anotado en TODO
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
@@ -163,6 +165,9 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       un tercero con incentivo (contador, certificadora, colegio de abogados).
       El software ya está (Sprint 15: varios logs, retirada, testigo mutuo y el kit
       del operador); lo que falta no es código: que alguien de fuera lo opere.
+- [ ] **Verificar recibos ajenos desde la CLI.** No se hace ahora (decisión del Sprint 17):
+      hoy un recibo se verifica con `@nucleoledger/verify`, con el SDK de PHP o con la página
+      de `web/verify/`, y la CLI solo autoverifica los que emite.
 - [ ] Identidad de registro estable y eventos `issued`/`voided` en el perfil
       genérico: las facturas se anulan y hoy `reconcile` no lo modela (pide ADR)
 
