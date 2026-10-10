@@ -125,11 +125,24 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] El lint del CI en rojo (run 38002811302): golangci-lint v2.14.0, y `scripts/lint.sh`
       para que el lint local use la versión y el Go que fija ci.yml
 
+## Sprint 15 — el producto-testigo como software, para que lo opere un tercero
+- [x] 0. El Go fijado en go.mod (`toolchain go1.27.2`), en local y en todos los workflows;
+      reproducible byte a byte, comprobado
+- [x] 1. ADR-030: un testigo para varios logs (`witness serve --config`), con altas, bajas,
+      logs retirados y memoria aislada por log; `--log-origin`/`--log-key` siguen igual
+- [x] 2. El testigo mutuo, ensayado con dos procesos en local y en el CI
+      (`scripts/ensayo-testigo-mutuo.sh`); qué garantiza y qué no, en OPERACION §1
+- [x] 3. El kit del operador (`deploy/witness/`), validado en el CI
+      (`scripts/valida-kit-testigo.sh`), con su guía
+- [x] 4. El CONCEPTO enmendado a la vista: no hay `nucleod`, y el VRF no va en el ledger
+
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
 - [ ] **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo
       demostrable no existe para una pyme. Testigo mutuo entre instalaciones, o
       un tercero con incentivo (contador, certificadora, colegio de abogados).
+      El software ya está (Sprint 15: varios logs, retirada, testigo mutuo y el kit
+      del operador); lo que falta no es código: que alguien de fuera lo opere.
 - [ ] Identidad de registro estable y eventos `issued`/`voided` en el perfil
       genérico: las facturas se anulan y hoy `reconcile` no lo modela (pide ADR)
 

@@ -77,7 +77,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 | `receipt` | issues an offline-verifiable receipt for a recipient |
 | `reconcile` | compares the live system against what was sealed |
 | `sync` | obtains attestation from a witness |
-| `witness serve` · `witness key` | runs a witness; prints its public key |
+| `witness serve` · `witness key` | runs a witness —one process for many logs with `--config`, [ADR-030](docs/adr/ADR-030-testigo-de-varios-logs.md); operator kit in [`deploy/witness/`](deploy/witness/)—; prints its public key |
 | `backup` · `restore` | re-issues the SLIP-0039 cards; with two cards, `restore --new-passphrase` sets a new passphrase and issues new cards — for a *forgotten* passphrase, not a stolen one ([ADR-029](docs/adr/ADR-029-restore-fija-passphrase-nueva.md) and its amendment) |
 
 **Exit codes are contract** — scripts read them, so they will not change silently:

@@ -55,7 +55,10 @@ El backlog atómico está en `TODO.md`. En resumen:
 **De producto**
 - **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo demostrable
   no existe para una pyme: testigo mutuo entre instalaciones, o un tercero con
-  incentivo (contador, certificadora, colegio de abogados).
+  incentivo (contador, certificadora, colegio de abogados). **El software está** desde el
+  Sprint 15 —un testigo para varios logs con retirada (ADR-030), el testigo mutuo ensayado
+  en el CI, y el kit del operador en `deploy/witness/`—; lo que falta es que lo opere
+  alguien de fuera, y eso no lo hace el autor (CONCEPTO §1 y §7).
 - **Identidad de registro y eventos `issued`/`voided`** en el perfil genérico: las
   facturas se anulan y `reconcile` no lo modela. Toca el protocolo; pide ADR.
 
@@ -97,7 +100,10 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
   usa el SDK publicado — ADR-026.
 - La alarma de frescura se guarda en el ledger y `seal` sella siempre por omisión — ADR-028.
 - Con dos tarjetas, `restore` fija una passphrase nueva y emite tarjetas nuevas, en una
-  transacción; el `Sealer` acepta `0640 root:www-data` — ADR-029.
+  transacción; el `Sealer` acepta `0640 root:www-data` — ADR-029, y su enmienda: eso es
+  para una passphrase olvidada; si se robó, hace falta un log nuevo.
+- Un testigo para varios logs, con un fichero de configuración estricto y logs retirados que
+  conservan su memoria — ADR-030.
 
 # ✅ MÓDULOS ESTABLES (NO TOCAR)
 

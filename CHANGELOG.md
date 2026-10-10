@@ -11,6 +11,37 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Added: the witness as software a third party can operate (Sprint 15)
+
+- **One witness, many logs** ([ADR-030](docs/adr/ADR-030-testigo-de-varios-logs.md)).
+  `nucleo witness serve --config testigo.json` serves every log listed in the file —read with
+  the same strict grammar as the policy, now shared in `internal/estricto` without changing a
+  single policy message—. Logs can be **retired**: they are no longer cosigned (a 404 with
+  the body «log retirado», which the CLI turns into «the witness stopped cosigning this log»),
+  but their memory is kept and still published, which is what the ADR-029 amendment asks for
+  a stolen key. Adding and removing logs is editing the file and restarting; memory lives in
+  the database. Two logs never share memory, with a test. `--log-origin`/`--log-key` work as
+  before.
+- **Mutual witnessing**, rehearsed end to end with two `witness serve` processes in
+  `scripts/ensayo-testigo-mutuo.sh`, which the CI runs on every push: each company is attested
+  by the other's witness, and when one restores an old backup the other's witness detects the
+  rollback. What it does **not** guarantee —two companies colluding— is in
+  [`docs/OPERACION.md`](docs/OPERACION.md) §1.
+- **The witness operator kit**, [`deploy/witness/`](deploy/witness/): systemd unit, Caddyfile,
+  example configuration and a guide for whoever operates the witness —what to back up, what
+  to watch, what to do if the key is lost—, validated in CI (`systemd-analyze verify` failing
+  on any warning, since verify exits 0 on a misspelled directive; `caddy validate`; the
+  example configuration actually served).
+
+### Changed
+
+- **Go is pinned** in `go.mod` (`toolchain go1.27.2`) and every workflow reads it
+  (`go-version-file`); the lint job and `release.yml` check that the installed Go is exactly
+  that one. `stable` had already broken the lint once. Raising it is now a deliberate commit
+  (`docs/RELEASING.md`, «La versión de Go»). Builds stay byte-for-byte reproducible.
+- **CONCEPTO amended in plain sight**: there is no `nucleod` (ADR-005), and VRF commitments do
+  not go in the ledger (ADR-003 amendment).
+
 ## [0.3.1-alpha] — 2026-10-07
 
 ### What this version is
