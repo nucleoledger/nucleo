@@ -31,6 +31,9 @@ var (
 	// retiró (ADR-030): no se cosigna más, pero su memoria se conserva. Para el
 	// protocolo es un 404, como un origin desconocido; el cuerpo lo distingue.
 	ErrRetiredLog = errors.New("witness: log retirado")
+	// ErrRetiredKey indica que la clave con la que se retira un log no verifica lo
+	// que el testigo recuerda de él (enmienda de ADR-030).
+	ErrRetiredKey = errors.New("witness: la clave del log retirado no es la suya")
 	// ErrClockRewind indica que el reloj del testigo retrocedió.
 	ErrClockRewind = errors.New("witness: el reloj retrocedió respecto a la última cosignature")
 	// ErrBadSignature indica una nota sin ninguna firma válida de la clave que
@@ -145,11 +148,31 @@ func (w *Witness) AddLog(origin string, pub ed25519.PublicKey) error {
 // RetireLog registra un log retirado (ADR-030): el testigo no lo cosigna más,
 // pero no olvida lo que ya cosignó y lo sigue publicando en la ruta de
 // monitorización. Volver a activarlo —AddLog en un arranque posterior— continúa
-// desde esa memoria. La clave se valida igual que en AddLog: un log retirado se
-// configura con la clave que tenía.
+// desde esa memoria.
+//
+// La clave se USA, no solo se valida (enmienda de ADR-030): si el testigo tiene
+// memoria de ese log, el último checkpoint que recuerda tiene que estar firmado por
+// esa clave. Si no lo está, quien opera el testigo está retirando con una clave que
+// no es la del log —un error de copia, o el log equivocado— y lo que se publica como
+// «hasta aquí» no sería de quien cree. Sin memoria no hay nada que comprobar.
+//
+// Con los logs activos no se hace: uno puede volver con otra clave (ADR-030 §C) y su
+// memoria, firmada por la anterior, no tiene por qué verificar con la nueva.
 func (w *Witness) RetireLog(origin string, pub ed25519.PublicKey) error {
-	if _, err := checkpoint.NewVerifier(origin, pub); err != nil {
+	v, err := checkpoint.NewVerifier(origin, pub)
+	if err != nil {
 		return err
+	}
+	switch recordado, err := w.state.Latest(origin); {
+	case errors.Is(err, ErrNoState):
+		// Nunca cosignó nada de ese log: no hay firma que comprobar.
+	case err != nil:
+		return err
+	default:
+		if _, _, err := checkpoint.Verify(recordado, v); err != nil {
+			return fmt.Errorf("%w: la clave dada para %q no es la que firmó lo que el testigo recuerda de ese log: %w",
+				ErrRetiredKey, origin, err)
+		}
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()

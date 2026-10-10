@@ -72,7 +72,8 @@ que no sea el testigo: tu web, un documento firmado, en persona.
 
 ## Retirar a un cliente
 
-Muévelo de `logs` a `retired` y reinicia. Desde ese momento su `sync` recibe un 404 y la CLI
+Muévelo de `logs` a `retired` **con la misma clave** y reinicia. La clave se comprueba: si
+no es la que firmó lo que el testigo recuerda de ese log, el testigo no arranca y lo dice. Desde ese momento su `sync` recibe un 404 y la CLI
 le dice *«el testigo … dejó de cosignar este log: lo retiró quien lo opera»*; su memoria se
 queda, y su último checkpoint se sigue publicando (abajo). Es lo que pide un cliente cuya
 passphrase se robó ([ADR-029](../../docs/adr/ADR-029-restore-fija-passphrase-nueva.md),

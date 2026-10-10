@@ -155,8 +155,18 @@ func TestTestigoDeVariosLogs(t *testing.T) {
 		t.Fatalf("el otro log dejó de sincronizar: código %d\n%s", code, dos.ultima())
 	}
 
-	// Sin «uno» en la configuración, el arranque dice que tiene su memoria.
+	// Retirarlo con una clave que no es la suya: el testigo no arranca (enmienda de
+	// ADR-030), porque lo que publicaría como «hasta aquí» no sería de ese log.
 	tm.para()
+	escribe(`{"name": "` + nombre + `", "logs": {"ejemplo.ec/dos": "` + k2 + `"}, "retired": {"ejemplo.ec/uno": "` + strings.Repeat("ab", 32) + `"}}`)
+	if _, _, code := uno.run("witness", "serve", "--addr", "127.0.0.1:0", "--db", db, "--config", config); code != exitUsage {
+		t.Fatalf("con la clave equivocada en retired, witness serve salió con %d; want %d\n%s", code, exitUsage, uno.ultima())
+	}
+	if !strings.Contains(uno.ultima(), "no es la que firmó lo que el testigo recuerda") {
+		t.Errorf("no explica por qué no arranca:\n%s", uno.ultima())
+	}
+
+	// Sin «uno» en la configuración, el arranque dice que tiene su memoria.
 	escribe(`{"name": "` + nombre + `", "logs": {"ejemplo.ec/dos": "` + k2 + `"}}`)
 	tm = levantaTestigo(t, "--db", db, "--config", config)
 	if !strings.Contains(tm.salida(), "que la configuración ya no menciona") {

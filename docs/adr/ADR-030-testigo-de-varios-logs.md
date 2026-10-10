@@ -1,6 +1,6 @@
 # ADR-030-testigo-de-varios-logs
 
-**Estado:** ACEPTADA el 2026-10-10 por el dev (Sprint 15) · **Fecha:** 2026-10-10 · **Fuentes:** ADR-011 (el testigo HTTP, `c2sp.org/tlog-witness`), ADR-018 (formato estricto de la política), ADR-029 y su enmienda §F (retirar un log cuya clave se robó), CONCEPTO §1 y §7 (el autor no opera infraestructura), `docs/OPERACION.md` §1
+**Estado:** ACEPTADA el 2026-10-10 por el dev (Sprint 15), **ENMENDADA el 2026-10-10** (Sprint 16: la clave de un log retirado se usa) · **Fecha:** 2026-10-10 · **Fuentes:** ADR-011 (el testigo HTTP, `c2sp.org/tlog-witness`), ADR-018 (formato estricto de la política), ADR-029 y su enmienda §F (retirar un log cuya clave se robó), CONCEPTO §1 y §7 (el autor no opera infraestructura), `docs/OPERACION.md` §1
 
 ## El problema
 
@@ -118,3 +118,28 @@ uno que intenta usar el origin de otro, y uno cuyo origin es prefijo del de otro
   publicando hasta dónde llegó.
 - La política del lado del cliente no cambia: sigue nombrando el testigo por su `name` y su
   clave; que ese testigo atienda a otros logs no le afecta.
+
+## Enmienda 2026-10-10 (Sprint 16) — la clave de un log retirado se usa
+
+Tal como se implementó en el Sprint 15, la clave de un log en `retired` se exigía y se
+validaba —64 hexadecimales, una clave Ed25519— pero **no se usaba para nada**: el testigo no
+cosigna un log retirado, así que no tenía con qué compararla. Una clave pedida y no usada es
+una promesa vacía: quien la escribe cree que importa.
+
+Ahora importa. Al retirar un log del que el testigo tiene memoria, **el último checkpoint que
+recuerda tiene que estar firmado por esa clave** (`internal/witness/witness.go#Witness.RetireLog`,
+error `ErrRetiredKey`). Si no lo está, `witness serve` no arranca y dice por qué: *«la clave
+dada para … no es la que firmó lo que el testigo recuerda de ese log»*. El motivo es el de §C:
+lo que se publica de un log retirado es el «hasta aquí» que pide la enmienda de ADR-029, y
+retirarlo con la clave equivocada —un error de copia, o el log equivocado— haría que el
+operador publicara como de un log lo que no sabe de quién es.
+
+Sin memoria de ese log no hay nada que comprobar, y se retira con la clave que se dé.
+
+**Solo con los retirados.** Un log activo puede volver con otra clave (§C), y su memoria,
+firmada por la anterior, no tiene por qué verificar con la nueva: comprobarla ahí bloquearía
+una rotación legítima.
+
+Tests: `internal/witness/varios_test.go#TestRetirarConOtraClaveSeRechaza` y, con el binario,
+`cmd/nucleo/testigo_varios_test.go#TestTestigoDeVariosLogs`. Sin la comprobación, los dos
+fallan.

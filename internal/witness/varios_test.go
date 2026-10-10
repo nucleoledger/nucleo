@@ -270,3 +270,37 @@ func TestActivoYRetiradoALaVezEsError(t *testing.T) {
 		t.Errorf("Logs=%v RetiredLogs=%v", w.Logs(), w.RetiredLogs())
 	}
 }
+
+// TestRetirarConOtraClaveSeRechaza (enmienda de ADR-030): la clave de un log retirado
+// se usa. Si el testigo tiene memoria de ese log, tiene que estar firmada por ella; con
+// otra clave, RetireLog lo rechaza. Sin memoria no hay nada que comprobar.
+func TestRetirarConOtraClaveSeRechaza(t *testing.T) {
+	st, err := OpenState(filepath.Join(t.TempDir(), "testigo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	a := nuevoLog(t, "ejemplo.ec/robado", 1)
+	otra := nuevoLog(t, "ejemplo.ec/robado", 9) // mismo origin, otra clave
+	w := testigoSobre(t, st)
+	_ = w.AddLog(a.origin, a.pub())
+	if _, err := w.CosignAt(0, a.firma(4), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	w = testigoSobre(t, st)
+	if err := w.RetireLog(a.origin, otra.pub()); !errors.Is(err, ErrRetiredKey) {
+		t.Fatalf("retirar con otra clave = %v; want ErrRetiredKey", err)
+	}
+	if len(w.RetiredLogs()) != 0 {
+		t.Errorf("quedó retirado pese al rechazo: %v", w.RetiredLogs())
+	}
+	if err := w.RetireLog(a.origin, a.pub()); err != nil {
+		t.Errorf("con su clave: %v", err)
+	}
+	// Un log del que no hay memoria se retira con la clave que se dé.
+	sinMemoria := nuevoLog(t, "ejemplo.ec/nunca-visto", 5)
+	if err := w.RetireLog(sinMemoria.origin, sinMemoria.pub()); err != nil {
+		t.Errorf("sin memoria: %v", err)
+	}
+}
