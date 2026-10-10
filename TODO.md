@@ -157,6 +157,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       personales, `reconcile` que la distingue de un faltante y el dato fuera del disco
 - [x] 5. Enmiendas a la vista: PROTOCOL §3, §6 y §9, y ADR-005; `internal/keys` anotado en
       PLAN; verificar recibos ajenos desde la CLI, anotado en TODO
+- [x] 6. Mermaid en el CI: `tools/mermaid/` con su lockfile, autoprueba que demuestra que
+      rechaza un bloque roto, y el job `mermaid`
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

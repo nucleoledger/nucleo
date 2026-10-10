@@ -219,6 +219,27 @@ jobs:
       - name: Validar deploy/witness/
         run: ./scripts/valida-kit-testigo.sh
 
+  # Los bloques Mermaid del mapa del sistema (docs/ARQUITECTURA.md), con el parser del
+  # propio Mermaid. Un bloque roto se ve como texto en GitHub y nadie lo nota; aquí es un
+  # fallo. El validador vive en tools/mermaid/, aislado del producto con su propio
+  # lockfile, y antes de validar el mapa demuestra que rechaza un bloque roto.
+  mermaid:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: tools/mermaid
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: sdk/ts/.nvmrc
+          cache: npm
+          cache-dependency-path: tools/mermaid/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Validar los bloques de docs/ARQUITECTURA.md
+        run: npm run valida
+
   fuzz:
     runs-on: ubuntu-24.04
     steps:

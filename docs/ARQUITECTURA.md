@@ -8,7 +8,8 @@ con «Mermaid to Excalidraw».
 tipo, método `Tipo.Metodo`, constante; en PHP `Clase::metodo`). Nunca números de línea, que se
 desfasan solos. `cmd/nucleo/mapa_test.go#TestElMapaNoCitaNadaQueNoExista` lee este fichero y
 falla si un fichero, una función, un test o un ADR citado no existe. Los bloques Mermaid usan
-nombres cortos y no se comprueban así; su sintaxis se validó con `mermaid.parse` (mermaid 11).
+nombres cortos y no se comprueban así; su sintaxis la comprueba `tools/mermaid/valida.mjs`, con
+el parser del propio Mermaid, y el job `mermaid` del CI falla si un bloque no es válido.
 
 **Lo que este documento no hace**: justificar las decisiones (eso es `docs/adr/`) ni decir qué
 garantiza el sistema y qué no (eso es `docs/GARANTIAS.md`).
