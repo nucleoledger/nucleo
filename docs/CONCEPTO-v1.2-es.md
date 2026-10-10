@@ -4,11 +4,35 @@
 
 > **Cambios respecto a v1.1:** las cinco cuestiones de protocolo pasan de "abiertas" a **decididas** con investigación fundamentada (§9, matriz de decisiones); adopción del ecosistema **C2SP** como base del protocolo (§5.2); stack verificado pieza por pieza con procedencia (§10); regla de redacción LOPDP (§6.1); hoja de ruta con Fase 0 de prueba de concepto (§17); incertidumbres restantes reducidas a mediciones de laboratorio (§16). Este documento queda congelado hasta el arranque; cualquier cambio posterior será por ADR.
 
+> **ENMIENDA del 2026-10-10 (Sprint 15), a la vista: el texto de abajo NO se reescribe.**
+> Dos afirmaciones de este documento ya no describen el producto, porque decisiones
+> posteriores, registradas por ADR, las cambiaron. Donde el texto las hace, manda el ADR:
+>
+> 1. **No hay `nucleod`.** [ADR-005](adr/ADR-005-cli-primario.md) eligió la **CLI como modo
+>    primario** —`nucleo`, un binario que se invoca por ejecución, compatible con el hosting
+>    compartido que bloquea daemons— y dejó el daemon como opcional. El producto es ese binario
+>    (CLI y testigo), los SDK de TypeScript y de PHP, y el verificador HTML; el daemon no existe
+>    y **no está planificado para la v1**. Donde se lee «`nucleod`» (§0, §5.1) léase la CLI
+>    `nucleo`; donde se lee «daemon opcional» (§9 cuestión 4, §17), no existe.
+> 2. **El VRF no va en el ledger.** La [enmienda de ADR-003](adr/ADR-003-compromisos-vrf-hmac.md)
+>    (2026-09-07) midió que un compromiso VRF se verifica con la clave **pública**, y con ella
+>    cualquiera que lea el ledger puede probar candidatos: una cédula ecuatoriana sale en
+>    minutos. Así que **el compromiso del ledger es HMAC-SHA-256 con subclave por tenant**, sin
+>    excepción, y la prueba VRF nunca va en el ledger: si algún día se usa, será para revelación
+>    selectiva fuera de él ([ADR-012](adr/ADR-012-vrf-library.md), propuesta pendiente de
+>    decisión). Donde se lee «VRF» como compromiso del ledger (§5.2, §6.1, §9 cuestión 3, §15,
+>    §16, §17) léase HMAC; la biblioteca VRF que lista §10 no se ha adoptado.
+>
+> Las dos marcas «*Enmendado*» dentro del texto señalan dónde aplica.
+
 ---
 
 ## 0. Resumen en un párrafo
 
 Núcleo es una capa de integridad criptográfica de código abierto que cualquier desarrollador integra en su software para que los registros importantes queden sellados en el instante en que ocurren — hasheados, encadenados, firmados y cifrados — de modo que ninguna alteración posterior del pasado sea posible sin dejar evidencia matemática detectable y demostrable. No es blockchain, no es una base de datos nueva ni un servicio en la nube: es un motor local (`nucleod`, en Go) y una familia de clientes delgados que acompañan al sistema que ya existe, reconcilian periódicamente los datos vivos contra lo sellado, y entregan recibos firmados a las partes interesadas que sobreviven aunque el sistema original sea alterado o destruido. Es un **transparency log C2SP-compatible**: sus raíces las cosignan testigos del ecosistema abierto y sus pruebas las lee cualquier verificador estándar. Protege al que tiene la llave o el recibo del que no los tiene. El core es universal (inglés, AGPLv3); los perfiles de dominio lo aterrizan en Ecuador primero (español). El creador no opera infraestructura; el negocio vive de licencias comerciales a quien lo embebe en software cerrado. A quien altere un registro le queda una sola pregunta sin respuesta: *explíqueme por qué el sello no coincide.*
+
+> *Enmendado (2026-10-10): el motor es la CLI `nucleo`, no un `nucleod` (ADR-005). Ver la
+> enmienda al principio.*
 
 ## 1. Problema
 
@@ -112,6 +136,10 @@ Core, API, protocolo y documentación técnica en **inglés**; perfiles, guías,
 | 3 | Hashes adivinables / LOPDP | VRF `vrf-r255` para compromisos verificables por terceros; HMAC para lo interno; blobs cifrados borrables; redacción "alineado con LOPDP" | RFC 9381; keyserver de Valsorda (dic-2025); Resolución SPDP-SPD-2025-0030-R; doctrina seudonimización GDPR/AEPD | Media-alta (dictamen legal como mejora futura) |
 | 4 | Entornos sin daemon | **CLI invocable como modo primario** (`nucleo seal …`), daemon opcional para VPS, módulo Go importable; SQLite Go puro; API descrita en OpenAPI para clientes delgados (TS→PHP→Python→Java); Wasm pospuesto (Argon2id costoso) | CloudLinux/CageFS/LVE bloquea daemons en shared hosting; patrón restic/age; benchmarks modernc.org/sqlite (1.2–2×, aceptable) | Alta |
 | 5 | Crecimiento del ledger | Cierre de períodos (mensual/anual según volumen) con checkpoint atestiguado; segmentos históricos archivados como tiles estáticos; verificación de la cadena de segmentos por pruebas de consistencia RFC 9162 §2.1.4 | Modelo de shards anuales de Rekor v2 (GA oct-2025); tlog-tiles; Tessera | Alta |
+
+> *Enmendado (2026-10-10): en la cuestión 3, el compromiso del ledger es HMAC-SHA-256 con
+> subclave por tenant y el VRF queda fuera del ledger (enmienda de ADR-003); en la 4, el daemon
+> no existe ni está planificado para la v1 (ADR-005). Ver la enmienda al principio.*
 
 **Decisiones de diseño adicionales cerradas:** recibo = tlog-proof con QR URL+hash; formato de intercambio = C2SP nativo (exportación a Sigstore bundle como función futura, no dependencia); conectores de reconciliación por base de datos = v2 / candidata a exclusiva comercial (en v1, `reconcile()` recibe los datos del integrador con contrato simple); red de testigos mutuos = protocolo tlog-witness estándar (interoperable con testigos públicos existentes).
 
