@@ -186,6 +186,20 @@ jobs:
   # lo compensa un fuzzing que de todas formas es demasiado corto para encontrar
   # nada profundo. Lo profundo se busca a mano, en tandas de minutos, y el
   # hallazgo se deja en el corpus.
+  # Testigo mutuo (Sprint 15): dos instalaciones que se atestiguan entre sí, con el
+  # binario de producción y dos procesos `witness serve`. Comprueba que cada una queda
+  # atestiguada por el testigo de la otra y que el rollback de una lo detecta el
+  # testigo de la otra. Lo que esto no garantiza: docs/OPERACION.md §1.
+  testigo-mutuo:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Ensayo del testigo mutuo
+        run: ./scripts/ensayo-testigo-mutuo.sh
+
   fuzz:
     runs-on: ubuntu-24.04
     steps:

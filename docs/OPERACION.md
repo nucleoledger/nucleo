@@ -41,6 +41,41 @@ Quién puede serlo, en la práctica: tu contador, una notaría, un gremio o cám
 empresa con la que os atestiguáis mutuamente. Lo que importa es que **ni la clave privada
 ni la memoria del testigo estén al alcance de quien sella**.
 
+### Testigo mutuo: dos empresas que se atestiguan entre sí
+
+Cuando no hay un tercero a mano, dos empresas pueden ser cada una el testigo de la otra: la
+empresa A opera un testigo que atiende el log de B, y B uno que atiende el de A. Cada una
+pone en su política el testigo **de la otra**, nunca el suyo.
+
+```json
+{"name": "testigo.empresa-a.ec", "logs": {"empresa-b.ec/facturacion": "<clave del log de B>"}}
+```
+
+es la configuración del testigo de A (`witness serve --config`, [ADR-030](adr/ADR-030-testigo-de-varios-logs.md));
+la de B, simétrica. Ensayado de punta a punta en `scripts/ensayo-testigo-mutuo.sh`, que el CI
+ejecuta en cada push con el binario de producción y dos procesos de verdad: cada una queda
+atestiguada bajo su política; el testigo de B no cosigna el log de B; si A restaura un
+respaldo viejo de su ledger, el testigo de B lo detecta —el `sync` de A sale con código 2 y
+*«ROLLBACK LOCAL DETECTADO»*, y queda constancia en su ledger—; y B sigue como si nada.
+
+**Qué garantiza.** Ninguna de las dos puede reescribir o recortar su propia historia sin que
+el testigo de la otra lo detecte, mientras ese testigo conserve su memoria; y el tiempo de sus
+recibos lo afirma la otra empresa, no ella misma.
+
+**Qué NO garantiza**, dicho sin adornos:
+
+- **Dos empresas de acuerdo para mentir juntas pueden.** Si A y B se ponen de acuerdo, el
+  testigo de B cosigna lo que A quiera y viceversa. El testigo mutuo protege de una empresa
+  que miente sola, no de dos que se conchaban. Para eso hace falta un tercero sin interés en
+  ninguna de las dos —o un tercer testigo con `quorum: 2`—.
+- **Un testigo que pierde su memoria no detecta nada.** Comprobado: si el testigo de B
+  arranca con la base vacía justo antes de que A restaure el respaldo, el rollback de A pasa
+  sin aviso. Por eso la memoria del testigo se respalda como su clave (abajo, «La clave y la
+  memoria del testigo»).
+- **Cada empresa opera un servicio para la otra.** Si el testigo de B se cae, A no se
+  atestigua, y la alarma de frescura de A sonará por algo que no puede arreglar ella: hay que
+  acordar quién avisa a quién.
+
 ### Desplegarlo en un VPS
 
 Un proceso de testigo sirve a **un** log (`--log-origin`, `--log-key`). Quien atestigua a
