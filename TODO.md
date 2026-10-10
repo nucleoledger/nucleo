@@ -54,8 +54,10 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] Aplicar las notas al borrador (`gh release edit v0.3.0-alpha --notes-file …`) y
       publicarlo — notas aplicadas el 2026-10-02; publicado por el dev como pre-release
       (2026-10-03T04:43:29Z UTC)
-- [ ] Publicar `v0.3.1-alpha` (tag firmado con SSH) y completar el sha256 y la
-      verificación en `docs/releases/v0.3.1-alpha.md`
+- [x] Publicar `v0.3.1-alpha` (tag firmado con SSH) y completar el sha256 y la
+      verificación en `docs/releases/v0.3.1-alpha.md` — publicada por el dev como
+      pre-release el 2026-10-10 (02:30:55 UTC); verificada y recompilada byte a byte desde
+      el tag; notas aplicadas
 - [ ] Cronometrar el tutorial con alguien de fuera del proyecto, sobre el ejemplo
       Node (`examples/erp-node`) — verificar: una hora medida, no estimada por quien
       lo escribió. La parte mecánica ya está medida (de clon a recibo verificado,

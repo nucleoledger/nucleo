@@ -11,10 +11,14 @@ linux/amd64 desde el tag, que coincide byte a byte (sha256
 ejemplo Node ya lo usa. Las notas de `docs/releases/v0.3.0-alpha.md` están aplicadas y el
 release está publicado como pre-release.
 
-**`v0.3.1-alpha` está preparada, sin tag ni push** (2026-10-07): cierra los tres hallazgos
-de la revisión del 2026-10-03 sobre ADR-029, con su enmienda —una passphrase olvidada no es
-una robada—. CHANGELOG y notas en `docs/releases/v0.3.1-alpha.md`; el SDK no cambia. La
-publica el dev siguiendo `docs/RELEASING.md`. El siguiente sprint lo fija el dev.
+**`v0.3.1-alpha` publicada y verificada** (10 de octubre de 2026, pre-release): cierra los
+tres hallazgos de la revisión del 2026-10-03 sobre ADR-029, con su enmienda —una passphrase
+olvidada no es una robada—. Tag `v0.3.1-alpha` (commit `5237867`) firmado con SSH y válido
+para GitHub; el release, verificado desde un directorio limpio (bundle y `.sig`/`.pem`
+`Verified OK`, sha256 OK, `NOTICE` y `AUTHORS` dentro, cero ganchos de prueba) y
+recompilado byte a byte desde el tag con go1.27.2 (sha256
+`ebfeb36b7dc471d76c5c815800b9c24b1aad78ee7a0312059c2e59a1201f0d24`); sus notas, aplicadas.
+El SDK sigue en 0.3.0-alpha.0. El siguiente sprint lo fija el dev.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: cinco rondas
 adversariales, el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
