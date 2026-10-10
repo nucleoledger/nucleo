@@ -33,7 +33,7 @@ del repositorio la fija. Este documento no añade tests; los señala.
 | G10 | Restaurar un respaldo viejo del ledger se detecta en el siguiente `sync`, y la alarma no se olvida | README «Status» | ADR-009, ADR-011 | `internal/logsync/logsync_test.go#TestSyncDetectsLocalRollback`, `cmd/nucleo/operacion_test.go#TestElRollbackDetectadoNoSeOlvida`, `scripts/ensayo-testigo-mutuo.sh` |
 | G11 | El log nunca firma dos raíces para el mismo tamaño, tampoco si muere entre firmar y cosignar | README «Security & audits» | ADR-009 | `internal/checkpoint/checkpoint_test.go#TestLogRefusesRollback`, `internal/logsync/durable_lock_test.go#TestLockSurvivesDeathBetweenSignAndCosign` |
 | G12 | El testigo recuerda lo que cosignó tras reiniciarse | README «What works today» | ADR-011 | `internal/witness/http_test.go#TestWitnessRemembersAcrossRestart` |
-| G13 | Los recibos se verifican sin red, con tres verificadores independientes que dan el mismo veredicto | README «What works today» | ADR-021 | `internal/receipt/vectors_export_test.go#TestVectoresGoldenDicenLaVerdad`, `sdk/ts/test/receipt.test.ts`, `sdk/php/test/run.php`, y el diferencial `sdk/ts/scripts/diferencial.mjs` sobre `internal/receipt/diferencial_test.go#TestDiferencialGeneraCatalogo` |
+| G13 | Los recibos se verifican sin red, con tres verificadores independientes que dan el mismo veredicto | README «What works today» | ADR-021 | `internal/receipt/vectors_export_test.go#TestVectoresGoldenDicenLaVerdad`, `sdk/ts/test/receipt.test.ts`, `sdk/php/test/run.php`, y el diferencial `sdk/ts/scripts/diferencial.mjs` sobre `internal/receipt/diferencial_test.go#TestDiferencialGeneraCatalogo`. **Los tres** solo se comprueban si corre PHP: lo hace en cada push el job `diferencial` del CI, con `NUCLEO_DIFERENCIAL_EXIGE_PHP=1`, que convierte un PHP ausente en un fallo; en local hace falta PHP con `ext-sodium` (`CONTRIBUTING.md`). Sin PHP, se comprueban dos |
 | G14 | Dos relojes: el declarado y el demostrable, que es el menor timestamp de las cosignatures aceptadas; sin testigo aceptado, el recibo dice «SIN TIEMPO DEMOSTRABLE» | README «Two clocks»; PROTOCOL §4 | ADR-002 | `internal/receipt/receipt_test.go#TestReceiptShowsBothClocks`, `internal/receipt/receipt_test.go#TestReceiptWithoutCosignatures`, `internal/receipt/receipt_test.go#TestUntrustedCosignatureGivesNoProvableTime` |
 | G15 | El emisor firma el recibo entero, destinatario incluido | README «Limits we document» | ADR-015 | `internal/receipt/receipt_test.go#TestRecipientEstaCubiertoPorLaFirmaDelEmisor`, `internal/receipt/destinatario_test.go#TestDestinatarioQueImitaUnaLineaDeFirma` |
 | G16 | El tiempo firmado tiene resolución de segundo | README «Security & audits» | ADR-019 | `internal/ledger/block_test.go#TestResolucionTemporal` |
@@ -83,4 +83,38 @@ del repositorio la fija. Este documento no añade tests; los señala.
 | L16 | **El perfil de acta de SAS no está conectado a la CLI** | README «What works today» | `cmd/nucleo/profile_test.go#TestPerfilesExpuestos` |
 | L17 | **En un testigo mutuo, cada empresa opera un servicio para la otra**: si uno se cae, la alarma de la otra suena por algo que no puede arreglar | `docs/OPERACION.md` §1 | **sin test** |
 | L18 | **La supresión es la mitad técnica de un derecho de borrado, no una opinión legal** —y hoy la CLI no la ofrece: existe en la biblioteca, sin comando— | README «What works today»; PROTOCOL §5 | `internal/vault/erase_test.go#TestEraseBlobLeavesLedgerProvable` (biblioteca); **sin test** de CLI, porque no hay comando |
-| L19 | **No ha habido auditoría profesional de seguridad** | README «Security & audits» | — |
+| L19 | **No ha habido auditoría profesional de seguridad, y nadie lo usa en producción** | README «Status» y «Security & audits» | — |
+
+---
+
+## 3. Afirmaciones de PROTOCOL y README que no tienen fila propia arriba
+
+La revisión del 2026-10-10 señaló que las dos tablas no recogían todas las afirmaciones
+materiales de PROTOCOL.md y del README. Estas son las que faltaban, cada una con su estado
+comprobado en el código: **con test**, **sin test**, **sin implementar** (PROTOCOL lo describe
+pero no existe) o **límite**.
+
+| afirmación | dónde | estado | lo fija o lo dice |
+|---|---|---|---|
+| SQLite en Go puro, WAL, `synchronous=FULL`, un solo escritor | PROTOCOL §8 | con test | `internal/store/schema_test.go#TestPragmas`, `internal/store/write_test.go#TestConcurrentAppendsSerialize` |
+| Los códigos de salida son contrato, y `--json` no lleva prosa | README «The CLI» | con test | `cmd/nucleo/cli_test.go#TestExitCodes`, `cmd/nucleo/cli_test.go#TestJSONOutputIsPureJSON` |
+| Índice de bloque ≤ 2^53 − 1 | PROTOCOL §1 | con test | `internal/ledger/block.go#MaxSafeIndex`, `internal/ledger/block_test.go#TestNewHeaderGenesisAndSuccession` |
+| Hora en UTC con `Z`, al segundo; desfases rechazados | PROTOCOL §1 | con test | `internal/ledger/block_test.go#TestHeaderTime`, `internal/ledger/block_test.go#TestResolucionTemporal` |
+| Prueba de consistencia entre tamaños iguales | PROTOCOL §2 | con test | `internal/ledger/merkle_test.go#TestConsistencyProofSameSize` |
+| Key IDs por papel: 0x01 para el log, 0x04 para las cosignatures | PROTOCOL §3 | con test | `internal/witness/cosignature_test.go#TestCosignatureKeyIDUsesAlgorithm04` |
+| El protocolo HTTP del testigo completo, con la ruta de monitorización | README «What works today»; PROTOCOL §3 | con test | `internal/witness/http_test.go#TestHTTPWitnessFullDialogue`, `internal/witness/http_test.go#TestMonitorEndpoint` |
+| El testigo persiste de forma atómica antes de responder | PROTOCOL §3 | con test parcial | `internal/witness/http_test.go#TestWitnessRemembersAcrossRestart` fija la persistencia; la atomicidad la da la transacción de `internal/witness/state.go#PersistentState.Advance`, **sin test** de una carrera |
+| Gramática estricta del bloque de firmas de la nota y conteo de cosignatures | PROTOCOL §3.3 | con test | `internal/proof/proof_test.go#TestLineasRepetidasDeUnaClaveConocida`, `internal/proof/proof_test.go#TestVerifyQuorum` |
+| El texto del recibo se vuelve a generar y tiene que coincidir byte a byte | PROTOCOL §3.1 | con test | `internal/receipt/receipt_test.go#TestParseRejectsDoctoredText`, `internal/receipt/canonical_test.go#TestFormatParseEsIdempotenteEnLosBytes` |
+| La regla de hoja va versionada y un log no cambia de regla | PROTOCOL §2.1 | con test | `internal/store/leafrule_test.go#TestLeafRuleRechazaOtraRegla`; la migración por segmentos, **sin implementar** |
+| La política tiene que llegar por un medio autenticado distinto del ledger | PROTOCOL §3.2 | límite | **sin test**: no es comprobable dentro del programa |
+| Documentos externos hasheados byte a byte; la entropía la pone el integrador, no Núcleo | PROTOCOL §5 | con test parcial | `cmd/nucleo/profile_test.go#TestSealProfileGolden`; lo de la entropía es el límite L7 |
+| Respaldo 2-de-3 por omisión | PROTOCOL §6 | sin test | el valor está en `cmd/nucleo/init.go#defaultShares` y `cmd/nucleo/init.go#defaultThreshold`; ningún test fija el valor por omisión |
+| Rotación de identidad y recuperación de una clave perdida | PROTOCOL §6 | **sin implementar** | los comentarios de `internal/store/integrity.go` lo dicen: no hay rotación de la clave del firmante ni de la del log; hoy, clave comprometida es log nuevo (ADR-029, enmienda §F) |
+| Tiempo demostrable con sellos RFC 3161 de una TSA | PROTOCOL §4 | **sin implementar** | ningún código lo menciona; el tiempo demostrable sale solo de las cosignatures |
+| Segmentos archivados y `tlog-tiles` | PROTOCOL §3 y §7 | **sin implementar** | PROTOCOL §7 ya lo dice («pending implementation») |
+| Un código QR con la URL del verificador y el hash de la entrada | PROTOCOL §3 | **sin implementar** | ningún código lo genera |
+| Procedencia SLSA de los binarios y de npm | README «Status» | sin test en el repo | la generan `release.yml` y `publish-npm.yml`; la del paquete de npm la comprueba `npm audit signatures` en el job `ejemplo` del CI |
+| El SDK de PHP no usa composer y solo necesita `ext-sodium` | README «What works today» | sin test | no hay `composer.json` y `sdk/php/test/run.php` corre sin él; nada comprueba que no se añada |
+| «Diseñado para alinearse con», nunca «certificado» | PROTOCOL §10 | límite | regla de redacción, **sin test** |
+| Un binario, sin daemon ni base externa | README «The CLI»; PROTOCOL §9 | ver la enmienda de PROTOCOL §9 | el daemon de PROTOCOL §9 no existe (ADR-005 y su enmienda) |

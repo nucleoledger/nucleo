@@ -243,6 +243,8 @@ sequenceDiagram
 
 `cmd/nucleo/sync.go#cmdSync`:
 
+0. Antes de tocar la red, valida la URL del testigo (`cmd/nucleo/testigo_errores.go#validaURLDeTestigo`):
+   una errata es un error de uso, no un incidente del testigo.
 1. Elige el testigo: `cmd/nucleo/policy.go#policyFlags.resolveSync` (la política entera y
    `--witness-name`, o las banderas sueltas) y crea el cliente
    (`internal/witness/client.go#NewClient`).
@@ -260,9 +262,9 @@ sequenceDiagram
    4. comprueba que la cosignature cubre el estado local (`internal/logsync/logsync.go#coversLocalState`)
       y guarda la nota cosignada (`internal/logsync/adapter.go#StoreLog.RecordCosigned` →
       `internal/store/checkpoints.go#Store.PutCheckpoint`).
-4. Con éxito: `Store.PutLastCosignature`, `Store.PutLastAttested`, y cierra la alarma si la había
-   (`cmd/nucleo/alarma.go#cierraAlarma`). Si había un rollback registrado y ya se cubre, lo borra
-   (`internal/store/checkpoints.go#Store.ClearRollback`).
+4. Con éxito, en este orden: si había un rollback registrado y el ledger ya lo cubre, lo borra
+   (`internal/store/checkpoints.go#Store.ClearRollback`); después `Store.PutLastCosignature` y
+   `Store.PutLastAttested`; y cierra la alarma si la había (`cmd/nucleo/alarma.go#cierraAlarma`).
 5. Con rollback: lo deja escrito (`internal/store/checkpoints.go#Store.PutRollback`) y sale con 2.
    Con el testigo caído: explica el fallo (`cmd/nucleo/testigo_errores.go#errorDeTestigo`) y
    registra la alarma; sale con 3.
@@ -288,31 +290,47 @@ sequenceDiagram
 
 `cmd/nucleo/seal.go#cmdReceipt`:
 
-1. Abre con la política y arma la del emisor (`cmd/nucleo/seal.go#issuerPolicy`); coteja el
-   fichero con el ledger (`cmd/nucleo/policy.go#checkPolicyMatchesLedger`).
-2. `internal/receipt/receipt.go#Issue`: el último checkpoint cosignado
+1. Abre con la política y arma la del emisor (`cmd/nucleo/seal.go#issuerPolicy`).
+2. **Abre el vault y carga la identidad** (`cmd/nucleo/env.go#env.unlock`): emitir un recibo
+   **firma**, y la clave del firmante solo existe descifrada con la passphrase. Coteja el fichero
+   de política con el ledger (`cmd/nucleo/policy.go#checkPolicyMatchesLedger`).
+3. `internal/receipt/receipt.go#Issue` arma el recibo: el último checkpoint cosignado
    (`internal/store/checkpoints.go#Store.LastCheckpoint`), el bloque, las hojas
    (`internal/store/blocks.go#Store.LeafData`) y el camino de inclusión
-   (`internal/ledger/merkle.go#InclusionProof`). Rechaza una entrada no atestiguada.
-3. `internal/receipt/format.go#Format` lo serializa y lo firma entero con la clave del emisor
-   —destinatario incluido, ADR-015— (`internal/receipt/format.go#Sign`).
-4. Antes de entregarlo, lo verifica (§2.5 b).
+   (`internal/ledger/merkle.go#InclusionProof`); rechaza una entrada no atestiguada. Y **lo firma
+   ella misma** con la clave del emisor, destinatario incluido (ADR-015):
+   `internal/receipt/format.go#Sign`, sobre los bytes de `internal/receipt/format.go#SignedBytes`.
+   Esos bytes incluyen el texto legible, que lleva el tiempo demostrable; por eso la nota y el
+   quórum de testigos ya se verifican aquí (`internal/receipt/receipt.go#Receipt.ProvableTime`), y
+   una política que no alcanza el quórum falla al emitir.
+4. `internal/receipt/format.go#Format` lo serializa, ya firmado.
+5. **Lo verifica entero y solo después lo escribe** (`cmd/nucleo/seal.go#entregaRecibo`, §2.5 b):
+   con `--out`, en un temporal que se renombra al nombre final. Un recibo que no verifica no
+   llega al disco. (Hasta el Sprint 17 se escribía antes de verificar: hallazgo ALTO de la
+   revisión del 2026-10-10.)
 
 ### 2.5 `verify` y la verificación de un recibo
 
 **a) El ledger** (`cmd/nucleo/verify.go#cmdVerify`, y la apertura de todos los comandos):
 
 - `cmd/nucleo/env.go#env.openStoreWith` abre **sin** política (`internal/store/store.go#Open`)
-  o **con** ella (`internal/store/store.go#OpenWithWitnesses`). Las dos acaban en
-  `internal/store/integrity.go#Store.VerifyIntegrity`: la regla de hoja
-  (`internal/store/integrity.go#Store.checkLeafRule`), la cadena, la continuidad del firmante y,
+  o **con** ella (`internal/store/store.go#OpenWithWitnesses`). Las dos pasan por
+  `internal/store/store.go#open`, que primero comprueba la regla de hoja
+  (`internal/store/integrity.go#Store.checkLeafRule`) y después llama a
+  `internal/store/integrity.go#Store.VerifyIntegrity`: la cadena, la continuidad del firmante y,
   **con política**, la atestación: el checkpoint guardado tiene que verificar bajo la política
   (`internal/store/integrity.go#Store.attestationState` → `internal/proof/proof.go#VerifyNote`).
   Sin política, un checkpoint guardado es «presente, NO verificado» (ADR-016).
 - `--full`: `internal/store/integrity.go#Store.VerifyFull` recomputa todas las firmas.
 
 **b) Un recibo**: la CLI no tiene un subcomando para verificar recibos ajenos; eso lo hacen los
-verificadores de la contraparte. Los tres hacen lo mismo:
+verificadores de la contraparte. Los tres **comprueban las mismas propiedades**, pero no con el
+mismo procedimiento: el orden difiere, y el de Go se detiene en el primer fallo
+(`internal/receipt/format.go#Receipt.Verify` empieza por la firma del emisor), mientras que el de
+PHP acumula los motivos de rechazo y sigue (`sdk/php/src/Verifier.php#Verifier::verify` empieza por
+la identidad del firmante y termina comprobando que el texto legible es el que dice la prueba).
+Lo que tiene que coincidir es el **veredicto**, y eso es lo que compara el diferencial. Qué
+propiedad comprueba cada uno:
 
 | paso | Go | TypeScript | PHP |
 |---|---|---|---|
@@ -328,19 +346,27 @@ con el catálogo de `internal/receipt/diferencial_test.go#TestDiferencialGeneraC
 ```mermaid
 flowchart LR
   recibo[recibo] --> firma[firma del emisor]
-  firma --> bloque[firma del bloque y hoja]
-  bloque --> nota[nota y cosignatures]
-  nota --> quorum[quorum de la politica]
-  quorum --> inclusion[prueba de inclusion]
-  inclusion --> veredicto[valido y tiempo demostrable]
+  recibo --> bloque[firma del bloque y hoja]
+  recibo --> nota[nota y cosignatures]
+  recibo --> quorum[quorum de la politica]
+  recibo --> inclusion[prueba de inclusion]
+  firma --> veredicto[veredicto y tiempo demostrable]
+  bloque --> veredicto
+  nota --> veredicto
+  quorum --> veredicto
+  inclusion --> veredicto
 ```
+
+Las propiedades, sin orden: cada verificador las recorre a su manera.
 
 ### 2.6 `reconcile` — el sistema vivo contra lo sellado
 
-`cmd/nucleo/reconcile.go#cmdReconcile` lee el JSONL del sistema vivo
-(`cmd/nucleo/reconcile.go#jsonlSource`) y `internal/reconcile/reconcile.go#Reconcile` recorre
-los bloques (`internal/store/blocks.go#Store.Blocks`), compara el hash de cada registro vivo con
-el `payload_hash` sellado y, con `--full`, añade `Store.VerifyFull`. Una comparación que no se
+`cmd/nucleo/reconcile.go#cmdReconcile` prepara la lectura del JSONL del sistema vivo
+(`cmd/nucleo/reconcile.go#jsonlSource`, que lee a medida que se le pide) y
+`internal/reconcile/reconcile.go#Reconcile` carga primero los bloques
+(`internal/store/blocks.go#Store.Blocks`), después recorre los registros vivos comparando el hash
+de cada uno con el `payload_hash` sellado y, salvo `--full=false` —está activado por omisión—,
+añade `Store.VerifyFull`. Una comparación que no se
 puede hacer no es un veredicto (ADR-022).
 
 ### 2.7 `restore --new-passphrase` (ADR-029)
@@ -381,9 +407,9 @@ sequenceDiagram
 1. La configuración: `cmd/nucleo/sync.go#configDelTestigo` —el fichero de `--config`, leído con
    `cmd/nucleo/limits.go#readLimited` y `internal/witness/config.go#ParseConfig` (que usa
    `internal/estricto/estricto.go#Leer`), o un solo log con `--log-origin`/`--log-key`—.
-2. La memoria y la clave: `internal/witness/state.go#OpenState` y `cmd/nucleo/sync.go#witnessKey`
-   (crea la clave en exclusiva y comprueba sus permisos con
-   `cmd/nucleo/keyperms_unix.go#checkKeyPerms`).
+2. La memoria y la clave: `internal/witness/state.go#OpenState` y `cmd/nucleo/sync.go#witnessKey`:
+   una clave nueva se crea en exclusiva y en `0600`; una que ya existía se comprueba antes de usarla
+   (`cmd/nucleo/keyperms_unix.go#checkKeyPerms`).
 3. `internal/witness/witness.go#NewWithState` y `internal/witness/config.go#Config.Apply`:
    `internal/witness/witness.go#Witness.AddLog` por cada activo y
    `internal/witness/witness.go#Witness.RetireLog` por cada retirado.
@@ -392,10 +418,12 @@ sequenceDiagram
 5. Sirve: `internal/witness/server.go#Server.Handler`. Un `add-checkpoint` entra por
    `internal/witness/server.go#Server.addCheckpoint` (cuerpo acotado, parseado con
    `internal/witness/protocol.go#UnmarshalAddCheckpoint`) y llega a
-   `internal/witness/witness.go#Witness.CosignAt` → `internal/witness/witness.go#Witness.cosign`:
-   el origin elige la clave, la nota se verifica con ella (`internal/checkpoint/checkpoint.go#Verify`),
-   y dentro de una transacción de la memoria (`internal/witness/state.go#PersistentState.Advance`)
-   se compara con lo recordado (`internal/witness/witness.go#checkExtension`) y se cosigna
+   `internal/witness/witness.go#Witness.CosignAt` → `internal/witness/witness.go#Witness.cosign`,
+   en este orden: el origin elige la clave —y un log retirado o desconocido se rechaza ahí—, la nota
+   se verifica con ella (`internal/checkpoint/checkpoint.go#Verify`), el tamaño anterior declarado
+   no puede superar al del checkpoint, y solo entonces, dentro de una transacción de la memoria
+   (`internal/witness/state.go#PersistentState.Advance`), se compara con lo recordado
+   (`internal/witness/witness.go#checkExtension`) y se cosigna
    (`internal/witness/cosignature.go#Signer.Sign`).
 
 ```mermaid
