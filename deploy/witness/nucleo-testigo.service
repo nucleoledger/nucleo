@@ -1,0 +1,36 @@
+# Testigo de Núcleo como servicio de systemd. Va en /etc/systemd/system/.
+#
+# Un proceso para todos los logs que atiende, leídos de /etc/nucleo-testigo/testigo.json
+# (ADR-030). Altas y bajas: editar ese fichero y `systemctl restart nucleo-testigo`.
+# La memoria y la CLAVE PRIVADA del testigo quedan en /var/lib/nucleo-testigo, solo
+# para él. Guía del operador: deploy/witness/README.md.
+[Unit]
+Description=Testigo de Núcleo (c2sp.org/tlog-witness)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nucleo-testigo
+Group=nucleo-testigo
+# %S es /var/lib en una unidad de sistema.
+StateDirectory=nucleo-testigo
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/local/bin/nucleo witness serve \
+    --addr 127.0.0.1:8099 \
+    --db %S/nucleo-testigo/testigo.db \
+    --config /etc/nucleo-testigo/testigo.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

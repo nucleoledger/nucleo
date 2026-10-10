@@ -23,7 +23,8 @@ nucleo/
 │   ├── vault/              # Argon2id → KEK → DEK, XChaCha20-Poly1305, SLIP-0039
 │   ├── identity/           # identidad del log y rotación
 │   ├── checkpoint/         # notas firmadas C2SP + firma extra ML-DSA-44 (0xff)
-│   ├── witness/            # testigo HTTP completo (c2sp.org/tlog-witness)
+│   ├── witness/            # testigo HTTP completo (c2sp.org/tlog-witness), varios logs (ADR-030)
+│   ├── estricto/           # lector JSON estricto: la política y la config del testigo
 │   ├── logsync/            # sincronización con testigo y detección de rollback
 │   ├── proof/ receipt/     # tlog-proof y recibos verificables offline
 │   ├── reconcile/          # comparar el sistema vivo contra lo sellado
@@ -34,7 +35,9 @@ nucleo/
 ├── sdk/ts/                 # @nucleoledger/verify — cero dependencias de runtime
 ├── sdk/php/                # verificador nativo + sellador envoltorio (sin composer)
 ├── web/verify/             # verificador HTML estático, sin red
-├── scripts/                # demo-criterio-exito.sh (el criterio de éxito) y lint.sh (el lint del CI)
+├── deploy/witness/         # kit del operador del testigo: unidad systemd, Caddyfile, config, guía
+├── scripts/                # demo-criterio-exito.sh, lint.sh (el del CI), ensayo-testigo-mutuo.sh,
+│                           # valida-kit-testigo.sh
 ├── docs/
 │   ├── PROTOCOL.md         # LA LEY. Todo cambio de formato exige ADR + bump aquí
 │   ├── adr/                # decisiones registradas (leer antes de diseñar nada)

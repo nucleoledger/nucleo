@@ -1,0 +1,7 @@
+# TLS delante del testigo. Va en /etc/caddy/Caddyfile.
+#
+# Caddy obtiene y renueva el certificado solo; el testigo escucha en 127.0.0.1 y
+# nadie de fuera le habla directamente. Cambia el dominio por el tuyo.
+testigo.ejemplo.ec {
+	reverse_proxy 127.0.0.1:8099
+}

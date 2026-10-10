@@ -200,6 +200,25 @@ jobs:
       - name: Ensayo del testigo mutuo
         run: ./scripts/ensayo-testigo-mutuo.sh
 
+  # El kit del operador del testigo (deploy/witness/): la unidad de systemd con
+  # `systemd-analyze verify` —fallando también ante cualquier aviso sobre ella, porque
+  # verify sale con 0 aunque una directiva esté mal escrita—, el Caddyfile con `caddy
+  # validate`, y la configuración de ejemplo arrancando de verdad. El binario se instala
+  # en /usr/local/bin para validar la unidad tal cual, sin tocar su ExecStart.
+  kit-testigo:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: El binario donde lo espera la unidad
+        run: |
+          go build -o nucleo ./cmd/nucleo
+          sudo install -m 0755 nucleo /usr/local/bin/nucleo
+      - name: Validar deploy/witness/
+        run: ./scripts/valida-kit-testigo.sh
+
   fuzz:
     runs-on: ubuntu-24.04
     steps:

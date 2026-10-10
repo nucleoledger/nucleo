@@ -78,58 +78,23 @@ recibos lo afirma la otra empresa, no ella misma.
 
 ### Desplegarlo en un VPS
 
-Un proceso de testigo sirve a **un** log (`--log-origin`, `--log-key`). Quien atestigua a
-varios emisores levanta una unidad por log, cada una con su puerto y su directorio.
+Si operas tú el testigo de otro —o lo opera quien te atestigua—, el kit está en
+[`deploy/witness/`](../deploy/witness/): la unidad de systemd, el `Caddyfile` y una
+configuración de ejemplo, validados en el CI en cada push (`scripts/valida-kit-testigo.sh`:
+`systemd-analyze verify` sin un solo aviso, `caddy validate`, y el testigo arrancando con el
+ejemplo), y **la guía del operador**: qué respalda, qué vigila y qué hacer si pierde la clave.
 
-```ini
-# /etc/systemd/system/nucleo-testigo.service
-[Unit]
-Description=Testigo de Núcleo (c2sp.org/tlog-witness)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=nucleo-testigo
-Group=nucleo-testigo
-# %S es /var/lib en una unidad de sistema: la memoria del testigo y su CLAVE PRIVADA
-# quedan en /var/lib/nucleo-testigo, solo para él.
-StateDirectory=nucleo-testigo
-StateDirectoryMode=0700
-UMask=0077
-ExecStart=/usr/local/bin/nucleo witness serve \
-    --addr 127.0.0.1:8099 \
-    --db %S/nucleo-testigo/testigo.db \
-    --name testigo.ejemplo.ec/w1 \
-    --log-origin ejemplo.ec/facturacion \
-    --log-key <la log_pubkey del emisor, 64 hex>
-Restart=on-failure
-RestartSec=5
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-PrivateTmp=yes
-PrivateDevices=yes
-ProtectKernelTunables=yes
-ProtectControlGroups=yes
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-useradd --system --no-create-home --shell /usr/sbin/nologin nucleo-testigo
-install -m 0755 nucleo /usr/local/bin/nucleo
-systemctl daemon-reload
-systemctl enable --now nucleo-testigo.service
-```
+Desde [ADR-030](adr/ADR-030-testigo-de-varios-logs.md), **un proceso atiende a todos los
+logs** que atestigua, leídos de `/etc/nucleo-testigo/testigo.json`; altas y bajas son editar
+ese fichero y reiniciar. Hasta v0.3.1-alpha hacía falta una unidad por log, con su puerto y
+su directorio. `witness serve --name … --log-origin … --log-key …` sigue funcionando para un
+solo log.
 
 La `log_pubkey` te la da el emisor: es la que imprime su `nucleo init`, o su `nucleo --json status`.
 
 | | cómo se comprobó |
 |---|---|
-| la unidad | `systemd-analyze verify` sin errores. Y **levantada de verdad** como servicio de usuario con las mismas directivas, salvo `User=`/`Group=` (no se admiten en modo usuario), `PrivateUsers=yes` (lo exige el aislamiento sin root) y `ProtectHome=read-only` (en modo usuario todo vive en `/home`). Arrancó, escuchó en `127.0.0.1:8099`, dejó la clave en `0600`, atestiguó un ledger, y tras `systemctl restart` conservó la misma clave y su memoria |
+| la unidad (en el Sprint 12 la de un solo log; en el 15 la de `deploy/witness/`, con `--config`, que además valida el CI) | `systemd-analyze verify` sin errores. Y **levantada de verdad** como servicio de usuario con las mismas directivas, salvo `User=`/`Group=` (no se admiten en modo usuario), `PrivateUsers=yes` (lo exige el aislamiento sin root) y `ProtectHome=read-only` (en modo usuario todo vive en `/home`). Arrancó, escuchó en `127.0.0.1:8099`, dejó la clave en `0600`, atestiguó un ledger, y tras `systemctl restart` conservó la misma clave y su memoria |
 | `useradd`, `install` a `/usr/local/bin` | **no ejecutados aquí**: exigen root. Son las órdenes estándar |
 
 Dos trampas que salieron al probarla:
@@ -142,7 +107,8 @@ Dos trampas que salieron al probarla:
 
 ### TLS delante
 
-Con [Caddy](https://caddyserver.com), que obtiene y renueva el certificado solo:
+Con [Caddy](https://caddyserver.com), que obtiene y renueva el certificado solo
+([`deploy/witness/Caddyfile`](../deploy/witness/Caddyfile)):
 
 ```caddy
 # /etc/caddy/Caddyfile
