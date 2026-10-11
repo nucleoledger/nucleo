@@ -77,41 +77,7 @@ func TestLaClaveDelServidorNoSuprime(t *testing.T) {
 	c.sealFile(`{"venta":"002","importe":"75.00"}`)
 	h0, _ := contenidoDe(t, c.dir, 0)
 
-	func() {
-		s, _, err := store.Open(filepath.Join(c.dir, "nucleo.db"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer s.Close()
-		v, err := vault.Unlock(s, []byte(testPassphrase))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer v.Close()
-		id, err := identity.Load(v, s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		payload, err := erasure.Payload(h0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		prev, err := s.LastBlock()
-		if err != nil {
-			t.Fatal(err)
-		}
-		hd, err := ledger.NewHeader(prev, testTenant, erasure.Type, payload, "none://", id.TenantPublic(), now())
-		if err != nil {
-			t.Fatal(err)
-		}
-		ev, err := ledger.Seal(hd, id.Tenant)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := s.AppendRecord(store.Record{Block: ev, EraseBlob: h0, DeleteMeta: []string{metaCommitPrefix + h0}}); err != nil {
-			t.Fatal(err)
-		}
-	}()
+	sellaSupresionForjada(t, c, h0)
 	if _, ct := contenidoDe(t, c.dir, 0); ct != nil {
 		t.Fatal("el ataque no borró la copia cifrada: el test no comprobaría nada")
 	}
@@ -234,4 +200,114 @@ func borraEstado(t *testing.T, dir, k string) int64 {
 	}
 	n, _ := r.RowsAffected()
 	return n
+}
+
+// sellaSupresionForjada es el ataque de TestLaClaveDelServidorNoSuprime: con lo que hay
+// en el servidor —el ledger y la passphrase— y las piezas internas, sin pasar por erase
+// ni por seal, borra la copia cifrada del contenido h0 y sella un evento de supresión
+// firmado por el tenant, con payload_cid "none://": sin autorización (ADR-032).
+func sellaSupresionForjada(t *testing.T, c *cli, h0 string) {
+	t.Helper()
+	s, _, err := store.Open(filepath.Join(c.dir, "nucleo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	v, err := vault.Unlock(s, []byte(testPassphrase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	id, err := identity.Load(v, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := erasure.Payload(h0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev, err := s.LastBlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hd, err := ledger.NewHeader(prev, testTenant, erasure.Type, payload, "none://", id.TenantPublic(), now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := ledger.Seal(hd, id.Tenant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendRecord(store.Record{Block: ev, EraseBlob: h0, DeleteMeta: []string{metaCommitPrefix + h0}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestReconocerNoAutorizaUnaSupresion (G42): `alert ack` calla la alarma, no juzga. Una
+// supresión sin autorización válida, reconocida, sigue siendo un hallazgo: reconcile sale
+// con 2, la señala como «supresión no autorizada» y no la cuenta en erased. El ack no
+// lleva firma (ADR-032) y lo escribe cualquiera con acceso al servidor; si contara, el
+// atacante de TestLaClaveDelServidorNoSuprime solo tendría que reconocer su propio evento.
+//
+// El contraste es la misma secuencia con la autorización de la clave de supresión: ahí
+// el registro cuenta como suprimido y reconcile sale con 0.
+func TestReconocerNoAutorizaUnaSupresion(t *testing.T) {
+	type informe struct {
+		OK       bool `json:"ok"`
+		Findings []struct {
+			Status string `json:"status"`
+			Index  uint64 `json:"index"`
+		} `json:"findings"`
+		Erased []struct {
+			Index uint64 `json:"index"`
+		} `json:"erased"`
+	}
+	// suprimeYReconoce sella dos registros, suprime el primero con suprime, reconoce la
+	// alarma y devuelve el despliegue y el sistema vivo, que ya no tiene el primero.
+	suprimeYReconoce := func(t *testing.T, suprime func(c *cli, sp *conSupresion, h0 string)) (*cli, *conSupresion, string) {
+		t.Helper()
+		c := newCLI(t)
+		sp := c.initConSupresion(t)
+		c.sealFile(`{"venta":"001","cliente":"María Pérez"}`)
+		c.sealFile(`{"venta":"002","importe":"75.00"}`)
+		h0, _ := contenidoDe(t, c.dir, 0)
+		suprime(c, sp, h0)
+		if ack := c.mustRun("--json", "alert", "ack", "--by", "auditoría"); !strings.Contains(ack, `"erasures_acked": 1`) {
+			t.Fatalf("alert ack no reconoció la supresión:\n%s", ack)
+		}
+		return c, sp, ficheroVivo(t, c.dir, 1, `{"venta":"002","importe":"75.00"}`)
+	}
+
+	t.Run("sin autorización, reconocida, sigue siendo un hallazgo", func(t *testing.T) {
+		c, sp, vivos := suprimeYReconoce(t, func(c *cli, _ *conSupresion, h0 string) {
+			sellaSupresionForjada(t, c, h0)
+		})
+		out, _ := c.runWant(t, exitVerify, "--json", "reconcile", "--source", vivos, "--policy-file", sp.politica)
+		var r informe
+		if err := json.Unmarshal([]byte(out), &r); err != nil {
+			t.Fatal(err)
+		}
+		noAutorizada := false
+		for _, f := range r.Findings {
+			noAutorizada = noAutorizada || (f.Status == "supresión no autorizada" && f.Index == 2)
+		}
+		if r.OK || !noAutorizada || len(r.Erased) != 0 {
+			t.Errorf("el ack convirtió la supresión forjada en otra cosa:\n%s", out)
+		}
+	})
+
+	t.Run("con autorización y reconocida, cuenta", func(t *testing.T) {
+		c, sp, vivos := suprimeYReconoce(t, func(c *cli, sp *conSupresion, h0 string) {
+			c.mustRun("--json", "erase", "--block", "0", "--policy-file", sp.politica,
+				"--authorization", c.autoriza(t, sp, h0, 0), "--assume-confirmed")
+		})
+		out, _ := c.runWant(t, exitOK, "--json", "reconcile", "--source", vivos, "--policy-file", sp.politica)
+		var r informe
+		if err := json.Unmarshal([]byte(out), &r); err != nil {
+			t.Fatal(err)
+		}
+		if !r.OK || len(r.Findings) != 0 || len(r.Erased) != 1 || r.Erased[0].Index != 0 {
+			t.Errorf("la supresión autorizada no cuenta:\n%s", out)
+		}
+	})
 }
