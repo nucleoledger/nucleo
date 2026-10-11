@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -158,7 +160,41 @@ func (c *cli) run(args ...string) (string, string, int) {
 	c.mu.Lock()
 	c.historial = append(c.historial, invocacion{args: append([]string{}, args...), code: code, out: out, errOut: errOut})
 	c.mu.Unlock()
+	if slices.Contains(args, "--json") {
+		if err := unSoloValorJSON(out); err != nil {
+			c.t.Errorf("--json tiene que dar UN valor JSON en stdout (CLI-JSON.md): %v\n%s", err,
+				invocacion{args: args, code: code, out: out, errOut: errOut}.volcado())
+		}
+	}
 	return out, errOut, code
+}
+
+// unSoloValorJSON exige que stdout sea un objeto JSON y, después, EOF: es lo primero que
+// promete CLI-JSON.md, y lo que necesita quien lee la salida con un solo json_decode.
+//
+// Lo comprueba el arnés en CADA invocación con --json, y no cada test por su cuenta.
+// json.Unmarshal ya rechaza dos objetos seguidos, pero muchos tests solo miran el código
+// de salida o buscan una cadena, y por ahí pasaba un segundo objeto: reconcile --json con
+// un VerifyFull fallido imprimía el informe y, encima, el objeto de error (H1 de la
+// revisión del 2026-10-11).
+func unSoloValorJSON(stdout string) error {
+	dec := json.NewDecoder(strings.NewReader(stdout))
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return fmt.Errorf("stdout no empieza por un valor JSON: %w", err)
+	}
+	if _, ok := v.(map[string]any); !ok {
+		return fmt.Errorf("el valor de stdout no es un objeto: %T", v)
+	}
+	var resto any
+	switch err := dec.Decode(&resto); {
+	case errors.Is(err, io.EOF):
+		return nil
+	case err == nil:
+		return errors.New("después del primer objeto viene otro valor JSON")
+	default:
+		return fmt.Errorf("después del primer objeto viene algo que no es JSON: %w", err)
+	}
 }
 
 // capturar ejecuta fn con dos pipes y devuelve lo que escribió en cada uno.

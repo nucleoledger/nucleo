@@ -32,7 +32,8 @@ consumidor estricto, vectores compartidos—:
   trabajo. En un error, el objeto es
   `{"ok": false, "error": "...", "exit_code": N, "error_class": "..."}`
   y el código de salida del proceso es `N`: `1` uso, `2` verificación/integridad,
-  `3` sincronización fallida. `reconcile` con hallazgos emite su informe completo
+  `3` sincronización fallida. `reconcile` con hallazgos, o con la verificación
+  exhaustiva fallida (`full_verify.ok: false`), emite su informe completo
   con `ok: false` y sale con `2`; ese informe **no es un objeto de error** y no
   trae `error` ni `exit_code` ni `error_class`, así que un consumidor tiene que
   mirar el código del PROCESO antes de buscar un objeto de error.
@@ -371,7 +372,7 @@ El informe de `internal/reconcile` más el estado de la historia:
 | `full_verify` | `{run, ok, error}`. **`--full` vale `true` por omisión en `reconcile`**: el cotejo recomprueba todas las firmas históricas salvo que se pase `--full=false`, y entonces el campo no sale |
 | `attestation`, `attested`, `attested_size`, `signer`, `freshness` | misma semántica que `status`: un cotejo que coincide sobre una historia sin atestiguar coincide con un ledger que podría estar truncado |
 | `alert`, `erasure_alert` | ver arriba. La alarma de supresión se abre por todo evento, autorizado o no: el veredicto es `findings` |
-| `ok` | `true` sin hallazgos (y `full_verify.ok` si se pidió); con `false` el código de salida es `2` |
+| `ok` | `true` sin hallazgos (y `full_verify.ok` si se pidió); con `false` el código de salida es `2`, y stdout sigue siendo **un solo objeto**, el informe, también cuando lo único que falla es `full_verify` (hasta el Sprint 20a, ese caso añadía detrás un objeto de error: H1 de la revisión del 2026-10-11) |
 
 ### `sync`
 

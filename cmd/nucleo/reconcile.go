@@ -103,8 +103,17 @@ func cmdReconcile(e *env, args []string) error {
 			reported: true,
 		}
 	}
+	// Con --json, la verificación exhaustiva fallida ya está en el informe: full_verify
+	// con su error, y ok:false. Sin reported, main imprimía además el objeto de error y
+	// stdout llevaba DOS objetos (H1 de la revisión del 2026-10-11). Para personas, la
+	// línea «error:» se queda: sin hallazgos, el informe termina en «✔ el sistema vivo
+	// coincide», y lo que dice que el ledger no pasó es esa línea y el «ledger : ✘».
 	if rep.FullVerify != nil && !rep.FullVerify.OK {
-		return verifyErr("la verificación exhaustiva falló: %s", rep.FullVerify.Err)
+		return &exitError{
+			code:     exitVerify,
+			err:      fmt.Errorf("la verificación exhaustiva falló: %s", rep.FullVerify.Err),
+			reported: e.json,
+		}
 	}
 	return nil
 }

@@ -81,6 +81,11 @@ func TestVectoresCLIJSON(t *testing.T) {
 	añade := func(nombre, desc string, code int, args ...string) string {
 		t.Helper()
 		salida, _ := c.runWant(t, code, args...)
+		// El arnés ya lo exige en toda invocación con --json; aquí se dice además en el
+		// vector, porque un vector válido con dos objetos enseñaría a aceptarlos.
+		if err := unSoloValorJSON(salida); err != nil {
+			t.Errorf("el vector %s no es un solo objeto JSON: %v", nombre, err)
+		}
 		// También en la línea de comandos: lleva rutas temporales y sin esto cada
 		// regeneración produciría un diff que no dice nada.
 		limpios := make([]string, len(args))

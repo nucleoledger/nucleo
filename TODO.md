@@ -198,7 +198,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 0. La revisión externa del 2026-10-11, versionada tal cual con su procedencia
 - [ ] 1. CI #70: la suite de `cmd/nucleo` agotó los 10 min en macos-26. Medida, los tests por
       `--kdf-profile constrained` salvo los que prueban el perfil, y `-timeout` explícito
-- [ ] 2. H1: `reconcile --json` emite un solo objeto también si falla `VerifyFull`; un valor
+- [x] 2. H1: `reconcile --json` emite un solo objeto también si falla `VerifyFull`; un valor
       JSON y EOF, exigido en todos los tests `--json`
 - [x] 3. H5 y H6: G44 dice que la autorización de supresión solo la comprueba Go; el
       comentario de `internal/erasure` con el formato de 0.7-draft
