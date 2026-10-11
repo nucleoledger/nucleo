@@ -190,6 +190,13 @@ Kept as it happened, because the second round exists to say it was not enough.
 
 ### Fixed
 
+- **`reconcile --json` always emits a single object.** When the exhaustive verification failed
+  and there were no findings, it printed its report —which already carries `full_verify` and
+  `ok: false`— followed by an error object: two JSON values on stdout, against the contract of
+  `docs/CLI-JSON.md`. The exit code stays `2`. The test harness now requires exactly one object
+  on stdout from every `--json` invocation in the suite. Found by an AI model's review
+  ([report](docs/revision-externa-modelo-20261011.md), versioned verbatim, with where each
+  finding was closed).
 - **`receipt --out` no longer leaves on disk a receipt that failed its own verification**: it
   verifies first and then writes atomically. Found by an AI model's review of the map
   ([report](docs/revision-externa-modelo-20261010.md), versioned verbatim, with where each

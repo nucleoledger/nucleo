@@ -21,6 +21,26 @@ SHA-256 `72d3dc7ef8be7c41001db5b8999639dbc16f858a852fe31ca09806852b7cf1a9`, el m
 | **Método** | ejecutó `go test ./...` y `-race`, `scripts/lint.sh`, la suite de TypeScript y la compuerta con `bash` (sin el bit de ejecución, H7); **no** la suite de PHP ni el diferencial —no había PHP—, y el propio informe lo dice |
 | **Longitud** | 26.228 caracteres, 419 líneas |
 
+## Cierre
+
+Sprint 20a. Cada hallazgo se contrastó con el código antes de aceptarlo; ninguno resultó
+falso. Al CI #70 —el límite de tiempo de macos-26, que no está en el informe— se le dio el
+mismo trato. Lo marcado «Sprint 20b» sigue abierto.
+
+| hallazgo | estado | commit | test |
+|---|---|---|---|
+| **H1** — `reconcile --json` emite dos objetos si falla `VerifyFull` | **cerrado**: el error vuelve con `reported` en `--json`; la salida sigue siendo 2 y, para personas, la línea `error:` se queda. Ningún otro subcomando tenía el defecto | `0e3f9b4` | `cmd/nucleo/reconcile_json_test.go#TestReconcileJSONConVerifyFullFallidoEsUnSoloObjeto` (el escenario de `TestVerifyFullCazaUnaFirmaInvalidaYaATESTIGUADA`, montado desde la CLI); la propiedad general, en el arnés: `cmd/nucleo/cli_test.go#unSoloValorJSON` en TODA invocación con `--json`, y en cada caso de `TestVectoresCLIJSON` |
+| **H2** — `argShell` y PowerShell (`$`, backtick) | **Sprint 20b** | — | — |
+| **H3** — `argShell` y `cmd.exe` (`%VAR%`, `!VAR!`) | **Sprint 20b** | — | — |
+| **H4** — `ensayo-actualizacion.sh` ejecuta sin `cosign` | **Sprint 20b** | — | — |
+| **H5** — los vectores de erasure solo se usan en Go | **cerrado** como alcance, no como código: G44 y los README de los dos SDK dicen que la autorización la comprueba solo Go/CLI (ADR-032) | `4bb191f` | **sin test**: es una declaración de alcance |
+| **H6** — comentario de `internal/erasure` con `none://` | **cerrado**: describe `nucleo-erasure-auth@v1:<through>:<firma>` | `4bb191f` | **sin test**: es un comentario |
+| **H7** — `compuerta.sh` sin bit de ejecución | **cerrado**: el bit en el índice, y un paso de la compuerta que exige 100755 a todo `scripts/*.sh` con la orden exacta para arreglarlo; la regla, en CLAUDE.md y AGENTS.md | `be6a18f`, `711af7a` | el paso se probó a mano —un script a 100644 y uno fuera del índice— y **no tiene test automatizado** |
+| Hueco de **G42** — `alert ack` no convierte una supresión no autorizada en `erased` | **cerrado** | `66b2af8` | `cmd/nucleo/ataque_supresion_test.go#TestReconocerNoAutorizaUnaSupresion`, con el contraste autorizado (salida 0) |
+| Pregunta abierta — política de otro `origin` en `reconcile --json` | **cerrado**: salida 2, un objeto, `error_class` `integrity`; una línea en CLI-JSON | `6a462ce` | `cmd/nucleo/reconcile_json_test.go#TestReconcileJSONConPoliticaDeOtroOrigin` |
+| **G45** — la receta con `openssl`, sin automatizar | **Sprint 20b** | — | — |
+| **CI #70** (fuera del informe) — `cmd/nucleo` agota los 10 min de `go test` en macos-26 | **cerrado**: el vault de los tests con `--kdf-profile constrained` (salvo los que prueban el perfil y un recorrido completo con el default); `-timeout 15m` explícito en el CI y la compuerta; el rechazo TLS intencionado ya no ensucia el log | `7b68521`, `756b586`, `60e53d6` | medido, no testeado: 190 s → 122 s con `GOMAXPROCS=3` en local; la comprobación de verdad es el siguiente run en macos-26 |
+
 FIN DEL PREÁMBULO
 
 ---
