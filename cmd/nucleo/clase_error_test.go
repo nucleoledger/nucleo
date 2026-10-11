@@ -5,6 +5,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -127,7 +129,12 @@ func TestClaseDelErrorEnLosCasosQueLaPiden(t *testing.T) {
 	// cortafuegos lo tapa", clase transient. Ni el consejo ni la clase eran ciertos.
 	t.Run("un testigo con un certificado que esta máquina no acepta es entorno", func(t *testing.T) {
 		pol := politicaDeTest(t, c, "w1", strings.Repeat("ab", 32))
-		srv := httptest.NewTLSServer(http.NotFoundHandler()) // certificado de una CA de prueba
+		srv := httptest.NewUnstartedServer(http.NotFoundHandler())
+		// El rechazo es lo que se prueba: la CLI cierra el handshake y el servidor lo
+		// anota en su log —«http: TLS handshake error … bad certificate»—, que sin esto
+		// va a stderr y en el log del CI parece un fallo. Se descarta solo aquí.
+		srv.Config.ErrorLog = log.New(io.Discard, "", 0)
+		srv.StartTLS() // certificado de una CA de prueba
 		defer srv.Close()
 		code, clase, mensaje := claseDe(t, c, "sync", "--policy-file", pol, "--witness", srv.URL)
 		if code != exitSyncFail || clase != claseEntorno {
