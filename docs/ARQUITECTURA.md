@@ -387,45 +387,86 @@ están autorizados lo decide `internal/reconcile/reconcile.go#clasificaEventos`:
 cada evento se busca entre los bloques anteriores por el `payload_hash` que llevaría
 (`internal/erasure/erasure.go#EventPayloadHash`), y la firma de su `payload_cid` se comprueba
 con la `erasureKey` de la política (`internal/erasure/autorizacion.go#Authority.Check`), sin
-abrir el vault. Un evento que no está autorizado es un hallazgo, `"supresión no autorizada"`
-con su `reason`; sin política con `erasureKey`, lo son todos. Los eventos no se cuentan como
-faltantes.
+abrir el vault. Es la regla de PROTOCOL §5.1. Un evento que no está autorizado es un hallazgo,
+`"supresión no autorizada"` con su `reason`, y el bloque que decía suprimir sigue siendo
+faltante. La clave sale solo de `--policy-file` (`internal/policy/policy.go#File.ErasureAuthority`):
+con las banderas sueltas del testigo, o con una política sin `erasureKey`, no hay clave y ningún
+evento está autorizado. Los eventos no se cuentan como faltantes.
 
-### 2.6a `erase` — suprimir un contenido (ADR-031, ADR-032)
+### 2.6a La supresión, en dos equipos (ADR-031, ADR-032)
 
-`cmd/nucleo/erase.go#cmdErase` exige una política con `erasureKey`, lee el bloque, comprueba
-que hay algo guardado de su contenido —la copia cifrada o los compromisos— y, si ya hay un
-evento **autorizado** que lo cubre (`cmd/nucleo/erase.go#eventoDeSupresion`), contesta
-`already_erased` sin escribir. Si no, comprueba la autorización **antes** de abrir el vault:
-sin `--authorization` imprime la orden que tiene que ejecutar la custodia
-(`cmd/nucleo/erasure_key.go#ordenAutorizar`); con ella, la verifica con la `erasureKey`
-(`internal/erasure/autorizacion.go#VerifyCID`) y exige que llegue hasta el último bloque con
-ese contenido. Después abre el vault con la passphrase, como `seal`
-(`cmd/nucleo/env.go#env.unlock`), comprueba el firmante de la cadena,
-pide teclear el principio del hash (`cmd/nucleo/erase.go#tecleaElHash`; `--assume-confirmed`
-en `--json`) y, en **una** transacción (`internal/store/record.go#Store.AppendRecord`, campos
-`EraseBlob` y `DeleteMeta`), sella el evento `nucleo.erasure.v1` con la autorización en su
-`payload_cid`, borra la copia cifrada y los compromisos, y guarda en `log_state` el detalle
-para la alarma. Después vacía el WAL (`internal/store/store.go#Store.PurgeWAL`); la base se
-abre con `secure_delete`, así que lo borrado queda en ceros. `seal` rechaza los tipos
-`nucleo.*` (`internal/erasure/erasure.go#Reserved`).
+Suprimir lo hacen **dos equipos** y dos personas: quien opera el **servidor**, donde están el
+ledger y la passphrase, y quien custodia la **clave de supresión**, en un equipo que no es el
+servidor y donde no hay ledger. Lo único que viaja entre los dos es texto que no es secreto: la
+orden que hay que firmar, y la autorización firmada.
+
+```mermaid
+sequenceDiagram
+  participant op as SERVIDOR quien opera
+  participant srv as SERVIDOR nucleo erase
+  participant st as SERVIDOR ledger
+  participant cu as CUSTODIA quien custodia la clave
+  participant ek as CUSTODIA nucleo erasure-key
+  op->>srv: erase --block N --policy-file con erasureKey
+  srv->>st: abre con la politica y lee el bloque N
+  srv-->>op: sin autorizacion no borra y da la orden con origin, hash y through
+  op-->>cu: la orden, que no es secreta
+  cu->>ek: authorize con su copia de la politica
+  cu->>ek: dos tarjetas de supresion en una consola
+  ek->>ek: reconstruye la clave y exige que sea la erasureKey
+  ek-->>cu: la autorizacion, una linea
+  cu-->>op: la autorizacion
+  op->>srv: erase --block N --authorization
+  srv->>srv: VerifyCID con la erasureKey y through igual al ultimo bloque
+  srv->>st: passphrase y una transaccion con el evento, el borrado y el detalle
+  Note over srv,st: reconcile con la politica da el bloque por suprimido solo si la autorizacion del evento verifica
+```
+
+**En el servidor**, `cmd/nucleo/erase.go#cmdErase`:
+
+1. Exige `--policy-file` con una política que traiga `erasureKey`; sin ella, error de uso antes
+   de abrir nada. Abre el ledger con esa política (`cmd/nucleo/env.go#env.openStoreWith`), que
+   coteja `origin` y la clave del log y rechaza una `erasureKey` igual a la que firma los bloques.
+2. Lee el bloque y busca lo que haya guardado de su contenido —la copia cifrada y los
+   compromisos— y todos los bloques que sellaron ese mismo contenido
+   (`internal/store/record.go#Store.BlocksWithPayload`).
+3. Si no queda nada guardado: si ya hay un evento **autorizado** que lo cubre
+   (`cmd/nucleo/erase.go#eventoDeSupresion`), contesta `already_erased` sin escribir ni pedir
+   autorización, y reintenta vaciar el WAL; si hay un evento posterior **sin** autorización
+   válida (`cmd/nucleo/erase.go#hayEventoSinAutorizar`), sigue, para sellar uno que la lleve sin
+   nada que borrar; si no hay ninguno, el contenido nunca se guardó (`--no-encrypt` sin perfil)
+   y lo dice.
+4. Comprueba la autorización **antes** de abrir el vault. Sin `--authorization`, no borra nada e
+   imprime la orden exacta para la custodia (`cmd/nucleo/erasure_key.go#ordenAutorizar`, con la
+   ruta entrecomillada para la shell de la plataforma: `cmd/nucleo/comillas.go#argShell`). Con
+   ella, la verifica con la `erasureKey` (`internal/erasure/autorizacion.go#VerifyCID`) y exige
+   que su `through` sea **exactamente** el último bloque con ese contenido: si se volvió a sellar
+   después de autorizarlo, la autorización no cubriría la copia nueva, y lo dice.
+5. Abre el vault con la passphrase, como `seal` (`cmd/nucleo/env.go#env.unlock`), comprueba que
+   la cadena la firma la clave de este vault y pide teclear el principio del hash
+   (`cmd/nucleo/erase.go#tecleaElHash`; `--assume-confirmed` en `--json`).
+6. En **una** transacción (`internal/store/record.go#Store.AppendRecord`, campos `EraseBlob` y
+   `DeleteMeta`) sella el evento `nucleo.erasure.v1` —contenido
+   `{"erased_payload_hash":"<h>"}`, la autorización en su `payload_cid`— , borra la copia cifrada y
+   los compromisos y guarda en `log_state` el detalle para la alarma. Después vacía el WAL
+   (`internal/store/store.go#Store.PurgeWAL`); la base se abre con `secure_delete`, así que lo
+   borrado queda en ceros.
+
+`seal` rechaza los tipos `nucleo.*` (`internal/erasure/erasure.go#Reserved`). Es una barandilla,
+no la frontera: quien tiene la clave del tenant puede sellar cualquier bloque sin pasar por
+`seal`, y por eso lo que decide es la autorización, que comprueba `reconcile` (§2.6).
+
+**En el equipo de la custodia** (§2.6b), `nucleo erasure-key authorize` no abre ningún ledger:
+lee la política, pide las tarjetas de supresión en una consola, comprueba que reconstruyen la
+`erasureKey` y firma. Lo que devuelve es una línea; no es secreta, porque va a ir en la cadena.
 
 La **alarma de supresión** sale de la cadena y no de una lista aparte:
 `cmd/nucleo/alarma_supresion.go#alarmaDeSupresion` busca los eventos
 (`internal/store/blocks.go#Store.BlocksOfType`) y abre los que no tienen su reconocimiento en
-`log_state`. La publican en `erasure_alert` los mismos comandos que la de frescura; la cierra
-`cmd/nucleo/alert.go#cmdAlertAck` (`cmd/nucleo/alarma_supresion.go#reconoceSupresiones`).
-
-### 2.6b `erasure-key` — la clave de supresión (ADR-032)
-
-No abre ningún ledger: se ejecuta en el equipo de quien custodia la clave. `init`
-(`cmd/nucleo/erasure_key.go#cmdErasureKeyInit`) genera 32 bytes al azar, los reparte en tarjetas
-SLIP-0039 con el mismo reparto comprobado que la KEK (`internal/vault/backup.go#BackupKEK`) y
-enseña la clave pública que va en la política; la semilla no toca el disco. `authorize`
-(`cmd/nucleo/erasure_key.go#cmdErasureKeyAuthorize`) lee la política, pide las tarjetas en una
-consola (gancho `NUCLEO_TEST_CARDS` en los tests), reconstruye la semilla
-(`internal/vault/backup.go#RestoreKEK`), exige que dé la `erasureKey` de la política y firma
-la autorización (`internal/erasure/autorizacion.go#Authorize`).
+`log_state` —todos, autorizados o no: la alarma avisa, y lo que decide es `reconcile`—. La
+publican en `erasure_alert` los mismos comandos que la de frescura; la cierra
+`cmd/nucleo/alert.go#cmdAlertAck` (`cmd/nucleo/alarma_supresion.go#reconoceSupresiones`), que no
+pide nada (ADR-032 §G).
 
 ### 2.7 `restore --new-passphrase` (ADR-029)
 

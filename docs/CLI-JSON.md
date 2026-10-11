@@ -336,12 +336,18 @@ error de uso. Un reintento idempotente trae **los mismos campos** que un sellado
 ### `erase`
 
 Suprime el contenido de un bloque (ADR-031). Exige `--policy-file` con una política que
-traiga `erasureKey` y `--authorization` con la autorización de la clave de supresión
-(ADR-032), que comprueba **antes** de tocar nada; sin ella es un error de uso que dice la
-orden exacta que tiene que ejecutar la custodia, y no se borra nada. Abre el vault con la
-passphrase, como `seal` (`--passphrase-file` en un cron). En `--json` exige además
-`--assume-confirmed`, que salta la confirmación tecleada del hash. Pedir otra vez un
-contenido ya suprimido con autorización no necesita otra: contesta `already_erased`.
+traiga `erasureKey` —el ledger se abre con ella, y una política de otro log falla como en
+cualquier comando que abre con política— y `--authorization` con la autorización de la clave
+de supresión (ADR-032), que comprueba **antes** de tocar nada y cuyo `through` tiene que ser
+exactamente el último bloque con ese contenido. Una política sin `erasureKey`, una autorización
+que falta o que no verifica y un `through` que no es el último son errores de uso
+(`error_class: "usage"`, código 1), y no se borra nada; el de la autorización que falta lleva en `error` la orden exacta que tiene
+que ejecutar la custodia, con la ruta entrecomillada para la shell de esta plataforma. Abre el
+vault con la passphrase, como `seal` (`--passphrase-file` en un cron). En `--json` exige además
+`--assume-confirmed`, que salta la confirmación tecleada del hash. Pedir otra vez un contenido
+ya suprimido con autorización no necesita otra: contesta `already_erased`. Si el contenido ya no
+está pero el evento que había no lleva autorización válida, sella uno que sí la lleve
+(`already_erased: false`) sin nada que borrar.
 
 | campo | tipo |
 |---|---|
@@ -360,10 +366,11 @@ El informe de `internal/reconcile` más el estado de la historia:
 | campo | tipo |
 |---|---|
 | `tree_size`, `checked`, `verified` | enteros — bloques, registros comparados, coincidentes |
-| `findings` | array —**siempre array**, vacío cuando el cotejo cuadra— de `{status, index, sealed_hash, current_hash, sealed_at, tenant, type, reason}`; `status` es `"discrepancia"` (el vivo cambió), `"faltante"` (el vivo ya no lo tiene), `"no sellado"` (el vivo tiene algo que el ledger no) o `"supresión no autorizada"` (un evento `nucleo.erasure.v1` sin una autorización que verifique con la `erasureKey` de la política, ADR-032: sin `--policy-file`, o con una política sin `erasureKey`, lo son todos); `reason` solo va en este último, y dice por qué; `sealed_at` es el tiempo **declarado** del bloque |
+| `findings` | array —**siempre array**, vacío cuando el cotejo cuadra— de `{status, index, sealed_hash, current_hash, sealed_at, tenant, type, reason}`; `status` es `"discrepancia"` (el vivo cambió), `"faltante"` (el vivo ya no lo tiene), `"no sellado"` (el vivo tiene algo que el ledger no) o `"supresión no autorizada"` (un evento `nucleo.erasure.v1` sin una autorización que verifique con la `erasureKey` de la política, ADR-032: sin `--policy-file` —las banderas sueltas del testigo no traen esa clave—, o con una política sin `erasureKey`, lo son todos; el bloque que decía suprimir sale además como `"faltante"`). En ese último estado, `index` y `sealed_hash` son los del **evento**, y `reason` —que solo va en él— dice por qué no cuenta, en texto para personas: no es un conjunto cerrado. `sealed_at` es el tiempo **declarado** del bloque |
 | `erased` | array —**siempre array**— de `{index, sealed_hash, sealed_at, erased_by, erased_at}`: bloques que el sistema vivo no tiene porque su contenido se **suprimió** con autorización (ADR-031, ADR-032). **No son hallazgos** y no cambian `ok` ni el código de salida; `erased_by` es el bloque del evento `nucleo.erasure.v1`, y `erased_at` su tiempo declarado |
 | `full_verify` | `{run, ok, error}`. **`--full` vale `true` por omisión en `reconcile`**: el cotejo recomprueba todas las firmas históricas salvo que se pase `--full=false`, y entonces el campo no sale |
 | `attestation`, `attested`, `attested_size`, `signer`, `freshness` | misma semántica que `status`: un cotejo que coincide sobre una historia sin atestiguar coincide con un ledger que podría estar truncado |
+| `alert`, `erasure_alert` | ver arriba. La alarma de supresión se abre por todo evento, autorizado o no: el veredicto es `findings` |
 | `ok` | `true` sin hallazgos (y `full_verify.ok` si se pidió); con `false` el código de salida es `2` |
 
 ### `sync`
@@ -417,9 +424,12 @@ No abren ningún ledger (ADR-032). `erasure-key init` publica
 política como `erasureKey`, y las tarjetas de la clave de supresión, que **son secretas**. En
 `--json` exige `--assume-confirmed`, como `init`.
 
-`erasure-key authorize` publica `{"authorization": "nucleo-erasure-auth@v1:<through>:<firma>",
-"origin", "erased_payload_hash", "through"}`. La autorización no es secreta: va a ir en el
-`payload_cid` del evento.
+`erasure-key authorize --policy-file F --payload-hash H --through K` publica
+`{"authorization": "nucleo-erasure-auth@v1:<through>:<firma>", "origin", "erased_payload_hash",
+"through"}`, con `origin` tomado de la política. La autorización no es secreta: va a ir en el
+`payload_cid` del evento (PROTOCOL §5.1). También en `--json` pide las tarjetas en una
+consola —sin consola es un error de uso—, y las rechaza si no reconstruyen la `erasureKey` de
+esa política.
 
 ### `backup` / `restore`
 

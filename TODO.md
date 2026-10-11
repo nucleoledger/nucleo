@@ -191,7 +191,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 2. Una sola política: `@nucleoledger/verify` 0.4.0-alpha.0 preparado, con su migración;
       el ejemplo pasa a una sola política cuando el paquete esté en npm
 - [x] 3. El ensayo de actualización desde v0.3.1-alpha, repetido con el código final
-- [ ] 4. Revisión de ARQUITECTURA, GARANTIAS y CLI-JSON; el diagrama de la supresión con los
+- [x] 4. Revisión de ARQUITECTURA, GARANTIAS y CLI-JSON; el diagrama de la supresión con los
       dos equipos
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
