@@ -181,7 +181,9 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       tercero sin Núcleo, y la autorización de otra clave o de otro hash no cuenta
 - [x] 3. GARANTIAS (G40–G46, L20–L21) y ARQUITECTURA al día
 - [x] 4. CHANGELOG y notas de v0.4.0-alpha: las dos rondas, tal como fueron
-- [ ] 5. Dependabot #5 (KaTeX en `tools/mermaid/`)
+- [x] 5. Dependabot #5 (KaTeX en `tools/mermaid/`): sin versión de mermaid que admita la
+      corregida, y no alcanzable en el validador; justificado en `tools/mermaid/AVISOS.md` y
+      descartado en GitHub
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
 - [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
