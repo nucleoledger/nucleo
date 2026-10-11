@@ -46,13 +46,21 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - name: Vet
         run: go vet ./...
+      # -timeout 15m es un PRESUPUESTO, no un parche. Sin él valían los 10 min por
+      # omisión de go test, y en el run 38161379156 (CI #70) cmd/nucleo los agotó en
+      # macos-26 en medio de un argon2.IDKey: no colgado, lento. La causa se arregló
+      # en los tests (Sprint 20a: el vault de los tests con --kdf-profile constrained;
+      # el paquete pasó de 190 s a 122 s con GOMAXPROCS=3 en local). En macos-26 este
+      # paso tardaba 417-606 s con 190 s en local, un factor de ~3,2: ahora se espera
+      # ~7 min en el peor caso, y el límite es el doble, redondeado. Si se vuelve a
+      # rozar, se mide qué creció; no se sube el número.
       - name: Test
-        run: go test ./... -race
+        run: go test ./... -race -timeout 15m
       # Los tests de la CLI comparan salidas byte a byte y necesitan reloj y
       # semilla fijos, así que se compilan con el tag `testhooks`. El binario
       # que se publica NO lleva ese tag: ver .goreleaser.yaml y hooks_off.go.
       - name: Test (con ganchos de prueba)
-        run: go test -tags testhooks ./... -race
+        run: go test -tags testhooks ./... -race -timeout 15m
 
   # El verificador de TypeScript corre contra los MISMOS ficheros de
   # testdata/vectors/ que la suite de Go. Es lo que impide que las dos

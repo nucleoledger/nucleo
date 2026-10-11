@@ -189,8 +189,9 @@ paso "gofmt" formato
 paso "go vet" go vet ./...
 paso "go vet -tags testhooks" go vet -tags testhooks ./...
 paso "lint (scripts/lint.sh)" ./scripts/lint.sh
-paso "go test -race" go test ./... -race -count=1
-paso "go test -race -tags testhooks" go test -tags testhooks ./... -race -count=1
+# El mismo -timeout que el CI (ci.yml, job test): un presupuesto, no los 10 min por omisión.
+paso "go test -race" go test ./... -race -count=1 -timeout 15m
+paso "go test -race -tags testhooks" go test -tags testhooks ./... -race -count=1 -timeout 15m
 paso "SDK de TypeScript" sdk_ts
 paso "vectores de recibo (generar.py --check)" python3 testdata/vectors/receipt/generar.py --check
 paso "PHP con ext-sodium" php_listo
