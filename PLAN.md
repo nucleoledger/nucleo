@@ -18,7 +18,15 @@ para GitHub; el release, verificado desde un directorio limpio (bundle y `.sig`/
 `Verified OK`, sha256 OK, `NOTICE` y `AUTHORS` dentro, cero ganchos de prueba) y
 recompilado byte a byte desde el tag con go1.27.2 (sha256
 `ebfeb36b7dc471d76c5c815800b9c24b1aad78ee7a0312059c2e59a1201f0d24`); sus notas, aplicadas.
-El SDK sigue en 0.3.0-alpha.0. El siguiente sprint lo fija el dev.
+El SDK sigue en 0.3.0-alpha.0.
+
+**`v0.4.0-alpha` preparada, sin etiquetar** (Sprint 18, 10 de octubre de 2026): el testigo de
+varios logs con su kit y el testigo mutuo (Sprint 15), el mapa del sistema vigilado por el CI
+(Sprint 16), la supresión con su arreglo de `receipt --out` (Sprint 17) y la enmienda que
+impide usar la supresión para borrar huellas (Sprint 18). PROTOCOL 0.6-draft. Notas en
+`docs/releases/v0.4.0-alpha.md`; la actualización desde v0.3.1-alpha, ensayada con el
+binario publicado. El SDK de TypeScript no cambia: sin tag `vsdk`. Falta que el dev etiquete,
+publique y que se verifique el release.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: cinco rondas
 adversariales, el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
@@ -105,8 +113,9 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
 - Un testigo para varios logs, con un fichero de configuración estricto y logs retirados que
   conservan su memoria — ADR-030.
 - La supresión tiene comando: `nucleo erase` borra el contenido y sus compromisos, sella un
-  evento sin datos personales y `reconcile` la distingue de un faltante — ADR-031, propuesta
-  pendiente de aceptación.
+  evento sin datos personales y `reconcile` la distingue de un faltante — ADR-031, aceptado, y
+  su enmienda: suprimir exige dos tarjetas, nunca la passphrase, y cada supresión abre una
+  alarma.
 
 # ✅ MÓDULOS ESTABLES (NO TOCAR)
 

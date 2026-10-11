@@ -169,7 +169,12 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       ejemplo Node) que solo cierra `alert ack`; L20 en GARANTIAS
 - [x] 2. PROTOCOL 0.6-draft: `nucleo.erasure.v1` registrado, y §5 nombra la excepción; el
       Taskfile, enmendado en CONCEPTO
-- [ ] 3. v0.4.0-alpha preparada: CHANGELOG, notas y el coste de venir de v0.3.1-alpha
+- [x] 3. v0.4.0-alpha preparada: CHANGELOG, notas y el coste de venir de v0.3.1-alpha
+
+## Cierre de v0.4.0-alpha (lo hace el dev)
+- [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
+- [ ] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de
+      `docs/releases/v0.4.0-alpha.md` y la tabla de RELEASING
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

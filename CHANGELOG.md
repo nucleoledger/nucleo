@@ -11,6 +11,42 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+## [0.4.0-alpha] — 2026-10-10
+
+### What this version is
+
+The witness becomes software a third party can operate, the system has a map that CI keeps
+honest, and erasure gets a command. Sprints 15 to 18. The erasure command was found to be a
+way to hide tampering **before** it was ever published —whoever compromised the ERP server had
+the passphrase file and could turn a deleted sale from «missing» into «erased»— and it ships
+already amended: erasing requires two SLIP-0039 cards, never the passphrase, and every erasure
+opens an alarm ([ADR-031](docs/adr/ADR-031-supresion.md) and its amendment).
+[PROTOCOL](docs/PROTOCOL.md) moves to **0.6-draft**, which only adds: the erasure event
+(§5.1) and the reserved `nucleo.` type prefix.
+
+### Upgrading from 0.3.1-alpha
+
+**Nothing to migrate.** Rehearsed with the published v0.3.1-alpha binary (sha256 `ebfeb36b…`):
+a ledger, a witness memory and a policy made with it open with this version —`status` gives
+`verified`, `verify --full` passes, sealing and `sync` against the same witness memory
+continue—, and a receipt issued by v0.3.1-alpha, one issued by this version and one issued
+after erasing that block all verify with the published `@nucleoledger/verify@0.3.0-alpha.0`.
+
+What you may notice:
+
+- **`--json` gains fields**: `erasure_alert` in every command that publishes `alert`, `erased`
+  in `reconcile`, `erasures_acked`/`erasures` in `alert ack`. Additive: the PHP SDK and the
+  example's contract ignore unknown fields, as `docs/CLI-JSON.md` requires of every consumer.
+- **`alert status --exit-code`** also exits 3 while an erasure is unacknowledged.
+- **The PHP `Sealer`** takes an optional seventh argument, `onErasure`; existing calls work
+  unchanged. `@nucleoledger/verify` does not change: no new npm version.
+- **The published binary refuses to start if `NUCLEO_TEST_CARDS` is set**, like every other
+  test hook.
+- **Do not go back to v0.3.1-alpha after an erasure.** It opens the ledger and verifies it, but
+  it does not know erasure events: its `reconcile` reports the erased record as missing (exit
+  2), and its `seal` accepts the reserved `nucleo.` types. Both checked with the published
+  binary.
+
 ### Added: the witness as software a third party can operate (Sprint 15)
 
 - **One witness, many logs** ([ADR-030](docs/adr/ADR-030-testigo-de-varios-logs.md)).
@@ -47,9 +83,10 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ### Added: erasure has a command, and the map's review is closed (Sprint 17)
 
-- **`nucleo erase --block N`** ([ADR-031](docs/adr/ADR-031-supresion.md), proposed): erases a
+- **`nucleo erase --block N`** ([ADR-031](docs/adr/ADR-031-supresion.md)): erases a
   record's stored content —its encrypted copy and its commitments, for every block that sealed
-  the same content— after a typed confirmation (`--assume-confirmed` required with `--json`).
+  the same content— after a typed confirmation (`--assume-confirmed` required with `--json`),
+  with **two SLIP-0039 cards** typed at a console (Sprint 18, below).
   In the same transaction it seals an erasure event, type `nucleo.erasure.v1`, whose content
   is only `{"erased_payload_hash": …}`: nothing that was not already in the chain. The chain,
   the receipts already issued and new receipts keep verifying. The database now opens with
@@ -66,6 +103,23 @@ codes, and any golden test vector in `testdata/vectors/`.
 - **The Mermaid blocks of `docs/ARQUITECTURA.md` are validated in CI** (job `mermaid`), with the
   validator isolated in `tools/mermaid/` and its own lockfile.
 
+### Security: erasing cannot be used to hide tampering (ADR-031 amendment, Sprint 18)
+
+- **`erase` requires two SLIP-0039 cards typed at a console, and rejects the passphrase.**
+  Before this amendment —never published— whoever compromised the ERP server had the
+  passphrase file (ADR-029 accepts `0640 root:www-data`), could delete a sale from the live
+  system and run `erase --passphrase-file … --json --assume-confirmed`, and `reconcile` went
+  from «missing» (exit 2) to «erased» (exit 0). Reproduced with that exact flow, then
+  inverted into a test: with the passphrase file, `erase` fails and `reconcile` stays at 2.
+  Cards are accepted only from a terminal; that is a speed bump, not the boundary —the
+  boundary is that the cards are not on the server—.
+- **Every erasure opens an alarm** with the ADR-028 mechanism: `erasure_alert` travels in the
+  JSON of every command, reaches the new `onErasure` hooks of the PHP `Sealer` and of the Node
+  example, and only `alert ack` closes it. It is derived from the erasure events in the chain:
+  deleting its acknowledgement reopens it.
+- New limit, written down (`docs/GARANTIAS.md` L20): whoever holds two cards can erase. It is
+  sealed, attested at the next `sync`, and alarmed.
+
 ### Fixed
 
 - **`receipt --out` no longer leaves on disk a receipt that failed its own verification**: it
@@ -75,6 +129,10 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ### Changed
 
+- **PROTOCOL 0.6-draft**: the erasure event `nucleo.erasure.v1` is registered in §5.1 —payload,
+  test vector computed with `sha256sum`, when a block counts as erased— and §5 names its one
+  exception to the random-field rule. Nothing that existed changes.
+- **CONCEPTO amended** again: there is no Taskfile; the gate is `scripts/compuerta.sh`.
 - **PROTOCOL §3, §6 and §9 and ADR-005 amended in plain sight** with what is and is not
   implemented: no daemon and no OpenAPI, no importable Go module (everything is under
   `internal/`), one signing key per vault rather than per tenant, no identity rotation, no QR
@@ -1063,7 +1121,8 @@ First tagged version. The success criterion of the project
 - Witness cosignatures are Ed25519, not ML-DSA-44, which `tlog-witness` states as
   a SHOULD.
 
-[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.3.1-alpha...HEAD
+[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.4.0-alpha...HEAD
+[0.4.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.3.1-alpha...v0.4.0-alpha
 [0.3.1-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.3.0-alpha...v0.3.1-alpha
 [0.3.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.2.0-alpha...v0.3.0-alpha
 [0.2.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.1.0-alpha...v0.2.0-alpha
