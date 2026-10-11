@@ -167,6 +167,20 @@ Un integrador que parsea esto lo lee como **opcional**: un binario anterior a se
 de 2026 no lo trae. Y no es un control de seguridad: vive en `log_state`, que es mutable
 por diseño; lo que impide que mienta sobre el presente es que cada comando la recalcula.
 
+### `erasure_alert` — las supresiones sin reconocer (ADR-031, enmienda)
+
+La llevan los mismos comandos que `alert`, más `erase`, y los mismos dos objetos de error.
+
+| campo | tipo |
+|---|---|
+| `state` | `"none"` u `"open"`. Conjunto cerrado. `"open"` si y solo si `open` no está vacío: un objeto que se contradice es un error de contrato |
+| `persisted` | bool — `false` si no se pudo leer el ledger (lo dice stderr): entonces no se sabe si hay alguna |
+| `open` | array —**siempre array**— de `{index, hash, erased_at, erased_payload_hash, blocks}`: el bloque del evento `nucleo.erasure.v1`, su hash, su tiempo declarado, y —si está el detalle que `erase` guarda en la misma transacción— el contenido suprimido y los bloques que lo sellaron. Sin ese detalle, los dos últimos no salen |
+
+Se deduce de la cadena: cada evento sin su reconocimiento está abierto, y borrar el
+reconocimiento lo reabre. Solo lo cierra `nucleo alert ack`. Un integrador lo lee como
+**opcional**: un binario anterior a v0.4.0-alpha no lo trae.
+
 ### `freshness` — hace cuánto vio un tercero esta historia
 
 ```json
@@ -320,7 +334,10 @@ error de uso. Un reintento idempotente trae **los mismos campos** que un sellado
 
 ### `erase`
 
-Suprime el contenido de un bloque (ADR-031). En `--json` exige `--assume-confirmed`.
+Suprime el contenido de un bloque (ADR-031). Exige **dos tarjetas SLIP-0039 tecleadas en
+una consola**, y no acepta la passphrase: `--passphrase-file` es un error de uso, y sin
+consola también (enmienda de ADR-031). En `--json` exige además `--assume-confirmed`, que
+salta la confirmación del hash pero no las tarjetas.
 
 | campo | tipo |
 |---|---|
@@ -330,6 +347,7 @@ Suprime el contenido de un bloque (ADR-031). En `--json` exige `--assume-confirm
 | `index`, `hash` | el bloque del evento `nucleo.erasure.v1` (el nuevo, o el que ya había) |
 | `wal_purged` | bool — `false` si otro proceso leía el ledger y el WAL no se pudo vaciar: una copia del contenido puede seguir ahí; repetir la orden lo reintenta |
 | `freshness`, `attestation`, `attested`, `attested_head`, `attested_size`, `signer`, `alert`, `rollback` | como en `seal`, solo cuando se ha sellado el evento |
+| `erasure_alert` | ver arriba: tras una supresión, abierta con ella dentro |
 
 ### `reconcile`
 
@@ -364,15 +382,18 @@ estaba—, porque es el momento exacto en que la alarma se produce.
 
 ### `alert status` · `alert ack`
 
-`alert status` publica `{"alert": {…}, "freshness": {…}}` y, como cualquier comando que
+`alert status` publica `{"alert": {…}, "erasure_alert": {…}, "freshness": {…}}` y, como cualquier comando que
 juzga la frescura, abre o cierra la alarma según el veredicto; acepta la política igual
 que `status`. Sale con `0`. Con **`--exit-code`** sale con `3` si hay una alarma
-**abierta sin reconocer** —la reconocida ya tiene a alguien encima—; es para quien vigila
+**abierta sin reconocer** —la reconocida ya tiene a alguien encima—, o alguna supresión
+sin reconocer; es para quien vigila
 desde un script sin parsear JSON. Ojo: con `--exit-code` y `--json` a la vez, el código 3
 llega con la salida normal (`ok: true`) y **no** con un objeto de error, igual que el
 informe de `reconcile` con hallazgos.
 
-`alert ack [--by NOMBRE]` publica `{"acked": bool, "alert": {…}}`. `acked` es `true` solo
+`alert ack [--by NOMBRE]` publica `{"acked": bool, "alert": {…}, "erasures_acked": N,
+"erasures": […], "erasure_alert": {…}}`: reconoce a la vez las supresiones abiertas, dice
+cuántas y cuáles (con la forma de `erasure_alert.open`), y publica cómo queda. `acked` es `true` solo
 si este comando la reconoció: sin alarma abierta, o con una ya reconocida, no cambia
 nada y sale con `0` —un script que reconoce por si acaso no tiene que distinguir el caso—.
 No pide la passphrase: `log_state` no se firma.

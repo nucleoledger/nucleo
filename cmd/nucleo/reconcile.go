@@ -59,6 +59,7 @@ func cmdReconcile(e *env, args []string) error {
 		return err
 	}
 	alarma := registraAlarma(e, s, st)
+	supresiones := alarmaDeSupresion(e, s)
 	st.warn(e)
 	if e.json {
 		raw, err := rep.JSON()
@@ -75,6 +76,7 @@ func cmdReconcile(e *env, args []string) error {
 		data["signer"] = signerJSON(res)
 		data["freshness"] = st.json()
 		data["alert"] = alarma.json()
+		data["erasure_alert"] = supresiones.json()
 		data["ok"] = len(rep.Findings) == 0 && (rep.FullVerify == nil || rep.FullVerify.OK)
 		e.printJSON(data)
 	} else {

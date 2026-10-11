@@ -49,14 +49,21 @@ func cmdAlertStatus(e *env, args []string) error {
 		return err
 	}
 	alarma := registraAlarma(e, s, st)
+	supresiones := alarmaDeSupresion(e, s)
 	e.out(map[string]any{
-		"alert":     alarma.json(),
-		"freshness": st.json(),
+		"alert":         alarma.json(),
+		"erasure_alert": supresiones.json(),
+		"freshness":     st.json(),
 	}, func() {
 		if alarma.Estado == alarmaNinguna {
 			e.printf("alarma    : ✔ ninguna abierta\n")
 		}
 		printAlerta(e, alarma)
+		if len(supresiones.Abiertas) == 0 {
+			e.printf("supresión : ✔ ninguna sin reconocer\n")
+		} else {
+			e.printf("supresión : ✘ %d sin reconocer (ver el aviso de arriba)\n", len(supresiones.Abiertas))
+		}
 		printFreshness(e, st)
 	})
 
@@ -67,6 +74,15 @@ func cmdAlertStatus(e *env, args []string) error {
 		return &exitError{
 			code:     exitSyncFail,
 			err:      errors.New("hay una alarma de frescura abierta sin reconocer"),
+			reported: true,
+		}
+	}
+	// Una supresión sin reconocer también (ADR-031, enmienda): es la alarma que más
+	// importa que alguien vea.
+	if *exitCode && len(supresiones.Abiertas) > 0 {
+		return &exitError{
+			code:     exitSyncFail,
+			err:      errors.New("hay supresiones de contenido sin reconocer"),
 			reported: true,
 		}
 	}
@@ -117,10 +133,30 @@ func cmdAlertAck(e *env, args []string) error {
 		reconocida = true
 	}
 
+	// Las supresiones sin reconocer se reconocen en el mismo acto: quien ejecuta ack dice
+	// que se ha enterado de lo que hay abierto, y se le enseña qué era.
+	supresiones := alarmaDeSupresion(e, s)
+	nSupr, err := reconoceSupresiones(s, supresiones.Abiertas, *por)
+	if err != nil {
+		return err
+	}
+	reconocidas := supresiones.json()["open"]
+	tras := alarmaDeSupresion(e, s)
+
 	e.out(map[string]any{
-		"acked": reconocida,
-		"alert": previa.json(),
+		"acked":          reconocida,
+		"alert":          previa.json(),
+		"erasures_acked": nSupr,
+		"erasures":       reconocidas,
+		"erasure_alert":  tras.json(),
 	}, func() {
+		if nSupr > 0 {
+			e.printf("✔ %d supresión(es) reconocida(s):", nSupr)
+			for _, x := range supresiones.Abiertas {
+				e.printf(" bloque %d", x.Evento.Header.Index)
+			}
+			e.printf(". Quedan selladas en el ledger; la alarma ya no avisa.\n")
+		}
 		switch {
 		case reconocida:
 			e.printf("✔ alarma reconocida (vieja desde %s).\n", previa.Registro.StaleSince)

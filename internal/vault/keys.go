@@ -307,6 +307,26 @@ func Unlock(ms MetaStore, passphrase []byte) (*Vault, error) {
 	return &Vault{id: string(rawID), dek: dek}, nil
 }
 
+// UnlockKEK abre un vault existente con la KEK ya reconstruida —la de las tarjetas
+// SLIP-0039—, sin pasar por la passphrase. Lo usa la supresión (ADR-031, enmienda):
+// suprimir exige las tarjetas, que no viven en el servidor, y no la passphrase, que sí.
+// La KEK no se borra aquí: es de quien llama.
+func UnlockKEK(ms MetaStore, kek []byte) (*Vault, error) {
+	rawID, err := ms.GetMeta(MetaIDKey)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrNoVault, err)
+	}
+	wrapped, err := ms.GetMeta(MetaDEKKey)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrNoVault, err)
+	}
+	dek, err := UnwrapDEK(kek, wrapped, string(rawID))
+	if err != nil {
+		return nil, err
+	}
+	return &Vault{id: string(rawID), dek: dek}, nil
+}
+
 // Close borra la DEK de memoria. No es una garantía absoluta —Go puede haber
 // copiado el slice— pero reduce la ventana.
 func (v *Vault) Close() {

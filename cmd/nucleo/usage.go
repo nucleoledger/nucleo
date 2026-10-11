@@ -82,8 +82,14 @@ SUPRIMIR UN REGISTRO
   nucleo.erasure.v1— que solo lleva el hash suprimido. La cadena, las pruebas y
   los recibos ya emitidos siguen verificando, porque demuestran el hash y no el
   contenido; y reconcile informa ese registro como suprimido, no como
-  desaparecido. Pide teclear el principio del hash: no tiene vuelta atrás. Las
-  copias de seguridad anteriores aún lo contienen. Ver ADR-031.
+  desaparecido. No tiene vuelta atrás.
+
+  Exige DOS TARJETAS de respaldo, tecleadas en una consola, y no la
+  passphrase: la passphrase vive en el servidor para sellar, y quien lo
+  comprometa la tiene. Cada supresión abre una alarma que viaja en el JSON
+  de cada comando hasta que alguien la reconoce con «nucleo alert ack».
+  Las copias de seguridad anteriores aún contienen el contenido. Ver ADR-031
+  y su enmienda.
 
 LÍMITES DE LECTURA
   documento a sellar         64 MiB   (--max-payload para subirlo)

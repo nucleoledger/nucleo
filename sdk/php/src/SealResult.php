@@ -39,6 +39,12 @@ final class SealResult
      * es anterior y no la manda. Con state "open", nadie la ha reconocido todavía.
      */
     public ?array $alert = null;
+    /**
+     * @var array<string, mixed>|null las supresiones sin reconocer (ADR-031, enmienda), o
+     * null si el binario es anterior a v0.4.0-alpha. Con state "open", alguien suprimió
+     * contenido y nadie lo ha reconocido.
+     */
+    public ?array $erasureAlert = null;
 
     /**
      * fromCliJson lee el stdout literal de la CLI. Es el camino que usa el Sealer, y el
@@ -80,6 +86,7 @@ final class SealResult
         $r->stale = Contract::boolField(Contract::freshness($j), 'stale');
         $r->raw = Contract::toArray($j);
         $r->alert = Contract::alert($j);
+        $r->erasureAlert = Contract::erasureAlert($j);
 
         // Dos afirmaciones que la CLI no puede contradecir sin que algo esté muy mal, y
         // que aquí cuestan una comparación: `attested` es exactamente

@@ -27,7 +27,7 @@ import (
 // supresión en vez de un registro desaparecido.
 func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 	c := newCLI(t)
-	c.initLedger()
+	c.initConTarjetas(t)
 	// El bloque 0, con perfil: tiene copia cifrada Y compromisos.
 	xmlPath := c.facturaXML(t, claveDemo())
 	c.mustRun("seal", "--profile", "ecuador.sri.factura", "--xml", xmlPath)
@@ -136,7 +136,7 @@ func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 // la confirmación hay que pedirla saltar explícitamente.
 func TestLaSupresionPideConfirmacion(t *testing.T) {
 	c := newCLI(t)
-	c.initLedger()
+	c.initConTarjetas(t)
 	c.sealFile(`{"factura":"001","cliente":"María Pérez"}`)
 	h, _ := contenidoDe(t, c.dir, 0)
 
@@ -164,7 +164,7 @@ func TestLaSupresionPideConfirmacion(t *testing.T) {
 // tiene nada que suprimir, y se dice por qué en vez de sellar un evento vacío.
 func TestNoSeSuprimeLoQueNoSeGuardo(t *testing.T) {
 	c := newCLI(t)
-	c.initLedger()
+	c.initConTarjetas(t)
 	c.mustRun("seal", "--tenant", testTenant, "--type", "sri.factura.v1", "--no-encrypt",
 		"--payload", c.writeTemp(t, `{"factura":"001"}`))
 	_, errOut := c.runWant(t, exitUsage, "erase", "--block", "0", "--assume-confirmed")
@@ -189,6 +189,21 @@ func TestSealNoAceptaTiposReservados(t *testing.T) {
 			t.Errorf("--type %s: %s", typ, errOut)
 		}
 	}
+}
+
+// initConTarjetas crea el despliegue y deja dos de sus tarjetas en el gancho de prueba
+// de erase, que es como las teclearía quien suprime (ADR-031, enmienda).
+func (c *cli) initConTarjetas(t *testing.T) []string {
+	t.Helper()
+	out := c.mustRun("--json", "init", "--origin", testOrigin, "--assume-confirmed")
+	var v struct {
+		Shares []string `json:"shares"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil || len(v.Shares) < 2 {
+		t.Fatalf("init --json no dio tarjetas (%v):\n%s", err, out)
+	}
+	t.Setenv(envCards, v.Shares[0]+"|"+v.Shares[1])
+	return v.Shares
 }
 
 // contenidoDe devuelve el payload_hash del bloque y su copia cifrada, o nil.

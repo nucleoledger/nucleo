@@ -50,6 +50,15 @@ func hookPassphrase() (string, bool) {
 	return v, v != ""
 }
 
+// hookCards devuelve las tarjetas del entorno, si las hay.
+func hookCards() ([]string, bool) {
+	v := os.Getenv(envCards)
+	if v == "" {
+		return nil, false
+	}
+	return strings.Split(v, "|"), true
+}
+
 // codigoMuerte es el código con el que sale un proceso matado por hookDieAt: distinto
 // de todos los de la CLI, para que un test sepa que murió donde se pidió.
 const codigoMuerte = 97

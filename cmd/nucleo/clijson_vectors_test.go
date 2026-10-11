@@ -95,8 +95,8 @@ func TestVectoresCLIJSON(t *testing.T) {
 	}
 
 	// 1. Un ledger recién creado: el borde de abajo. Sin bloques, signer.state es "none"
-	// y la raíz es la del árbol vacío.
-	c.initLedger()
+	// y la raíz es la del árbol vacío. Con las tarjetas a mano, para el caso 6.
+	c.initConTarjetas(t)
 	añade("valido-status-vacio", "status sobre un ledger sin bloques: signer.state none y la raíz del árbol vacío",
 		exitOK, "--json", "status")
 
@@ -147,7 +147,14 @@ func TestVectoresCLIJSON(t *testing.T) {
 		exitOK, "--json", "seal", "--tenant", testTenant, "--type", "sri.factura.v1",
 		"--payload", escribeDoc(t, c.dir, "doc-003.json", `{"factura":"contrato-003"}`), "--policy-file", polPath)
 
-	// 6. Y el objeto de error, que también es contrato (CLI-JSON.md §Convenciones).
+	// 6. Una supresión (ADR-031, enmienda): el propio erase, y un status después, con la
+	// alarma de supresión abierta. Es lo que los hooks de los SDK tienen que reconocer.
+	añade("valido-erase", "suprimir el contenido del bloque 0, que comparte con el 1: evento sellado y alarma de supresión abierta",
+		exitOK, "--json", "erase", "--block", "0", "--assume-confirmed")
+	añade("valido-status-con-supresion", "status con una supresión sin reconocer: erasure_alert.state open",
+		exitOK, "--json", "status")
+
+	// 7. Y el objeto de error, que también es contrato (CLI-JSON.md §Convenciones).
 	//
 	// El error se provoca con una bandera que la CLI valida por su cuenta y NO con un
 	// fichero que no existe: el mensaje de "no existe" lo escribe el sistema operativo

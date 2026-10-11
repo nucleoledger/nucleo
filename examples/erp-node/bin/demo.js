@@ -294,6 +294,49 @@ try {
 }
 comprueba((await vigilado.estado()).treeSize === antes, "fallaSiVieja escribió un bloque");
 
+// ————— 10. la supresión: dos tarjetas, y una alarma que alguien tiene que reconocer —————
+
+paso(10, "suprimir el contenido de un registro exige DOS TARJETAS, y deja una alarma (ADR-031)");
+const victima = conAlarma.index;
+// Primero, lo que tendría quien compromete el servidor: el fichero de la passphrase.
+const conPass = await capturada(cfg.BINARIO, ["--dir", cfg.DIR_LEDGER, "--json", "erase", "--block", String(victima),
+  "--passphrase-file", cfg.FICHERO_PASSPHRASE, "--assume-confirmed"]);
+comprueba(conPass.code === 1 && conPass.stdout.includes("DOS TARJETAS"), `erase con la passphrase salió con ${conPass.code}`);
+dice("  con el fichero de la passphrase —lo que hay en el servidor—: rechazado");
+
+// Con dos tarjetas, tecleadas en una consola. El ejemplo simula la consola con `script`
+// (util-linux) y las tarjetas DE JUGUETE; en producción las teclea una persona y no
+// están en ningún disco.
+if (process.platform !== "linux" || !existsSync("/usr/bin/script")) {
+  dice("  (la supresión con tarjetas se omite: simular la consola necesita `script` de util-linux)");
+} else {
+  const tarjetas = readFileSync(join(cfg.DATOS, "tarjetas-DE-JUGUETE.txt"), "utf8").trim().split("\n").slice(0, 2);
+  const orden = [cfg.BINARIO, "--dir", cfg.DIR_LEDGER, "erase", "--block", String(victima), "--assume-confirmed"]
+    .map((a) => `'${a.replaceAll("'", "'\\''")}'`).join(" ");
+  // La salida no se enseña: la consola repite lo tecleado, y son tarjetas.
+  const r = await capturada("script", ["-qec", orden, "/dev/null"], tarjetas.join("\n") + "\n\n");
+  comprueba(r.code === 0, `erase con dos tarjetas salió con ${r.code}`);
+  dice(`  con dos tarjetas: contenido del bloque ${victima} suprimido, y un evento sellado que lo dice`);
+
+  // El sellado siguiente del ERP trae la alarma, y el hook la recoge.
+  const supresiones = [];
+  const conHook = cfg.nucleo({ onErasure: (a) => supresiones.push(a) });
+  const docSupr = join(cfg.DIR_DOCUMENTOS, "tras-supresion-1.json");
+  writeFileSync(docSupr, JSON.stringify({ tras: 1, nonce: randomBytes(16).toString("hex") }));
+  const tras = await conHook.sella({ payloadFile: docSupr, tipo: "sri.factura.v1", tenant: "1790012345001", idempotencyKey: "tras-supresion-1" });
+  comprueba(tras.supresiones?.state === "open" && supresiones.length === 1 && supresiones[0].open.length === 1,
+    `erasure_alert = ${JSON.stringify(tras.supresiones)}, avisos ${supresiones.length}`);
+  dice("  el siguiente sellado lleva la alarma de supresión, y el hook onErasure la recoge");
+
+  const ack = await conHook.reconoceAlarma({ por: "demo" });
+  comprueba(ack.supresionesReconocidas === 1, `alert ack reconoció ${ack.supresionesReconocidas}`);
+  const docSupr2 = join(cfg.DIR_DOCUMENTOS, "tras-supresion-2.json");
+  writeFileSync(docSupr2, JSON.stringify({ tras: 2, nonce: randomBytes(16).toString("hex") }));
+  const despues = await conHook.sella({ payloadFile: docSupr2, tipo: "sri.factura.v1", tenant: "1790012345001", idempotencyKey: "tras-supresion-2" });
+  comprueba(despues.supresiones?.state === "none" && supresiones.length === 1, `tras ack: ${JSON.stringify(despues.supresiones)}`);
+  dice("  reconocida por «demo» con alert ack: el hook deja de avisar; el evento sigue sellado");
+}
+
 // ————— el resumen —————
 
 const segundos = ((Date.now() - cronometro) / 1000).toFixed(1);
@@ -323,6 +366,20 @@ function comprueba(cond, mensaje) {
   if (cond) return;
   fallos++;
   console.error(`  ✘ COMPROBACIÓN FALLIDA: ${mensaje}`);
+}
+
+// capturada ejecuta y devuelve código y salidas, con `entrada` por stdin.
+function capturada(bin, args, entrada = "") {
+  return new Promise((resolve, reject) => {
+    const p = spawn(bin, args, { cwd: RAIZ, stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    p.stdout.on("data", (d) => (stdout += d));
+    p.stderr.on("data", (d) => (stderr += d));
+    p.on("error", reject);
+    p.on("close", (code) => resolve({ code, stdout, stderr }));
+    p.stdin.end(entrada);
+  });
 }
 
 function corre(bin, args) {

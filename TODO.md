@@ -162,6 +162,15 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 7. `scripts/compuerta.sh` sustituye a `Taskfile.yml`: la compuerta completa con una
       orden, sale con 1 si falla un paso; documentada en CONTRIBUTING, CLAUDE.md y AGENTS.md
 
+## Sprint 18 — la enmienda de ADR-031, y v0.4.0-alpha
+- [x] 1. La supresión ya no sirve para borrar huellas: el ataque con el fichero de la
+      passphrase, reproducido y luego invertido; `erase` exige dos tarjetas tecleadas en una
+      consola, y cada supresión abre una alarma (`erasure_alert`, `onErasure` en PHP y en el
+      ejemplo Node) que solo cierra `alert ack`; L20 en GARANTIAS
+- [ ] 2. PROTOCOL 0.6-draft: `nucleo.erasure.v1` registrado, y §5 nombra la excepción; el
+      Taskfile, enmendado en CONCEPTO
+- [ ] 3. v0.4.0-alpha preparada: CHANGELOG, notas y el coste de venir de v0.3.1-alpha
+
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.
 - [ ] **Producto-testigo.** Sin testigos que el emisor no controle, el tiempo

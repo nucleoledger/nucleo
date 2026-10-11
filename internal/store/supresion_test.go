@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/nucleoledger/nucleo/internal/ledger"
 )
 
 // TestLaSupresionNoDejaElContenidoEnElDisco: tras suprimir (ADR-031), los bytes del
@@ -104,4 +107,44 @@ func enDisco(t *testing.T, path string, marca []byte) bool {
 		}
 	}
 	return false
+}
+
+// TestBlocksOfType: devuelve los bloques del tipo, y solo esos, aunque otro campo del
+// header contenga el texto del tipo.
+func TestBlocksOfType(t *testing.T) {
+	s := openTemp(t)
+	pub, priv := testKeys(t, 0)
+	var prev *ledger.Block
+	tipos := []struct{ tenant, typ string }{
+		{testTenant, "sri.factura.v1"},
+		{testTenant, "nucleo.erasure.v1"},
+		{`x"type":"nucleo.erasure.v1"`, "sri.factura.v1"}, // el texto, en otro miembro
+		{testTenant, "nucleo.erasure.v1"},
+		{testTenant, "nucleo_erasure_v1"}, // el _ de LIKE no es comodín aquí
+	}
+	for i, c := range tipos {
+		h, err := ledger.NewHeader(prev, c.tenant, c.typ, []byte{byte(i)}, "none://", pub, testBase.Add(time.Duration(i)*time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := ledger.Seal(h, priv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.AppendBlock(b); err != nil {
+			t.Fatal(err)
+		}
+		prev = b
+	}
+	got, err := s.BlocksOfType("nucleo.erasure.v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Header.Index != 1 || got[1].Header.Index != 3 {
+		idx := []uint64{}
+		for _, b := range got {
+			idx = append(idx, b.Header.Index)
+		}
+		t.Errorf("BlocksOfType = %v, want [1 3]", idx)
+	}
 }

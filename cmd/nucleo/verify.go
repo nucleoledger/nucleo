@@ -75,6 +75,7 @@ func cmdStatus(e *env, args []string) error {
 	// es justo quien no lee stderr.
 	alarma := registraAlarma(e, s, st)
 	data["alert"] = alarma.json()
+	data["erasure_alert"] = alarmaDeSupresion(e, s).json()
 	// El aviso sale ANTES del volcado, y sale también en modo --json: va por
 	// stderr, así que no contamina la salida que alguien parsea. Es lo que hace
 	// que un cron con stdout a un fichero y stderr al correo avise solo.
@@ -207,6 +208,7 @@ func cmdVerify(e *env, args []string) error {
 		"freshness":     st.json(),
 		"signer":        signerJSON(res),
 		"alert":         registraAlarma(e, s, st).json(),
+		"erasure_alert": alarmaDeSupresion(e, s).json(),
 	}
 	if rb := st.rollbackJSON(); rb != nil {
 		salida["rollback"] = rb

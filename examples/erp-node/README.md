@@ -139,6 +139,13 @@ extra.
 Para verla sin esperar tres días: `NUCLEO_STALE_AFTER=30s npm start` con el testigo
 parado, emite una factura y espera medio minuto. La demo lo recorre en su paso 9.
 
+Las **supresiones** de contenido (`nucleo erase`, que exige dos tarjetas de respaldo
+tecleadas en una consola; [ADR-031](../../docs/adr/ADR-031-supresion.md) y su enmienda) tienen
+su propio hook, **`onErasure`**, con la misma semántica: en cada operación hasta que alguien
+las reconoce con `reconoceAlarma()`. La demo hace una supresión de verdad en su paso 10 —con
+las tarjetas de juguete y `script`, de util-linux, para simular la consola—, comprueba que el
+fichero de la passphrase no basta, y recoge la alarma con el hook.
+
 ## Manejo de errores
 
 Lo que el ejemplo hace en cada caso, porque un ERP que sella y no sabe qué hacer cuando
@@ -152,6 +159,7 @@ el sellado falla no es una integración:
 | El cotejo encuentra una discrepancia | código 2 con el informe completo | Enseña el informe. No reintenta: un 2 es un incidente |
 | La salida no encaja con el contrato | `ErrorDeContrato` | Se detiene. No rellena con valores por omisión: así es como una salida truncada parece un sellado correcto |
 | La atestación lleva vieja más que el umbral | `alert.state: "open"` en el JSON, y `onStale` | Sigue sellando y avisa por tu canal hasta que alguien la reconoce. Con `fallaSiVieja`, no sella y lanza `ErrorDeSincronizacion` transitorio |
+| Alguien suprimió contenido del ledger | `erasure_alert.state: "open"` en el JSON, y `onErasure` | Sigue sellando y avisa por tu canal hasta que alguien la reconoce. Si nadie la pidió, es un incidente |
 | Se pide el recibo de un bloque que ningún testigo cubrió | código 1 con `error_class: transient` | Sincroniza y reintenta. **No** es un error de la llamada, y el ERP lo sabe sin leer el mensaje ([ADR-027](../../docs/adr/ADR-027-clase-del-error-en-json.md)) |
 
 Cada rama tiene su página, y las tres contestan lo mismo: qué pasó, **qué hizo el ERP con

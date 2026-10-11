@@ -51,6 +51,20 @@ function avisaDeAlarma(alerta) {
     "Nadie la ha reconocido todavía: `nucleo alert ack` cuando alguien se entere.");
 }
 
+/**
+ * SUPRESIONES son las últimas supresiones sin reconocer que llegaron por el hook, o null
+ * (ADR-031, enmienda). Mismo canal de ejemplo que ALARMA.
+ */
+export const SUPRESIONES = { actual: null };
+
+function avisaDeSupresion(supresiones) {
+  SUPRESIONES.actual = supresiones;
+  const bloques = supresiones.open.map((x) => x.index).join(", ");
+  console.error(`[nucleo:supresion] ${supresiones.open.length} supresión(es) de contenido sin reconocer ` +
+    `(eventos en el bloque ${bloques}). Si nadie la esperaba es un incidente; si fue legítima, ` +
+    "`nucleo alert ack` la reconoce.");
+}
+
 /** DIARIO guarda los últimos avisos que Núcleo mandó por stderr, para poder ENSEÑARLOS. */
 export const DIARIO = [];
 
@@ -71,8 +85,10 @@ const vistos = new Map();
  * `conPolitica: false` es para el arranque, cuando la política todavía no existe: el
  * primer `init` es el que la produce. Pasado ese momento, va en todas las ejecuciones.
  */
-export function nucleo({ conPolitica = true, timeoutMs = 60_000, onStale = null, staleAfter = null } = {}) {
+export function nucleo({ conPolitica = true, timeoutMs = 60_000, onStale = null, staleAfter = null, onErasure = null } = {}) {
   return new Nucleo({
+    // El hook de las supresiones (ADR-031, enmienda), con el mismo canal de ejemplo.
+    onErasure: onErasure ?? avisaDeSupresion,
     // El hook de ADR-028. Por omisión, el del ejemplo: lo apunta en ALARMAS y en el log
     // del proceso. En tu ERP, aquí va tu canal —correo, WhatsApp, un ticket—.
     onStale: onStale ?? avisaDeAlarma,

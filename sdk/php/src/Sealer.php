@@ -27,6 +27,8 @@ final class Sealer
     private int $timeout;
     /** @var callable|null */
     private $onStale;
+    /** @var callable|null */
+    private $onErasure;
 
     /**
      * @param string $binary         ruta del ejecutable `nucleo`
@@ -39,6 +41,10 @@ final class Sealer
      *                                operación mientras haya una alarma de frescura
      *                                abierta y sin reconocer (ADR-028 §E). Es un
      *                                requisito de integración: ver docs/OPERACION.md.
+     * @param callable|null $onErasure function (array $erasureAlert): void — se llama en
+     *                                CADA operación mientras haya supresiones de
+     *                                contenido sin reconocer (ADR-031, enmienda). Una
+     *                                supresión que nadie esperaba es un incidente.
      */
     public function __construct(
         string $binary,
@@ -46,7 +52,8 @@ final class Sealer
         string $passphraseFile,
         ?string $policyFile = null,
         int $timeout = 60,
-        ?callable $onStale = null
+        ?callable $onStale = null,
+        ?callable $onErasure = null
     ) {
         $this->binary = $binary;
         $this->dir = $dir;
@@ -54,6 +61,7 @@ final class Sealer
         $this->policyFile = $policyFile;
         $this->timeout = $timeout;
         $this->onStale = $onStale;
+        $this->onErasure = $onErasure;
     }
 
     /**
@@ -180,6 +188,9 @@ final class Sealer
      * cierra un sync que sale bien—, pero onStale deja de llamarse hasta el siguiente
      * episodio. Llámalo cuando tu canal haya ENTREGADO el aviso, no antes: si lo llamas
      * dentro del propio hook y el correo falla, la alarma queda reconocida y nadie lo sabe.
+     *
+     * Reconoce también las supresiones abiertas (ADR-031, enmienda): `erasures_acked` dice
+     * cuántas, y onErasure deja de llamarse.
      *
      * @return array<string, mixed>
      */
@@ -314,6 +325,7 @@ final class Sealer
         // que no llega al testigo y un `seal --fail-on-stale` que se niega traen `alert`
         // en el objeto de error, y son justo los dos momentos en que más importa.
         $this->avisaSiHayAlarma($j);
+        $this->avisaSiHaySupresion($j);
         if ($code !== 0 || ($j->ok ?? null) === false) {
             // La clase viaja en la excepción (ADR-027). Se lee con el mismo lector que
             // los vectores, así que una clase desconocida es un error de contrato y no
@@ -386,6 +398,37 @@ final class Sealer
                 get_class($e),
                 $e->getMessage(),
                 (string) ($a['stale_since'] ?? '?')
+            ));
+        }
+    }
+
+    /**
+     * avisaSiHaySupresion llama a onErasure si la salida trae supresiones sin reconocer.
+     *
+     * Igual que onStale: en cada operación hasta que alguien ejecuta alertAck(), y si el
+     * hook lanza, se escribe en el log de errores y la operación sigue.
+     */
+    private function avisaSiHaySupresion(\stdClass $j): void
+    {
+        if ($this->onErasure === null || !property_exists($j, 'erasure_alert')) {
+            return;
+        }
+        try {
+            $a = Contract::erasureAlert($j);
+        } catch (SealContractError $e) {
+            return;
+        }
+        if ($a === null || ($a['state'] ?? null) !== 'open') {
+            return;
+        }
+        try {
+            ($this->onErasure)($a);
+        } catch (\Throwable $e) {
+            error_log(sprintf(
+                '[nucleo] el hook onErasure lanzó %s: %s. Hay %d supresiones de contenido sin reconocer.',
+                get_class($e),
+                $e->getMessage(),
+                count($a['open'] ?? [])
             ));
         }
     }

@@ -30,7 +30,7 @@ limpia() {
 trap limpia EXIT
 
 # Un binario de producción: sin ganchos, como lo usaría un operador.
-for v in NUCLEO_TEST_SEED NUCLEO_TEST_CLOCK NUCLEO_TEST_PASSPHRASE NUCLEO_TEST_DIE_AT NUCLEO_TEST_PAUSE_AT; do
+for v in NUCLEO_TEST_SEED NUCLEO_TEST_CLOCK NUCLEO_TEST_PASSPHRASE NUCLEO_TEST_DIE_AT NUCLEO_TEST_PAUSE_AT NUCLEO_TEST_CARDS; do
 	unset "$v"
 done
 if [ -n "${NUCLEO_BIN:-}" ]; then

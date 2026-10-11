@@ -1,0 +1,11 @@
+{
+  "name": "valido-status-con-supresion",
+  "description": "status con una supresión sin reconocer: erasure_alert.state open",
+  "command": [
+    "--json",
+    "status"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"alert\": {\n    \"new\": false,\n    \"persisted\": true,\n    \"state\": \"none\"\n  },\n  \"attestation\": \"unverified\",\n  \"attested\": false,\n  \"attested_head\": false,\n  \"attested_size\": 3,\n  \"dir\": \"\u003cDIR\u003e\",\n  \"erasure_alert\": {\n    \"open\": [\n      {\n        \"blocks\": [\n          0,\n          1\n        ],\n        \"erased_at\": \"2026-09-07T10:00:00Z\",\n        \"erased_payload_hash\": \"b60423d5a606ef5b84634f18f6e3110dc9ccac3c5b484ded6e86cffe77e0c45c\",\n        \"hash\": \"a06967e37f20f25ab0e0e6e77185d9a4282a7171e035a8a30c523dcf0fbf9d95\",\n        \"index\": 4\n      }\n    ],\n    \"persisted\": true,\n    \"state\": \"open\"\n  },\n  \"freshness\": {\n    \"age_hours\": 0,\n    \"attested_at\": \"2026-09-07T10:00:00Z\",\n    \"attested_ever\": false,\n    \"attested_size\": 3,\n    \"policy\": false,\n    \"recorded_at\": \"2026-09-07T10:00:00Z\",\n    \"source\": \"local_record\",\n    \"stale\": false,\n    \"threshold_hours\": 72,\n    \"verified\": false,\n    \"witness\": \"witness.example/w1\"\n  },\n  \"leaf_rule\": \"leaf/v2\",\n  \"log_pubkey\": \"b9f2f19bc92ea6d3445184364c561d482c735bda240f6f2510738dcaa626dca5\",\n  \"ok\": true,\n  \"origin\": \"nucleoledger.com/pruebas\",\n  \"root\": \"be2feb17a49c33a9ccf6e99351f107ab1d6f14cafad8290d8ded70d8d3202003\",\n  \"signer\": {\n    \"pubkey\": \"1452087a636d691592b449857ba76372320731039b297092be0f1bbb76848ada\",\n    \"state\": \"unverified\",\n    \"verified\": false\n  },\n  \"signer_pubkey\": \"1452087a636d691592b449857ba76372320731039b297092be0f1bbb76848ada\",\n  \"tree_size\": 5\n}\n",
+  "valid": true
+}

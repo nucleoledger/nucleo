@@ -23,6 +23,9 @@ se indica que es `main`. PHP 8.2 con el SDK del repositorio.
       memoria virtual suficiente— (§4).
 - [ ] El **hook `onStale`** configurado: sin él, nadie se entera de que el testigo lleva
       días caído (§5).
+- [ ] El **hook `onErasure`** configurado: cada supresión de contenido tiene que llegarle a
+      alguien (§5).
+- [ ] Las **tarjetas** repartidas y **fuera del servidor**: con dos se suprime (§3).
 
 ---
 
@@ -349,7 +352,9 @@ implementada**: hoy, una clave comprometida es un log nuevo.
 
 `init` entrega tres tarjetas, y dos reconstruyen la clave. **Repártelas**: dos tarjetas en
 el mismo cajón son una sola. Quien reúna dos tiene la clave del vault, y desde ADR-029
-puede además fijar una passphrase nueva: son tan valiosas como la passphrase. `backup`
+puede además fijar una passphrase nueva y **suprimir contenido** (`nucleo erase`, enmienda de
+[ADR-031](adr/ADR-031-supresion.md)): son más valiosas que la passphrase. Por eso suprimir
+las pide a ellas y no a la passphrase, que vive en el servidor: **nunca las guardes en él**. `backup`
 emite tarjetas nuevas **que conviven** con las viejas (misma clave); `restore
 --new-passphrase` emite tarjetas nuevas **que sustituyen** a las viejas.
 
@@ -432,9 +437,27 @@ El cron del `sync`, con la passphrase por fichero porque `sync` firma:
 0 * * * * /usr/local/bin/nucleo --dir /var/lib/nucleo sync --policy-file /etc/nucleo/politica.json --witness https://testigo.ejemplo.ec --passphrase-file /etc/nucleo/passphrase
 ```
 
+### Las supresiones: configura `onErasure`
+
+Cada `nucleo erase` abre otra alarma, la de **supresión**, que viaja en el mismo JSON
+(`erasure_alert`) y que solo se calla con `alert ack`: una supresión que nadie esperaba es un
+incidente. El séptimo argumento del `Sealer` es su hook:
+
+```php
+$sealer = new Nucleo\Sealer($bin, $dir, '/etc/nucleo/passphrase', $politica, 60,
+    $avisaDeFrescura,
+    function (array $supresiones): void {
+        mail('operaciones@tuempresa.ec', 'Núcleo: supresión de contenido',
+            count($supresiones['open']) . ' supresión(es) sin reconocer. ¿Alguien la pidió?');
+    });
+```
+
+`$sealer->alertAck('nombre')` reconoce a la vez las dos alarmas. `alert status --exit-code`
+sale con 3 también mientras haya supresiones sin reconocer.
+
 Todo lo de esta sección está cubierto por tests: `cmd/nucleo/alarma_test.go` (sin leer stderr
-en ningún momento), la suite del SDK de PHP y el paso 9 de la demo del ejemplo Node, que
-corre en CI.
+en ningún momento), `cmd/nucleo/ataque_supresion_test.go` para las supresiones, la suite del
+SDK de PHP y los pasos 9 y 10 de la demo del ejemplo Node, que corre en CI.
 
 ---
 

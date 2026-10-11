@@ -221,3 +221,14 @@ func (s *Store) BlocksWithPayload(payloadHash string) ([]uint64, error) {
 	}
 	return out, nil
 }
+
+// PutState guarda una entrada de log_state, sustituyendo la que hubiera. Como toda la
+// tabla, no está firmada: quien escribe el fichero puede cambiarla.
+func (s *Store) PutState(k, v string) error {
+	if s.db == nil {
+		return ErrClosed
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return insertState(s.db, k, v)
+}

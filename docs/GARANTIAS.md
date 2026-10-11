@@ -61,6 +61,8 @@ del repositorio la fija. Este documento no añade tests; los señala.
 | G38 | Suprimir el contenido de un registro (`erase`) borra su copia cifrada y sus compromisos, deja la cadena y los recibos ya emitidos verificando, y sella un evento sin datos personales | README «The CLI» | ADR-031 | `cmd/nucleo/erase_test.go#TestLaSupresionDejaLaCadenaYLosRecibos`, `internal/store/supresion_test.go#TestLaSupresionVaConSuEventoONoVa` |
 | G39 | Lo suprimido no queda en el disco del ledger: ni en el fichero principal ni en el WAL | ADR-031 §D | ADR-031 | `internal/store/supresion_test.go#TestLaSupresionNoDejaElContenidoEnElDisco` |
 | G40 | `reconcile` informa un registro suprimido como suprimido y no como faltante, y solo si hay un evento sellado posterior; sin él, sigue siendo un hallazgo | `docs/CLI-JSON.md` | ADR-031 | `internal/reconcile/supresion_test.go#TestUnRegistroSuprimidoNoEsUnFaltante`, `internal/reconcile/supresion_test.go#TestSinEventoUnRegistroBorradoEsUnFaltante`, `cmd/nucleo/erase_test.go#TestSealNoAceptaTiposReservados` |
+| G41 | Suprimir exige dos tarjetas SLIP-0039 tecleadas en una consola: con el fichero de la passphrase —lo que hay en el servidor— `erase` falla y la reconciliación sigue señalando el registro borrado | ADR-031, enmienda | ADR-031 | `cmd/nucleo/ataque_supresion_test.go#TestElFicheroDeLaPassphraseNoSuprime`; el paso 10 de `examples/erp-node/bin/demo.js` con el binario de producción |
+| G42 | Cada supresión abre una alarma que viaja en el JSON de cada comando, llega a los hooks `onErasure` de PHP y del ejemplo Node, y solo se cierra con `alert ack`; borrar su reconocimiento la reabre | ADR-031, enmienda | ADR-031, ADR-028 | `cmd/nucleo/ataque_supresion_test.go#TestCadaSupresionAbreUnaAlarma`, `sdk/php/test/contrato.php`, `cmd/nucleo/clijson_vectors_test.go#TestVectoresCLIJSON` y el paso 10 de la demo del ejemplo |
 
 ---
 
@@ -87,6 +89,7 @@ del repositorio la fija. Este documento no añade tests; los señala.
 | L17 | **En un testigo mutuo, cada empresa opera un servicio para la otra**: si uno se cae, la alarma de la otra suena por algo que no puede arreglar | `docs/OPERACION.md` §1 | **sin test** |
 | L18 | **La supresión es la mitad técnica de un derecho de borrado, no una opinión legal.** No alcanza a las copias de seguridad anteriores ni al sistema del integrador, y el hash sigue en la cadena (ADR-031, «Lo que NO resuelve») | README «What works today»; PROTOCOL §5 | — |
 | L19 | **No ha habido auditoría profesional de seguridad, y nadie lo usa en producción** | README «Status» y «Security & audits» | — |
+| L20 | **Quien tenga dos tarjetas de respaldo puede suprimir contenido.** Para eso existen: son la clave del vault. La supresión queda sellada en el ledger, atestiguada en el siguiente `sync` y con su alarma abierta; y `alert ack` no pide nada, así que quien controle el servidor puede reconocer una supresión, aunque ya no pueda hacerla | ADR-031, enmienda «Lo que esta enmienda NO resuelve» | `cmd/nucleo/ataque_supresion_test.go#TestCadaSupresionAbreUnaAlarma` fija lo que sí queda: la alarma y su reapertura |
 
 ---
 

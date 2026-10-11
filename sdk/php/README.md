@@ -140,6 +140,25 @@ $sealer = new Nucleo\Sealer($bin, $dir, $pass, $politica, 60,
 - `$r->alert` trae la alarma en cada resultado de sellado, o `null` con un binario
   anterior a ADR-028.
 
+### Las supresiones: `onErasure`
+
+Desde v0.4.0-alpha, cada supresión de contenido (`nucleo erase`, que exige dos tarjetas de
+respaldo; [ADR-031](../../docs/adr/ADR-031-supresion.md) y su enmienda) abre otra alarma, que
+viaja en el JSON como `erasure_alert`. El **séptimo argumento** es su hook, con la misma
+semántica que `onStale`: en cada operación mientras haya supresiones sin reconocer, y un hook
+que lanza va a `error_log` sin romper la operación.
+
+```php
+$sealer = new Nucleo\Sealer($bin, $dir, $pass, $politica, 60, $onStale,
+    function (array $supresiones): void {
+        mail('operaciones@tuempresa.ec', 'Núcleo: supresión de contenido',
+            count($supresiones['open']) . ' supresión(es) sin reconocer. ¿Alguien la pidió?');
+    });
+```
+
+`alertAck()` las reconoce a la vez que la alarma de frescura, y `$r->erasureAlert` las trae
+en cada resultado de sellado (`null` con un binario anterior).
+
 ¿Prefieres que el sellado **no** siga con la atestación vieja? Eso es otra cosa y la
 decide cada integrador: `sealBytes(..., failOnStale: true)` —`--fail-on-stale` en la CLI—
 no escribe y lanza `SealSyncError` (código 3, `errorClass` `transient`), para reintentar

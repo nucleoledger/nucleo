@@ -187,6 +187,7 @@ export function sellado(j) {
     stale: booleano(frescura(j), "stale"),
     rollback: Object.prototype.hasOwnProperty.call(j, "rollback") ? objeto(j, "rollback") : null,
     alerta: alerta(j),
+    supresiones: alertaDeSupresion(j),
     raw: j,
   };
 }
@@ -281,6 +282,34 @@ export function alerta(j) {
     }
   }
   if (estado === "acked") cadena(a, "alert_acked_at", { vacia: false });
+  return a;
+}
+
+/**
+ * alertaDeSupresion lee el objeto `erasure_alert` —las supresiones sin reconocer, ADR-031 y
+ * su enmienda—, o null si la salida no lo trae (un binario anterior a v0.4.0-alpha).
+ *
+ * Lo que no se tolera es un objeto que se contradice: `state` "none" con supresiones en
+ * `open` no se lee como «ninguna».
+ */
+export function alertaDeSupresion(j) {
+  if (!Object.prototype.hasOwnProperty.call(j, "erasure_alert")) return null;
+  const a = objeto(j, "erasure_alert");
+  const estado = unoDe(a, "state", ["none", "open"]);
+  booleano(a, "persisted");
+  const abiertas = presente(a, "open");
+  if (!Array.isArray(abiertas)) throw malTipo("erasure_alert.open", "una lista", abiertas);
+  abiertas.forEach((x, i) => {
+    if (x === null || typeof x !== "object" || Array.isArray(x)) throw malTipo(`erasure_alert.open[${i}]`, "un objeto", x);
+    entero(x, "index");
+    hex64(x, "hash");
+    cadena(x, "erased_at", { vacia: false });
+    if (Object.prototype.hasOwnProperty.call(x, "erased_payload_hash")) hex64(x, "erased_payload_hash");
+    listaDeEnteros(x, "blocks");
+  });
+  if ((estado === "open") !== (abiertas.length > 0)) {
+    throw new ErrorDeContrato(`erasure_alert se contradice: state = ${estado} con ${abiertas.length} supresiones abiertas`);
+  }
   return a;
 }
 

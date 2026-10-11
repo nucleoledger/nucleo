@@ -95,8 +95,11 @@ export class Nucleo {
    *        Es un requisito de integración: el integrador elige el canal, Núcleo le
    *        garantiza que se entera.
    * @param {string=} opciones.staleAfter  umbral de frescura (`--stale-after`), p. ej. "72h"
+   * @param {(supresiones: object) => void=} opciones.onErasure  se llama en CADA operación
+   *        mientras haya supresiones de contenido sin reconocer (ADR-031, enmienda). Una
+   *        supresión que nadie esperaba es un incidente.
    */
-  constructor({ binario, dir, passphraseFile, policyFile = null, timeoutMs = 60_000, log = null, onStale = null, staleAfter = null }) {
+  constructor({ binario, dir, passphraseFile, policyFile = null, timeoutMs = 60_000, log = null, onStale = null, staleAfter = null, onErasure = null }) {
     this.binario = binario;
     this.dir = dir;
     this.passphraseFile = passphraseFile;
@@ -104,6 +107,7 @@ export class Nucleo {
     this.timeoutMs = timeoutMs;
     this.log = log ?? ((nivel, mensaje) => console.error(`[nucleo:${nivel}] ${mensaje}`));
     this.onStale = onStale;
+    this.onErasure = onErasure;
     this.staleAfter = staleAfter;
   }
 
@@ -210,7 +214,10 @@ export class Nucleo {
     const args = ["alert", "ack"];
     if (por) args.push("--by", por);
     const j = await this.#ejecuta(args);
-    return { reconocida: contrato.booleano(j, "acked"), alerta: contrato.alerta(j) };
+    // Reconoce también las supresiones abiertas (ADR-031, enmienda); un binario anterior
+    // no manda el campo, y entonces no había ninguna que reconocer.
+    const supresiones = Object.prototype.hasOwnProperty.call(j, "erasures_acked") ? contrato.entero(j, "erasures_acked") : 0;
+    return { reconocida: contrato.booleano(j, "acked"), alerta: contrato.alerta(j), supresionesReconocidas: supresiones };
   }
 
   /** compruebaEntorno mira lo que un despliegue puede tener mal, antes de ejecutar nada. */
@@ -309,6 +316,29 @@ export class Nucleo {
     }
   }
 
+  /**
+   * avisaSiHaySupresion llama a onErasure si la salida trae supresiones sin reconocer.
+   * Igual que onStale: en cada operación hasta reconoceAlarma(), y un hook que falla no
+   * rompe la operación.
+   */
+  #avisaSiHaySupresion(j) {
+    if (!this.onErasure || !Object.prototype.hasOwnProperty.call(j, "erasure_alert")) return;
+    let a;
+    try {
+      a = contrato.alertaDeSupresion(j);
+    } catch {
+      return;
+    }
+    if (!a || a.state !== "open") return;
+    const falla = (e) => this.log("supresion", `el hook onErasure falló: ${e?.message ?? e}. Hay ${a.open.length} supresiones sin reconocer.`);
+    try {
+      const r = this.onErasure(a);
+      if (r && typeof r.catch === "function") r.catch(falla);
+    } catch (e) {
+      falla(e);
+    }
+  }
+
   async #ejecuta(args, { timeoutMs = null } = {}) {
     this.compruebaEntorno();
     const cmd = [this.binario, ...this.#globales(), ...this.#conPolitica(args)];
@@ -375,6 +405,7 @@ export class Nucleo {
     // llega al testigo y un `seal --fail-on-stale` que se niega la traen en el objeto de
     // error, y son justo los dos momentos en que más importa.
     this.#avisaSiHayAlarma(j);
+    this.#avisaSiHaySupresion(j);
     if (code === 0) return j;
 
     // No todo código distinto de 0 trae un objeto de error, y esto lo descubrió el

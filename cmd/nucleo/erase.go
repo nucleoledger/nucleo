@@ -9,8 +9,11 @@ import (
 	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/erasure"
+	"github.com/nucleoledger/nucleo/internal/identity"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/store"
+	"github.com/nucleoledger/nucleo/internal/vault"
+	"golang.org/x/term"
 )
 
 // La supresión (ADR-031): borrar el contenido de un registro cuando su titular lo
@@ -29,11 +32,18 @@ func cmdErase(e *env, args []string) error {
 	fs := flag.NewFlagSet("erase", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	block := fs.Int64("block", -1, "índice del bloque cuyo contenido se suprime")
-	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
-	yes := fs.Bool("assume-confirmed", false, "salta la confirmación tecleada (solo automatización)")
+	// --passphrase-file se declara solo para rechazarlo con su porqué: sin esto, quien lo
+	// pase recibiría «flag provided but not defined», que no dice qué hace falta.
+	passFile := fs.String("passphrase-file", "", "NO se acepta: erase exige dos tarjetas de respaldo (ADR-031, enmienda)")
+	yes := fs.Bool("assume-confirmed", false, "salta la confirmación tecleada del hash (las tarjetas se teclean igual)")
 	pf := registerPolicyFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
+	}
+	if *passFile != "" {
+		return usageErr("erase no acepta la passphrase: suprimir exige DOS TARJETAS de respaldo SLIP-0039,\n" +
+			"  tecleadas en una consola (ADR-031, enmienda). La passphrase vive en el servidor para\n" +
+			"  sellar, y quien comprometa el servidor la tiene; las tarjetas no deberían estar ahí.")
 	}
 	if *block < 0 {
 		return usageErr("erase necesita --block N")
@@ -113,7 +123,7 @@ func cmdErase(e *env, args []string) error {
 		return nil
 	}
 
-	v, id, err := e.unlock(s, *passFile, "Passphrase del vault: ")
+	v, id, err := abreConTarjetas(e, s)
 	if err != nil {
 		return err
 	}
@@ -155,7 +165,18 @@ func cmdErase(e *env, args []string) error {
 		if err != nil {
 			return err
 		}
-		rec := store.Record{Block: ev, DeleteMeta: []string{metaCommitPrefix + h}}
+		// Lo que el evento no dice —qué contenido, qué bloques— va a log_state en la misma
+		// transacción, para la alarma de supresión. La alarma no depende de ello: se
+		// abre por el evento, esté o no el detalle.
+		detalle, err := marshalJSON(detalleSupresion{ErasedPayloadHash: h, Blocks: afectados})
+		if err != nil {
+			return err
+		}
+		rec := store.Record{
+			Block:      ev,
+			DeleteMeta: []string{metaCommitPrefix + h},
+			State:      map[string]string{metaSupresionDetalle + ev.Hash: string(detalle)},
+		}
 		if hayBlob {
 			rec.EraseBlob = h
 		}
@@ -214,6 +235,50 @@ func avisaWAL(e *env, walVacio bool) {
 	fmt.Fprintf(e.stderr, "⚠ otro proceso estaba leyendo el ledger y el WAL no se pudo vaciar: una copia\n"+
 		"  del contenido suprimido puede seguir en %s-wal hasta que SQLite lo vacíe.\n"+
 		"  Vuelve a ejecutar esta misma orden cuando no haya otro proceso usando el ledger.\n", e.dbPath())
+}
+
+// abreConTarjetas abre el vault con dos tarjetas SLIP-0039 —las que reconstruyen la KEK,
+// como en restore— y carga la identidad (ADR-031, enmienda).
+//
+// Las tarjetas solo se aceptan tecleadas en una consola: no hay bandera de fichero, y
+// una entrada que no es un terminal se rechaza. No es la frontera de seguridad —quien
+// tenga las tarjetas puede simular una consola—; la frontera es que las tarjetas no
+// estén en el servidor. Esto evita que nadie las deje en un fichero junto a la
+// passphrase para automatizar lo que no debe automatizarse.
+func abreConTarjetas(e *env, s *store.Store) (*vault.Vault, *identity.Identity, error) {
+	cards, ok := hookCards()
+	if !ok {
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			return nil, nil, usageErr("erase pide dos tarjetas de respaldo tecleadas en una consola, y aquí no hay\n" +
+				"  consola. Ejecútalo desde un terminal interactivo, con las tarjetas a mano.\n" +
+				"  No se aceptan de un fichero ni por una tubería (ADR-031, enmienda).")
+		}
+		fmt.Fprintln(e.stderr, "Suprimir exige dos tarjetas de respaldo SLIP-0039.")
+		var err error
+		cards, err = readShares(e, "")
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	kek, err := vault.RestoreKEK(cards)
+	if err != nil {
+		return nil, nil, usageErr("no se pudo reconstruir la clave con esas tarjetas: %v", err)
+	}
+	defer vault.Wipe(kek)
+	v, err := vault.UnlockKEK(s, kek)
+	if errors.Is(err, vault.ErrUnwrap) {
+		return nil, nil, verifyErr("las tarjetas reconstruyen una clave, pero NO es la de este vault, o son tarjetas\n" +
+			"  de antes de un cambio de passphrase: esas quedaron sin valor (ADR-029)")
+	}
+	if err != nil {
+		return nil, nil, usageErr("no se pudo abrir el vault: %v", err)
+	}
+	id, err := identity.Load(v, s)
+	if err != nil {
+		v.Close()
+		return nil, nil, err
+	}
+	return v, id, nil
 }
 
 // existe convierte el resultado de una lectura en «está» o «no está».

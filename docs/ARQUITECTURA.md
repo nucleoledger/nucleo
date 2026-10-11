@@ -389,13 +389,22 @@ vault; los propios eventos no se cuentan como faltantes.
 
 `cmd/nucleo/erase.go#cmdErase` lee el bloque, comprueba que hay algo guardado de su contenido
 —la copia cifrada o los compromisos— y, si ya hay un evento posterior, contesta
-`already_erased` sin escribir. Si no, desbloquea el vault, comprueba el firmante de la cadena,
+`already_erased` sin escribir. Si no, abre el vault con **dos tarjetas** tecleadas en una
+consola, nunca con la passphrase (`cmd/nucleo/erase.go#abreConTarjetas` →
+`internal/vault/backup.go#RestoreKEK` y `internal/vault/keys.go#UnlockKEK`; enmienda de
+ADR-031), comprueba el firmante de la cadena,
 pide teclear el principio del hash (`cmd/nucleo/erase.go#tecleaElHash`; `--assume-confirmed`
 en `--json`) y, en **una** transacción (`internal/store/record.go#Store.AppendRecord`, campos
 `EraseBlob` y `DeleteMeta`), sella el evento `nucleo.erasure.v1` y borra la copia cifrada y
-los compromisos. Después vacía el WAL (`internal/store/store.go#Store.PurgeWAL`); la base se
+los compromisos, y guarda en `log_state` el detalle para la alarma. Después vacía el WAL (`internal/store/store.go#Store.PurgeWAL`); la base se
 abre con `secure_delete`, así que lo borrado queda en ceros. `seal` rechaza los tipos
 `nucleo.*` (`internal/erasure/erasure.go#Reserved`).
+
+La **alarma de supresión** sale de la cadena y no de una lista aparte:
+`cmd/nucleo/alarma_supresion.go#alarmaDeSupresion` busca los eventos
+(`internal/store/blocks.go#Store.BlocksOfType`) y abre los que no tienen su reconocimiento en
+`log_state`. La publican en `erasure_alert` los mismos comandos que la de frescura; la cierra
+`cmd/nucleo/alert.go#cmdAlertAck` (`cmd/nucleo/alarma_supresion.go#reconoceSupresiones`).
 
 ### 2.7 `restore --new-passphrase` (ADR-029)
 

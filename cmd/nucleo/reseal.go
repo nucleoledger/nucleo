@@ -245,6 +245,9 @@ func sealTail(e *env, s *store.Store, res store.OpenResult, withPolicy bool, tre
 	// La alarma se registra en el ledger y se publica: el aviso de stderr de abajo no
 	// lo lee nadie en el hosting donde vive este producto (ADR-028).
 	salida["alert"] = registraAlarma(e, s, st).json()
+	// Y las supresiones sin reconocer: viajan en el mismo JSON y los hooks las recogen
+	// en el sellado de cada día (ADR-031, enmienda).
+	salida["erasure_alert"] = alarmaDeSupresion(e, s).json()
 	st.warn(e)
 	return st, nil
 }

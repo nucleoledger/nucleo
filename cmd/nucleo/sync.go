@@ -150,7 +150,7 @@ func cmdSync(e *env, args []string) error {
 		if st, errSt := checkStaleness(s, apertura, wp != nil, now(), e.staleAfter, apertura.TreeSize); errSt == nil {
 			ee = ee.conExtra("alert", registraAlarma(e, s, st).json())
 		}
-		return ee
+		return ee.conExtra("erasure_alert", alarmaDeSupresion(e, s).json())
 	}
 
 	// Aquí, y solo aquí, se graba cuándo avaló un tercero este log: es el único
@@ -229,6 +229,8 @@ func cmdSync(e *env, args []string) error {
 		// necesita para verificar sus recibos (ADR-017 c).
 		"policy": politicaDeSalida(file, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub),
 		"alert":  alarma.json(),
+		// Las supresiones sin reconocer, en cada comando (ADR-031, enmienda).
+		"erasure_alert": alarmaDeSupresion(e, s).json(),
 	}, func() {
 		e.printf("✔ atestación obtenida del testigo %s\n", name)
 		e.printf("  origin  : %s\n", res.Origin)

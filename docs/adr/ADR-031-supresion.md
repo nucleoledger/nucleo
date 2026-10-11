@@ -1,6 +1,6 @@
 # ADR-031-supresion
 
-**Estado:** PROPUESTA el 2026-10-10 (Sprint 17), implementada en el mismo sprint; pendiente de que el dev la acepte · **Fecha:** 2026-10-10 · **Fuentes:** hallazgo 1 de la lista del Sprint 16 (la supresión no tenía comando), CONCEPTO §5 (LOPDP por construcción), PROTOCOL §2 y §5 (header, `payload_cid`, AAD por tenant), ADR-020 §C (una transacción por sellado), ADR-004 (confirmación tecleada), ADR-009 y su enmienda (tablas mutables), `docs/GARANTIAS.md` L7
+**Estado:** PROPUESTA el 2026-10-10 (Sprint 17), ACEPTADA por el dev en el Sprint 18 con la excepción de §C, **ENMENDADA el 2026-10-10** (Sprint 18: suprimir exige dos tarjetas, y cada supresión abre una alarma; ver al final) · **Fecha:** 2026-10-10 · **Fuentes:** hallazgo 1 de la lista del Sprint 16 (la supresión no tenía comando), CONCEPTO §5 (LOPDP por construcción), PROTOCOL §2 y §5 (header, `payload_cid`, AAD por tenant), ADR-020 §C (una transacción por sellado), ADR-004 (confirmación tecleada), ADR-009 y su enmienda (tablas mutables), `docs/GARANTIAS.md` L7
 
 ## El problema
 
@@ -165,3 +165,77 @@ este ADR.
 - `reconcile --json` gana el campo `erased`, siempre un array (`docs/CLI-JSON.md`).
 - `internal/vault/erase.go#EraseBlob` y `Store.DeleteBlob` se quedan como estaban: los usan
   sus tests, el de integración y la prueba de concepto histórica. El comando no los usa, porque borra dentro de la transacción del evento.
+
+## Enmienda 2026-10-10 (Sprint 18) — suprimir exige dos tarjetas, y abre una alarma
+
+El texto de arriba se deja como se escribió. §B decía «Pide la passphrase», y eso abría un
+agujero que el dev encontró antes de publicar.
+
+### El hallazgo
+
+Quien compromete el servidor del ERP tiene el fichero de la passphrase: ADR-029 acepta
+`0640 root:www-data` porque el ERP la necesita para sellar. Con ella podía borrar una venta del
+sistema vivo y ejecutar
+
+```
+nucleo erase --block N --passphrase-file /etc/nucleo/passphrase --json --assume-confirmed
+```
+
+y la reconciliación pasaba de «faltante», con 2, a «suprimido», con 0. La garantía que da sentido
+al producto —el empleado que altera registros lo detecta la reconciliación— quedaba anulada para
+quien controlara el servidor, que es justo el adversario del que más hay que acordarse.
+
+Se reprodujo con ese flujo exacto antes de cambiar nada: el test salía en verde con el ataque
+funcionando. Ahora es `cmd/nucleo/ataque_supresion_test.go#TestElFicheroDeLaPassphraseNoSuprime`,
+invertido: con el fichero de la passphrase, `erase` falla y la reconciliación sigue en 2.
+
+### A'. Dos tarjetas, no la passphrase
+
+`erase` abre el vault con **dos tarjetas SLIP-0039**, que reconstruyen la KEK como en `restore`
+(`internal/vault/keys.go#UnlockKEK`), y **no acepta la passphrase**: `--passphrase-file` es un
+error de uso que dice por qué. Sellar es rutina y la passphrase vive en el servidor; suprimir es
+destructivo y excepcional, y las tarjetas están fuera del servidor y en manos distintas
+(`docs/OPERACION.md` §3).
+
+Las tarjetas **solo se teclean en una consola**: no hay bandera de fichero, y una entrada que no
+es un terminal se rechaza. Esto no es la frontera de seguridad —quien tenga dos tarjetas puede
+simular una consola, y la demo del ejemplo lo hace con `script` y las tarjetas de juguete—. La
+frontera es que las tarjetas no estén en el servidor. Lo que evita la consola es que alguien las
+deje en un fichero junto a la passphrase para automatizar algo que no debe automatizarse. Los
+tests las pasan por el gancho `NUCLEO_TEST_CARDS`, que solo existe en los binarios de prueba: el
+publicado se niega a arrancar si la variable está definida, como con los demás ganchos.
+
+Lo que no necesita tarjetas, porque no cambia nada: pedir la supresión de un contenido ya
+suprimido (contesta `already_erased`) o de un bloque sin nada guardado.
+
+### F'. Cada supresión abre una alarma
+
+Con el mecanismo de ADR-028: el objeto `erasure_alert` viaja en el JSON de cada comando que
+publica `alert` —`seal`, `status`, `verify`, `reconcile`, `sync`, `erase`, `alert status`—,
+con las supresiones sin reconocer, y sale un aviso por stderr. `alert status --exit-code` sale con
+3 mientras haya alguna. Solo la cierra `nucleo alert ack`, que reconoce a la vez la alarma de
+frescura y las supresiones abiertas, y dice cuántas (`erasures_acked`).
+
+La alarma **se deduce de la cadena**: cada evento `nucleo.erasure.v1` sin su reconocimiento en
+`log_state` está abierto (`cmd/nucleo/alarma_supresion.go#alarmaDeSupresion`). El reconocimiento
+va por el hash del evento, que nadie puede adivinar antes de que exista. Borrar la tabla de
+reconocimientos no esconde ninguna supresión: la reabre. El detalle —qué contenido y qué bloques—
+se guarda en la misma transacción que el evento, pero la alarma no depende de él.
+
+Los hooks: `onErasure` en el `Sealer` de PHP, como séptimo argumento, y en el ejemplo Node, con
+la misma semántica que `onStale` —en cada operación hasta el reconocimiento, y un hook que falla
+no rompe la operación—. La suite de PHP lo comprueba con la salida que emite la CLI de verdad
+(vector `valido-status-con-supresion` de `testdata/vectors/cli-json/`, que esta enmienda añade
+junto con `valido-erase`; los demás vectores válidos ganan el campo `erasure_alert`, y nada más).
+La demo del ejemplo hace una supresión de verdad en su paso 10, la recoge con el hook y la
+reconoce.
+
+### Lo que esta enmienda NO resuelve
+
+- **Quien tiene dos tarjetas puede suprimir.** Para eso son: es el titular del vault. Queda
+  sellado en el ledger, atestiguado en el siguiente `sync` y con la alarma abierta. Es el límite
+  L20 de `docs/GARANTIAS.md`.
+- **`alert ack` no pide nada**, como en ADR-028: quien opera el despliegue tiene que poder
+  reconocer una alarma de madrugada y sin las tarjetas. Así que quien controla el servidor
+  puede reconocer una supresión. Pero ya no puede hacerla, y el evento sigue en la cadena, en la
+  reconciliación (`erased`) y en los recibos que un tercero pida.

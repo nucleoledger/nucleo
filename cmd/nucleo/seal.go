@@ -143,7 +143,8 @@ func cmdSeal(e *env, args []string) error {
 				"  No se ha escrito ningún bloque. Ejecuta `nucleo sync` y, cuando salga bien,\n"+
 				"  reintenta con la MISMA --idempotency-key. Si prefieres sellar igualmente —el\n"+
 				"  registro quedará sin atestiguar hasta el próximo sync—, quita --fail-on-stale.").
-				conClase(claseTransitoria).conExtra("alert", alarma.json())
+				conClase(claseTransitoria).conExtra("alert", alarma.json()).
+				conExtra("erasure_alert", alarmaDeSupresion(e, s).json())
 		}
 	}
 

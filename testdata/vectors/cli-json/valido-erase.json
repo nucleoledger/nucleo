@@ -1,0 +1,14 @@
+{
+  "name": "valido-erase",
+  "description": "suprimir el contenido del bloque 0, que comparte con el 1: evento sellado y alarma de supresión abierta",
+  "command": [
+    "--json",
+    "erase",
+    "--block",
+    "0",
+    "--assume-confirmed"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"alert\": {\n    \"new\": false,\n    \"persisted\": true,\n    \"state\": \"none\"\n  },\n  \"already_erased\": false,\n  \"attestation\": \"unverified\",\n  \"attested\": false,\n  \"attested_head\": false,\n  \"attested_size\": 3,\n  \"blocks\": [\n    0,\n    1\n  ],\n  \"erased_payload_hash\": \"b60423d5a606ef5b84634f18f6e3110dc9ccac3c5b484ded6e86cffe77e0c45c\",\n  \"erasure_alert\": {\n    \"open\": [\n      {\n        \"blocks\": [\n          0,\n          1\n        ],\n        \"erased_at\": \"2026-09-07T10:00:00Z\",\n        \"erased_payload_hash\": \"b60423d5a606ef5b84634f18f6e3110dc9ccac3c5b484ded6e86cffe77e0c45c\",\n        \"hash\": \"a06967e37f20f25ab0e0e6e77185d9a4282a7171e035a8a30c523dcf0fbf9d95\",\n        \"index\": 4\n      }\n    ],\n    \"persisted\": true,\n    \"state\": \"open\"\n  },\n  \"freshness\": {\n    \"age_hours\": 0,\n    \"attested_at\": \"2026-09-07T10:00:00Z\",\n    \"attested_ever\": false,\n    \"attested_size\": 3,\n    \"policy\": false,\n    \"recorded_at\": \"2026-09-07T10:00:00Z\",\n    \"source\": \"local_record\",\n    \"stale\": false,\n    \"threshold_hours\": 72,\n    \"verified\": false,\n    \"witness\": \"witness.example/w1\"\n  },\n  \"hash\": \"a06967e37f20f25ab0e0e6e77185d9a4282a7171e035a8a30c523dcf0fbf9d95\",\n  \"index\": 4,\n  \"ok\": true,\n  \"signer\": {\n    \"pubkey\": \"1452087a636d691592b449857ba76372320731039b297092be0f1bbb76848ada\",\n    \"state\": \"unverified\",\n    \"verified\": false\n  },\n  \"wal_purged\": true\n}\n",
+  "valid": true
+}

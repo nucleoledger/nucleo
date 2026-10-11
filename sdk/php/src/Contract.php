@@ -287,6 +287,50 @@ final class Contract
         return self::toArray($a);
     }
 
+    /**
+     * erasureAlert lee el objeto `erasure_alert` —las supresiones sin reconocer, ADR-031 y
+     * su enmienda—, o null si la salida no lo trae.
+     *
+     * Opcional por lo mismo que `alert`: un binario anterior a v0.4.0-alpha no lo manda.
+     * Lo que no se tolera es un objeto que no cumple, ni uno que se contradice: un
+     * `state` "none" con supresiones en `open` no se interpreta a la baja.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function erasureAlert(\stdClass $j): ?array
+    {
+        if (!property_exists($j, 'erasure_alert')) {
+            return null;
+        }
+        $a = self::objField($j, 'erasure_alert');
+        $estado = self::enumField($a, 'state', ['none', 'open']);
+        self::boolField($a, 'persisted');
+        $abiertas = self::present($a, 'open');
+        if (!is_array($abiertas) || !array_is_list($abiertas)) {
+            throw self::wrong('erasure_alert.open', 'una lista', $abiertas);
+        }
+        foreach ($abiertas as $i => $x) {
+            if (!$x instanceof \stdClass) {
+                throw self::wrong("erasure_alert.open[$i]", 'un objeto', $x);
+            }
+            self::intField($x, 'index');
+            self::hex64Field($x, 'hash');
+            self::strField($x, 'erased_at', false);
+            if (property_exists($x, 'erased_payload_hash')) {
+                self::hex64Field($x, 'erased_payload_hash');
+            }
+            self::intListField($x, 'blocks');
+        }
+        if (($estado === 'open') !== ($abiertas !== [])) {
+            throw new SealContractError(sprintf(
+                'erasure_alert se contradice: state = %s con %d supresiones abiertas',
+                $estado,
+                count($abiertas)
+            ));
+        }
+        return self::toArray($a);
+    }
+
     /** signer comprueba el objeto compartido `signer`. */
     public static function signer(\stdClass $j): \stdClass
     {

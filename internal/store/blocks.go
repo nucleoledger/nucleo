@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/ledger"
 )
@@ -161,4 +163,38 @@ func scanBlock(sc scanner) (*ledger.Block, error) {
 		return nil, err
 	}
 	return decodeBlock(idx, hash, headerJSON, signature)
+}
+
+// BlocksOfType devuelve, en orden, los bloques cuyo header declara ese tipo.
+//
+// Lo usa la alarma de supresión (ADR-031, enmienda): las supresiones pendientes de
+// reconocer se deducen de los eventos que hay en la cadena, no de una lista aparte que
+// se pudiera borrar. El LIKE solo preselecciona —el header va en JCS, así que el
+// miembro aparece literal—, y el tipo se comprueba después sobre el header ya leído:
+// un tenant que contuviera ese texto no cuela.
+func (s *Store) BlocksOfType(typ string) ([]*ledger.Block, error) {
+	if s.db == nil {
+		return nil, ErrClosed
+	}
+	patron := `%"type":` + strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strconv.Quote(typ)) + `%`
+	rows, err := s.db.Query(
+		`SELECT idx, hash, header_json, signature FROM blocks WHERE header_json LIKE ? ESCAPE '\' ORDER BY idx`, patron)
+	if err != nil {
+		return nil, errDB("store: lectura de bloques por tipo", nil, err)
+	}
+	defer rows.Close()
+	var out []*ledger.Block
+	for rows.Next() {
+		b, err := scanBlock(rows)
+		if err != nil {
+			return nil, err
+		}
+		if b.Header.Type == typ {
+			out = append(out, b)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errDB("store: lectura de bloques por tipo", nil, err)
+	}
+	return out, nil
 }

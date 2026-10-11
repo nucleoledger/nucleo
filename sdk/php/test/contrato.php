@@ -16,6 +16,7 @@ use Nucleo\Contract;
 use Nucleo\SealContractError;
 use Nucleo\SealError;
 use Nucleo\SealResult;
+use Nucleo\Sealer;
 
 function pruebasDeContrato(string $vectores): void
 {
@@ -92,8 +93,22 @@ function pruebasDeContrato(string $vectores): void
         }
         if (str_starts_with($nombre, 'valido-status')) {
             try {
-                Contract::status(Contract::decode($stdout));
+                $o = Contract::decode($stdout);
+                Contract::status($o);
+                $ea = Contract::erasureAlert($o);
                 comprueba('acepta ' . $nombre, true);
+                // La alarma de supresión (ADR-031, enmienda): la que dice el vector.
+                igual($nombre . ': erasure_alert.state', $o->erasure_alert->state ?? null, $ea['state'] ?? null);
+            } catch (\Throwable $e) {
+                comprueba('acepta ' . $nombre, false, get_class($e) . ': ' . $e->getMessage());
+            }
+            continue;
+        }
+        if (str_starts_with($nombre, 'valido-erase')) {
+            try {
+                $ea = Contract::erasureAlert(Contract::decode($stdout));
+                comprueba('acepta ' . $nombre, true);
+                igual($nombre . ': la supresión deja la alarma abierta', 'open', $ea['state'] ?? null);
             } catch (\Throwable $e) {
                 comprueba('acepta ' . $nombre, false, get_class($e) . ': ' . $e->getMessage());
             }
@@ -155,6 +170,43 @@ function pruebasDeContrato(string $vectores): void
     $e2 = SealError::make('la clave no es la de la política', 3, '', 'environment');
     comprueba('SealError de entorno NO es reintentable', !$e2->esReintentable());
     igual('SealError sin clase la deduce del código', 'integrity', SealError::make('x', 2, '')->errorClass);
+
+    // La alarma de supresión llega al hook onErasure, con la salida que emite la CLI de
+    // verdad (vector valido-status-con-supresion), y no llega cuando no hay ninguna.
+    $avisos = [];
+    $sealer = new Sealer('nucleo', '.', 'pass.txt', null, 60, null, function (array $a) use (&$avisos): void {
+        $avisos[] = $a;
+    });
+    $avisa = new \ReflectionMethod(Sealer::class, 'avisaSiHaySupresion');
+    $avisa->setAccessible(true);
+    $conSupresion = Contract::decode(leerJSON($vectores . '/cli-json/valido-status-con-supresion.json')['stdout']);
+    $avisa->invoke($sealer, $conSupresion);
+    $avisa->invoke($sealer, Contract::decode(leerJSON($vectores . '/cli-json/valido-status-vacio.json')['stdout']));
+    comprueba('onErasure recibe la supresión abierta, y solo esa', count($avisos) === 1
+        && ($avisos[0]['open'][0]['erased_payload_hash'] ?? null) === $conSupresion->erasure_alert->open[0]->erased_payload_hash,
+        json_encode($avisos));
+    // Un hook que lanza no rompe la operación.
+    $lanza = new Sealer('nucleo', '.', 'pass.txt', null, 60, null, function (array $a): void {
+        throw new \RuntimeException('el correo no sale');
+    });
+    $log = ini_set('error_log', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null');
+    try {
+        $avisa->invoke($lanza, $conSupresion);
+        comprueba('un onErasure que lanza no rompe la operación', true);
+    } catch (\Throwable $e) {
+        comprueba('un onErasure que lanza no rompe la operación', false, $e->getMessage());
+    }
+    ini_set('error_log', (string) $log);
+    // Y un erasure_alert que se contradice se rechaza.
+    $mal = clone $conSupresion;
+    $mal->erasure_alert = clone $conSupresion->erasure_alert;
+    $mal->erasure_alert->state = 'none';
+    try {
+        Contract::erasureAlert($mal);
+        comprueba('erasure_alert contradictorio se rechaza', false, 'aceptado');
+    } catch (SealContractError $e) {
+        comprueba('erasure_alert contradictorio se rechaza', true);
+    }
 
     // Lo que el contrato SÍ tolera, y es la otra mitad de la regla: un campo que este SDK
     // no conoce. Un binario más nuevo puede añadirlos y el envoltorio tiene que seguir

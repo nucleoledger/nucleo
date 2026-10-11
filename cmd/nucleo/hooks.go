@@ -27,10 +27,14 @@ const (
 	// fichero (hookPauseAt), para probar qué pasa cuando otro proceso actúa en medio: un
 	// seal ya desbloqueado mientras restore cambia la passphrase (revisión 2026-10-03).
 	envPauseAt = "NUCLEO_TEST_PAUSE_AT"
+	// envCards pasaría las tarjetas SLIP-0039 de erase por el entorno, separadas por «|»,
+	// en vez de teclearlas en una consola (ADR-031, enmienda). En producción, erase no
+	// acepta las tarjetas de ningún sitio que no sea una consola.
+	envCards = "NUCLEO_TEST_CARDS"
 )
 
 // hookVars son todas, para poder comprobarlas de una vez.
-var hookVars = []string{envSeed, envClock, envPassphrase, envDieAt, envPauseAt}
+var hookVars = []string{envSeed, envClock, envPassphrase, envDieAt, envPauseAt, envCards}
 
 // now es el reloj de la CLI.
 func now() time.Time { return hookClock() }
