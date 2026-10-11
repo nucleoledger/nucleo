@@ -194,6 +194,19 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 4. Revisión de ARQUITECTURA, GARANTIAS y CLI-JSON; el diagrama de la supresión con los
       dos equipos
 
+## Sprint 20a — el límite de tiempo del CI #70, y la revisión del 2026-10-11
+- [x] 0. La revisión externa del 2026-10-11, versionada tal cual con su procedencia
+- [ ] 1. CI #70: la suite de `cmd/nucleo` agotó los 10 min en macos-26. Medida, los tests por
+      `--kdf-profile constrained` salvo los que prueban el perfil, y `-timeout` explícito
+- [ ] 2. H1: `reconcile --json` emite un solo objeto también si falla `VerifyFull`; un valor
+      JSON y EOF, exigido en todos los tests `--json`
+- [ ] 3. H5 y H6: G44 dice que la autorización de supresión solo la comprueba Go; el
+      comentario de `internal/erasure` con el formato de 0.7-draft
+- [x] 4. H7: la compuerta exige el bit de ejecución de `scripts/*.sh` en el índice
+- [ ] 5. Los huecos de G42 (`alert ack` no cuenta una supresión) y de la política de otro origin
+- [ ] 6. ADR-033 candidato anotado: la rotación de `erasureKey`
+- [ ] 7. Cierre parcial: tabla en la revisión, CHANGELOG, compuerta en verde
+
 ## Cierre de v0.4.0-alpha (lo hace el dev)
 - [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
 - [ ] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de

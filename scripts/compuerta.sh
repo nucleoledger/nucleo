@@ -163,6 +163,28 @@ sin_testigos_huerfanos() {
 	fi
 }
 
+# Un script sin el bit de ejecución en el índice sale de un clon en Linux o macOS como
+# «Permission denied» (H7 de la revisión del 2026-10-11: le pasó a esta misma compuerta).
+# En /mnt/c git no ve los permisos —core.filemode=false—, así que el bit no se pierde al
+# editar sino al AÑADIR el fichero, y nada lo avisa: se mira el índice, no el disco.
+bit_de_ejecucion() {
+	local f modo mal=0
+	for f in scripts/*.sh; do
+		modo="$(git ls-files -s -- "$f" | cut -d' ' -f1)"
+		if [ -z "$modo" ]; then
+			echo "$f no está en el índice de git. Regístralo con el bit de ejecución:"
+			echo "  git add $f && git update-index --chmod=+x $f"
+			mal=1
+		elif [ "$modo" != "100755" ]; then
+			echo "$f está en el índice como $modo, sin el bit de ejecución. Pónselo con:"
+			echo "  git update-index --chmod=+x $f"
+			mal=1
+		fi
+	done
+	return $mal
+}
+
+paso "bit de ejecución de scripts/*.sh" bit_de_ejecucion
 paso "gofmt" formato
 paso "go vet" go vet ./...
 paso "go vet -tags testhooks" go vet -tags testhooks ./...

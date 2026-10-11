@@ -64,12 +64,17 @@ La IA **lee** en `docs/` y `internal/`; **escribe** en `internal/`, `cmd/nucleo/
 - Tipado estricto e idiomático Go; `gofmt` obligatorio; identificadores en inglés, comentarios en español (estilo ya establecido).
 - PROHIBIDO instalar dependencias nuevas sin aprobación explícita. Las únicas pre-aprobadas están listadas en `docs/CONCEPTO-v1.2-es.md` §10.
 - PROHIBIDO tocar .env, secretos, credenciales, configuración de releases.
+- **El bit de ejecución:** en `/mnt/c` git no ve los permisos (`core.filemode=false`), así que un
+  script nuevo entra en el índice como 100644 y en un clon de Linux o macOS da «Permission
+  denied» (le pasó a `compuerta.sh`, H7 del 2026-10-11). Todo script nuevo se registra con
+  `git update-index --chmod=+x scripts/<nombre>.sh` después del `git add`. La compuerta lo
+  comprueba en `scripts/*.sh` y falla con la orden exacta.
 - **Regla criptográfica:** ningún código que firme, hashee o canonicalice se escribe sin su vector de prueba primero. Ningún cambio puede romper los vectores existentes: si un vector falla, el código está mal, no el vector.
 - **Regla anti-circularidad:** todo valor golden (hashes, key IDs, firmas, bytes canónicos) se calcula FUERA del código bajo prueba (sha256sum, cómputo manual, implementación independiente). Un test que verifica una función usando esa misma función no verifica nada.
 - **PROTOCOL.md manda:** si una tarea contradice el protocolo, DETENERSE y preguntar; el cambio de protocolo es decisión del dev vía ADR.
 - **Regla de los mensajes:** ningún mensaje sugiere una acción sin que esa acción funcione en el entorno donde se imprime. Si el consejo depende del entorno, se comprueba antes de darlo (o se da otro). Dos sprints seguidos encontraron consejos imposibles de seguir: la receta de cron que fallaba dentro de un cron por no llevar `--passphrase-file` (Sprint 10) y el `chmod 600` de la clave del testigo en un sistema de ficheros que no guarda permisos (Sprint 11). Un consejo que no se puede obedecer es peor que no dar ninguno: manda a buscar el problema donde no está.
 - No borrar comentarios ni código existente salvo que la tarea lo pida.
-- REGLA DE CIERRE: tarea completa = `./scripts/compuerta.sh` en verde. Corre, con una orden, todo lo que antes se copiaba a mano: gofmt, vet y tests `-race` con y sin `testhooks`, el lint con `./scripts/lint.sh` —nunca con un golangci-lint cualquiera: el 2026-10-09 eso dio «0 issues» en local y rojo en el CI—, el SDK de TS, la suite de PHP con el binario, el diferencial de los TRES verificadores, los scripts de demo y del testigo, el ejemplo y los Mermaid. Sale con 1 si falla cualquier paso. Necesita PHP con ext-sodium (`NUCLEO_PHP` si no es `php`). Tras cada tarea: 1 commit atómico descriptivo + marcar checkbox en TODO.md. Reversible con un solo `git revert`.
+- REGLA DE CIERRE: tarea completa = `./scripts/compuerta.sh` en verde. Corre, con una orden, todo lo que antes se copiaba a mano: el bit de ejecución de los scripts, gofmt, vet y tests `-race` con y sin `testhooks`, el lint con `./scripts/lint.sh` —nunca con un golangci-lint cualquiera: el 2026-10-09 eso dio «0 issues» en local y rojo en el CI—, el SDK de TS, la suite de PHP con el binario, el diferencial de los TRES verificadores, los scripts de demo y del testigo, el ejemplo y los Mermaid. Sale con 1 si falla cualquier paso. Necesita PHP con ext-sodium (`NUCLEO_PHP` si no es `php`). Tras cada tarea: 1 commit atómico descriptivo + marcar checkbox en TODO.md. Reversible con un solo `git revert`.
 - PROHIBIDO `git push` — lo hace siempre el dev tras revisar.
 - Tarea ambigua o riesgosa → DETENERSE y preguntar.
 
