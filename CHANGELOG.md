@@ -11,18 +11,29 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
-## [0.4.0-alpha] — 2026-10-10
+## [0.4.0-alpha] — 2026-10-11
 
 ### What this version is
 
 The witness becomes software a third party can operate, the system has a map that CI keeps
-honest, and erasure gets a command. Sprints 15 to 18. The erasure command was found to be a
-way to hide tampering **before** it was ever published —whoever compromised the ERP server had
-the passphrase file and could turn a deleted sale from «missing» into «erased»— and it ships
-already amended: erasing requires two SLIP-0039 cards, never the passphrase, and every erasure
-opens an alarm ([ADR-031](docs/adr/ADR-031-supresion.md) and its amendment).
-[PROTOCOL](docs/PROTOCOL.md) moves to **0.6-draft**, which only adds: the erasure event
-(§5.1) and the reserved `nucleo.` type prefix.
+honest, and erasure gets a command. Sprints 15 to 19. The erasure command was found to be a
+way to hide tampering **before** it was ever published —whoever compromised the ERP server
+could turn a deleted sale from «missing» into «erased»—, and it took **two rounds** to close:
+
+1. Sprint 18 made `erase` require two SLIP-0039 cards instead of the passphrase. **That did not
+   separate anything**: the cards rebuild the KEK, the same key the passphrase derives, and
+   `reconcile` accepted any erasure event signed by the tenant key —which the passphrase opens—
+   whether or not it came through `erase`. The fix closed a door of the command, not the key.
+2. Sprint 19 ([ADR-032](docs/adr/ADR-032-autoridad-de-supresion.md)) moved the decision out of
+   the server: an erasure counts only if it carries an authorization by the **erasure key**, a
+   separate key whose public half is pinned in the policy (`erasureKey`) and whose private half
+   is not on the server and cannot be derived from the passphrase or the vault cards.
+
+Every erasure still opens an alarm ([ADR-031](docs/adr/ADR-031-supresion.md) amendment).
+[PROTOCOL](docs/PROTOCOL.md) moves to **0.7-draft**: the erasure event and the reserved
+`nucleo.` type prefix (registered as 0.6-draft during this cycle), the policy member
+`erasureKey` (§3.2) and the erasure authorization (§5.1). No erasure event was ever published,
+so there is no compatibility to keep.
 
 ### Upgrading from 0.3.1-alpha
 
@@ -35,13 +46,20 @@ after erasing that block all verify with the published `@nucleoledger/verify@0.3
 What you may notice:
 
 - **`--json` gains fields**: `erasure_alert` in every command that publishes `alert`, `erased`
-  in `reconcile`, `erasures_acked`/`erasures` in `alert ack`. Additive: the PHP SDK and the
-  example's contract ignore unknown fields, as `docs/CLI-JSON.md` requires of every consumer.
+  in `reconcile`, `erasures_acked`/`erasures` in `alert ack`, and in `reconcile` a finding
+  status `"supresión no autorizada"` with a `reason`. Additive: the PHP SDK and the example's
+  contract ignore unknown fields, as `docs/CLI-JSON.md` requires of every consumer.
+- **The policy may carry `erasureKey`.** The CLI, the TypeScript source and the PHP SDK accept
+  it. **The published `@nucleoledger/verify@0.3.0-alpha.0` does not**: it rejects the member as
+  unknown. Give your counterparties the policy without it —they do not need it to verify
+  receipts—; the policy with `erasureKey` is for whoever runs `reconcile` and `erase`.
 - **`alert status --exit-code`** also exits 3 while an erasure is unacknowledged.
 - **The PHP `Sealer`** takes an optional seventh argument, `onErasure`; existing calls work
   unchanged. `@nucleoledger/verify` does not change: no new npm version.
 - **The published binary refuses to start if `NUCLEO_TEST_CARDS` is set**, like every other
   test hook.
+- The upgrade rehearsal above was run before ADR-032. ADR-032 only changes the `payload_cid`
+  of erasure events and adds an optional policy member; it was not rehearsed again.
 - **Do not go back to v0.3.1-alpha after an erasure.** It opens the ledger and verifies it, but
   it does not know erasure events: its `reconcile` reports the erased record as missing (exit
   2), and its `seal` accepts the reserved `nucleo.` types. Both checked with the published
@@ -86,7 +104,7 @@ What you may notice:
 - **`nucleo erase --block N`** ([ADR-031](docs/adr/ADR-031-supresion.md)): erases a
   record's stored content —its encrypted copy and its commitments, for every block that sealed
   the same content— after a typed confirmation (`--assume-confirmed` required with `--json`),
-  with **two SLIP-0039 cards** typed at a console (Sprint 18, below).
+  with the **authorization of the erasure key** (Sprint 19, below).
   In the same transaction it seals an erasure event, type `nucleo.erasure.v1`, whose content
   is only `{"erased_payload_hash": …}`: nothing that was not already in the chain. The chain,
   the receipts already issued and new receipts keep verifying. The database now opens with
@@ -94,7 +112,8 @@ What you may notice:
   disk. `nucleo.*` types are reserved: `seal` rejects them.
 - **`reconcile --json` gains `erased`** (always an array): blocks the live system no longer has
   because their content was erased, with the event that says so. They are not findings and do
-  not change the exit code; without a later event, a missing record is still a finding.
+  not change the exit code; without a later **authorized** event (Sprint 19), a missing record
+  is still a finding.
 - **`scripts/compuerta.sh`**: the whole gate in one command —gofmt, vet, lint, race tests with
   and without `testhooks`, the TypeScript SDK, the PHP suite, the three-verifier differential,
   the demo and witness scripts, the integration example and the Mermaid blocks—; it runs every
@@ -103,22 +122,58 @@ What you may notice:
 - **The Mermaid blocks of `docs/ARQUITECTURA.md` are validated in CI** (job `mermaid`), with the
   validator isolated in `tools/mermaid/` and its own lockfile.
 
-### Security: erasing cannot be used to hide tampering (ADR-031 amendment, Sprint 18)
+### Security: erasing cannot be used to hide tampering — first round (ADR-031 amendment, Sprint 18)
 
-- **`erase` requires two SLIP-0039 cards typed at a console, and rejects the passphrase.**
+Kept as it happened, because the second round exists to say it was not enough.
+
+- **`erase` required two SLIP-0039 cards typed at a console, and rejected the passphrase.**
   Before this amendment —never published— whoever compromised the ERP server had the
   passphrase file (ADR-029 accepts `0640 root:www-data`), could delete a sale from the live
   system and run `erase --passphrase-file … --json --assume-confirmed`, and `reconcile` went
   from «missing» (exit 2) to «erased» (exit 0). Reproduced with that exact flow, then
-  inverted into a test: with the passphrase file, `erase` fails and `reconcile` stays at 2.
-  Cards are accepted only from a terminal; that is a speed bump, not the boundary —the
-  boundary is that the cards are not on the server—.
+  inverted into a test.
 - **Every erasure opens an alarm** with the ADR-028 mechanism: `erasure_alert` travels in the
   JSON of every command, reaches the new `onErasure` hooks of the PHP `Sealer` and of the Node
   example, and only `alert ack` closes it. It is derived from the erasure events in the chain:
-  deleting its acknowledgement reopens it.
-- New limit, written down (`docs/GARANTIAS.md` L20): whoever holds two cards can erase. It is
-  sealed, attested at the next `sync`, and alarmed.
+  deleting its acknowledgement reopens it. **This part stays.**
+- **Why the cards did not separate anything.** They rebuild the KEK; the passphrase derives the
+  same KEK; the KEK opens the DEK and the DEK the signing key. And `reconcile` decided whether
+  an erasure counted by the tenant signature on the event, so whoever holds that key —the
+  server— could seal an event with the internal pieces without going through `erase` at all.
+
+### Security: an erasure counts only with the erasure key's authorization (ADR-032, Sprint 19)
+
+- **Reproduced first**: `internal/reconcile/supresion_test.go#TestSupresionSinAutorizacionNoCuenta`
+  builds, with the internal pieces, an erasure event signed only by the tenant key for a record
+  missing from the live system; with the Sprint 18 code `reconcile` reported it as erased (0).
+  `cmd/nucleo/ataque_supresion_test.go#TestLaClaveDelServidorNoSuprime` does the same through the
+  attacker's door: the ledger and the passphrase file, nothing else.
+- **The erasure key**: a separate Ed25519 key. `nucleo erasure-key init` generates it at random
+  on the custodian's machine —it opens no ledger and writes nothing to disk— and splits it into
+  its own SLIP-0039 cards. Its public half goes in the policy as **`erasureKey`**, optional,
+  with the ADR-018 wire format in the three parsers and vectors from the independent generator;
+  it must differ from every other key of the policy, and from the block-signing key on open.
+- **The authorization**: `nucleo erasure-key authorize` signs `origin`, the erased hash and
+  `through` (the last block it covers, so an old authorization cannot erase a copy sealed
+  later). It travels in the event's **`payload_cid`** —in the header, so in every receipt—,
+  and the event payload stays deterministic. Vectors computed outside the code with Python's
+  `cryptography` and checked with OpenSSL.
+- **`reconcile`**: an event counts only if its authorization verifies with the policy's
+  `erasureKey`; otherwise the record stays **missing** and the event is a finding,
+  `"supresión no autorizada"`, exit 2. Without a policy carrying `erasureKey`, no erasure
+  counts.
+- **`erase`** requires that policy and `--authorization`, checks it **before** touching
+  anything, and goes back to the passphrase like `seal`: the vault cards are no longer asked
+  for, because they never were a boundary. Without `--authorization` it prints the exact
+  command the custodian has to run, and a test runs that command verbatim.
+- **A third party can check an erasure without Núcleo**: the event's receipt, the erased
+  block's receipt and the policy, with `sha256sum` and an Ed25519 verification (PROTOCOL §5.1
+  gives the `openssl` recipe).
+- **`alert ack` stays unsigned**, on purpose: an unauthorized erasure is a finding on every
+  `reconcile`, and no acknowledgement in `log_state` closes it.
+- Limits, rewritten (`docs/GARANTIAS.md` L20, L21): whoever holds the erasure key can erase
+  —sealed, attested, alarmed—; if the same hands hold those cards and the server, it separates
+  nothing; and the policy decides which erasures count for whoever uses it.
 
 ### Fixed
 
@@ -129,9 +184,11 @@ What you may notice:
 
 ### Changed
 
-- **PROTOCOL 0.6-draft**: the erasure event `nucleo.erasure.v1` is registered in §5.1 —payload,
-  test vector computed with `sha256sum`, when a block counts as erased— and §5 names its one
-  exception to the random-field rule. Nothing that existed changes.
+- **PROTOCOL 0.7-draft**. During this cycle 0.6-draft registered the erasure event
+  `nucleo.erasure.v1` in §5.1 —payload, test vector computed with `sha256sum`— and §5 named its
+  one exception to the random-field rule; 0.7-draft adds `erasureKey` to the policy (§3.2) and
+  the erasure authorization, with the rule for when an event counts (§5.1). Every block, root,
+  checkpoint, receipt and policy of 0.5-draft stays valid.
 - **CONCEPTO amended** again: there is no Taskfile; the gate is `scripts/compuerta.sh`.
 - **PROTOCOL §3, §6 and §9 and ADR-005 amended in plain sight** with what is and is not
   implemented: no daemon and no OpenAPI, no importable Go module (everything is under

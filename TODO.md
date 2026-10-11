@@ -171,6 +171,18 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       Taskfile, enmendado en CONCEPTO
 - [x] 3. v0.4.0-alpha preparada: CHANGELOG, notas y el coste de venir de v0.3.1-alpha
 
+## Sprint 19 — la autorización de las supresiones (ADR-032), antes de publicar v0.4.0-alpha
+- [x] 1. ADR-032 (propuesta): la clave de supresión fuera del servidor, `erasureKey` en la
+      política de los tres parsers con vectores de `generar.py`, la autorización en el
+      `payload_cid` del evento con `through`; las tarjetas del vault dejan de pedirse en
+      `erase` y `alert ack` sigue sin firma. PROTOCOL 0.7-draft
+- [x] 2. Tests de la regla: el evento firmado solo por el tenant no cuenta (fallaba con el
+      código anterior: salía 0), la supresión autorizada sí y su recibo la demuestra a un
+      tercero sin Núcleo, y la autorización de otra clave o de otro hash no cuenta
+- [x] 3. GARANTIAS (G40–G46, L20–L21) y ARQUITECTURA al día
+- [x] 4. CHANGELOG y notas de v0.4.0-alpha: las dos rondas, tal como fueron
+- [ ] 5. Dependabot #5 (KaTeX en `tools/mermaid/`)
+
 ## Cierre de v0.4.0-alpha (lo hace el dev)
 - [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
 - [ ] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de

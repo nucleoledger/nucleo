@@ -22,8 +22,9 @@ El SDK sigue en 0.3.0-alpha.0.
 
 **`v0.4.0-alpha` preparada, sin etiquetar** (Sprint 18, 10 de octubre de 2026): el testigo de
 varios logs con su kit y el testigo mutuo (Sprint 15), el mapa del sistema vigilado por el CI
-(Sprint 16), la supresión con su arreglo de `receipt --out` (Sprint 17) y la enmienda que
-impide usar la supresión para borrar huellas (Sprint 18). PROTOCOL 0.6-draft. Notas en
+(Sprint 16), la supresión con su arreglo de `receipt --out` (Sprint 17), la enmienda que
+intentó impedir usar la supresión para borrar huellas (Sprint 18) y la que de verdad lo
+impide, la autoridad de supresión (Sprint 19, ADR-032). PROTOCOL 0.7-draft. Notas en
 `docs/releases/v0.4.0-alpha.md`; la actualización desde v0.3.1-alpha, ensayada con el
 binario publicado. El SDK de TypeScript no cambia: sin tag `vsdk`. Falta que el dev etiquete,
 publique y que se verifique el release.
@@ -114,8 +115,9 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
   conservan su memoria — ADR-030.
 - La supresión tiene comando: `nucleo erase` borra el contenido y sus compromisos, sella un
   evento sin datos personales y `reconcile` la distingue de un faltante — ADR-031, aceptado, y
-  su enmienda: suprimir exige dos tarjetas, nunca la passphrase, y cada supresión abre una
-  alarma.
+  su enmienda: cada supresión abre una alarma. Una supresión solo cuenta si la autoriza la
+  clave de supresión de la política, que no está en el servidor — ADR-032 (propuesta), que
+  sustituye a las dos tarjetas de la enmienda.
 
 # ✅ MÓDULOS ESTABLES (NO TOCAR)
 
