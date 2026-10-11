@@ -34,6 +34,11 @@ publishes **one** policy for everyone; once it carries `erasureKey`, every verif
 reads it has to know the member. Nothing else changes: no code change in your
 application, only the version.
 
+This package **reads** `erasureKey` and does **not** check erasure authorizations: it has no
+function for them and does not consume the erasure test vectors. Whether an erasure counts is
+decided only by the `nucleo` CLI (`nucleo reconcile`, in Go), as ADR-032 scopes it; a third
+party can check one by hand with the receipts and the policy (PROTOCOL.md §5.1).
+
 ## Upgrading from 0.2.0-alpha.0
 
 Nothing to change. 0.3.0-alpha.0 has the same code as 0.2.0-alpha.0 and reads the same

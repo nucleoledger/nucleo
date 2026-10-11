@@ -7,8 +7,10 @@
 // eso cada supresión sella un bloque más, el evento, cuyo contenido es solo el hash
 // del contenido suprimido: nada que no estuviera ya en la cadena.
 //
-// El contenido del evento no se guarda —se sella con payload_cid "none://"—, porque
-// no hace falta: se reconstruye a partir del hash suprimido. Quien quiera saber si
+// El contenido del evento no se guarda, porque no hace falta: se reconstruye a partir
+// del hash suprimido. Su payload_cid no apunta a ningún contenido: lleva la autorización
+// de la clave de supresión, con la forma exacta nucleo-erasure-auth@v1:<through>:<firma>
+// (ADR-032, PROTOCOL 0.7-draft §5.1; ver autorizacion.go). Quien quiera saber si
 // el contenido H de un bloque se suprimió calcula EventPayloadHash(H) y busca un
 // bloque posterior de tipo Type con ese payload_hash. Lo hace la reconciliación sin
 // abrir el vault, y lo puede hacer un tercero con el recibo del evento.

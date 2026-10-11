@@ -200,7 +200,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       `--kdf-profile constrained` salvo los que prueban el perfil, y `-timeout` explícito
 - [ ] 2. H1: `reconcile --json` emite un solo objeto también si falla `VerifyFull`; un valor
       JSON y EOF, exigido en todos los tests `--json`
-- [ ] 3. H5 y H6: G44 dice que la autorización de supresión solo la comprueba Go; el
+- [x] 3. H5 y H6: G44 dice que la autorización de supresión solo la comprueba Go; el
       comentario de `internal/erasure` con el formato de 0.7-draft
 - [x] 4. H7: la compuerta exige el bit de ejecución de `scripts/*.sh` en el índice
 - [ ] 5. Los huecos de G42 (`alert ack` no cuenta una supresión) y de la política de otro origin

@@ -161,6 +161,11 @@ $sealer = new Nucleo\Sealer($bin, $dir, $pass, $politica, 60, $onStale,
 `alertAck()` las reconoce a la vez que la alarma de frescura, y `$r->erasureAlert` las trae
 en cada resultado de sellado (`null` con un binario anterior).
 
+Este SDK **lee** `erasureKey` en la política y **no** comprueba autorizaciones de supresión:
+no tiene función para ello ni usa los vectores de `testdata/vectors/erasure/`. Si una supresión
+cuenta lo decide solo la CLI en Go (`nucleo reconcile`), como acota ADR-032; un tercero puede
+comprobarla a mano con los recibos y la política (PROTOCOL.md §5.1).
+
 ¿Prefieres que el sellado **no** siga con la atestación vieja? Eso es otra cosa y la
 decide cada integrador: `sealBytes(..., failOnStale: true)` —`--fail-on-stale` en la CLI—
 no escribe y lanza `SealSyncError` (código 3, `errorClass` `transient`), para reintentar
