@@ -37,11 +37,17 @@ so there is no compatibility to keep.
 
 ### Upgrading from 0.3.1-alpha
 
-**Nothing to migrate.** Rehearsed with the published v0.3.1-alpha binary (sha256 `ebfeb36b…`):
-a ledger, a witness memory and a policy made with it open with this version —`status` gives
-`verified`, `verify --full` passes, sealing and `sync` against the same witness memory
-continue—, and a receipt issued by v0.3.1-alpha, one issued by this version and one issued
-after erasing that block all verify with the published `@nucleoledger/verify@0.3.0-alpha.0`.
+**Nothing to migrate.** Rehearsed with the published v0.3.1-alpha binary (sha256 `ebfeb36b…`)
+and the final code of this version (Sprint 19b): a ledger, a witness memory and a policy made
+with v0.3.1-alpha open with this version —`status` gives `verified`, `verify --full` passes,
+sealing and `sync` against the same witness memory continue—. Adding `erasureKey` to that
+policy keeps it `verified`; an erasure of a block sealed by v0.3.1-alpha, authorized with the
+command `erase` prints and two erasure cards, makes `reconcile` report it as erased (0) with
+the new policy and as a finding (2) with the old one. A receipt issued by v0.3.1-alpha, one
+issued by this version, one issued after the erasure and the erasure event's own receipt all
+verify with the published `@nucleoledger/verify@0.3.0-alpha.0` and the old policy, and with
+0.4.0-alpha.0 and the new one; 0.3.0-alpha.0 rejects the new policy, as stated below. A third
+party checked the erasure from the two receipts with `sha256sum` and `openssl`.
 
 What you may notice:
 
@@ -64,8 +70,6 @@ What you may notice:
   with `erasureKey` (its README has the migration note). Published from its own `vsdk-` tag.
 - **The published binary refuses to start if `NUCLEO_TEST_CARDS` is set**, like every other
   test hook.
-- The upgrade rehearsal above was run before ADR-032. ADR-032 only changes the `payload_cid`
-  of erasure events and adds an optional policy member; it was not rehearsed again.
 - **Do not go back to v0.3.1-alpha after an erasure.** It opens the ledger and verifies it, but
   it does not know erasure events: its `reconcile` reports the erased record as missing (exit
   2), and its `seal` accepts the reserved `nucleo.` types. Both checked with the published
