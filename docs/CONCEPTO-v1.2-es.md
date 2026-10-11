@@ -25,6 +25,12 @@
 >
 > Las dos marcas «*Enmendado*» dentro del texto señalan dónde aplica.
 
+> **ENMIENDA del 2026-10-10 (Sprint 18), a la vista.** **No hay Taskfile.** La fase D de §17
+> lo nombra como parte del laboratorio; existió desde el Sprint 1, cubría cuatro de los
+> catorce pasos de la compuerta y nadie lo usaba. Desde el Sprint 17 la compuerta completa es
+> `scripts/compuerta.sh`, una sola orden que sale distinto de 0 si algo falla
+> (`CONTRIBUTING.md`). Donde §17 dice «Taskfile», léase ese script.
+
 ---
 
 ## 0. Resumen en un párrafo

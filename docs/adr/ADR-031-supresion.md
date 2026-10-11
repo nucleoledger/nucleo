@@ -136,7 +136,8 @@ persona con la passphrase delante, no algo que un ERP lance por su cuenta.
 
 ### G. PROTOCOL
 
-El formato del bloque no cambia: el evento usa los ocho campos de siempre. Lo nuevo es una
+*(Hecho en el Sprint 18: PROTOCOL 0.6-draft, §5.1, y §5 nombra la excepción del campo
+aleatorio.)* El formato del bloque no cambia: el evento usa los ocho campos de siempre. Lo nuevo es una
 convención sobre dos de ellos —el tipo reservado y el contenido del evento—, y queda
 escrita aquí. Registrarla en PROTOCOL.md, y con qué versión, lo decide el dev al aceptar
 este ADR.

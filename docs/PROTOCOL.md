@@ -1,6 +1,13 @@
 # Núcleo Protocol Specification
 
-**Version: 0.5-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; wire formats stabilize at v1.0)**
+**Version: 0.6-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; wire formats stabilize at v1.0)**
+
+> **0.6-draft adds, and changes nothing that existed**
+> ([ADR-031](adr/ADR-031-supresion.md) and its amendment). It registers the erasure event,
+> type `nucleo.erasure.v1` (§5.1), reserves the `nucleo.` type prefix, and names the one
+> exception to the random-field rule of §5. Every block, root, checkpoint and receipt
+> produced under 0.5-draft is valid under 0.6-draft, and a 0.5-draft verifier verifies an
+> erasure event like any other block: it is one.
 
 > **0.3-draft changes what a verifier ACCEPTS, not what an issuer emits**
 > ([ADR-018](adr/ADR-018-politica-formato-de-cable.md)). Every receipt produced under
@@ -308,7 +315,8 @@ cover this case: if the entire document is guessable, its committed fields are g
 along with it, so per-field protection never raises the bar above the entropy of the whole
 document. This is a property of the document, which the protocol does not control, so:
 payloads that Núcleo itself constructs (profiles) MUST include a random field of at least
-16 bytes, and payloads supplied by an integrator SHOULD carry equivalent entropy when the
+16 bytes —with exactly one exception, the erasure event of §5.1, whose only content is a hash
+already public in the chain and which MUST be deterministic to be found—, and payloads supplied by an integrator SHOULD carry equivalent entropy when the
 document space is enumerable. A verifier is unaffected: it holds the document and compares
 bytes. Núcleo MUST NOT add entropy to a payload it is given — hashing anything other than
 the exact bytes received would mean sealing a document the integrator never handed over
@@ -320,6 +328,35 @@ satisfies a particular deletion right is a legal question about a particular reg
 particular deployment — what remains is the `payload_hash` and the commitments, which are
 data about the erased document. The protocol states the technical fact and takes no
 position on the legal one (corrected 2026-09-13, fourth audit).
+
+### 5.1 Erasure event (normative, 0.6-draft)
+
+Erasing a record's content —its encrypted blob and its commitments— MUST leave a sealed
+**erasure event** in the same chain, so that an erased record is distinguishable from one
+that disappeared ([ADR-031](adr/ADR-031-supresion.md)).
+
+- It is an ordinary block (§1). Its `type` is `nucleo.erasure.v1`; its `tenant` is the tenant
+  of the erased block; its `payload_cid` is `none://` — the payload is not stored, because it
+  can be rebuilt.
+- Its payload is the JCS (RFC 8785) serialization of exactly one member:
+  `{"erased_payload_hash":"<h>"}`, where `<h>` is the erased `payload_hash` as 64 lower-case
+  hex characters. Nothing else: no reason, no requester, no index — any of those may itself
+  be personal data. Test vector, computed outside the implementation with `sha256sum`: for
+  `<h>` = `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`, the payload is
+  90 bytes and its `payload_hash` is
+  `1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737`.
+- It carries **no random field**, by exception to §5: its only content is a hash that is
+  already public in the chain, so guessing it reveals nothing, and determinism is what lets a
+  verifier find it.
+- A block `B` counts as erased if and only if a **later** block has type `nucleo.erasure.v1`
+  and `payload_hash` = SHA-256 of the erasure payload for `B.payload_hash`. An earlier event
+  does not count: it erased an earlier copy of the same content, which `B` sealed again.
+  Erasure events are Núcleo's own blocks, not records of the live system.
+- The `nucleo.` type prefix is **reserved** for events Núcleo seals itself. An implementation
+  MUST NOT let an integrator seal a record with a type under it: a hand-made erasure event
+  would pass a missing record off as an erased one.
+- Who may erase is a property of the implementation, not of this format: the reference CLI
+  requires two SLIP-0039 shares and opens an alarm for every erasure (ADR-031 amendment).
 
 ## 6. Keys (normative, pending implementation)
 

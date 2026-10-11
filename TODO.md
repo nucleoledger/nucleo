@@ -167,7 +167,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       passphrase, reproducido y luego invertido; `erase` exige dos tarjetas tecleadas en una
       consola, y cada supresión abre una alarma (`erasure_alert`, `onErasure` en PHP y en el
       ejemplo Node) que solo cierra `alert ack`; L20 en GARANTIAS
-- [ ] 2. PROTOCOL 0.6-draft: `nucleo.erasure.v1` registrado, y §5 nombra la excepción; el
+- [x] 2. PROTOCOL 0.6-draft: `nucleo.erasure.v1` registrado, y §5 nombra la excepción; el
       Taskfile, enmendado en CONCEPTO
 - [ ] 3. v0.4.0-alpha preparada: CHANGELOG, notas y el coste de venir de v0.3.1-alpha
 
