@@ -26,7 +26,7 @@ varios logs con su kit y el testigo mutuo (Sprint 15), el mapa del sistema vigil
 intentó impedir usar la supresión para borrar huellas (Sprint 18) y la que de verdad lo
 impide, la autoridad de supresión (Sprint 19, ADR-032). PROTOCOL 0.7-draft. Notas en
 `docs/releases/v0.4.0-alpha.md`; la actualización desde v0.3.1-alpha, ensayada con el
-binario publicado. El SDK de TypeScript no cambia: sin tag `vsdk`. Falta que el dev etiquete,
+binario publicado. El SDK de TypeScript pasa a 0.4.0-alpha.0 (la política con `erasureKey`): su tag `vsdk` va antes que el del binario. Falta que el dev etiquete,
 publique y que se verifique el release.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: cinco rondas

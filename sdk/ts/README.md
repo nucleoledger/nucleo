@@ -14,6 +14,26 @@ part of the platform. Nothing else is needed.
 npm install @nucleoledger/verify
 ```
 
+## Upgrading from 0.3.0-alpha.0
+
+**Required if your issuer's policy carries `erasureKey`.** Receipts are read exactly as
+before; what changes is the policy grammar.
+
+| | 0.3.0-alpha.0 | 0.4.0-alpha.0 |
+|---|---|---|
+| Policy members | `origin`, `logKey`, `signerKey`, `witnesses`, `quorum` | the same, plus **`erasureKey`** (optional) |
+| A policy with `erasureKey` | **rejected**: *miembro desconocido "erasureKey"* | accepted, if it is 64 lower-case hex characters and differs from `logKey`, `signerKey` and every witness key |
+| Receipts | `nucleo.org/receipt@v2` | the same; `erasureKey` plays no part in verifying a receipt |
+
+Why 0.3.0-alpha.0 rejects it: the policy is a strict wire format (the project's ADR-018),
+and an unknown member is an error on purpose — that is how a `signerkey`/`signerKey` pair
+once gave two verifiers two different keys. `erasureKey` was added by `nucleo` v0.4.0-alpha
+(ADR-032, PROTOCOL.md 0.7-draft): it is the public key that authorizes erasures, so that an
+erasure counts only if a key that is not on the issuer's server signed it. The issuer
+publishes **one** policy for everyone; once it carries `erasureKey`, every verifier that
+reads it has to know the member. Nothing else changes: no code change in your
+application, only the version.
+
 ## Upgrading from 0.2.0-alpha.0
 
 Nothing to change. 0.3.0-alpha.0 has the same code as 0.2.0-alpha.0 and reads the same

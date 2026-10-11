@@ -49,13 +49,19 @@ What you may notice:
   in `reconcile`, `erasures_acked`/`erasures` in `alert ack`, and in `reconcile` a finding
   status `"supresión no autorizada"` with a `reason`. Additive: the PHP SDK and the example's
   contract ignore unknown fields, as `docs/CLI-JSON.md` requires of every consumer.
-- **The policy may carry `erasureKey`.** The CLI, the TypeScript source and the PHP SDK accept
-  it. **The published `@nucleoledger/verify@0.3.0-alpha.0` does not**: it rejects the member as
-  unknown. Give your counterparties the policy without it —they do not need it to verify
-  receipts—; the policy with `erasureKey` is for whoever runs `reconcile` and `erase`.
+- **The policy may carry `erasureKey`, and then updating the TypeScript SDK is mandatory.**
+  `@nucleoledger/verify@0.3.0-alpha.0` rejects that member as unknown —the policy is a strict
+  wire format— so a policy with `erasureKey` makes it reject every receipt. **Whoever adds
+  `erasureKey` to their policy needs `@nucleoledger/verify@0.4.0-alpha.0`** on every verifier
+  that reads it, and so do their counterparties: there is one policy for everyone, and a third
+  party needs `erasureKey` to check an erasure (ADR-032 §E). The CLI, the PHP SDK and the static
+  page of `web/verify/` already accept it. A policy without `erasureKey` keeps working with
+  0.3.0-alpha.0.
 - **`alert status --exit-code`** also exits 3 while an erasure is unacknowledged.
 - **The PHP `Sealer`** takes an optional seventh argument, `onErasure`; existing calls work
-  unchanged. `@nucleoledger/verify` does not change: no new npm version.
+  unchanged.
+- **`@nucleoledger/verify` 0.4.0-alpha.0**: the same receipt verification, and the policy grammar
+  with `erasureKey` (its README has the migration note). Published from its own `vsdk-` tag.
 - **The published binary refuses to start if `NUCLEO_TEST_CARDS` is set**, like every other
   test hook.
 - The upgrade rehearsal above was run before ADR-032. ADR-032 only changes the `payload_cid`
