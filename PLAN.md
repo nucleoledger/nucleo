@@ -71,6 +71,11 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **Identidad de registro y eventos `issued`/`voided`** en el perfil genérico: las
   facturas se anulan y `reconcile` no lo modela. Toca el protocolo; pide ADR.
 
+**Deuda anotada, antes de beta**
+- **ADR-033 candidato (antes de beta): rotación de erasureKey.** Claves de supresión retiradas
+  en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
+  supresiones históricas (hoy, el límite L21). Sin diseñar.
+
 **Anotado, sin urgencia**
 - **cosign 3 en el CI de releases.** Hoy se firma con cosign 2.5.2 para publicar a la
   vez `.sig`/`.pem` y el bundle de Sigstore; cosign 3 ya no produce los primeros sin

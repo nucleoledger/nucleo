@@ -204,7 +204,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       comentario de `internal/erasure` con el formato de 0.7-draft
 - [x] 4. H7: la compuerta exige el bit de ejecución de `scripts/*.sh` en el índice
 - [ ] 5. Los huecos de G42 (`alert ack` no cuenta una supresión) y de la política de otro origin
-- [ ] 6. ADR-033 candidato anotado: la rotación de `erasureKey`
+- [x] 6. ADR-033 candidato anotado: la rotación de `erasureKey`
 - [ ] 7. Cierre parcial: tabla en la revisión, CHANGELOG, compuerta en verde
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
@@ -222,6 +222,9 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [ ] **Verificar recibos ajenos desde la CLI.** No se hace ahora (decisión del Sprint 17):
       hoy un recibo se verifica con `@nucleoledger/verify`, con el SDK de PHP o con la página
       de `web/verify/`, y la CLI solo autoverifica los que emite.
+- [ ] **ADR-033 candidato (antes de beta): rotación de erasureKey.** Claves de supresión retiradas
+      en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
+      supresiones históricas (hoy, el límite L21). Anotado en el Sprint 20a, sin diseñar.
 - [ ] Identidad de registro estable y eventos `issued`/`voided` en el perfil
       genérico: las facturas se anulan y hoy `reconcile` no lo modela (pide ADR)
 
