@@ -90,7 +90,7 @@ func TestUnTerceroCompruebaLaAutorizacionConLosRecibos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !(bloque.Index <= through && through < ev.Index) {
+	if bloque.Index > through || through >= ev.Index {
 		t.Errorf("la autorización no cubre el bloque: %d ≤ %d < %d", bloque.Index, through, ev.Index)
 	}
 	contenido := sha256.Sum256([]byte(`{"erased_payload_hash":"` + bloque.PayloadHash + `"}`))

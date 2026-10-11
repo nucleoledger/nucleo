@@ -98,7 +98,7 @@ func VerifyCID(key ed25519.PublicKey, origin, payloadHash, cid string) (uint64, 
 	}
 	txt, err := AuthorizationText(origin, payloadHash, through)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrNotAuthorized, err)
+		return 0, fmt.Errorf("%w: %w", ErrNotAuthorized, err)
 	}
 	d := sha256.Sum256(txt)
 	if !ed25519.Verify(key, d[:], sig) {
@@ -125,7 +125,7 @@ func (a Authority) Check(ev *ledger.Block, payloadHash string) (uint64, error) {
 	}
 	eph, err := EventPayloadHash(payloadHash)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrNotAuthorized, err)
+		return 0, fmt.Errorf("%w: %w", ErrNotAuthorized, err)
 	}
 	if ev.Header.PayloadHash != eph {
 		return 0, fmt.Errorf("%w: el evento no suprime el contenido %s", ErrNotAuthorized, payloadHash)
