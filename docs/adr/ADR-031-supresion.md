@@ -1,6 +1,6 @@
 # ADR-031-supresion
 
-**Estado:** PROPUESTA el 2026-10-10 (Sprint 17), ACEPTADA por el dev en el Sprint 18 con la excepción de §C, **ENMENDADA el 2026-10-10** (Sprint 18: suprimir exige dos tarjetas, y cada supresión abre una alarma; ver al final) · **Fecha:** 2026-10-10 · **Fuentes:** hallazgo 1 de la lista del Sprint 16 (la supresión no tenía comando), CONCEPTO §5 (LOPDP por construcción), PROTOCOL §2 y §5 (header, `payload_cid`, AAD por tenant), ADR-020 §C (una transacción por sellado), ADR-004 (confirmación tecleada), ADR-009 y su enmienda (tablas mutables), `docs/GARANTIAS.md` L7
+**Estado:** PROPUESTA el 2026-10-10 (Sprint 17), ACEPTADA por el dev en el Sprint 18 con la excepción de §C, **ENMENDADA el 2026-10-10** (Sprint 18: suprimir exige dos tarjetas, y cada supresión abre una alarma; ver al final), y **la enmienda no bastaba**: la autorización de las supresiones la decide ADR-032 (Sprint 19), que sustituye §A' · **Fecha:** 2026-10-10 · **Fuentes:** hallazgo 1 de la lista del Sprint 16 (la supresión no tenía comando), CONCEPTO §5 (LOPDP por construcción), PROTOCOL §2 y §5 (header, `payload_cid`, AAD por tenant), ADR-020 §C (una transacción por sellado), ADR-004 (confirmación tecleada), ADR-009 y su enmienda (tablas mutables), `docs/GARANTIAS.md` L7
 
 ## El problema
 
@@ -240,3 +240,13 @@ reconoce.
   reconocer una alarma de madrugada y sin las tarjetas. Así que quien controla el servidor
   puede reconocer una supresión. Pero ya no puede hacerla, y el evento sigue en la cadena, en la
   reconciliación (`erased`) y en los recibos que un tercero pida.
+
+## Nota 2026-10-11 (Sprint 19) — la enmienda no bastaba
+
+Lo de arriba se deja como se escribió. Las dos tarjetas de §A' reconstruyen la KEK, la misma
+que deriva la passphrase: no separaban nada de quien controla el servidor. Y la reconciliación
+daba por buena cualquier supresión firmada por la clave del tenant, que la passphrase abre,
+pasara o no por `erase`. Lo decide
+[ADR-032](ADR-032-autoridad-de-supresion.md): una supresión solo cuenta con la autorización de
+una clave de supresión que no está en el servidor y cuya parte pública va en la política;
+`erase` vuelve a la passphrase. La alarma de §F' no cambia.

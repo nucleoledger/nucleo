@@ -1,6 +1,16 @@
 # Núcleo Protocol Specification
 
-**Version: 0.6-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; wire formats stabilize at v1.0)**
+**Version: 0.7-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; wire formats stabilize at v1.0)**
+
+> **0.7-draft changes when an erasure COUNTS** ([ADR-032](adr/ADR-032-autoridad-de-supresion.md)).
+> Under 0.6-draft an erasure event counted if the tenant key signed it — and that key is opened
+> by the passphrase that lives on the server. Under 0.7-draft it counts only if it carries an
+> authorization by the **erasure key** of the verification policy, a key that is not on the
+> server (§3.2 `erasureKey`, §5.1). No erasure event was ever published in a release, so there
+> is no compatibility to keep: a 0.6-draft event (`payload_cid` `none://`) does not count.
+> Everything else is unchanged: every block, root, checkpoint, receipt and policy of 0.6-draft
+> is valid under 0.7-draft. A 0.6-draft verifier rejects a policy that carries `erasureKey`, as
+> an unknown member — correctly, since it would not know what to do with it.
 
 > **0.6-draft adds, and changes nothing that existed**
 > ([ADR-031](adr/ADR-031-supresion.md) and its amendment). It registers the erasure event,
@@ -248,6 +258,7 @@ value is an object with these members:
 | `origin` | string | REQUIRED, non-empty |
 | `logKey` | string | REQUIRED, exactly 64 characters from `[0-9a-f]` |
 | `signerKey` | string | OPTIONAL in the format; REQUIRED to verify a receipt |
+| `erasureKey` | string | OPTIONAL; exactly 64 characters from `[0-9a-f]`; the Ed25519 public key that authorizes erasures (§5.1); MUST differ from `logKey`, from `signerKey` and from every witness key |
 | `witnesses` | object | REQUIRED, at least one member; every name non-empty; every value exactly 64 characters from `[0-9a-f]`; no public key under two names |
 | `quorum` | integer | REQUIRED; a JSON number literal matching `-?(0\|[1-9][0-9]*)` (no fraction, no exponent); `1 ≤ quorum ≤ count(witnesses)` |
 
@@ -265,7 +276,8 @@ named member, never a default.
 
 When a ledger is opened with a policy, `origin` and `logKey` MUST equal the values the
 ledger declares, and `signerKey`, when present, MUST equal the key that signs every
-block (ADR-017).
+block (ADR-017). `erasureKey`, when present, MUST differ from the key that signs the blocks
+(ADR-032): a policy whose erasure key is a server key authorizes nothing.
 
 ### 3.3 Signed-note signature block and cosignature counting (normative)
 
@@ -329,15 +341,17 @@ particular deployment — what remains is the `payload_hash` and the commitments
 data about the erased document. The protocol states the technical fact and takes no
 position on the legal one (corrected 2026-09-13, fourth audit).
 
-### 5.1 Erasure event (normative, 0.6-draft)
+### 5.1 Erasure event (normative, 0.6-draft; authorization 0.7-draft)
 
 Erasing a record's content —its encrypted blob and its commitments— MUST leave a sealed
 **erasure event** in the same chain, so that an erased record is distinguishable from one
-that disappeared ([ADR-031](adr/ADR-031-supresion.md)).
+that disappeared ([ADR-031](adr/ADR-031-supresion.md)); and the event counts only if the
+**erasure key** of the verification policy authorized it
+([ADR-032](adr/ADR-032-autoridad-de-supresion.md)).
 
 - It is an ordinary block (§1). Its `type` is `nucleo.erasure.v1`; its `tenant` is the tenant
-  of the erased block; its `payload_cid` is `none://` — the payload is not stored, because it
-  can be rebuilt.
+  of the erased block; its `payload_cid` carries the authorization (below) — the payload is
+  not stored, because it can be rebuilt.
 - Its payload is the JCS (RFC 8785) serialization of exactly one member:
   `{"erased_payload_hash":"<h>"}`, where `<h>` is the erased `payload_hash` as 64 lower-case
   hex characters. Nothing else: no reason, no requester, no index — any of those may itself
@@ -348,15 +362,73 @@ that disappeared ([ADR-031](adr/ADR-031-supresion.md)).
 - It carries **no random field**, by exception to §5: its only content is a hash that is
   already public in the chain, so guessing it reveals nothing, and determinism is what lets a
   verifier find it.
-- A block `B` counts as erased if and only if a **later** block has type `nucleo.erasure.v1`
-  and `payload_hash` = SHA-256 of the erasure payload for `B.payload_hash`. An earlier event
-  does not count: it erased an earlier copy of the same content, which `B` sealed again.
-  Erasure events are Núcleo's own blocks, not records of the live system.
 - The `nucleo.` type prefix is **reserved** for events Núcleo seals itself. An implementation
-  MUST NOT let an integrator seal a record with a type under it: a hand-made erasure event
-  would pass a missing record off as an erased one.
-- Who may erase is a property of the implementation, not of this format: the reference CLI
-  requires two SLIP-0039 shares and opens an alarm for every erasure (ADR-031 amendment).
+  MUST NOT let an integrator seal a record with a type under it. This is a guardrail, not the
+  boundary: whoever holds the tenant key can seal any block, and that is why an event counts
+  only with the authorization below.
+
+**The authorization.** The holder of the erasure key — whose public key is the policy's
+`erasureKey` (§3.2), and whose private key MUST NOT be derivable from the passphrase, the KEK or
+the vault's backup shares — signs this exact text, UTF-8, every line ending in `\n`:
+
+```
+nucleo.org/erasure-authorization@v1
+origin <origin>
+erased_payload_hash <h>
+through <k>
+```
+
+where `<origin>` is the log's origin, `<h>` the erased `payload_hash` (64 lower-case hex) and
+`<k>` a block index in decimal, matching `0|[1-9][0-9]*` and at most 2^53 − 1. The signature is
+`Ed25519(erasure_sk, SHA-256(text))` — the digest is signed, as for blocks (§1). The text is
+unambiguous even if the origin contained a line feed: its last two lines have a fixed form.
+The authorization covers the blocks with content `<h>` whose index is **at most `<k>`**: a copy
+of the same content sealed later is a new record, and an old authorization does not erase it.
+
+It travels in the event's `payload_cid`, exactly:
+
+```
+nucleo-erasure-auth@v1:<k>:<signature as 128 lower-case hex characters>
+```
+
+The header — and so `payload_cid` — is signed by the tenant, committed by the leaf and carried
+whole by every receipt (§3.1); the payload is not. That is why the signature is here.
+
+**When an event is authorized.** Given a policy with `origin` and `erasureKey`, an event `E` is
+authorized if and only if (1) its `payload_cid` has the form above with `<k>` < `E.index`;
+(2) some block before `E` has a `payload_hash` `<h>` with `E.payload_hash` = SHA-256 of the
+erasure payload for `<h>`; and (3) the signature verifies under `erasureKey` over the text built
+from the policy's `origin`, `<h>` and `<k>`. Without a policy, or with a policy without
+`erasureKey`, no event is authorized.
+
+**When a block counts as erased.** A block `B` counts as erased if and only if there is an
+authorized event for `B.payload_hash` with `B.index` ≤ `<k>`. Since `<k>` < `E.index`, the event
+is later than `B`; an earlier event erased an earlier copy, which `B` sealed again. A
+reconciliation MUST report every event that is not authorized as an integrity finding, and the
+block it claimed to erase as missing. Erasure events are Núcleo's own blocks, not records of
+the live system.
+
+Test vector, computed outside the implementation with Python's `cryptography` and checked with
+OpenSSL 3 (`testdata/vectors/erasure/`): seed `000102…1f` (the 32 bytes 0x00 to 0x1f), public key
+`03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8`, origin
+`nucleoledger.com/mi-empresa`, `<h>` as in the payload vector above and `<k>` = 7: the text is
+166 bytes, its SHA-256 is `24dc174105ced3274e000da312e198508f1f6aa283f0394f99afad3cf76cc7b7`, and
+the signature is
+`47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07`.
+
+**A third party, without Núcleo.** With the receipt of the event, the receipt of the erased
+block and the policy: verify both receipts; check that the block's `index` ≤ `<k>` < the event's
+index and that the event's `payload_hash` is the SHA-256 of
+`{"erased_payload_hash":"<the block's payload_hash>"}`; then verify the signature:
+
+```
+printf 'nucleo.org/erasure-authorization@v1\norigin %s\nerased_payload_hash %s\nthrough %s\n' \
+  "$ORIGIN" "$H" "$K" | sha256sum | cut -d' ' -f1 | xxd -r -p > digest.bin
+(printf '302a300506032b6570032100'; printf %s "$ERASURE_KEY") | xxd -r -p \
+  | openssl pkey -pubin -inform DER -out erasure.pem
+printf %s "$SIG" | xxd -r -p > sig.bin
+openssl pkeyutl -verify -rawin -pubin -inkey erasure.pem -in digest.bin -sigfile sig.bin
+```
 
 ## 6. Keys (normative, pending implementation)
 
