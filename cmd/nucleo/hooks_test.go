@@ -30,6 +30,18 @@ func TestProductionBinaryRefusesHooks(t *testing.T) {
 	if testing.Short() {
 		t.Skip("compila un binario; se salta en -short")
 	}
+	// Necesita la orden `go` para compilar el binario de producción. Sin ella —el binario
+	// de tests ejecutado en otra máquina, como el de Windows que se corrió desde WSL en el
+	// Sprint 19b— no se puede comprobar nada, y se dice en vez de fallar. Salvo en el CI,
+	// que es donde este test TIENE que correr: allí, saltarlo sería no comprobar que el
+	// binario publicado rechaza los ganchos, y eso es un fallo.
+	if _, err := exec.LookPath("go"); err != nil {
+		if os.Getenv("GITHUB_ACTIONS") == "true" {
+			t.Fatalf("no hay `go` en el PATH del CI: este test no se puede saltar ahí (%v)", err)
+		}
+		t.Skipf("no hay `go` en el PATH (%v): este test compila el binario de producción "+
+			"y aquí no puede; en el CI corre siempre", err)
+	}
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "nucleo-prod"+exeSuffix())
 
