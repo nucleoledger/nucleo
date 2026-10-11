@@ -254,6 +254,9 @@ func TestStaleAfterRechazaValoresAbsurdos(t *testing.T) {
 // completa: que la bandera llegue, que los parámetros se guarden y que lo que
 // init IMPRIME sea lo que quedó en la base. Un init que dijera "constrained"
 // mientras guarda los valores por omisión sería peor que no tener la opción.
+//
+// No usa perfilDeLosTests: su sujeto ES el perfil, y el subtest del perfil por omisión
+// tiene que crear el vault con el default —sin bandera— para comprobar que lo es.
 func TestKDFProfileEnInit(t *testing.T) {
 	t.Run("constrained se guarda y se informa", func(t *testing.T) {
 		c := newCLI(t)

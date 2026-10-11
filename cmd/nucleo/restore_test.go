@@ -16,10 +16,17 @@ import (
 
 const passNueva = "otra passphrase que esta vez se apunta"
 
-// initConTarjetas crea el ledger con --json y devuelve las tarjetas que entrega.
+// initConTarjetas crea el ledger con --json, con el perfil de los tests, y devuelve las
+// tarjetas que entrega.
 func initConTarjetas(t *testing.T, c *cli) []string {
 	t.Helper()
-	out := c.mustRun("--json", "init", "--origin", testOrigin, "--assume-confirmed")
+	return initConTarjetasPerfil(t, c, perfilDeLosTests)
+}
+
+// initConTarjetasPerfil es initConTarjetas con un perfil de derivación explícito.
+func initConTarjetasPerfil(t *testing.T, c *cli, perfil string) []string {
+	t.Helper()
+	out := c.mustRun("--json", "init", "--origin", testOrigin, "--assume-confirmed", "--kdf-profile", perfil)
 	var r struct {
 		Shares []string `json:"shares"`
 	}
@@ -38,14 +45,27 @@ func ficheroDeTarjetas(t *testing.T, c *cli, tarjetas ...string) string {
 // TestRestoreFijaPassphraseNueva es ADR-029 de punta a punta, con la CLI: se pierde la
 // passphrase, dos tarjetas fijan una nueva, se sella con ella, y ni la vieja ni las
 // tarjetas viejas sirven ya.
+//
+// Es el recorrido completo —init → seal → backup → restore— y va con el perfil de
+// derivación DEFAULT a propósito, no con el de los tests (perfilDeLosTests): es el
+// único sitio donde la CLI entera deriva, guarda, emite tarjetas y cambia la
+// passphrase con los parámetros de producción, de punta a punta.
 func TestRestoreFijaPassphraseNueva(t *testing.T) {
 	c := newCLI(t)
-	viejas := initConTarjetas(t, c)
+	viejas := initConTarjetasPerfil(t, c, "default")
 	c.sealFile(`{"factura":"antes del cambio"}`)
 
-	// La passphrase se perdió. Quedan dos tarjetas.
+	// Unas tarjetas nuevas con backup: respaldan la misma clave que las de init.
+	var respaldo struct {
+		Shares []string `json:"shares"`
+	}
+	if err := json.Unmarshal([]byte(c.mustRun("--json", "backup")), &respaldo); err != nil || len(respaldo.Shares) != 3 {
+		t.Fatalf("backup --json no devolvió tres tarjetas (%v):\n%s", err, c.ultima())
+	}
+
+	// La passphrase se perdió. Quedan dos tarjetas, las del backup.
 	nueva := ficheroUnico(t, c.dir, "nueva-*.txt", passNueva+"\n")
-	out := c.mustRun("--json", "restore", "--shares-file", ficheroDeTarjetas(t, c, viejas[0], viejas[2]),
+	out := c.mustRun("--json", "restore", "--shares-file", ficheroDeTarjetas(t, c, respaldo.Shares[0], respaldo.Shares[2]),
 		"--new-passphrase-file", nueva, "--assume-confirmed")
 	var r struct {
 		Changed   bool     `json:"passphrase_changed"`

@@ -238,10 +238,27 @@ func (c *cli) mustRun(args ...string) string {
 	return out
 }
 
+// perfilDeLosTests es el perfil de derivación con el que los tests crean el vault.
+//
+// Es constrained —19 MiB, 2 iteraciones, 1 hilo— y no el de producción, a propósito.
+// La suite de este paquete derivaba la KEK unas 445 veces —en cada init y en cada orden
+// que abre el vault—, casi todas con el perfil default (64 MiB, 3 iteraciones, 4 hilos),
+// y con -race en un runner de tres núcleos el paquete agotó los diez minutos de go test
+// (macos-26, run 38161379156, en medio de un argon2.IDKey que seguía trabajando). Lo que
+// estos tests prueban es la CLI, no Argon2id: con otro perfil la derivación es la misma
+// función con otros números. Se elige con la bandera de producción, --kdf-profile, sin
+// ningún gancho de prueba; el aviso que constrained imprime en init se deja como está.
+//
+// Siguen con el perfil default, y cada uno dice por qué: TestKDFProfileEnInit, cuyo
+// sujeto es el perfil, y TestRestoreFijaPassphraseNueva, el recorrido completo
+// init → seal → backup → restore con los parámetros de producción. La derivación del
+// perfil default la fija internal/vault con su golden (TestArgon2idGolden).
+const perfilDeLosTests = "constrained"
+
 // initLedger deja un despliegue listo.
 func (c *cli) initLedger() {
 	c.t.Helper()
-	c.mustRun("init", "--origin", testOrigin, "--assume-confirmed")
+	c.mustRun("init", "--origin", testOrigin, "--assume-confirmed", "--kdf-profile", perfilDeLosTests)
 }
 
 // sealFile sella un contenido y devuelve el índice del bloque.
@@ -293,7 +310,7 @@ func (c *cli) writeTemp(t *testing.T, content string) string {
 // NUCLEO_TEST_SEED dejara de fijar el material, cambiarían.
 func TestInitIsDeterministicWithTestHooks(t *testing.T) {
 	c := newCLI(t)
-	out := c.mustRun("init", "--origin", testOrigin, "--assume-confirmed")
+	out := c.mustRun("init", "--origin", testOrigin, "--assume-confirmed", "--kdf-profile", perfilDeLosTests)
 
 	for _, want := range []string{
 		"✔ vault y ledger creados",
@@ -311,7 +328,7 @@ func TestInitIsDeterministicWithTestHooks(t *testing.T) {
 
 	// Las claves son deterministas bajo el gancho de semilla.
 	second := newCLI(t)
-	out2 := second.mustRun("init", "--origin", testOrigin, "--assume-confirmed")
+	out2 := second.mustRun("init", "--origin", testOrigin, "--assume-confirmed", "--kdf-profile", perfilDeLosTests)
 	if keyLine(t, out) != keyLine(t, out2) {
 		t.Error("con la misma semilla salieron claves distintas: el gancho no fija el material")
 	}

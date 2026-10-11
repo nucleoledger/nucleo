@@ -100,10 +100,10 @@ func claveDelLog(t *testing.T, c *cli) string {
 // explica— y al otro le sigue cosignando, con la memoria de antes.
 func TestTestigoDeVariosLogs(t *testing.T) {
 	uno := newCLI(t)
-	uno.mustRun("init", "--origin", "ejemplo.ec/uno", "--assume-confirmed")
+	uno.mustRun("init", "--origin", "ejemplo.ec/uno", "--assume-confirmed", "--kdf-profile", perfilDeLosTests)
 	uno.sealFile(`{"factura":"uno-1"}`)
 	dos := newCLI(t)
-	dos.mustRun("init", "--origin", "ejemplo.ec/dos", "--assume-confirmed")
+	dos.mustRun("init", "--origin", "ejemplo.ec/dos", "--assume-confirmed", "--kdf-profile", perfilDeLosTests)
 	dos.sealFile(`{"factura":"dos-1"}`)
 
 	dirTestigo := t.TempDir()
