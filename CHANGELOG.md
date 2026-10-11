@@ -38,7 +38,10 @@ so there is no compatibility to keep.
 ### Upgrading from 0.3.1-alpha
 
 **Nothing to migrate.** Rehearsed with the published v0.3.1-alpha binary (sha256 `ebfeb36b…`)
-and the final code of this version (Sprint 19b): a ledger, a witness memory and a policy made
+and the final code of this version, with
+[`scripts/ensayo-actualizacion.sh`](scripts/ensayo-actualizacion.sh) —which checks the downloaded
+binary against `checksums.txt` before running it, and is now a step of the release ritual
+(`docs/RELEASING.md`)—: a ledger, a witness memory and a policy made
 with v0.3.1-alpha open with this version —`status` gives `verified`, `verify --full` passes,
 sealing and `sync` against the same witness memory continue—. Adding `erasureKey` to that
 policy keeps it `verified`; an erasure of a block sealed by v0.3.1-alpha, authorized with the

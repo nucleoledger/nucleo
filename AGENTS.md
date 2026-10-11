@@ -37,7 +37,8 @@ nucleo/
 ├── web/verify/             # verificador HTML estático, sin red
 ├── deploy/witness/         # kit del operador del testigo: unidad systemd, Caddyfile, config, guía
 ├── scripts/                # compuerta.sh (LA compuerta, una orden), demo-criterio-exito.sh,
-│                           # lint.sh (el del CI), ensayo-testigo-mutuo.sh, valida-kit-testigo.sh
+│                           # lint.sh (el del CI), ensayo-testigo-mutuo.sh, valida-kit-testigo.sh,
+│                           # ensayo-actualizacion.sh (antes de etiquetar; necesita red)
 ├── tools/mermaid/          # validador de los Mermaid de ARQUITECTURA (dev, con su lockfile)
 ├── docs/
 │   ├── PROTOCOL.md         # LA LEY. Todo cambio de formato exige ADR + bump aquí
