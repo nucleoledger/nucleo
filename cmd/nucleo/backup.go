@@ -150,7 +150,7 @@ func cmdRestore(e *env, args []string) error {
 			// seguir, con la orden que de verdad lo hace.
 			e.printf("\n  No se ha cambiado nada. Si perdiste la passphrase, fija una nueva con estas\n")
 			e.printf("  mismas tarjetas, desde un terminal (recibirás tarjetas nuevas que copiar):\n\n")
-			e.printf("      nucleo --dir %s restore --new-passphrase\n", e.dir)
+			e.printf("      nucleo --dir %s restore --new-passphrase\n", argShell(e.dir))
 		})
 		return nil
 	}

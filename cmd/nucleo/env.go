@@ -157,7 +157,7 @@ func (e *env) openStore() (*store.Store, store.OpenResult, error) {
 // afirma es menos, y lo dice.
 func (e *env) openStoreWith(wp *store.WitnessPolicy) (*store.Store, store.OpenResult, error) {
 	if _, err := os.Stat(e.dbPath()); err != nil {
-		return nil, store.OpenResult{}, usageErr("no hay ledger en %q; ejecuta `nucleo init --dir %s`", e.dir, e.dir)
+		return nil, store.OpenResult{}, usageErr("no hay ledger en %q; ejecuta `nucleo init --dir %s`", e.dir, argShell(e.dir))
 	}
 	var (
 		s   *store.Store
@@ -216,7 +216,7 @@ func (e *env) unlock(s *store.Store, passphraseFile string, prompt string) (*vau
 				"  terminal (te pedirá las tarjetas y te dará otras nuevas):\n\n"+
 				"      nucleo --dir %s restore --new-passphrase\n\n"+
 				"  Sin tarjetas, con este vault no se vuelve a sellar; el ledger sigue siendo\n"+
-				"  verificable —status, verify— y los recibos ya entregados siguen valiendo.", e.dir)
+				"  verificable —status, verify— y los recibos ya entregados siguen valiendo.", argShell(e.dir))
 		}
 		return nil, nil, usageErr("no se pudo abrir el vault: %v", err)
 	}

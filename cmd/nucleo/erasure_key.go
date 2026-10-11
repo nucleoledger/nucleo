@@ -215,16 +215,7 @@ func cmdErasureKeyAuthorize(e *env, args []string) error {
 // puestos. La imprime erase cuando le falta la autorización.
 func ordenAutorizar(policyFile, payloadHash string, through uint64) string {
 	return strings.Join([]string{"nucleo erasure-key authorize",
-		"--policy-file", comillaSiHaceFalta(policyFile),
+		"--policy-file", argShell(policyFile),
 		"--payload-hash", payloadHash,
 		"--through", fmt.Sprint(through)}, " ")
-}
-
-// comillaSiHaceFalta pone entre comillas simples una ruta con espacios, para que la
-// orden impresa se pueda copiar tal cual en una shell.
-func comillaSiHaceFalta(s string) string {
-	if !strings.ContainsAny(s, " \t'\"$`\\") {
-		return s
-	}
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

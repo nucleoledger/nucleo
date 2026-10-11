@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -125,6 +126,20 @@ func TestUnTerceroCompruebaLaAutorizacionConLosRecibos(t *testing.T) {
 func TestEraseDiceQueOrdenPedirYEsaOrdenFunciona(t *testing.T) {
 	c := newCLI(t)
 	sp := c.initConSupresion(t)
+	// La política, en un directorio con un espacio: es lo que obliga a entrecomillar, y en
+	// un directorio temporal sin espacios el test no lo comprobaría.
+	conEspacio := filepath.Join(c.dir, "con espacio")
+	if err := os.Mkdir(conEspacio, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(sp.politica)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp.politica = filepath.Join(conEspacio, "politica.json")
+	if err := os.WriteFile(sp.politica, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	c.sealFile(`{"venta":"001","cliente":"María Pérez"}`)
 	_, errOut := c.runWant(t, exitUsage, "erase", "--block", "0", "--policy-file", sp.politica, "--assume-confirmed")
 	if _, ct := contenidoDe(t, c.dir, 0); ct == nil || bloques(t, c.dir) != 1 {
@@ -134,7 +149,9 @@ func TestEraseDiceQueOrdenPedirYEsaOrdenFunciona(t *testing.T) {
 	if orden == "" {
 		t.Fatalf("erase no dice qué orden pedir:\n%s", errOut)
 	}
-	args := strings.Fields(strings.TrimPrefix(orden, "nucleo "))
+	// Partida con las reglas de la shell de esta plataforma: en windows-2025 la orden salía
+	// con la ruta entre comillas simples, que cmd deja dentro del argumento.
+	args := partirOrden(runtime.GOOS, orden)[1:]
 	out := c.mustRun(append([]string{"--json"}, args...)...)
 	var v struct {
 		Authorization string `json:"authorization"`

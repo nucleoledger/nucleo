@@ -187,7 +187,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 
 ## Sprint 19b — lo que impide publicar v0.4.0-alpha
 - [x] 0. ADR-032 aceptado por el dev
-- [ ] 1. Las órdenes impresas se entrecomillan según la plataforma (CI rojo en windows-2025)
+- [x] 1. Las órdenes impresas se entrecomillan según la plataforma (CI rojo en windows-2025)
 - [ ] 2. Una sola política: `@nucleoledger/verify` 0.4.0-alpha.0 preparado, con su migración
 - [ ] 3. El ensayo de actualización desde v0.3.1-alpha, repetido con el código final
 - [ ] 4. Revisión de ARQUITECTURA, GARANTIAS y CLI-JSON; el diagrama de la supresión con los

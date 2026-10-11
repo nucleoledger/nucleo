@@ -206,7 +206,7 @@ func confirmCard(e *env, cards []string, threshold int) error {
 			"  El vault y el ledger quedan creados en %s, pero las tarjetas de\n"+
 			"  esta pantalla son las ÚNICAS que existen. Cópialas ahora, o vuelve\n"+
 			"  a emitirlas con `nucleo backup --dir %s` mientras tengas la passphrase.",
-			e.dir, e.dir)
+			e.dir, argShell(e.dir))
 	}
 	e.printf("✔ confirmado. Guarda las tarjetas como se ha explicado.\n")
 	return nil
