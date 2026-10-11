@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -180,5 +181,51 @@ func TestReconcileConVerifyFullFallidoLoDiceAPersonas(t *testing.T) {
 	}
 	if !strings.Contains(errOut, "error: la verificación exhaustiva falló") {
 		t.Errorf("stderr no lleva la línea de error:\n%s", errOut)
+	}
+}
+
+// TestReconcileJSONConPoliticaDeOtroOrigin: la pregunta abierta de la revisión del
+// 2026-10-11, fijada. Con la política de otro log, el ledger no llega a abrirse: no hay
+// informe de reconcile —ni findings, ni erased, ni full_verify—, sino el objeto de error,
+// uno solo, con salida 2 y clase integrity. Hasta ahora solo lo fijaba status
+// (TestPolicyFileEsFormatoDeCable, origin_de_otro_log).
+func TestReconcileJSONConPoliticaDeOtroOrigin(t *testing.T) {
+	c, pol, _, _ := ledgerConPolitica(t)
+	raw, err := os.ReadFile(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["origin"] = "otro.example/log"
+	ajena, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	polAjena := filepath.Join(c.dir, "politica-de-otro-log.json")
+	if err := os.WriteFile(polAjena, ajena, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _ := c.runWant(t, exitVerify, "--json", "reconcile", "--source", vivoDeTres(t, c), "--policy-file", polAjena)
+	if err := unSoloValorJSON(out); err != nil {
+		t.Fatalf("%v:\n%s", err, out)
+	}
+	var v map[string]any
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v["ok"] != false || v["error_class"] != claseIntegridad || v["exit_code"] != float64(exitVerify) {
+		t.Errorf("want ok:false, error_class %q y exit_code %d:\n%s", claseIntegridad, exitVerify, out)
+	}
+	if msg, _ := v["error"].(string); !strings.Contains(msg, "otro.example/log") {
+		t.Errorf("el error no nombra el origin de la política:\n%s", out)
+	}
+	for _, campo := range []string{"findings", "erased", "full_verify"} {
+		if _, ok := v[campo]; ok {
+			t.Errorf("lleva %q: el ledger no se abrió y no hay informe de reconcile", campo)
+		}
 	}
 }

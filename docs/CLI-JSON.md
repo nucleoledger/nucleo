@@ -374,6 +374,10 @@ El informe de `internal/reconcile` más el estado de la historia:
 | `alert`, `erasure_alert` | ver arriba. La alarma de supresión se abre por todo evento, autorizado o no: el veredicto es `findings` |
 | `ok` | `true` sin hallazgos (y `full_verify.ok` si se pidió); con `false` el código de salida es `2`, y stdout sigue siendo **un solo objeto**, el informe, también cuando lo único que falla es `full_verify` (hasta el Sprint 20a, ese caso añadía detrás un objeto de error: H1 de la revisión del 2026-10-11) |
 
+Con la política de **otro** log —`--policy-file` con otro `origin`— el ledger no llega a
+abrirse y no hay informe: sale el objeto de error, uno solo, con `error_class: "integrity"` y
+código `2` (`cmd/nucleo/reconcile_json_test.go#TestReconcileJSONConPoliticaDeOtroOrigin`).
+
 ### `sync`
 
 | campo | tipo |

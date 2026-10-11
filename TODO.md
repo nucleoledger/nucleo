@@ -203,7 +203,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. H5 y H6: G44 dice que la autorización de supresión solo la comprueba Go; el
       comentario de `internal/erasure` con el formato de 0.7-draft
 - [x] 4. H7: la compuerta exige el bit de ejecución de `scripts/*.sh` en el índice
-- [ ] 5. Los huecos de G42 (`alert ack` no cuenta una supresión) y de la política de otro origin
+- [x] 5. Los huecos de G42 (`alert ack` no cuenta una supresión) y de la política de otro origin
 - [x] 6. ADR-033 candidato anotado: la rotación de `erasureKey`
 - [ ] 7. Cierre parcial: tabla en la revisión, CHANGELOG, compuerta en verde
 
