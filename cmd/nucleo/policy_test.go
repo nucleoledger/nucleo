@@ -188,3 +188,32 @@ func TestPolicyFileEsFormatoDeCable(t *testing.T) {
 		}
 	})
 }
+
+// TestErasureKeyNoPuedeSerLaDelFirmante (ADR-032 §B): una política cuya clave de
+// supresión es la que firma los bloques —la que abre la passphrase— no abre el ledger.
+// El parser no lo ve cuando la política no trae signerKey; el ledger abierto, sí.
+func TestErasureKeyNoPuedeSerLaDelFirmante(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+	c.sealFile(`{"x":1}`)
+	url, name, key := startTestWitness(t, c.logPubKey(t))
+	js := c.mustRun("--json", "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+	var v struct {
+		Policy map[string]any `json:"policy"`
+	}
+	if err := json.Unmarshal([]byte(js), &v); err != nil {
+		t.Fatal(err)
+	}
+	firmante := v.Policy["signerKey"]
+	delete(v.Policy, "signerKey")
+	v.Policy["erasureKey"] = firmante
+	raw, _ := json.Marshal(v.Policy)
+	path := filepath.Join(c.dir, "politica.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, errOut := c.runWant(t, exitUsage, "status", "--policy-file", path)
+	if !strings.Contains(errOut, "erasureKey") || !strings.Contains(errOut, "no está en el servidor") {
+		t.Errorf("no dice por qué:\n%s", errOut)
+	}
+}

@@ -77,7 +77,7 @@ func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
 			add(fmt.Sprintf("%s: antepone %q", v.Name, extra), extra+v.Text)
 		}
 		// Estructurales sobre cada miembro de primer nivel.
-		for _, k := range []string{"origin", "logKey", "signerKey", "witnesses", "quorum"} {
+		for _, k := range []string{"origin", "logKey", "signerKey", "erasureKey", "witnesses", "quorum"} {
 			clave := `"` + k + `"`
 			if !strings.Contains(v.Text, clave) {
 				continue

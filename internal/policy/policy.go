@@ -36,12 +36,15 @@ type File struct {
 	Origin    string
 	LogKey    string
 	SignerKey string // "" si el documento no la trae
-	Witnesses map[string]string
-	Quorum    int
+	// ErasureKey es la clave que autoriza las supresiones (ADR-032), o "". No está en el
+	// servidor: por eso no puede ser ninguna de las otras claves del documento.
+	ErasureKey string
+	Witnesses  map[string]string
+	Quorum     int
 }
 
 // miembros son los únicos nombres de miembro válidos del objeto de primer nivel.
-var miembros = []string{"origin", "logKey", "signerKey", "witnesses", "quorum"}
+var miembros = []string{"origin", "logKey", "signerKey", "erasureKey", "witnesses", "quorum"}
 
 // Parse lee y valida un documento de política. Cualquier desviación de PROTOCOL.md
 // §3.2 es error: no hay reparaciones ni valores por omisión.
@@ -80,14 +83,17 @@ func construir(obj []estricto.Miembro) (*File, error) {
 				return nil, fmt.Errorf("%w: origin tiene que ser una cadena no vacía", ErrPolicy)
 			}
 			f.Origin = m.Valor.Cadena
-		case "logKey", "signerKey":
+		case "logKey", "signerKey", "erasureKey":
 			if m.Valor.Tipo != 's' || !estricto.HexClave(m.Valor.Cadena) {
 				return nil, fmt.Errorf("%w: %s tiene que ser una clave de 64 caracteres hexadecimales en minúsculas", ErrPolicy, m.Nombre)
 			}
-			if m.Nombre == "logKey" {
+			switch m.Nombre {
+			case "logKey":
 				f.LogKey = m.Valor.Cadena
-			} else {
+			case "signerKey":
 				f.SignerKey = m.Valor.Cadena
+			default:
+				f.ErasureKey = m.Valor.Cadena
 			}
 		case "witnesses":
 			if m.Valor.Tipo != 'o' {
@@ -134,7 +140,41 @@ func construir(obj []estricto.Miembro) (*File, error) {
 		return nil, fmt.Errorf("%w: quorum %d con %d testigos", ErrPolicy, q, len(f.Witnesses))
 	}
 	f.Quorum = q
+	if err := claveDeSupresionPropia(f); err != nil {
+		return nil, err
+	}
 	return f, nil
+}
+
+// claveDeSupresionPropia exige que la clave de supresión no sea ninguna de las otras
+// claves del documento (ADR-032 §B). La del log y la del firmante están en el servidor;
+// una política que las nombra como clave de supresión es el hallazgo de ADR-032 escrito
+// en un fichero. Y una clave de testigo en dos papeles es una clave en dos papeles.
+func claveDeSupresionPropia(f *File) error {
+	if f.ErasureKey == "" {
+		return nil
+	}
+	switch f.ErasureKey {
+	case f.LogKey:
+		return fmt.Errorf("%w: erasureKey es la clave del log; la clave de supresión no puede estar en el servidor", ErrPolicy)
+	case f.SignerKey:
+		return fmt.Errorf("%w: erasureKey es la clave del firmante; la clave de supresión no puede estar en el servidor", ErrPolicy)
+	}
+	for n, k := range f.Witnesses {
+		if k == f.ErasureKey {
+			return fmt.Errorf("%w: erasureKey es la clave del testigo %q", ErrPolicy, n)
+		}
+	}
+	return nil
+}
+
+// ErasureAuthority devuelve el origin y la clave de supresión, o una clave nil si la
+// política no la trae: entonces ninguna supresión cuenta (ADR-032 §D).
+func (f *File) ErasureAuthority() (string, ed25519.PublicKey) {
+	if f == nil || f.ErasureKey == "" {
+		return "", nil
+	}
+	return f.Origin, clave(f.ErasureKey)
 }
 
 func conocido(nombre string) bool {
@@ -173,6 +213,9 @@ func (f *File) WitnessPolicy() *store.WitnessPolicy {
 		Witnesses: map[string]ed25519.PublicKey{}}
 	if f.SignerKey != "" {
 		wp.SignerKey = clave(f.SignerKey)
+	}
+	if f.ErasureKey != "" {
+		wp.ErasureKey = clave(f.ErasureKey)
 	}
 	for n, k := range f.Witnesses {
 		wp.Witnesses[n] = clave(k)

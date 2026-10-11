@@ -26,6 +26,7 @@ import (
 //	  "origin":    "nucleoledger.com/mi-empresa",
 //	  "logKey":    "<hex>",
 //	  "signerKey": "<hex>",
+//	  "erasureKey": "<hex>",                       (opcional, ADR-032)
 //	  "witnesses": { "witness.nucleoledger.com/w1": "<hex>" },
 //	  "quorum":    1
 //	}
@@ -34,11 +35,12 @@ import (
 // objeto "policy" de --json). Para LEERLA está internal/policy, con la gramática
 // estricta de PROTOCOL.md §3.2: encoding/json no sirve para eso (ADR-018).
 type policyDoc struct {
-	Origin    string            `json:"origin"`
-	LogKey    string            `json:"logKey"`
-	SignerKey string            `json:"signerKey,omitempty"`
-	Witnesses map[string]string `json:"witnesses"`
-	Quorum    int               `json:"quorum"`
+	Origin     string            `json:"origin"`
+	LogKey     string            `json:"logKey"`
+	SignerKey  string            `json:"signerKey,omitempty"`
+	ErasureKey string            `json:"erasureKey,omitempty"`
+	Witnesses  map[string]string `json:"witnesses"`
+	Quorum     int               `json:"quorum"`
 }
 
 // optString es una bandera de texto que recuerda si se pasó. flag.String no
@@ -71,7 +73,7 @@ func registerPolicyFlags(fs *flag.FlagSet) policyFlags {
 		witnessKey:  fs.String("witness-key", "", "clave pública de ese testigo, en hexadecimal"),
 		signerKey:   fs.String("signer-key", "", "clave pública esperada del firmante de bloques, en hexadecimal"),
 	}
-	fs.Var(pf.file, "policy-file", "fichero JSON con la política (origin, logKey, signerKey, witnesses, quorum)")
+	fs.Var(pf.file, "policy-file", "fichero JSON con la política (origin, logKey, signerKey, erasureKey, witnesses, quorum)")
 	return pf
 }
 
@@ -162,7 +164,7 @@ func (pf policyFlags) resolveSync(e *env) (wp *store.WitnessPolicy, f *policy.Fi
 // traía signerKey, se completa con la del ledger, que es lo que exige ADR-017.
 func docDePolitica(f *policy.File, signerKey ed25519.PublicKey) policyDoc {
 	d := policyDoc{
-		Origin: f.Origin, LogKey: f.LogKey, SignerKey: f.SignerKey,
+		Origin: f.Origin, LogKey: f.LogKey, SignerKey: f.SignerKey, ErasureKey: f.ErasureKey,
 		Witnesses: map[string]string{}, Quorum: f.Quorum,
 	}
 	if d.SignerKey == "" {

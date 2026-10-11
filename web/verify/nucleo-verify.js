@@ -513,7 +513,7 @@ time ${timestamp.toString()}
 
   // src/policy.ts
   var MAX_POLICY_BYTES = 65536;
-  var MIEMBROS = ["origin", "logKey", "signerKey", "witnesses", "quorum"];
+  var MIEMBROS = ["origin", "logKey", "signerKey", "erasureKey", "witnesses", "quorum"];
   function parsePolicyText(text) {
     if (utf8(text).length > MAX_POLICY_BYTES) {
       throw new Error(`la pol\xEDtica mide m\xE1s de ${MAX_POLICY_BYTES} bytes`);
@@ -693,6 +693,7 @@ time ${timestamp.toString()}
     let origin = "";
     let logKey = "";
     let signerKey;
+    let erasureKey;
     const witnesses = /* @__PURE__ */ Object.create(null);
     let quorum = "";
     let nTestigos = 0;
@@ -710,11 +711,13 @@ time ${timestamp.toString()}
           break;
         case "logKey":
         case "signerKey":
+        case "erasureKey":
           if (valor.tipo !== "s" || !HEX_CLAVE.test(valor.cadena)) {
             throw new Error(`${nombre} tiene que ser una clave de 64 caracteres hexadecimales en min\xFAsculas`);
           }
           if (nombre === "logKey") logKey = valor.cadena;
-          else signerKey = valor.cadena;
+          else if (nombre === "signerKey") signerKey = valor.cadena;
+          else erasureKey = valor.cadena;
           break;
         case "witnesses": {
           if (valor.tipo !== "o") throw new Error("witnesses tiene que ser un objeto");
@@ -752,6 +755,14 @@ time ${timestamp.toString()}
       throw new Error("el mapa de testigos perdi\xF3 alguna clave al construirse");
     }
     if (signerKey !== void 0) out.signerKey = signerKey;
+    if (erasureKey !== void 0) {
+      if (erasureKey === logKey) throw new Error("erasureKey es la clave del log; la clave de supresi\xF3n no puede estar en el servidor");
+      if (erasureKey === signerKey) throw new Error("erasureKey es la clave del firmante; la clave de supresi\xF3n no puede estar en el servidor");
+      for (const n of Object.keys(witnesses)) {
+        if (witnesses[n] === erasureKey) throw new Error(`erasureKey es la clave del testigo ${JSON.stringify(n)}`);
+      }
+      out.erasureKey = erasureKey;
+    }
     return out;
   }
   function validatePolicy(p) {

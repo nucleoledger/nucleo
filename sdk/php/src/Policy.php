@@ -19,21 +19,27 @@ final class Policy
     /** MAX_BYTES es el tamaño máximo de un documento de política. */
     public const MAX_BYTES = 65536;
 
-    private const MIEMBROS = ['origin', 'logKey', 'signerKey', 'witnesses', 'quorum'];
+    private const MIEMBROS = ['origin', 'logKey', 'signerKey', 'erasureKey', 'witnesses', 'quorum'];
     private const HEX_CLAVE = '/\A[0-9a-f]{64}\z/';
 
     public string $origin;
     public string $logKey;
     public ?string $signerKey;
+    /**
+     * erasureKey es la pública que autoriza las supresiones (ADR-032), o null. Este
+     * verificador la lee y no la usa: un recibo no depende de ella.
+     */
+    public ?string $erasureKey;
     /** @var array<int, array{name: string, key: string}> los testigos, en orden */
     public array $witnesses;
     public int $quorum;
 
-    private function __construct(string $origin, string $logKey, ?string $signerKey, array $witnesses, int $quorum)
+    private function __construct(string $origin, string $logKey, ?string $signerKey, ?string $erasureKey, array $witnesses, int $quorum)
     {
         $this->origin = $origin;
         $this->logKey = $logKey;
         $this->signerKey = $signerKey;
+        $this->erasureKey = $erasureKey;
         $this->witnesses = $witnesses;
         $this->quorum = $quorum;
     }
@@ -101,6 +107,7 @@ final class Policy
         $origin = '';
         $logKey = '';
         $signerKey = null;
+        $erasureKey = null;
         // Los testigos van en una LISTA de pares, no en un array asociativo, y no es
         // estilo: las claves de array de PHP que parecen enteros se convierten en
         // enteros, así que un testigo llamado "123" dejaría de ser una cadena y su
@@ -133,6 +140,7 @@ final class Policy
                     break;
                 case 'logKey':
                 case 'signerKey':
+                case 'erasureKey':
                     if ($valor['tipo'] !== 's' || preg_match(self::HEX_CLAVE, $valor['v']) !== 1) {
                         throw new VerifyError(sprintf(
                             '%s tiene que ser una clave de 64 caracteres hexadecimales en minúsculas',
@@ -141,8 +149,10 @@ final class Policy
                     }
                     if ($nombre === 'logKey') {
                         $logKey = $valor['v'];
-                    } else {
+                    } elseif ($nombre === 'signerKey') {
                         $signerKey = $valor['v'];
+                    } else {
+                        $erasureKey = $valor['v'];
                     }
                     break;
                 case 'witnesses':
@@ -196,7 +206,22 @@ final class Policy
         if ($q === null || $q < 1 || $q > $n) {
             throw new VerifyError(sprintf('quorum %s con %d testigos', $quorum, $n));
         }
-        return new self($origin, $logKey, $signerKey, $witnesses, $q);
+        if ($erasureKey !== null) {
+            // La clave de supresión no puede ser ninguna de las otras (ADR-032 §B): la del
+            // log y la del firmante están en el servidor, y una de testigo ya tiene su papel.
+            if ($erasureKey === $logKey) {
+                throw new VerifyError('erasureKey es la clave del log; la clave de supresión no puede estar en el servidor');
+            }
+            if ($erasureKey === $signerKey) {
+                throw new VerifyError('erasureKey es la clave del firmante; la clave de supresión no puede estar en el servidor');
+            }
+            foreach ($witnesses as $w) {
+                if ($w['key'] === $erasureKey) {
+                    throw new VerifyError(sprintf('erasureKey es la clave del testigo %s', json_encode($w['name'])));
+                }
+            }
+        }
+        return new self($origin, $logKey, $signerKey, $erasureKey, $witnesses, $q);
     }
 
     /** asciiLower pasa a minúsculas solo A-Z: solo decide el texto del error. */

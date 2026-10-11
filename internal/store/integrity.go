@@ -227,6 +227,9 @@ type WitnessPolicy struct {
 	// (PROTOCOL.md §3.2). La tercera auditoría abrió con "verified" un ledger usando
 	// una política con el origin de OTRO log: el campo del fichero no se miraba.
 	Origin string
+	// ErasureKey es la clave de supresión de la política (ADR-032). El almacén no la usa
+	// para abrir; viaja aquí para que quien abre compruebe que no es la del firmante.
+	ErasureKey ed25519.PublicKey
 }
 
 // ErrPolicy indica una política de apertura que no puede verificar nada.

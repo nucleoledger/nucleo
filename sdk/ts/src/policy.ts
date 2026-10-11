@@ -22,6 +22,12 @@ export interface Policy {
    * mismo.
    */
   signerKey?: string;
+  /**
+   * erasureKey en hexadecimal (minúsculas): la pública Ed25519 que autoriza las
+   * supresiones (ADR-032). Opcional, y distinta de todas las demás claves del
+   * documento. Este verificador la lee y no la usa: un recibo no depende de ella.
+   */
+  erasureKey?: string;
   /** witnesses mapea nombre de testigo → clave pública en hexadecimal (minúsculas). */
   witnesses: Record<string, string>;
   /** quorum es el mínimo de testigos distintos cuya cosignature tiene que verificar. */
@@ -31,7 +37,7 @@ export interface Policy {
 /** MAX_POLICY_BYTES es el tamaño máximo de un documento de política. */
 export const MAX_POLICY_BYTES = 65536;
 
-const MIEMBROS = ["origin", "logKey", "signerKey", "witnesses", "quorum"];
+const MIEMBROS = ["origin", "logKey", "signerKey", "erasureKey", "witnesses", "quorum"];
 
 type Valor =
   | { tipo: "s"; cadena: string }
@@ -230,6 +236,7 @@ function construir(obj: Array<{ nombre: string; valor: Valor }>): Policy {
   let origin = "";
   let logKey = "";
   let signerKey: string | undefined;
+  let erasureKey: string | undefined;
   // Object.create(null) y no {}: con un objeto normal, asignar la clave "__proto__"
   // NO crea un miembro, cambia el prototipo, y ese testigo desaparecía del mapa sin
   // un solo error (H5 de la cuarta auditoría). Un nombre de testigo es texto que
@@ -252,11 +259,13 @@ function construir(obj: Array<{ nombre: string; valor: Valor }>): Policy {
         break;
       case "logKey":
       case "signerKey":
+      case "erasureKey":
         if (valor.tipo !== "s" || !HEX_CLAVE.test(valor.cadena)) {
           throw new Error(`${nombre} tiene que ser una clave de 64 caracteres hexadecimales en minúsculas`);
         }
         if (nombre === "logKey") logKey = valor.cadena;
-        else signerKey = valor.cadena;
+        else if (nombre === "signerKey") signerKey = valor.cadena;
+        else erasureKey = valor.cadena;
         break;
       case "witnesses": {
         if (valor.tipo !== "o") throw new Error("witnesses tiene que ser un objeto");
@@ -297,6 +306,16 @@ function construir(obj: Array<{ nombre: string; valor: Valor }>): Policy {
     throw new Error("el mapa de testigos perdió alguna clave al construirse");
   }
   if (signerKey !== undefined) out.signerKey = signerKey;
+  if (erasureKey !== undefined) {
+    // La clave de supresión no puede ser ninguna de las otras (ADR-032 §B): la del log y
+    // la del firmante están en el servidor, y una clave de testigo tiene ya su papel.
+    if (erasureKey === logKey) throw new Error("erasureKey es la clave del log; la clave de supresión no puede estar en el servidor");
+    if (erasureKey === signerKey) throw new Error("erasureKey es la clave del firmante; la clave de supresión no puede estar en el servidor");
+    for (const n of Object.keys(witnesses)) {
+      if (witnesses[n] === erasureKey) throw new Error(`erasureKey es la clave del testigo ${JSON.stringify(n)}`);
+    }
+    out.erasureKey = erasureKey;
+  }
   return out;
 }
 

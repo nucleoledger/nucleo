@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Genera los vectores de POLÍTICA (PROTOCOL.md §3.2, ADR-018).
+# Genera los vectores de POLÍTICA (PROTOCOL.md §3.2, ADR-018; erasureKey, ADR-032).
 #
 # Cada vector es un texto de política EXACTO y el veredicto que la tabla de
 # PROTOCOL.md §3.2 le da. Los veredictos están escritos a mano aquí, caso por caso,
@@ -15,6 +15,8 @@ K1 = "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628"
 K2 = "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
 K3 = "dd7e84d010aed28a416e928f50c4c09ac0f94a8f5b346548168bddb61cdb7263"
 K4 = "9ad2d5b3d3cc90105737568e1b5850035c181004e46f967da9ba21188818f004"
+# K5 es la pública de la semilla 000102…1f: la clave de supresión de testdata/vectors/erasure/.
+K5 = "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8"
 O = "nucleoledger.com/mi-empresa"
 W1 = "witness.nucleoledger.com/w1"
 W2 = "witness.nucleoledger.com/w2"
@@ -130,6 +132,44 @@ for texto, nombre, desc in [
     ("99999999999999999999", "enorme", "quorum de 20 dígitos."),
 ]:
     v("invalida-quorum-" + nombre, False, '{"origin":"%s","logKey":"%s","witnesses":{"%s":"%s"},"quorum":%s}' % (O, K1, W1, K3, texto), desc, "quorum")
+
+# ---- erasureKey (ADR-032): opcional, una clave, y distinta de todas las demás ----
+v("valida-con-erasurekey", True,
+  '{"origin":"%s","logKey":"%s","signerKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K2, K5, W1, K3),
+  "Con erasureKey, la clave que autoriza las supresiones: opcional.")
+v("valida-erasurekey-sin-signerkey", True,
+  '{"origin":"%s","logKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K5, W1, K3),
+  "erasureKey sin signerKey: el formato no la ata a signerKey.")
+v("invalida-erasurekey-mayusculas", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K5.upper(), W1, K3),
+  "erasureKey en mayúsculas: segunda representación.", "hex")
+v("invalida-erasurekey-63", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K5[:63], W1, K3),
+  "erasureKey de 63 caracteres.", "hex")
+v("invalida-erasurekey-vacia", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":"","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, W1, K3),
+  "erasureKey vacía: si está, es una clave.", "hex")
+v("invalida-erasurekey-null", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":null,"witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, W1, K3),
+  "erasureKey null.", "null")
+v("invalida-erasurekey-numero", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":1,"witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, W1, K3),
+  "erasureKey es un número.", "hex")
+v("invalida-erasurekey-variante-mayusculas", False,
+  '{"origin":"%s","logKey":"%s","erasurekey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K5, W1, K3),
+  "erasurekey en vez de erasureKey.", "case_variant")
+v("invalida-erasurekey-duplicada", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K5, K4, W1, K3),
+  "erasureKey dos veces.", "duplicate_member")
+v("invalida-erasurekey-igual-logkey", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K1, W1, K3),
+  "La clave de supresión es la del log, que está en el servidor: no autoriza nada.", "erasure_key_reused")
+v("invalida-erasurekey-igual-signerkey", False,
+  '{"origin":"%s","logKey":"%s","signerKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, K2, K2, W1, K3),
+  "La clave de supresión es la del firmante, que la passphrase abre: es el hallazgo de ADR-032.", "erasure_key_reused")
+v("invalida-erasurekey-igual-testigo", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s","%s":"%s"},"quorum":1}' % (O, K1, K4, W1, K3, W2, K4),
+  "La clave de supresión es la de un testigo: una clave, dos papeles.", "erasure_key_reused")
 
 # ---- inválidas: documento ----
 v("invalida-basura-detras", False, MIN + '\n{"signerKey":"%s"} esto no es JSON' % K2, "El hallazgo BAJO #8: contenido después del objeto.", "trailing")
