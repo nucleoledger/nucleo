@@ -1,6 +1,6 @@
 # ADR-032-autoridad-de-supresion
 
-**Estado:** PROPUESTA el 2026-10-11 (Sprint 19), antes de publicar v0.4.0-alpha · **Fecha:** 2026-10-11 · **Fuentes:** hallazgo del dev sobre ADR-031 y su enmienda (Sprint 19), ADR-031 §C y §E, ADR-017 (la política, raíz de confianza), ADR-018 (formato de cable de la política), ADR-004 y ADR-010 (SLIP-0039), ADR-028 (alarma durable), ADR-029 (la passphrase en el servidor), PROTOCOL §1, §3.2 y §5.1
+**Estado:** PROPUESTA el 2026-10-11 (Sprint 19), antes de publicar v0.4.0-alpha; **ACEPTADA por el dev el 2026-10-11** (Sprint 19b) · **Fecha:** 2026-10-11 · **Fuentes:** hallazgo del dev sobre ADR-031 y su enmienda (Sprint 19), ADR-031 §C y §E, ADR-017 (la política, raíz de confianza), ADR-018 (formato de cable de la política), ADR-004 y ADR-010 (SLIP-0039), ADR-028 (alarma durable), ADR-029 (la passphrase en el servidor), PROTOCOL §1, §3.2 y §5.1
 
 ## El hallazgo
 

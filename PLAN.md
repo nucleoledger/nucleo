@@ -116,7 +116,7 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
 - La supresión tiene comando: `nucleo erase` borra el contenido y sus compromisos, sella un
   evento sin datos personales y `reconcile` la distingue de un faltante — ADR-031, aceptado, y
   su enmienda: cada supresión abre una alarma. Una supresión solo cuenta si la autoriza la
-  clave de supresión de la política, que no está en el servidor — ADR-032 (propuesta), que
+  clave de supresión de la política, que no está en el servidor — ADR-032 (aceptado), que
   sustituye a las dos tarjetas de la enmienda.
 
 # ✅ MÓDULOS ESTABLES (NO TOCAR)
