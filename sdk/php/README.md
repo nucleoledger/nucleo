@@ -35,6 +35,7 @@ $politica = [
     'origin'    => 'nucleoledger.com/mi-empresa',
     'logKey'    => '5e42…',   // 64 hex, minúsculas
     'signerKey' => '79b5…',   // obligatoria para verificar un recibo (ADR-017)
+    // 'erasureKey' => '03a1…', // opcional: autoriza supresiones (ADR-032); no cuenta para el recibo
     'witnesses' => ['witness.example/w1' => '1e98…'],
     'quorum'    => 1,
 ];
@@ -142,8 +143,9 @@ $sealer = new Nucleo\Sealer($bin, $dir, $pass, $politica, 60,
 
 ### Las supresiones: `onErasure`
 
-Desde v0.4.0-alpha, cada supresión de contenido (`nucleo erase`, que exige dos tarjetas de
-respaldo; [ADR-031](../../docs/adr/ADR-031-supresion.md) y su enmienda) abre otra alarma, que
+Desde v0.4.0-alpha, cada supresión de contenido (`nucleo erase`, que exige la autorización de
+la clave de supresión; [ADR-031](../../docs/adr/ADR-031-supresion.md) y
+[ADR-032](../../docs/adr/ADR-032-autoridad-de-supresion.md)) abre otra alarma, que
 viaja en el JSON como `erasure_alert`. El **séptimo argumento** es su hook, con la misma
 semántica que `onStale`: en cada operación mientras haya supresiones sin reconocer, y un hook
 que lanza va a `error_log` sin romper la operación.

@@ -42,7 +42,7 @@ Los ganchos de prueba —`NUCLEO_TEST_SEED`, `NUCLEO_TEST_CLOCK`,
 `NUCLEO_TEST_PASSPHRASE` y, desde v0.3.0-alpha, `NUCLEO_TEST_DIE_AT`, que mata el proceso
 a medias de un cambio de passphrase para probar ADR-029, y desde v0.3.1-alpha
 `NUCLEO_TEST_PAUSE_AT`, que lo detiene en una frontera, y desde v0.4.0-alpha
-`NUCLEO_TEST_CARDS`, que pasaría las tarjetas de `erase` sin consola— viven tras el build tag `testhooks`, y goreleaser
+`NUCLEO_TEST_CARDS`, que pasaría las tarjetas de la clave de supresión a `erasure-key authorize` sin consola— viven tras el build tag `testhooks`, y goreleaser
 compila **sin** ese tag. Ese código no está en el ejecutable que se publica.
 
 Un binario publicado que los honrara permitiría fijar desde el entorno del

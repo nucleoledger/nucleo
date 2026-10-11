@@ -25,7 +25,10 @@ se indica que es `main`. PHP 8.2 con el SDK del repositorio.
       días caído (§5).
 - [ ] El **hook `onErasure`** configurado: cada supresión de contenido tiene que llegarle a
       alguien (§5).
-- [ ] Las **tarjetas** repartidas y **fuera del servidor**: con dos se suprime (§3).
+- [ ] Las **tarjetas** del vault repartidas y **fuera del servidor** (§3).
+- [ ] Si vas a suprimir contenido: la **clave de supresión** generada fuera del servidor, sus
+      tarjetas en manos de quien responde de las supresiones, y su clave pública como
+      `erasureKey` en la política de quien reconcilia (§3, ADR-032).
 
 ---
 
@@ -352,11 +355,39 @@ implementada**: hoy, una clave comprometida es un log nuevo.
 
 `init` entrega tres tarjetas, y dos reconstruyen la clave. **Repártelas**: dos tarjetas en
 el mismo cajón son una sola. Quien reúna dos tiene la clave del vault, y desde ADR-029
-puede además fijar una passphrase nueva y **suprimir contenido** (`nucleo erase`, enmienda de
-[ADR-031](adr/ADR-031-supresion.md)): son más valiosas que la passphrase. Por eso suprimir
-las pide a ellas y no a la passphrase, que vive en el servidor: **nunca las guardes en él**. `backup`
+puede además fijar una passphrase nueva: **nunca las guardes en el servidor**. `backup`
 emite tarjetas nuevas **que conviven** con las viejas (misma clave); `restore
 --new-passphrase` emite tarjetas nuevas **que sustituyen** a las viejas.
+
+Estas tarjetas **no** sirven para suprimir. Durante la preparación de v0.4.0-alpha lo
+hicieron, y no separaban nada: reconstruyen la misma clave que la passphrase, que está en el
+servidor (ADR-032).
+
+### La clave de supresión
+
+Una supresión solo cuenta —`reconcile` la da por buena en vez de señalar un registro que
+falta— si la autoriza la **clave de supresión**, cuya pública va en la política como
+`erasureKey` ([ADR-032](adr/ADR-032-autoridad-de-supresion.md)). Es otra clave, con sus propias
+tarjetas, y no está en el servidor:
+
+1. **Generarla**, en un equipo que no sea el servidor —sirve un portátil sin red—:
+   `nucleo erasure-key init`. Enseña sus tarjetas (2 de 3 por omisión) y la clave pública. No
+   escribe nada en disco.
+2. **Repartir sus tarjetas** entre quienes responden de las solicitudes de supresión —el
+   responsable del tratamiento, su delegado de protección de datos—. **Nadie que opere el
+   servidor debe poder reunir el umbral**: si quien administra el servidor tiene también estas
+   tarjetas, la clave no separa nada. Mejor en manos distintas de las que tienen las tarjetas
+   del vault.
+3. **Poner `erasureKey`** en la política con la que corre `reconcile`. Sin ella, ninguna
+   supresión cuenta. La contraparte que solo verifica recibos no la necesita.
+4. **Para cada supresión**: en el servidor, `nucleo erase --block N --policy-file
+   politica.json` dice qué autorizar y la orden exacta; la custodia la ejecuta en su equipo
+   (`nucleo erasure-key authorize …`, con sus tarjetas tecleadas) y devuelve una línea; en el
+   servidor, la misma orden de `erase` con `--authorization <línea>` suprime.
+
+Perder el umbral de estas tarjetas no pierde datos: impide suprimir. Se genera otra clave y
+se cambia `erasureKey` en la política; las supresiones hechas con la vieja dejan de contar
+para quien solo tenga la política nueva.
 
 ### Por qué en hosting compartido no hay un buen sitio
 
@@ -441,7 +472,9 @@ El cron del `sync`, con la passphrase por fichero porque `sync` firma:
 
 Cada `nucleo erase` abre otra alarma, la de **supresión**, que viaja en el mismo JSON
 (`erasure_alert`) y que solo se calla con `alert ack`: una supresión que nadie esperaba es un
-incidente. El séptimo argumento del `Sealer` es su hook:
+incidente. La alarma avisa de todo evento de supresión; si uno no está autorizado, lo dice
+`reconcile` con la política —un hallazgo `"supresión no autorizada"`, código 2— en cada
+ejecución, y eso no lo cierra ningún `alert ack`. El séptimo argumento del `Sealer` es su hook:
 
 ```php
 $sealer = new Nucleo\Sealer($bin, $dir, '/etc/nucleo/passphrase', $politica, 60,

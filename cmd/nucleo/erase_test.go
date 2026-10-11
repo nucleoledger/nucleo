@@ -24,16 +24,17 @@ import (
 // TestLaSupresionDejaLaCadenaYLosRecibos es el test que pide ADR-031: tras suprimir
 // el contenido de un registro, la cadena verifica, el recibo que ya se había
 // entregado verifica, se puede emitir uno nuevo, y la reconciliación informa la
-// supresión en vez de un registro desaparecido.
+// supresión en vez de un registro desaparecido. Con la autorización de la clave de
+// supresión de la política, que es lo que hace que cuente (ADR-032).
 func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 	c := newCLI(t)
-	c.initConTarjetas(t)
+	sp := c.initConSupresion(t)
 	// El bloque 0, con perfil: tiene copia cifrada Y compromisos.
 	xmlPath := c.facturaXML(t, claveDemo())
 	c.mustRun("seal", "--profile", "ecuador.sri.factura", "--xml", xmlPath)
 	c.sealFile(`{"factura":"002","importe":"75.00"}`)
 
-	url, name, key := startTestWitness(t, c.logPubKey(t))
+	url, name, key := sp.url, sp.name, sp.key
 	testigo := []string{"--witness-name", name, "--witness-key", key}
 	c.mustRun(append([]string{"sync", "--witness", url}, testigo...)...)
 
@@ -51,9 +52,10 @@ func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 
 	// Sin supresión, que el sistema vivo no tenga el bloque 0 es un hallazgo.
 	vivos := ficheroVivo(t, c.dir, 1, `{"factura":"002","importe":"75.00"}`)
-	c.runWant(t, exitVerify, "reconcile", "--source", vivos)
+	c.runWant(t, exitVerify, "reconcile", "--source", vivos, "--policy-file", sp.politica)
 
-	out := c.mustRun("--json", "erase", "--block", "0", "--assume-confirmed")
+	out := c.mustRun("--json", "erase", "--block", "0", "--policy-file", sp.politica,
+		"--authorization", c.autoriza(t, sp, h0, 0), "--assume-confirmed")
 	var r struct {
 		Index         uint64   `json:"index"`
 		ErasedHash    string   `json:"erased_payload_hash"`
@@ -77,7 +79,7 @@ func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 	}
 	// El evento es un bloque normal, del tipo reservado y con el contenido del vector.
 	ev := bloqueDeCLI(t, c.dir, 2)
-	if want, _ := erasure.EventPayloadHash(h0); ev.Header.Type != erasure.Type || ev.Header.PayloadHash != want || ev.Header.PayloadCID != "none://" {
+	if want, _ := erasure.EventPayloadHash(h0); ev.Header.Type != erasure.Type || ev.Header.PayloadHash != want || !strings.HasPrefix(ev.Header.PayloadCID, erasure.AuthPrefix+"0:") {
 		t.Errorf("evento: %+v", ev.Header)
 	}
 
@@ -103,7 +105,7 @@ func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 	c.mustRun(append([]string{"receipt", "--block", "2", "--recipient", "Auditoría"}, testigo...)...)
 
 	// La reconciliación lo informa como suprimido, y sale bien.
-	rout, _ := c.runWant(t, exitOK, "--json", "reconcile", "--source", vivos)
+	rout, _ := c.runWant(t, exitOK, "--json", "reconcile", "--source", vivos, "--policy-file", sp.politica)
 	var rr struct {
 		Findings []any `json:"findings"`
 		Erased   []struct {
@@ -117,13 +119,18 @@ func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 	if len(rr.Findings) != 0 || len(rr.Erased) != 1 || rr.Erased[0].Index != 0 || rr.Erased[0].ErasedBy != 2 {
 		t.Errorf("reconcile tras suprimir:\n%s", rout)
 	}
-	texto := c.mustRun("reconcile", "--source", vivos)
+	texto := c.mustRun("reconcile", "--source", vivos, "--policy-file", sp.politica)
 	if !strings.Contains(texto, "contenido SUPRIMIDO") {
 		t.Errorf("reconcile en texto no dice que se suprimió:\n%s", texto)
 	}
+	// Sin la política, la misma supresión no se puede comprobar, y no cuenta (ADR-032).
+	sinPol, _ := c.runWant(t, exitVerify, "reconcile", "--source", vivos)
+	if !strings.Contains(sinPol, "SUPRESIÓN SIN AUTORIZACIÓN VÁLIDA") || !strings.Contains(sinPol, "--policy-file") {
+		t.Errorf("reconcile sin política no lo explica:\n%s", sinPol)
+	}
 
-	// Pedirlo otra vez no sella otro evento.
-	otra := c.mustRun("--json", "erase", "--block", "0", "--assume-confirmed")
+	// Pedirlo otra vez no sella otro evento, ni pide otra autorización.
+	otra := c.mustRun("--json", "erase", "--block", "0", "--policy-file", sp.politica, "--assume-confirmed")
 	if !strings.Contains(otra, `"already_erased": true`) {
 		t.Errorf("segunda supresión:\n%s", otra)
 	}
@@ -136,24 +143,25 @@ func TestLaSupresionDejaLaCadenaYLosRecibos(t *testing.T) {
 // la confirmación hay que pedirla saltar explícitamente.
 func TestLaSupresionPideConfirmacion(t *testing.T) {
 	c := newCLI(t)
-	c.initConTarjetas(t)
+	sp := c.initConSupresion(t)
 	c.sealFile(`{"factura":"001","cliente":"María Pérez"}`)
 	h, _ := contenidoDe(t, c.dir, 0)
+	conAut := []string{"erase", "--block", "0", "--policy-file", sp.politica, "--authorization", c.autoriza(t, sp, h, 0)}
 
-	_, errOut := c.runWant(t, exitUsage, "--json", "erase", "--block", "0")
+	_, errOut := c.runWant(t, exitUsage, append([]string{"--json"}, conAut...)...)
 	if !strings.Contains(errOut+c.ultima(), "--assume-confirmed") {
 		t.Errorf("no dice cómo confirmar en --json:\n%s", c.ultima())
 	}
 
 	conEntrada(t, "00000000\n", func() {
-		c.runWant(t, exitUsage, "erase", "--block", "0")
+		c.runWant(t, exitUsage, conAut...)
 	})
 	if _, ct := contenidoDe(t, c.dir, 0); ct == nil || bloques(t, c.dir) != 1 {
 		t.Fatal("una confirmación equivocada suprimió algo")
 	}
 
 	conEntrada(t, h[:prefijoConfirmacion]+"\n", func() {
-		c.runWant(t, exitOK, "erase", "--block", "0")
+		c.runWant(t, exitOK, conAut...)
 	})
 	if _, ct := contenidoDe(t, c.dir, 0); ct != nil || bloques(t, c.dir) != 2 {
 		t.Error("la confirmación correcta no suprimió")
@@ -164,14 +172,14 @@ func TestLaSupresionPideConfirmacion(t *testing.T) {
 // tiene nada que suprimir, y se dice por qué en vez de sellar un evento vacío.
 func TestNoSeSuprimeLoQueNoSeGuardo(t *testing.T) {
 	c := newCLI(t)
-	c.initConTarjetas(t)
+	sp := c.initConSupresion(t)
 	c.mustRun("seal", "--tenant", testTenant, "--type", "sri.factura.v1", "--no-encrypt",
 		"--payload", c.writeTemp(t, `{"factura":"001"}`))
-	_, errOut := c.runWant(t, exitUsage, "erase", "--block", "0", "--assume-confirmed")
+	_, errOut := c.runWant(t, exitUsage, "erase", "--block", "0", "--policy-file", sp.politica, "--assume-confirmed")
 	if !strings.Contains(errOut, "--no-encrypt") {
 		t.Errorf("no explica por qué no hay nada que suprimir:\n%s", errOut)
 	}
-	c.runWant(t, exitUsage, "erase", "--block", "7", "--assume-confirmed")
+	c.runWant(t, exitUsage, "erase", "--block", "7", "--policy-file", sp.politica, "--assume-confirmed")
 	if bloques(t, c.dir) != 1 {
 		t.Error("se selló algo")
 	}
@@ -191,19 +199,58 @@ func TestSealNoAceptaTiposReservados(t *testing.T) {
 	}
 }
 
-// initConTarjetas crea el despliegue y deja dos de sus tarjetas en el gancho de prueba
-// de erase, que es como las teclearía quien suprime (ADR-031, enmienda).
-func (c *cli) initConTarjetas(t *testing.T) []string {
+// conSupresion es el despliegue de los tests de supresión (ADR-032): un testigo, la
+// política con la erasureKey y las tarjetas de la clave de supresión en el gancho de
+// prueba, que es como las teclearía la custodia.
+type conSupresion struct {
+	politica          string
+	url, name, key    string
+	erasureKey        string
+	tarjetasSupresion []string
+}
+
+// initConSupresion crea el despliegue, genera la clave de supresión con la CLI y escribe
+// la política con su clave pública.
+func (c *cli) initConSupresion(t *testing.T) *conSupresion {
 	t.Helper()
-	out := c.mustRun("--json", "init", "--origin", testOrigin, "--assume-confirmed")
+	c.initLedger()
+	sp := &conSupresion{}
+	sp.url, sp.name, sp.key = startTestWitness(t, c.logPubKey(t))
+	out := c.mustRun("--json", "erasure-key", "init", "--assume-confirmed")
 	var v struct {
-		Shares []string `json:"shares"`
+		ErasureKey string   `json:"erasure_key"`
+		Shares     []string `json:"shares"`
 	}
 	if err := json.Unmarshal([]byte(out), &v); err != nil || len(v.Shares) < 2 {
-		t.Fatalf("init --json no dio tarjetas (%v):\n%s", err, out)
+		t.Fatalf("erasure-key init --json no dio tarjetas (%v):\n%s", err, out)
+	}
+	sp.erasureKey, sp.tarjetasSupresion = v.ErasureKey, v.Shares
+	raw, err := json.Marshal(policyDoc{Origin: testOrigin, LogKey: c.logPubKey(t), ErasureKey: v.ErasureKey,
+		Witnesses: map[string]string{sp.name: sp.key}, Quorum: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp.politica = filepath.Join(c.dir, "politica.json")
+	if err := os.WriteFile(sp.politica, raw, 0o600); err != nil {
+		t.Fatal(err)
 	}
 	t.Setenv(envCards, v.Shares[0]+"|"+v.Shares[1])
-	return v.Shares
+	return sp
+}
+
+// autoriza pide a la CLI, como lo haría la custodia, la autorización de suprimir el
+// contenido h hasta el bloque through.
+func (c *cli) autoriza(t *testing.T, sp *conSupresion, h string, through uint64) string {
+	t.Helper()
+	out := c.mustRun("--json", "erasure-key", "authorize", "--policy-file", sp.politica,
+		"--payload-hash", h, "--through", fmt.Sprint(through))
+	var v struct {
+		Authorization string `json:"authorization"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil || v.Authorization == "" {
+		t.Fatalf("erasure-key authorize --json (%v):\n%s", err, out)
+	}
+	return v.Authorization
 }
 
 // contenidoDe devuelve el payload_hash del bloque y su copia cifrada, o nil.

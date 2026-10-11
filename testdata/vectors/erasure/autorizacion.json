@@ -1,0 +1,13 @@
+{
+  "description": "La autorización de PROTOCOL §5.1 para un contenido, calculada fuera del código.",
+  "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+  "origin": "nucleoledger.com/mi-empresa",
+  "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "through": 7,
+  "message": "nucleo.org/erasure-authorization@v1\norigin nucleoledger.com/mi-empresa\nerased_payload_hash e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nthrough 7\n",
+  "message_sha256": "24dc174105ced3274e000da312e198508f1f6aa283f0394f99afad3cf76cc7b7",
+  "signature": "47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+  "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+  "event_payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737"
+}

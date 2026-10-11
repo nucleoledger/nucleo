@@ -13,14 +13,85 @@ import (
 	"github.com/nucleoledger/nucleo/internal/store"
 )
 
-// TestUnRegistroSuprimidoNoEsUnFaltante (ADR-031): el sistema vivo borra un registro
-// porque su titular lo pidió y Núcleo suprime su contenido. La reconciliación lo
-// informa como suprimido —hay un evento sellado que lo dice— y no como un registro
-// que desapareció; el evento mismo no le falta al sistema vivo, porque es de Núcleo.
+// La clave de supresión de los tests (ADR-032): otra semilla que la del tenant, que es
+// la de ceros. En un despliegue no está en el servidor; aquí, en el test.
+var (
+	claveSupresion = ed25519.NewKeyFromSeed([]byte("clave de supresion de los tests."))
+	autoridad      = erasure.Authority{Origin: testOrigin, Key: claveSupresion.Public().(ed25519.PublicKey)}
+)
+
+const testOrigin = "nucleoledger.com/prueba"
+
+// autoriza firma con la clave de supresión la supresión del contenido h hasta through.
+func autoriza(t *testing.T, key ed25519.PrivateKey, origin, h string, through uint64) string {
+	t.Helper()
+	cid, err := erasure.Authorize(key, origin, h, through)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cid
+}
+
+// evento es el bloque de supresión del contenido h, con el payload_cid dado.
+func evento(t *testing.T, h, cid string) sellado {
+	t.Helper()
+	p, err := erasure.Payload(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sellado{typ: erasure.Type, payload: p, cid: cid}
+}
+
+func factura(p []byte) sellado { return sellado{typ: "sri.factura.v1", payload: p} }
+
+// TestSupresionSinAutorizacionNoCuenta (ADR-032): el hallazgo del Sprint 19. Con las
+// piezas internas —sin pasar por `erase` ni por `seal`— se sella un evento de supresión
+// firmado SOLO con la clave del tenant, que es la que abre la passphrase del servidor,
+// para un registro que el sistema vivo ya no tiene. Con ADR-031 la reconciliación lo
+// daba por suprimido y salía con 0 (se comprobó antes del cambio). Ahora el registro
+// sigue faltando, y el evento es un hallazgo: tenga la política clave de supresión o no.
+func TestSupresionSinAutorizacionNoCuenta(t *testing.T) {
+	a := []byte(`{"venta":"001","importe":"10000.00"}`)
+	b := []byte(`{"venta":"002","importe":"75.00"}`)
+	ha := hashOf(string(a))
+	for nombre, opts := range map[string]Options{
+		"con la clave de supresión en la política": {Erasure: autoridad},
+		"sin clave de supresión":                   {},
+	} {
+		t.Run(nombre, func(t *testing.T) {
+			s, err := openLedger(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// El evento tal como lo sellaba ADR-031: payload_cid "none://".
+			apila(t, s, factura(a), factura(b), evento(t, ha, "none://"))
+			rep, err := Reconcile(s, FromSlice([]Record{{Index: 1, Payload: b}}), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rep.Erased) != 0 {
+				t.Errorf("suprimidos = %+v: un evento sin autorización contó", rep.Erased)
+			}
+			faltante, noAutorizado := hallazgo(rep, 0), hallazgo(rep, 2)
+			if faltante == nil || faltante.Status != StatusMissing {
+				t.Errorf("el bloque 0 no sale como faltante: %+v", rep.Findings)
+			}
+			if noAutorizado == nil || noAutorizado.Status != StatusUnauthorizedErasure || noAutorizado.Reason == "" {
+				t.Errorf("el evento no sale como supresión no autorizada, con su motivo: %+v", rep.Findings)
+			}
+		})
+	}
+}
+
+// TestUnRegistroSuprimidoNoEsUnFaltante (ADR-031, ADR-032): el sistema vivo borra un
+// registro porque su titular lo pidió y Núcleo suprime su contenido con la autorización
+// de la clave de supresión. La reconciliación lo informa como suprimido y no como un
+// registro que desapareció; el evento mismo no le falta al sistema vivo, porque es de
+// Núcleo.
 //
-// Y un evento solo vale hacia delante: si el mismo contenido se vuelve a sellar
-// DESPUÉS de suprimirse, esa copia nueva no está suprimida y su ausencia sí es un
-// hallazgo.
+// Y una autorización solo llega hasta su through: si el mismo contenido se vuelve a
+// sellar DESPUÉS de suprimirse, esa copia nueva no está suprimida y su ausencia sí es
+// un hallazgo.
 func TestUnRegistroSuprimidoNoEsUnFaltante(t *testing.T) {
 	s, err := openLedger(t)
 	if err != nil {
@@ -30,20 +101,16 @@ func TestUnRegistroSuprimidoNoEsUnFaltante(t *testing.T) {
 	b := []byte(`{"factura":"002","cliente":"María Pérez"}`)
 	c := []byte(`{"factura":"003","cliente":"Luis"}`)
 	hb := hashOf(string(b))
-	evento, err := erasure.Payload(hb)
-	if err != nil {
-		t.Fatal(err)
-	}
 	apila(t, s,
-		sellado{"sri.factura.v1", a},  // 0
-		sellado{"sri.factura.v1", b},  // 1: se suprime
-		sellado{"sri.factura.v1", c},  // 2
-		sellado{erasure.Type, evento}, // 3: el evento
-		sellado{"sri.factura.v1", b},  // 4: el mismo contenido, sellado otra vez después
+		factura(a), // 0
+		factura(b), // 1: se suprime
+		factura(c), // 2
+		evento(t, hb, autoriza(t, claveSupresion, testOrigin, hb, 1)), // 3: el evento, autorizado hasta el 1
+		factura(b), // 4: el mismo contenido, sellado otra vez después
 	)
 
 	vivos := []Record{{Index: 0, Payload: a}, {Index: 2, Payload: c}}
-	rep, err := Reconcile(s, FromSlice(vivos), Options{})
+	rep, err := Reconcile(s, FromSlice(vivos), Options{Erasure: autoridad})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +122,7 @@ func TestUnRegistroSuprimidoNoEsUnFaltante(t *testing.T) {
 	}
 
 	// El JSON lleva el array siempre, también vacío.
-	limpio, err := Reconcile(s, FromSlice([]Record{{Index: 0, Payload: a}, {Index: 1, Payload: b}, {Index: 2, Payload: c}, {Index: 4, Payload: b}}), Options{})
+	limpio, err := Reconcile(s, FromSlice([]Record{{Index: 0, Payload: a}, {Index: 1, Payload: b}, {Index: 2, Payload: c}, {Index: 4, Payload: b}}), Options{Erasure: autoridad})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,9 +136,69 @@ func TestUnRegistroSuprimidoNoEsUnFaltante(t *testing.T) {
 	}
 }
 
-// TestSinEventoUnRegistroBorradoEsUnFaltante: lo mismo sin el evento. Es lo que hace
-// que la supresión no sirva para esconder un borrado: si no deja evento sellado, la
-// reconciliación lo señala.
+// TestAutorizacionAjenaNoCuenta (ADR-032 §D): una autorización de otra clave, sobre otro
+// contenido, de otro log, o que no llega hasta el bloque, no cuenta. Cada caso deja el
+// registro como faltante y el evento como hallazgo, salvo el último: una autorización
+// válida que no llega hasta la copia que falta es una supresión legítima de OTRA copia.
+func TestAutorizacionAjenaNoCuenta(t *testing.T) {
+	a := []byte(`{"venta":"001","importe":"10000.00"}`)
+	b := []byte(`{"venta":"002","importe":"75.00"}`)
+	ha, hb := hashOf(string(a)), hashOf(string(b))
+	otraClave := ed25519.NewKeyFromSeed([]byte("otra clave que no es la politica"))
+	for _, c := range []struct {
+		nombre string
+		cid    string
+	}{
+		{"de otra clave", autoriza(t, otraClave, testOrigin, ha, 0)},
+		{"sobre otro hash", autoriza(t, claveSupresion, testOrigin, hb, 0)},
+		{"de otro log", autoriza(t, claveSupresion, "nucleoledger.com/otro", ha, 0)},
+		{"con through igual al evento", autoriza(t, claveSupresion, testOrigin, ha, 2)},
+		{"con la clave del tenant", autoriza(t, ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize)), testOrigin, ha, 0)},
+	} {
+		t.Run(c.nombre, func(t *testing.T) {
+			s, err := openLedger(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			apila(t, s, factura(a), factura(b), evento(t, ha, c.cid))
+			rep, err := Reconcile(s, FromSlice([]Record{{Index: 1, Payload: b}}), Options{Erasure: autoridad})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rep.Erased) != 0 {
+				t.Errorf("suprimidos = %+v", rep.Erased)
+			}
+			if f := hallazgo(rep, 0); f == nil || f.Status != StatusMissing {
+				t.Errorf("el bloque 0 no sale como faltante: %+v", rep.Findings)
+			}
+			if f := hallazgo(rep, 2); f == nil || f.Status != StatusUnauthorizedErasure {
+				t.Errorf("el evento no sale como no autorizado: %+v", rep.Findings)
+			}
+		})
+	}
+
+	t.Run("que no llega hasta la copia que falta", func(t *testing.T) {
+		s, err := openLedger(t)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Dos copias del mismo contenido, y una autorización solo hasta la primera.
+		apila(t, s, factura(a), factura(a), evento(t, ha, autoriza(t, claveSupresion, testOrigin, ha, 0)))
+		rep, err := Reconcile(s, FromSlice(nil), Options{Erasure: autoridad})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rep.Erased) != 1 || rep.Erased[0].Index != 0 {
+			t.Errorf("suprimidos = %+v, want solo el bloque 0", rep.Erased)
+		}
+		if len(rep.Findings) != 1 || rep.Findings[0].Index != 1 || rep.Findings[0].Status != StatusMissing {
+			t.Errorf("hallazgos = %+v, want el bloque 1 como faltante", rep.Findings)
+		}
+	})
+}
+
+// TestSinEventoUnRegistroBorradoEsUnFaltante: sin evento de su contenido, un registro
+// borrado es un faltante. Un evento autorizado de OTRO contenido no lo cubre.
 func TestSinEventoUnRegistroBorradoEsUnFaltante(t *testing.T) {
 	s, err := openLedger(t)
 	if err != nil {
@@ -79,19 +206,16 @@ func TestSinEventoUnRegistroBorradoEsUnFaltante(t *testing.T) {
 	}
 	a := []byte(`{"factura":"001"}`)
 	b := []byte(`{"factura":"002"}`)
-	// Un evento de supresión de OTRO contenido no cubre a b.
-	otro, err := erasure.Payload(hashOf("otro contenido"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	apila(t, s, sellado{"sri.factura.v1", a}, sellado{"sri.factura.v1", b}, sellado{erasure.Type, otro})
+	c := []byte(`{"factura":"003"}`)
+	hc := hashOf(string(c))
+	apila(t, s, factura(a), factura(b), factura(c), evento(t, hc, autoriza(t, claveSupresion, testOrigin, hc, 2)))
 
-	rep, err := Reconcile(s, FromSlice([]Record{{Index: 0, Payload: a}}), Options{})
+	rep, err := Reconcile(s, FromSlice([]Record{{Index: 0, Payload: a}}), Options{Erasure: autoridad})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rep.Erased) != 0 {
-		t.Errorf("suprimidos = %+v, want ninguno", rep.Erased)
+	if len(rep.Erased) != 1 || rep.Erased[0].Index != 2 {
+		t.Errorf("suprimidos = %+v, want solo el bloque 2", rep.Erased)
 	}
 	if len(rep.Findings) != 1 || rep.Findings[0].Index != 1 || rep.Findings[0].Status != StatusMissing {
 		t.Errorf("hallazgos = %+v, want el bloque 1 como faltante", rep.Findings)
@@ -101,9 +225,20 @@ func TestSinEventoUnRegistroBorradoEsUnFaltante(t *testing.T) {
 	}
 }
 
+// hallazgo devuelve el hallazgo del bloque idx, o nil.
+func hallazgo(rep *Report, idx uint64) *Finding {
+	for i := range rep.Findings {
+		if rep.Findings[i].Index == idx {
+			return &rep.Findings[i]
+		}
+	}
+	return nil
+}
+
 type sellado struct {
 	typ     string
 	payload []byte
+	cid     string // "" es "none://"
 }
 
 func openLedger(t *testing.T) (*store.Store, error) {
@@ -122,7 +257,11 @@ func apila(t *testing.T, s *store.Store, regs ...sellado) {
 	pub := priv.Public().(ed25519.PublicKey)
 	var prev *ledger.Block
 	for i, r := range regs {
-		h, err := ledger.NewHeader(prev, testTenant, r.typ, r.payload, "none://", pub,
+		cid := r.cid
+		if cid == "" {
+			cid = "none://"
+		}
+		h, err := ledger.NewHeader(prev, testTenant, r.typ, r.payload, cid, pub,
 			testBase.Add(time.Duration(i)*time.Minute))
 		if err != nil {
 			t.Fatal(err)

@@ -1,0 +1,184 @@
+{
+  "cases": [
+    {
+      "name": "valida",
+      "description": "La autorización principal.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": true
+    },
+    {
+      "name": "valida-through-0",
+      "description": "through 0, sin ceros a la izquierda.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:0:e858a43cc07e92e746dc2f275ddae3509efc55fadaf7a4210a6aa608ba4a413e2d4d18122d948952738edff89b2fe102d25c7b61a5bf3c1722ef42720c190201",
+      "valid": true
+    },
+    {
+      "name": "valida-through-maximo",
+      "description": "through 2^53 − 1, el índice máximo de PROTOCOL §1.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:9007199254740991:1acbab169eedb03e73564eeced2a440389122fb4c10446b5f7bd65e99309c41f5b6f2564b38c9bc04ddb1ab596aa639607969daa8f02cb4fdda5e1acaf1d7c08",
+      "valid": true
+    },
+    {
+      "name": "invalida-otra-clave",
+      "description": "Firmada por otra clave: la política dice otra erasureKey.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:57da70e2ec25f0eea6114dc3ea69031ea2bb303293a0cdcd0ccce354a4c540155b98394233ed5096669bbe960827b1ec38ef9ddb4e67cec4a599a87ed3e42f0a",
+      "valid": false
+    },
+    {
+      "name": "invalida-verificada-con-otra-clave",
+      "description": "La firma buena, verificada con la clave de otra política.",
+      "public_key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-otro-hash",
+      "description": "La firma de otro contenido presentada para este.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-otro-origin",
+      "description": "La firma de otro log.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/otra-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-otro-through",
+      "description": "El through del payload_cid no es el que se firmó.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:8:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-none",
+      "description": "El payload_cid de 0.6-draft: sin autorización.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "none://",
+      "valid": false
+    },
+    {
+      "name": "invalida-vacia",
+      "description": "payload_cid vacío.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "",
+      "valid": false
+    },
+    {
+      "name": "invalida-firma-mayusculas",
+      "description": "Firma en hexadecimal en mayúsculas: segunda representación.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47EAF6D83B72696FA1E7001B41AD249C94B68548607FD8B97E855A19C6D785306C1E2AA0E75B1BF2E018924BE20F6FD8AAD5AD6796F74E3E38035252CD00AC07",
+      "valid": false
+    },
+    {
+      "name": "invalida-firma-127",
+      "description": "Firma de 127 caracteres.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac0",
+      "valid": false
+    },
+    {
+      "name": "invalida-firma-129",
+      "description": "Firma de 129 caracteres.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac070",
+      "valid": false
+    },
+    {
+      "name": "invalida-through-cero-a-la-izquierda",
+      "description": "through 07.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:07:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-through-negativo",
+      "description": "through -1.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:-1:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-through-demasiado-grande",
+      "description": "through 2^53, por encima del índice máximo.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:9007199254740992:b8796c16db73d21ad3fdbe3715a0292d562d8d08b4b8a481a517e63f3d2e369d665b21cd1ac1a49ad7c69bcdac8f8057525c1d99b70feed4d5d063f218b37e04",
+      "valid": false
+    },
+    {
+      "name": "invalida-through-vacio",
+      "description": "Sin through.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1::47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-prefijo-v2",
+      "description": "Otra versión del prefijo.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v2:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07",
+      "valid": false
+    },
+    {
+      "name": "invalida-espacio-final",
+      "description": "Un espacio al final.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07 ",
+      "valid": false
+    },
+    {
+      "name": "invalida-campo-de-mas",
+      "description": "Un campo más.",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "origin": "nucleoledger.com/mi-empresa",
+      "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "payload_cid": "nucleo-erasure-auth@v1:7:47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07:00",
+      "valid": false
+    }
+  ]
+}

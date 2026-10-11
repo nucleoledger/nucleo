@@ -75,6 +75,8 @@ const policy = parsePolicyText(await readFile("politica.json", "utf8"));
 //   "origin": "example.com/my-company",
 //   "logKey": "9ad2d5b3…",                       lower-case hex, 32 bytes
 //   "signerKey": "57857f0e…",                    required to verify a receipt (ADR-017)
+//   "erasureKey": "03a107bf…",                   optional; authorizes erasures (ADR-032),
+//                                                read and not used to verify a receipt
 //   "witnesses": { "witness.example/w1": "dd7e84d0…" },
 //   "quorum": 1                                  required, 1 ≤ quorum ≤ witnesses
 // }

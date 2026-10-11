@@ -29,7 +29,7 @@ func hookSeed() ([]byte, bool) { return nil, false }
 // hookPassphrase no existe en producción.
 func hookPassphrase() (string, bool) { return "", false }
 
-// hookCards no existe en producción: las tarjetas de erase solo se teclean.
+// hookCards no existe en producción: las tarjetas de la clave de supresión solo se teclean.
 func hookCards() ([]string, bool) { return nil, false }
 
 // hookDieAt no existe en producción: no mata nada.

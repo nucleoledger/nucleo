@@ -97,6 +97,7 @@ flowchart TD
   cli --> witness
   cli --> ecuador
   erasure --> jcs
+  erasure --> ledger
   identity --> checkpoint
   identity --> vault
   ledger --> jcs
@@ -143,7 +144,7 @@ ADR-010) y `golang.org/x/term` (cmd/nucleo).
 | `internal/checkpoint/` | notas firmadas C2SP, el `Log` que firma checkpoints sin retroceder nunca, y la firma extra ML-DSA-44 (ADR-007) | `internal/checkpoint/log.go#Log.Sign`, `internal/checkpoint/checkpoint.go#Verify` |
 | `internal/store/` | el ledger en SQLite: tablas, triggers append-only, verificación al abrir (ADR-016) y escritura atómica del sellado (ADR-020) | `internal/store/store.go#Open`, `internal/store/record.go#Store.AppendRecord` |
 | `internal/vault/` | passphrase → Argon2id → KEK → DEK; blobs y secretos cifrados; respaldo SLIP-0039; cambio de passphrase (ADR-029) | `internal/vault/keys.go#Unlock`, `internal/vault/rekey.go#PrepareRekey` |
-| `internal/erasure/` | el evento de supresión: su tipo reservado y su contenido (ADR-031) | `internal/erasure/erasure.go#Payload` |
+| `internal/erasure/` | el evento de supresión: su tipo reservado y su contenido (ADR-031); la autorización de la clave de supresión, su `payload_cid` y la regla que decide si un evento cuenta (ADR-032) | `internal/erasure/erasure.go#Payload`, `internal/erasure/autorizacion.go#Authority.Check` |
 | `internal/commit/` | compromisos HMAC-SHA-256 con subclave por tenant (ADR-003) | `internal/commit/commit.go#CommitField` |
 | `internal/identity/` | las claves del firmante y del log, guardadas cifradas en el vault | `internal/identity/identity.go#Load` |
 | `internal/witness/` | el testigo: cosignatures, memoria persistente, servidor y cliente HTTP de `tlog-witness`, configuración de varios logs | `internal/witness/witness.go#Witness.CosignAt` |
@@ -380,23 +381,32 @@ añade `Store.VerifyFull`. Una comparación que no se
 puede hacer no es un veredicto (ADR-022).
 
 Un bloque que el sistema vivo ya no tiene no es siempre un hallazgo: si hay un evento de
-supresión **posterior** que nombra su contenido, sale en `erased` y no en `findings`
-(`internal/reconcile/reconcile.go#eventoQueSuprime`, ADR-031 §E). El evento se busca por el
-`payload_hash` que llevaría (`internal/erasure/erasure.go#EventPayloadHash`), sin abrir el
-vault; los propios eventos no se cuentan como faltantes.
+supresión **autorizado** que cubre su contenido hasta él, sale en `erased` y no en `findings`
+(`internal/reconcile/reconcile.go#eventoQueSuprime`, ADR-031 §E y ADR-032 §D). Qué eventos
+están autorizados lo decide `internal/reconcile/reconcile.go#clasificaEventos`: el contenido de
+cada evento se busca entre los bloques anteriores por el `payload_hash` que llevaría
+(`internal/erasure/erasure.go#EventPayloadHash`), y la firma de su `payload_cid` se comprueba
+con la `erasureKey` de la política (`internal/erasure/autorizacion.go#Authority.Check`), sin
+abrir el vault. Un evento que no está autorizado es un hallazgo, `"supresión no autorizada"`
+con su `reason`; sin política con `erasureKey`, lo son todos. Los eventos no se cuentan como
+faltantes.
 
-### 2.6a `erase` — suprimir un contenido (ADR-031)
+### 2.6a `erase` — suprimir un contenido (ADR-031, ADR-032)
 
-`cmd/nucleo/erase.go#cmdErase` lee el bloque, comprueba que hay algo guardado de su contenido
-—la copia cifrada o los compromisos— y, si ya hay un evento posterior, contesta
-`already_erased` sin escribir. Si no, abre el vault con **dos tarjetas** tecleadas en una
-consola, nunca con la passphrase (`cmd/nucleo/erase.go#abreConTarjetas` →
-`internal/vault/backup.go#RestoreKEK` y `internal/vault/keys.go#UnlockKEK`; enmienda de
-ADR-031), comprueba el firmante de la cadena,
+`cmd/nucleo/erase.go#cmdErase` exige una política con `erasureKey`, lee el bloque, comprueba
+que hay algo guardado de su contenido —la copia cifrada o los compromisos— y, si ya hay un
+evento **autorizado** que lo cubre (`cmd/nucleo/erase.go#eventoDeSupresion`), contesta
+`already_erased` sin escribir. Si no, comprueba la autorización **antes** de abrir el vault:
+sin `--authorization` imprime la orden que tiene que ejecutar la custodia
+(`cmd/nucleo/erasure_key.go#ordenAutorizar`); con ella, la verifica con la `erasureKey`
+(`internal/erasure/autorizacion.go#VerifyCID`) y exige que llegue hasta el último bloque con
+ese contenido. Después abre el vault con la passphrase, como `seal`
+(`cmd/nucleo/env.go#env.unlock`), comprueba el firmante de la cadena,
 pide teclear el principio del hash (`cmd/nucleo/erase.go#tecleaElHash`; `--assume-confirmed`
 en `--json`) y, en **una** transacción (`internal/store/record.go#Store.AppendRecord`, campos
-`EraseBlob` y `DeleteMeta`), sella el evento `nucleo.erasure.v1` y borra la copia cifrada y
-los compromisos, y guarda en `log_state` el detalle para la alarma. Después vacía el WAL (`internal/store/store.go#Store.PurgeWAL`); la base se
+`EraseBlob` y `DeleteMeta`), sella el evento `nucleo.erasure.v1` con la autorización en su
+`payload_cid`, borra la copia cifrada y los compromisos, y guarda en `log_state` el detalle
+para la alarma. Después vacía el WAL (`internal/store/store.go#Store.PurgeWAL`); la base se
 abre con `secure_delete`, así que lo borrado queda en ceros. `seal` rechaza los tipos
 `nucleo.*` (`internal/erasure/erasure.go#Reserved`).
 
@@ -405,6 +415,17 @@ La **alarma de supresión** sale de la cadena y no de una lista aparte:
 (`internal/store/blocks.go#Store.BlocksOfType`) y abre los que no tienen su reconocimiento en
 `log_state`. La publican en `erasure_alert` los mismos comandos que la de frescura; la cierra
 `cmd/nucleo/alert.go#cmdAlertAck` (`cmd/nucleo/alarma_supresion.go#reconoceSupresiones`).
+
+### 2.6b `erasure-key` — la clave de supresión (ADR-032)
+
+No abre ningún ledger: se ejecuta en el equipo de quien custodia la clave. `init`
+(`cmd/nucleo/erasure_key.go#cmdErasureKeyInit`) genera 32 bytes al azar, los reparte en tarjetas
+SLIP-0039 con el mismo reparto comprobado que la KEK (`internal/vault/backup.go#BackupKEK`) y
+enseña la clave pública que va en la política; la semilla no toca el disco. `authorize`
+(`cmd/nucleo/erasure_key.go#cmdErasureKeyAuthorize`) lee la política, pide las tarjetas en una
+consola (gancho `NUCLEO_TEST_CARDS` en los tests), reconstruye la semilla
+(`internal/vault/backup.go#RestoreKEK`), exige que dé la `erasureKey` de la política y firma
+la autorización (`internal/erasure/autorizacion.go#Authorize`).
 
 ### 2.7 `restore --new-passphrase` (ADR-029)
 
@@ -536,6 +557,7 @@ Lo que entra de fuera y quién lo comprueba antes de usarlo.
 | **el cuerpo HTTP que recibe el testigo** | cualquiera | `internal/witness/server.go#Server.addCheckpoint` (tope `maxRequestBody`), `internal/witness/protocol.go#UnmarshalAddCheckpoint`, y `internal/witness/witness.go#Witness.cosign`: el origin solo elige la clave, la firma tiene que ser suya |
 | **el fichero de configuración del testigo** | quien lo opera | `cmd/nucleo/sync.go#configDelTestigo` (tope y aviso de permisos, `cmd/nucleo/sync.go#avisoDePermisosDeConfig`) → `internal/witness/config.go#ParseConfig` |
 | **la salida `--json`** | la CLI, para los SDK | es formato de cable (ADR-025, ADR-027): vectores en `testdata/vectors/cli-json/`, y la validan `sdk/php/src/Contract.php#Contract` y `examples/erp-node/src/contrato.js#sellado` |
+| **una autorización de supresión** | la custodia de la clave de supresión, por `erase --authorization`; después, el `payload_cid` de un evento en la cadena | `internal/erasure/autorizacion.go#ParseCID` (forma exacta) y `internal/erasure/autorizacion.go#VerifyCID` contra la `erasureKey` de la política; los vectores, de `testdata/vectors/erasure/` |
 | **el documento a sellar, la passphrase, las tarjetas** | quien invoca | `cmd/nucleo/limits.go#readLimited` (topes) y `cmd/nucleo/env.go#readPassphrase` |
 | **el propio fichero del ledger** | el disco, que puede estar manipulado | `internal/store/integrity.go#Store.VerifyIntegrity` en cada apertura; con política, la atestación y el firmante se verifican contra claves que no salen del fichero (ADR-016, ADR-017) |
 

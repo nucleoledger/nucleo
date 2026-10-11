@@ -3,11 +3,15 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/nucleoledger/nucleo/internal/erasure"
 )
 
 // Los vectores del contrato `--json` (ADR-025).
@@ -95,8 +99,8 @@ func TestVectoresCLIJSON(t *testing.T) {
 	}
 
 	// 1. Un ledger recién creado: el borde de abajo. Sin bloques, signer.state es "none"
-	// y la raíz es la del árbol vacío. Con las tarjetas a mano, para el caso 6.
-	c.initConTarjetas(t)
+	// y la raíz es la del árbol vacío.
+	c.initLedger()
 	añade("valido-status-vacio", "status sobre un ledger sin bloques: signer.state none y la raíz del árbol vacío",
 		exitOK, "--json", "status")
 
@@ -147,10 +151,29 @@ func TestVectoresCLIJSON(t *testing.T) {
 		exitOK, "--json", "seal", "--tenant", testTenant, "--type", "sri.factura.v1",
 		"--payload", escribeDoc(t, c.dir, "doc-003.json", `{"factura":"contrato-003"}`), "--policy-file", polPath)
 
-	// 6. Una supresión (ADR-031, enmienda): el propio erase, y un status después, con la
+	// 6. Una supresión (ADR-031, ADR-032): el propio erase, y un status después, con la
 	// alarma de supresión abierta. Es lo que los hooks de los SDK tienen que reconocer.
-	añade("valido-erase", "suprimir el contenido del bloque 0, que comparte con el 1: evento sellado y alarma de supresión abierta",
-		exitOK, "--json", "erase", "--block", "0", "--assume-confirmed")
+	//
+	// La clave de supresión sale de una semilla FIJA y la autorización se firma aquí:
+	// `erasure-key init` genera una clave al azar, y con ella el hash del evento —que
+	// lleva la autorización en su payload_cid— cambiaría en cada regeneración.
+	supresion := ed25519.NewKeyFromSeed([]byte("clave de supresion de vectores.."))
+	sync.Policy["erasureKey"] = hex.EncodeToString(supresion.Public().(ed25519.PublicKey))
+	polSupr, err := json.Marshal(sync.Policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	polSuprPath := filepath.Join(c.dir, "politica-supresion.json")
+	if err := os.WriteFile(polSuprPath, polSupr, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h0, _ := contenidoDe(t, c.dir, 0)
+	aut, err := erasure.Authorize(supresion, testOrigin, h0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	añade("valido-erase", "suprimir con autorización el contenido del bloque 0, que comparte con el 1: evento sellado y alarma de supresión abierta",
+		exitOK, "--json", "erase", "--block", "0", "--policy-file", polSuprPath, "--authorization", aut, "--assume-confirmed")
 	añade("valido-status-con-supresion", "status con una supresión sin reconocer: erasure_alert.state open",
 		exitOK, "--json", "status")
 

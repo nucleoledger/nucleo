@@ -294,29 +294,56 @@ try {
 }
 comprueba((await vigilado.estado()).treeSize === antes, "fallaSiVieja escribió un bloque");
 
-// ————— 10. la supresión: dos tarjetas, y una alarma que alguien tiene que reconocer —————
+// ————— 10. la supresión: la autoriza una clave que no está en el servidor, y deja una alarma —————
 
-paso(10, "suprimir el contenido de un registro exige DOS TARJETAS, y deja una alarma (ADR-031)");
+paso(10, "suprimir el contenido de un registro exige la autorización de la CLAVE DE SUPRESIÓN, y deja una alarma (ADR-032)");
 const victima = conAlarma.index;
-// Primero, lo que tendría quien compromete el servidor: el fichero de la passphrase.
+const contrato = (r) => { try { return JSON.parse(r.stdout); } catch { return {}; } };
+// Primero, lo que tendría quien compromete el servidor: el fichero de la passphrase y la
+// política de siempre. Sin erasureKey en la política, erase no empieza.
 const conPass = await capturada(cfg.BINARIO, ["--dir", cfg.DIR_LEDGER, "--json", "erase", "--block", String(victima),
-  "--passphrase-file", cfg.FICHERO_PASSPHRASE, "--assume-confirmed"]);
-comprueba(conPass.code === 1 && conPass.stdout.includes("DOS TARJETAS"), `erase con la passphrase salió con ${conPass.code}`);
-dice("  con el fichero de la passphrase —lo que hay en el servidor—: rechazado");
+  "--policy-file", cfg.FICHERO_POLITICA, "--passphrase-file", cfg.FICHERO_PASSPHRASE, "--assume-confirmed"]);
+comprueba(conPass.code === 1 && String(contrato(conPass).error).includes("erasureKey"), `erase sin erasureKey salió con ${conPass.code}`);
+dice("  con el fichero de la passphrase —lo que hay en el servidor— y sin clave de supresión: rechazado");
 
-// Con dos tarjetas, tecleadas en una consola. El ejemplo simula la consola con `script`
-// (util-linux) y las tarjetas DE JUGUETE; en producción las teclea una persona y no
-// están en ningún disco.
+// La custodia genera la clave de supresión EN SU EQUIPO —aquí, de juguete— y su clave
+// pública va a la política de quien reconcilia. Es otra política que la del verificador de
+// recibos a propósito: la contraparte no necesita erasureKey, y el verificador publicado
+// en npm que fija este ejemplo todavía no conoce ese miembro.
+const clave = contrato(await capturada(cfg.BINARIO, ["--json", "erasure-key", "init", "--assume-confirmed"]));
+comprueba(/^[0-9a-f]{64}$/.test(clave.erasure_key ?? ""), "erasure-key init no dio la clave");
+writeFileSync(join(cfg.DATOS, "tarjetas-supresion-DE-JUGUETE.txt"), (clave.shares ?? []).join("\n") + "\n", { mode: 0o600 });
+const politicaSupresion = join(cfg.DATOS, "politica-supresion.json");
+writeFileSync(politicaSupresion, JSON.stringify({ ...JSON.parse(readFileSync(cfg.FICHERO_POLITICA, "utf8")), erasureKey: clave.erasure_key }));
+dice("  la custodia genera la clave de supresión y su clave pública va a la política de reconcile");
+
+// Con la passphrase y la política buena, pero sin autorización: no borra, y dice qué pedir.
+const sinAut = await capturada(cfg.BINARIO, ["--dir", cfg.DIR_LEDGER, "--json", "erase", "--block", String(victima),
+  "--policy-file", politicaSupresion, "--passphrase-file", cfg.FICHERO_PASSPHRASE, "--assume-confirmed"]);
+const orden = (String(contrato(sinAut).error).match(/nucleo erasure-key authorize .*/) ?? [""])[0];
+comprueba(sinAut.code === 1 && orden !== "", `erase sin autorización salió con ${sinAut.code}`);
+dice("  sin autorización: no borra nada, y dice la orden exacta que tiene que ejecutar la custodia");
+
+// La custodia ejecuta ESA orden, tal cual, y teclea sus tarjetas en una consola. El ejemplo
+// simula la consola con `script` (util-linux) y las tarjetas DE JUGUETE; en producción las
+// teclea una persona en su equipo y no están en ningún disco.
 if (process.platform !== "linux" || !existsSync("/usr/bin/script")) {
-  dice("  (la supresión con tarjetas se omite: simular la consola necesita `script` de util-linux)");
+  dice("  (la autorización se omite: simular la consola necesita `script` de util-linux)");
 } else {
-  const tarjetas = readFileSync(join(cfg.DATOS, "tarjetas-DE-JUGUETE.txt"), "utf8").trim().split("\n").slice(0, 2);
-  const orden = [cfg.BINARIO, "--dir", cfg.DIR_LEDGER, "erase", "--block", String(victima), "--assume-confirmed"]
-    .map((a) => `'${a.replaceAll("'", "'\\''")}'`).join(" ");
+  const binario = `'${cfg.BINARIO.replaceAll("'", "'\\''")}' --json`;
   // La salida no se enseña: la consola repite lo tecleado, y son tarjetas.
-  const r = await capturada("script", ["-qec", orden, "/dev/null"], tarjetas.join("\n") + "\n\n");
-  comprueba(r.code === 0, `erase con dos tarjetas salió con ${r.code}`);
-  dice(`  con dos tarjetas: contenido del bloque ${victima} suprimido, y un evento sellado que lo dice`);
+  const r = await capturada("script", ["-qec", orden.replace(/^nucleo/, () => binario), "/dev/null"],
+    (clave.shares ?? []).slice(0, 2).join("\n") + "\n\n");
+  const autorizacion = (r.stdout.match(/nucleo-erasure-auth@v1:\d+:[0-9a-f]{128}/) ?? [""])[0];
+  comprueba(r.code === 0 && autorizacion !== "", `erasure-key authorize salió con ${r.code}`);
+  dice("  la custodia firma la autorización con dos tarjetas de supresión: una línea, que no es secreta");
+
+  // En el servidor ya no hace falta consola: la autorización es lo que decide.
+  const ok = await capturada(cfg.BINARIO, ["--dir", cfg.DIR_LEDGER, "--json", "erase", "--block", String(victima),
+    "--policy-file", politicaSupresion, "--passphrase-file", cfg.FICHERO_PASSPHRASE,
+    "--authorization", autorizacion, "--assume-confirmed"]);
+  comprueba(ok.code === 0 && contrato(ok).already_erased === false, `erase con autorización salió con ${ok.code}`);
+  dice(`  con la autorización: contenido del bloque ${victima} suprimido, y un evento sellado que la lleva`);
 
   // El sellado siguiente del ERP trae la alarma, y el hook la recoge.
   const supresiones = [];

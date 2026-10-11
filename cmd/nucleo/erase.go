@@ -9,11 +9,8 @@ import (
 	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/erasure"
-	"github.com/nucleoledger/nucleo/internal/identity"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/store"
-	"github.com/nucleoledger/nucleo/internal/vault"
-	"golang.org/x/term"
 )
 
 // La supresión (ADR-031): borrar el contenido de un registro cuando su titular lo
@@ -24,6 +21,10 @@ import (
 // lo que se añade: un evento sellado, sin datos personales, que dice que el contenido
 // de ese hash se suprimió, para que la reconciliación no confunda una supresión
 // legítima con un registro que alguien hizo desaparecer.
+//
+// Lo que hace legítima una supresión no es este comando: es la autorización de la
+// clave de supresión, que no está en el servidor (ADR-032). erase la comprueba antes de
+// tocar nada y la sella en el evento; sin ella no borra, y un evento sin ella no cuenta.
 
 // prefijoConfirmacion es cuántos caracteres del hash hay que teclear para confirmar.
 const prefijoConfirmacion = 8
@@ -32,18 +33,12 @@ func cmdErase(e *env, args []string) error {
 	fs := flag.NewFlagSet("erase", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	block := fs.Int64("block", -1, "índice del bloque cuyo contenido se suprime")
-	// --passphrase-file se declara solo para rechazarlo con su porqué: sin esto, quien lo
-	// pase recibiría «flag provided but not defined», que no dice qué hace falta.
-	passFile := fs.String("passphrase-file", "", "NO se acepta: erase exige dos tarjetas de respaldo (ADR-031, enmienda)")
-	yes := fs.Bool("assume-confirmed", false, "salta la confirmación tecleada del hash (las tarjetas se teclean igual)")
+	passFile := fs.String("passphrase-file", "", "fichero con la passphrase")
+	autorizacion := fs.String("authorization", "", "la autorización de la clave de supresión (la da `nucleo erasure-key authorize`)")
+	yes := fs.Bool("assume-confirmed", false, "salta la confirmación tecleada del hash")
 	pf := registerPolicyFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageErr("%v", err)
-	}
-	if *passFile != "" {
-		return usageErr("erase no acepta la passphrase: suprimir exige DOS TARJETAS de respaldo SLIP-0039,\n" +
-			"  tecleadas en una consola (ADR-031, enmienda). La passphrase vive en el servidor para\n" +
-			"  sellar, y quien comprometa el servidor la tiene; las tarjetas no deberían estar ahí.")
 	}
 	if *block < 0 {
 		return usageErr("erase necesita --block N")
@@ -55,9 +50,22 @@ func cmdErase(e *env, args []string) error {
 			"pasa --assume-confirmed explícitamente")
 	}
 
-	wp, _, err := pf.resolve(e)
+	wp, pol, err := pf.resolve(e)
 	if err != nil {
 		return err
+	}
+	// Sin la clave de supresión no hay contra qué comprobar la autorización, y una
+	// supresión sin autorización comprobable no cuenta: borrar el contenido sería
+	// convertir el registro en un faltante. Mejor no empezar.
+	auth := erasure.Authority{}
+	if pol != nil {
+		auth.Origin, auth.Key = pol.ErasureAuthority()
+	}
+	if auth.Key == nil {
+		return usageErr("erase necesita --policy-file con una política que traiga erasureKey: la clave de\n" +
+			"  supresión, que es la que autoriza cada supresión (ADR-032). Sin ella, ninguna supresión\n" +
+			"  cuenta y reconcile seguiría señalando el registro como faltante. La clave se genera,\n" +
+			"  fuera del servidor, con `nucleo erasure-key init`.")
 	}
 	s, res, err := e.openStoreWith(wp)
 	if err != nil {
@@ -91,39 +99,73 @@ func cmdErase(e *env, args []string) error {
 	}
 
 	if !hayBlob && !hayCompromisos {
-		previo, err := eventoDeSupresion(s, h, b.Header.Index)
+		previo, err := eventoDeSupresion(s, auth, h, b.Header.Index)
 		if err != nil {
 			return err
 		}
-		if previo == nil {
+		if previo != nil {
+			// Ya está suprimido: no se sella otro evento. Volver a pedirlo es un reintento,
+			// y es lo que se aconseja cuando el WAL no se pudo vaciar: por eso se vuelve a
+			// intentar aquí.
+			walVacio, err := s.PurgeWAL()
+			if err != nil {
+				return err
+			}
+			e.out(map[string]any{
+				"erased_payload_hash": h,
+				"blocks":              afectados,
+				"already_erased":      true,
+				"index":               previo.Header.Index,
+				"hash":                previo.Hash,
+				"wal_purged":          walVacio,
+			}, func() {
+				e.printf("✔ el contenido del bloque %d ya estaba suprimido (evento en el bloque %d)\n",
+					*block, previo.Header.Index)
+				e.printf("  No se ha escrito ningún bloque.\n")
+			})
+			avisaWAL(e, walVacio)
+			return nil
+		}
+		// Nada guardado y ninguna supresión autorizada. Si hay un evento sin autorización
+		// válida, el contenido ya no está y lo que falta es la autorización: se sella un
+		// evento que la lleve, sin nada que borrar. Si no lo hay, nunca se guardó nada.
+		sinAutorizar, err := hayEventoSinAutorizar(s, h, b.Header.Index)
+		if err != nil {
+			return err
+		}
+		if !sinAutorizar {
 			return usageErr("no hay nada guardado del contenido del bloque %d: se selló con --no-encrypt\n"+
 				"  y sin perfil, así que Núcleo solo tiene su hash, que está en la cadena y no se puede\n"+
 				"  borrar sin romperla. El contenido vive solo en tu sistema: es ahí donde se suprime.", *block)
 		}
-		// Ya está suprimido: no se sella otro evento. Volver a pedirlo es un reintento, y
-		// es lo que se aconseja cuando el WAL no se pudo vaciar: por eso se vuelve a
-		// intentar aquí.
-		walVacio, err := s.PurgeWAL()
-		if err != nil {
-			return err
-		}
-		e.out(map[string]any{
-			"erased_payload_hash": h,
-			"blocks":              afectados,
-			"already_erased":      true,
-			"index":               previo.Header.Index,
-			"hash":                previo.Hash,
-			"wal_purged":          walVacio,
-		}, func() {
-			e.printf("✔ el contenido del bloque %d ya estaba suprimido (evento en el bloque %d)\n",
-				*block, previo.Header.Index)
-			e.printf("  No se ha escrito ningún bloque.\n")
-		})
-		avisaWAL(e, walVacio)
-		return nil
 	}
 
-	v, id, err := abreConTarjetas(e, s)
+	// Lo que queda por hacer: o borrar el contenido, o —si ya no está pero el evento que
+	// lo dice no lleva autorización válida— sellar el evento que sí la lleva. En los dos
+	// casos hace falta la autorización, y se comprueba antes de abrir el vault.
+	through := afectados[len(afectados)-1]
+	if *autorizacion == "" {
+		return usageErr("suprimir exige la autorización de la clave de supresión (ADR-032). Quien la custodia\n"+
+			"  la firma en su equipo, con su copia de la política y sus tarjetas:\n\n"+
+			"    %s\n\n"+
+			"  y te da una línea, que no es secreta. Vuelve a ejecutar esta orden con\n"+
+			"  --authorization <esa línea>. No se ha borrado nada.",
+			ordenAutorizar(pf.file.v, h, through))
+	}
+	cubre, err := erasure.VerifyCID(auth.Key, auth.Origin, h, *autorizacion)
+	if err != nil {
+		return usageErr("esa autorización no sirve para este contenido: %v\n"+
+			"  No se ha borrado nada. La orden que tiene que ejecutar la custodia es:\n\n    %s",
+			err, ordenAutorizar(pf.file.v, h, through))
+	}
+	if cubre != through {
+		return usageErr("la autorización llega hasta el bloque %d, y el último bloque con ese contenido es el %d:\n"+
+			"  si el contenido se volvió a sellar después de autorizarlo, la autorización no cubre la\n"+
+			"  copia nueva. No se ha borrado nada. Pide una autorización nueva:\n\n    %s",
+			cubre, through, ordenAutorizar(pf.file.v, h, through))
+	}
+
+	v, id, err := e.unlock(s, *passFile, "Passphrase del vault: ")
 	if err != nil {
 		return err
 	}
@@ -153,8 +195,9 @@ func cmdErase(e *env, args []string) error {
 			return err
 		}
 		// El evento va a nombre del mismo tenant que el registro, y sin copia del
-		// contenido: no hace falta, se reconstruye a partir del hash (ADR-031 §C).
-		hd, err := ledger.NewHeader(prev, b.Header.Tenant, erasure.Type, payload, "none://", id.TenantPublic(), now())
+		// contenido: no hace falta, se reconstruye a partir del hash (ADR-031 §C). Su
+		// payload_cid lleva la autorización, que es lo que hace que cuente (ADR-032).
+		hd, err := ledger.NewHeader(prev, b.Header.Tenant, erasure.Type, payload, *autorizacion, id.TenantPublic(), now())
 		if err != nil {
 			return usageErr("%v", err)
 		}
@@ -218,6 +261,7 @@ func cmdErase(e *env, args []string) error {
 		e.printf("  no el contenido. Las copias de seguridad del ledger hechas antes de hoy aún\n")
 		e.printf("  lo contienen, cifrado: destrúyelas o déjalas fuera del alcance de quien tenga\n")
 		e.printf("  la passphrase. El registro en tu propio sistema lo suprimes tú.\n")
+		e.printf("\n  reconcile lo informa como suprimido con una política que traiga esta erasureKey.\n")
 		e.printf("\n  Ejecuta `nucleo sync` para que un testigo vea el evento.\n")
 		if st.Stale {
 			printFreshness(e, st)
@@ -237,50 +281,6 @@ func avisaWAL(e *env, walVacio bool) {
 		"  Vuelve a ejecutar esta misma orden cuando no haya otro proceso usando el ledger.\n", e.dbPath())
 }
 
-// abreConTarjetas abre el vault con dos tarjetas SLIP-0039 —las que reconstruyen la KEK,
-// como en restore— y carga la identidad (ADR-031, enmienda).
-//
-// Las tarjetas solo se aceptan tecleadas en una consola: no hay bandera de fichero, y
-// una entrada que no es un terminal se rechaza. No es la frontera de seguridad —quien
-// tenga las tarjetas puede simular una consola—; la frontera es que las tarjetas no
-// estén en el servidor. Esto evita que nadie las deje en un fichero junto a la
-// passphrase para automatizar lo que no debe automatizarse.
-func abreConTarjetas(e *env, s *store.Store) (*vault.Vault, *identity.Identity, error) {
-	cards, ok := hookCards()
-	if !ok {
-		if !term.IsTerminal(int(os.Stdin.Fd())) {
-			return nil, nil, usageErr("erase pide dos tarjetas de respaldo tecleadas en una consola, y aquí no hay\n" +
-				"  consola. Ejecútalo desde un terminal interactivo, con las tarjetas a mano.\n" +
-				"  No se aceptan de un fichero ni por una tubería (ADR-031, enmienda).")
-		}
-		fmt.Fprintln(e.stderr, "Suprimir exige dos tarjetas de respaldo SLIP-0039.")
-		var err error
-		cards, err = readShares(e, "")
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	kek, err := vault.RestoreKEK(cards)
-	if err != nil {
-		return nil, nil, usageErr("no se pudo reconstruir la clave con esas tarjetas: %v", err)
-	}
-	defer vault.Wipe(kek)
-	v, err := vault.UnlockKEK(s, kek)
-	if errors.Is(err, vault.ErrUnwrap) {
-		return nil, nil, verifyErr("las tarjetas reconstruyen una clave, pero NO es la de este vault, o son tarjetas\n" +
-			"  de antes de un cambio de passphrase: esas quedaron sin valor (ADR-029)")
-	}
-	if err != nil {
-		return nil, nil, usageErr("no se pudo abrir el vault: %v", err)
-	}
-	id, err := identity.Load(v, s)
-	if err != nil {
-		v.Close()
-		return nil, nil, err
-	}
-	return v, id, nil
-}
-
 // existe convierte el resultado de una lectura en «está» o «no está».
 func existe[T any](_ T, err error) (bool, error) {
 	if errors.Is(err, store.ErrNotFound) {
@@ -289,9 +289,32 @@ func existe[T any](_ T, err error) (bool, error) {
 	return err == nil, err
 }
 
-// eventoDeSupresion devuelve el primer evento posterior al bloque desde que suprime el
-// contenido h, o nil.
-func eventoDeSupresion(s *store.Store, h string, desde uint64) (*ledger.Block, error) {
+// eventoDeSupresion devuelve el primer evento AUTORIZADO posterior al bloque desde que
+// suprime el contenido h y llega hasta ese bloque, o nil. Un evento sin autorización
+// válida no cuenta (ADR-032): no es una supresión hecha, es un hallazgo.
+func eventoDeSupresion(s *store.Store, auth erasure.Authority, h string, desde uint64) (*ledger.Block, error) {
+	eventos, err := eventosDe(s, h, desde)
+	if err != nil {
+		return nil, err
+	}
+	for _, ev := range eventos {
+		if through, err := auth.Check(ev, h); err == nil && through >= desde {
+			return ev, nil
+		}
+	}
+	return nil, nil
+}
+
+// hayEventoSinAutorizar dice si después del bloque desde hay algún evento de
+// supresión del contenido h, autorizado o no.
+func hayEventoSinAutorizar(s *store.Store, h string, desde uint64) (bool, error) {
+	eventos, err := eventosDe(s, h, desde)
+	return len(eventos) > 0, err
+}
+
+// eventosDe devuelve los eventos de supresión del contenido h posteriores al bloque
+// desde, en orden.
+func eventosDe(s *store.Store, h string, desde uint64) ([]*ledger.Block, error) {
 	eh, err := erasure.EventPayloadHash(h)
 	if err != nil {
 		return nil, err
@@ -300,6 +323,7 @@ func eventoDeSupresion(s *store.Store, h string, desde uint64) (*ledger.Block, e
 	if err != nil {
 		return nil, err
 	}
+	var out []*ledger.Block
 	for _, i := range idx {
 		if i <= desde {
 			continue
@@ -309,10 +333,10 @@ func eventoDeSupresion(s *store.Store, h string, desde uint64) (*ledger.Block, e
 			return nil, err
 		}
 		if b.Header.Type == erasure.Type {
-			return b, nil
+			out = append(out, b)
 		}
 	}
-	return nil, nil
+	return out, nil
 }
 
 // tecleaElHash enseña lo que se va a suprimir y pide teclear el principio del hash.

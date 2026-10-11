@@ -182,8 +182,9 @@ func (e *env) openStoreWith(wp *store.WitnessPolicy) (*store.Store, store.OpenRe
 		s.Close()
 		return nil, store.OpenResult{}, usageErr("la erasureKey de la política es la clave que firma los bloques de este ledger,\n" +
 			"  que la passphrase abre: con ella, quien controle el servidor podría autorizar sus\n" +
-			"  propias supresiones. La clave de supresión es otra, que no está en el servidor;\n" +
-			"  su clave pública es la que va en la política (ADR-032)")
+			"  propias supresiones. La clave de supresión es otra, que no está en el servidor: se\n" +
+			"  genera fuera de él con `nucleo erasure-key init`, y su clave pública es la que va\n" +
+			"  en la política (ADR-032)")
 	}
 	return s, res, nil
 }

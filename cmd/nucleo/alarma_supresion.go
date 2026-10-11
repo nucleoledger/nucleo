@@ -13,8 +13,8 @@ import (
 
 // La alarma de supresión (ADR-031, enmienda del Sprint 18).
 //
-// Una supresión es destructiva y excepcional, y aunque exija dos tarjetas, alguien
-// tiene que enterarse de cada una. Así que cada supresión deja una alarma con el
+// Una supresión es destructiva y excepcional, y aunque exija la autorización de la
+// clave de supresión (ADR-032), alguien tiene que enterarse de cada una. Así que cada supresión deja una alarma con el
 // mecanismo de ADR-028 —viaja en el JSON de cada comando y la recogen los hooks de los
 // SDK— que solo se calla cuando alguien la reconoce con `nucleo alert ack`.
 //
@@ -23,6 +23,10 @@ import (
 // log_state está abierto. Borrar la tabla de reconocimientos, o la de detalles, no
 // esconde ninguna supresión: la vuelve a abrir. Lo único que la cierra es un `alert ack`
 // —que no pide passphrase, como en ADR-028: ver el límite en GARANTIAS—.
+//
+// La alarma se abre por TODO evento, autorizado o no: avisa, no decide. Lo que decide
+// si una supresión cuenta es la reconciliación con la erasureKey de la política, y eso
+// no lo cierra un `alert ack` (ADR-032 §G).
 
 // Claves de log_state de la alarma de supresión. Van por el HASH del evento y no por su
 // índice: un reconocimiento escrito por adelantado para un índice futuro no podría
@@ -90,8 +94,9 @@ func alarmaDeSupresion(e *env, s *store.Store) alertaSupresion {
 	}
 	if len(out.Abiertas) > 0 {
 		fmt.Fprintf(e.stderr, "⚠ %d supresión(es) de contenido sin reconocer (la última, en el bloque %d).\n"+
-			"  Alguien con dos tarjetas de respaldo suprimió contenido de este ledger. Si fue\n"+
-			"  legítimo, `nucleo alert ack` lo deja reconocido; si nadie sabe nada, es un incidente.\n",
+			"  Se selló una supresión de contenido en este ledger. `nucleo reconcile` con la política\n"+
+			"  dice si la autorizó la clave de supresión. Si fue legítima, `nucleo alert ack` la deja\n"+
+			"  reconocida; si nadie sabe nada, es un incidente.\n",
 			len(out.Abiertas), out.Abiertas[len(out.Abiertas)-1].Evento.Header.Index)
 	}
 	return out

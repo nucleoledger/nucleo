@@ -139,12 +139,21 @@ extra.
 Para verla sin esperar tres días: `NUCLEO_STALE_AFTER=30s npm start` con el testigo
 parado, emite una factura y espera medio minuto. La demo lo recorre en su paso 9.
 
-Las **supresiones** de contenido (`nucleo erase`, que exige dos tarjetas de respaldo
-tecleadas en una consola; [ADR-031](../../docs/adr/ADR-031-supresion.md) y su enmienda) tienen
-su propio hook, **`onErasure`**, con la misma semántica: en cada operación hasta que alguien
-las reconoce con `reconoceAlarma()`. La demo hace una supresión de verdad en su paso 10 —con
-las tarjetas de juguete y `script`, de util-linux, para simular la consola—, comprueba que el
-fichero de la passphrase no basta, y recoge la alarma con el hook.
+Las **supresiones** de contenido (`nucleo erase`, que exige la autorización de la **clave de
+supresión**, una clave que no está en el servidor y cuya pública va en la política como
+`erasureKey`; [ADR-031](../../docs/adr/ADR-031-supresion.md) y
+[ADR-032](../../docs/adr/ADR-032-autoridad-de-supresion.md)) tienen su propio hook,
+**`onErasure`**, con la misma semántica: en cada operación hasta que alguien las reconoce con
+`reconoceAlarma()`. La demo hace una supresión de verdad en su paso 10: comprueba que el
+fichero de la passphrase no basta, genera una clave de supresión de juguete
+(`datos/tarjetas-supresion-DE-JUGUETE.txt`), deja que `erase` diga qué autorización pedir,
+ejecuta esa orden —con `script`, de util-linux, para simular la consola donde la custodia
+teclea sus tarjetas—, suprime con la autorización y recoge la alarma con el hook.
+
+La política con `erasureKey` es la de quien **reconcilia** (`datos/politica-supresion.json`).
+El verificador de recibos del ejemplo sigue con la de siempre: la contraparte no necesita esa
+clave, y la versión de `@nucleoledger/verify` que fija el ejemplo es anterior a ADR-032 y
+rechazaría el miembro como desconocido.
 
 ## Manejo de errores
 

@@ -116,18 +116,21 @@ func syncErr(format string, args ...any) *exitError {
 
 // commands es la tabla de subcomandos.
 var commands = map[string]func(*env, []string) error{
-	"init":      cmdInit,
-	"status":    cmdStatus,
-	"verify":    cmdVerify,
-	"seal":      cmdSeal,
-	"erase":     cmdErase,
-	"receipt":   cmdReceipt,
-	"reconcile": cmdReconcile,
-	"sync":      cmdSync,
-	"witness":   cmdWitness,
-	"backup":    cmdBackup,
-	"restore":   cmdRestore,
-	"alert":     cmdAlert,
+	"init":   cmdInit,
+	"status": cmdStatus,
+	"verify": cmdVerify,
+	"seal":   cmdSeal,
+	"erase":  cmdErase,
+	// erasure-key no abre ningún ledger: se ejecuta en el equipo de quien custodia la
+	// clave de supresión (ADR-032).
+	"erasure-key": cmdErasureKey,
+	"receipt":     cmdReceipt,
+	"reconcile":   cmdReconcile,
+	"sync":        cmdSync,
+	"witness":     cmdWitness,
+	"backup":      cmdBackup,
+	"restore":     cmdRestore,
+	"alert":       cmdAlert,
 }
 
 func main() {

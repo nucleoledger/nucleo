@@ -12,6 +12,8 @@ SUBCOMANDOS
   init        crea el vault y el ledger, y entrega las tarjetas de respaldo
   seal        sella un registro en el ledger
   erase       suprime el contenido de un registro; la cadena no cambia (ADR-031)
+  erasure-key erasure-key init — crea la clave de supresión · erasure-key authorize —
+              autoriza una supresión (ADR-032); fuera del servidor
   status      muestra el estado del ledger y si está atestiguado
   verify      verifica la integridad del ledger  (--full para la exhaustiva)
   receipt     emite el recibo FIRMADO de un bloque para un destinatario
@@ -75,7 +77,7 @@ SUPRIMIR UN REGISTRO
   Cuando el titular de un dato pide que se borre (LOPDP), el contenido se
   suprime y la cadena se queda como está:
 
-    nucleo erase --block 7
+    nucleo erase --block 7 --policy-file politica.json --authorization …
 
   Se borran la copia cifrada del contenido y sus compromisos, de ese bloque y
   de cualquier otro que sellara el mismo contenido, y se sella un evento —tipo
@@ -84,12 +86,23 @@ SUPRIMIR UN REGISTRO
   contenido; y reconcile informa ese registro como suprimido, no como
   desaparecido. No tiene vuelta atrás.
 
-  Exige DOS TARJETAS de respaldo, tecleadas en una consola, y no la
-  passphrase: la passphrase vive en el servidor para sellar, y quien lo
-  comprometa la tiene. Cada supresión abre una alarma que viaja en el JSON
-  de cada comando hasta que alguien la reconoce con «nucleo alert ack».
-  Las copias de seguridad anteriores aún contienen el contenido. Ver ADR-031
-  y su enmienda.
+  Lo que decide si una supresión cuenta no es la passphrase —vive en el
+  servidor para sellar, y quien lo comprometa la tiene—: es la CLAVE DE
+  SUPRESIÓN, que no está en el servidor. La crea, en el equipo de quien la
+  custodia, «nucleo erasure-key init», y su clave pública va en la política
+  como erasureKey. Para cada supresión, la custodia firma una autorización:
+
+    nucleo erasure-key authorize --policy-file politica.json \
+      --payload-hash H --through K
+
+  y erase la comprueba antes de borrar nada y la sella en el evento. erase sin
+  --authorization dice exactamente qué orden hay que pedir. reconcile solo da
+  por suprimido un registro si la autorización verifica con la erasureKey de
+  la política; sin ella, el registro sigue faltando y el evento es un hallazgo.
+
+  Cada supresión abre una alarma que viaja en el JSON de cada comando hasta
+  que alguien la reconoce con «nucleo alert ack». Las copias de seguridad
+  anteriores aún contienen el contenido. Ver ADR-031 y ADR-032.
 
 LÍMITES DE LECTURA
   documento a sellar         64 MiB   (--max-payload para subirlo)

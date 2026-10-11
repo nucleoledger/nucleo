@@ -35,7 +35,7 @@ func cmdReconcile(e *env, args []string) error {
 			"  y el ledger nunca selló.")
 	}
 
-	wp, _, err := pf.resolve(e)
+	wp, pol, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,13 @@ func cmdReconcile(e *env, args []string) error {
 	}
 	defer s.Close()
 
-	rep, err := reconcile.Reconcile(s, jsonlSource(*source), reconcile.Options{IncludeFullVerify: *full})
+	// Una supresión solo cuenta si la autoriza la clave de supresión de la política
+	// (ADR-032). Sin --policy-file, o con una política sin erasureKey, ninguna cuenta.
+	opts := reconcile.Options{IncludeFullVerify: *full}
+	if pol != nil {
+		opts.Erasure.Origin, opts.Erasure.Key = pol.ErasureAuthority()
+	}
+	rep, err := reconcile.Reconcile(s, jsonlSource(*source), opts)
 	if err != nil {
 		return usageErr("%v", err)
 	}
@@ -80,7 +86,7 @@ func cmdReconcile(e *env, args []string) error {
 		data["ok"] = len(rep.Findings) == 0 && (rep.FullVerify == nil || rep.FullVerify.OK)
 		e.printJSON(data)
 	} else {
-		printReport(e, rep)
+		printReport(e, rep, opts.Erasure.Key == nil)
 		e.printf("\n")
 		printAttestation(e, res)
 		printFreshness(e, st)
@@ -138,8 +144,9 @@ func jsonlSource(path string) reconcile.Source {
 	}
 }
 
-// printReport enseña el reporte en español.
-func printReport(e *env, rep *reconcile.Report) {
+// printReport enseña el reporte en español. sinClave dice que no había clave de
+// supresión con la que comprobar las supresiones.
+func printReport(e *env, rep *reconcile.Report, sinClave bool) {
 	e.printf("comparados : %d\n", rep.Checked)
 	e.printf("coinciden  : %d\n", rep.Verified)
 	e.printf("hallazgos  : %d\n", len(rep.Findings))
@@ -155,11 +162,12 @@ func printReport(e *env, rep *reconcile.Report) {
 	}
 	for _, x := range rep.Erased {
 		e.printf("\n")
-		e.printf("  · contenido SUPRIMIDO (ADR-031): no es un hallazgo\n")
+		e.printf("  · contenido SUPRIMIDO con autorización (ADR-031, ADR-032): no es un hallazgo\n")
 		e.printf("      bloque         : %d\n", x.Index)
 		e.printf("      hash sellado   : %s\n", x.SealedHash)
 		e.printf("      suprimido en   : el bloque %d, el %s  (tiempo declarado)\n", x.ErasedBy, x.ErasedAt)
 	}
+	sinAutoridad := false
 	if len(rep.Findings) == 0 {
 		e.printf("\n✔ el sistema vivo coincide con lo sellado en los %d registros comparados\n", rep.Checked)
 		return
@@ -184,7 +192,18 @@ func printReport(e *env, rep *reconcile.Report) {
 			e.printf("  ⚠ REGISTRO VIVO QUE NUNCA SE SELLÓ\n")
 			e.printf("      índice         : %d\n", f.Index)
 			e.printf("      hash actual    : %s\n", f.CurrentHash)
+		case reconcile.StatusUnauthorizedErasure:
+			e.printf("  ✘ SUPRESIÓN SIN AUTORIZACIÓN VÁLIDA (ADR-032)\n")
+			e.printf("      bloque         : %d\n", f.Index)
+			e.printf("      sellado el     : %s  (tiempo declarado)\n", f.SealedAt)
+			e.printf("      motivo         : %s\n", f.Reason)
+			sinAutoridad = sinClave
 		}
+	}
+	if sinAutoridad {
+		e.printf("\n  Sin una política que traiga erasureKey no se puede comprobar ninguna supresión:\n")
+		e.printf("  pasa --policy-file con la política de este log. Si la política no la trae,\n")
+		e.printf("  ninguna supresión cuenta (ADR-032).\n")
 	}
 	e.printf("\n  Núcleo no impidió estos cambios: la base operativa no es suya. Lo que\n")
 	e.printf("  hace es recordar qué decía cada registro cuando se selló, y desde\n")
