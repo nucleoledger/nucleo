@@ -99,14 +99,17 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
 - [ ] **Repetir el ensayo de actualización contra el HEAD final**, justo antes de
       etiquetar: `./scripts/ensayo-actualizacion.sh vX.Y.Z-anterior` (por omisión,
       `v0.3.1-alpha`; `NUCLEO_ENSAYO_SDK` elige la versión del SDK de npm que
-      acompañaba a esa). Descarga el binario publicado, comprueba su sha256 contra
-      `checksums.txt` —y la firma, si está `cosign`— **antes** de ejecutarlo, crea con
-      él un despliegue de verdad y lo lleva al HEAD: apertura con la misma política,
-      sellado, `sync` contra la misma memoria del testigo, una supresión autorizada y
-      los recibos verificados con el SDK publicado y con el del HEAD. No está en
-      `scripts/compuerta.sh` porque necesita red. Sale con 2 si el binario descargado no
-      es el firmado, y con 1 si falla cualquier comprobación. Lo que diga va al
-      apartado de actualización del CHANGELOG.
+      acompañaba a esa). Necesita `cosign` (la versión de `release.yml`): sin él sale
+      con 2 antes de descargar nada. Descarga el binario publicado, comprueba su sha256
+      contra `checksums.txt` y la firma de `checksums.txt` con cosign **antes** de
+      ejecutarlo, crea con él un despliegue de verdad y lo lleva al HEAD: apertura con la
+      misma política, sellado, `sync` contra la misma memoria del testigo, una supresión
+      autorizada y los recibos verificados con el SDK publicado y con el del HEAD. No está
+      en `scripts/compuerta.sh` porque necesita red. Sale con 2 si no puede comprobar, o
+      no cuadra, que el binario descargado es el firmado, y con 1 si falla cualquier
+      comprobación. `NUCLEO_ENSAYO_SIN_FIRMA=1` lo deja seguir sin cosign, y entonces
+      termina en «ENSAYO EN VERDE — SIN FIRMA VERIFICADA»: **eso no vale para este
+      paso**. Lo que diga va al apartado de actualización del CHANGELOG.
 - [ ] `CHANGELOG.md` con la sección de la versión, escrita a mano.
 - [ ] `git status` limpio.
 - [ ] `goreleaser check` sin errores.

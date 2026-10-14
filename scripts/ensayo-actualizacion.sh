@@ -18,12 +18,20 @@
 #   NUCLEO_ENSAYO_SDK=0.3.0-alpha.0 ./scripts/ensayo-actualizacion.sh   # el SDK de npm que
 #                                                     # acompañaba a esa versión
 #
-# Necesita: curl, sha256sum, go, node y npm, python3, openssl, xxd y `script` de
-# util-linux (simula la consola donde la custodia teclea sus tarjetas). cosign, si está,
-# para verificar también la firma de los checksums. Linux, amd64 o arm64.
+# Necesita: curl, sha256sum, go, node y npm, python3, openssl, xxd, `script` de
+# util-linux (simula la consola donde la custodia teclea sus tarjetas) y cosign, que
+# verifica la firma de checksums.txt: sin ella, el sha256 solo dice que el binario es el
+# que nombra un checksums.txt bajado del mismo sitio, no que sea el que se firmó. Linux,
+# amd64 o arm64.
 #
-# Sale con 0 si todo cuadra, con 1 si falla alguna comprobación y con 2 si el binario
-# descargado no es el que se firmó: en ese caso no se ejecuta nada de lo descargado.
+# SIN cosign, el ensayo sale con 2 ANTES de descargar ni extraer nada. La única forma de
+# seguir sin él es NUCLEO_ENSAYO_SIN_FIRMA=1, y entonces el final no dice «ENSAYO EN
+# VERDE» a secas sino «ENSAYO EN VERDE — SIN FIRMA VERIFICADA»: un ensayo así no vale
+# para el ritual de RELEASING.
+#
+# Sale con 0 si todo cuadra, con 1 si falla alguna comprobación y con 2 si no se puede
+# comprobar, o no cuadra, que el binario descargado es el que se firmó: en ese caso no se
+# ejecuta nada de lo descargado.
 set -euo pipefail
 
 VERSION="${1:-v0.3.1-alpha}"
@@ -77,6 +85,19 @@ for orden in curl sha256sum go node npm python3 openssl xxd script; do
 		exit 1
 	}
 done
+# La firma, antes de descargar nada (H4 de la revisión del 2026-10-11: sin cosign, el
+# ensayo avisaba y ejecutaba igual el binario descargado).
+SIN_FIRMA=0
+if ! command -v cosign >/dev/null; then
+	if [ "${NUCLEO_ENSAYO_SIN_FIRMA:-}" != 1 ]; then
+		echo "✘ falta \`cosign\`: sin él no se comprueba que el binario de $VERSION sea el que se" >&2
+		echo "  firmó, y no se descarga ni se ejecuta nada. La versión que usa el release está en" >&2
+		echo "  .github/workflows/release.yml (cosign-release). Para ensayar SIN verificar la firma," >&2
+		echo "  y que el resultado lo diga: NUCLEO_ENSAYO_SIN_FIRMA=1 $0${*:+ $*}" >&2
+		exit 2
+	fi
+	SIN_FIRMA=1
+fi
 case "$(uname -s)/$(uname -m)" in
 Linux/x86_64) PLAT=linux_amd64 ;;
 Linux/aarch64 | Linux/arm64) PLAT=linux_arm64 ;;
@@ -108,7 +129,7 @@ if ! (cd "$T/descarga" && grep "  $ARCHIVO\$" checksums.txt | sha256sum -c --qui
 	exit 2
 fi
 ok "sha256 de $ARCHIVO igual al de checksums.txt"
-if command -v cosign >/dev/null; then
+if [ "$SIN_FIRMA" = 0 ]; then
 	# La identidad EXACTA: el workflow release.yml sobre el tag de esta versión
 	# (docs/RELEASING.md, «Verificación en un solo comando»).
 	ID="$REPO/.github/workflows/release.yml@refs/tags/$VERSION"
@@ -127,7 +148,8 @@ if command -v cosign >/dev/null; then
 	fi
 	ok "firma de checksums.txt verificada con cosign (release.yml@refs/tags/$VERSION)"
 else
-	printf '   ⚠ cosign no está: la FIRMA de checksums.txt no se ha verificado, solo el sha256\n'
+	printf '   ⚠ NUCLEO_ENSAYO_SIN_FIRMA=1 y sin cosign: la FIRMA de checksums.txt NO se ha\n'
+	printf '     verificado, solo el sha256 contra un checksums.txt del mismo sitio\n'
 fi
 tar -xzf "$T/descarga/$ARCHIVO" -C "$T/viejo"
 VIEJO="$T/viejo/nucleo"
@@ -326,7 +348,10 @@ openssl pkeyutl -verify -rawin -pubin -inkey "$T/erasure.pem" -in "$T/digest.bin
 	mal "la firma de la autorización no verifica con openssl"
 
 echo
-if [ "$fallos" -eq 0 ]; then
+if [ "$fallos" -eq 0 ] && [ "$SIN_FIRMA" = 1 ]; then
+	echo "✔ ENSAYO EN VERDE — SIN FIRMA VERIFICADA: $VERSION → HEAD"
+	echo "  (sin cosign, NUCLEO_ENSAYO_SIN_FIRMA=1: no vale para el ritual de RELEASING)"
+elif [ "$fallos" -eq 0 ]; then
 	echo "✔ ENSAYO EN VERDE: $VERSION → HEAD"
 else
 	echo "✘ ENSAYO EN ROJO: $fallos comprobaciones fallaron"
