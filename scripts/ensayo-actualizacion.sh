@@ -167,9 +167,11 @@ SDK_PUBLICADO="$T/npm/node_modules/@nucleoledger/verify/dist/index.js"
 	echo "no se pudo instalar @nucleoledger/verify@$SDK_VIEJO de npm" >&2
 	exit 1
 }
-(cd "$T/npm" && npm audit signatures 2>&1 | grep -q "verified attestation") &&
-	ok "@nucleoledger/verify@$SDK_VIEJO de npm, con su atestación" ||
+if (cd "$T/npm" && npm audit signatures 2>&1 | grep -q "verified attestation"); then
+	ok "@nucleoledger/verify@$SDK_VIEJO de npm, con su atestación"
+else
 	mal "@nucleoledger/verify@$SDK_VIEJO sin atestación verificada"
+fi
 # El SDK del HEAD se compila FUERA del repositorio, para no tocar su dist/.
 (cd "$RAIZ/sdk/ts" && { [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null; } && npx tsc -p tsconfig.json --outDir "$T/sdk-head")
 SDK_HEAD="$T/sdk-head/index.js"
@@ -246,9 +248,11 @@ para
 # ---------------------------------------------------------------------------------
 titulo "4. El HEAD sobre el mismo despliegue"
 "$NUEVO" --dir "$E" --json status --policy-file "$T/politica-vieja.json" >"$T/st.json" 2>/dev/null || true
-[ "$(campo "['attestation']" <"$T/st.json")" = verified ] &&
-	ok "status con la política de $VERSION: attestation verified" ||
+if [ "$(campo "['attestation']" <"$T/st.json")" = verified ]; then
+	ok "status con la política de $VERSION: attestation verified"
+else
 	mal "status con la política de $VERSION no da verified"
+fi
 exige "verify --full" 0 "$NUEVO" --dir "$E" verify --full
 nuevo_doc venta 003 d2
 exige "seal con el HEAD" 0 "$NUEVO" --dir "$E" seal --tenant "$TEN" --type sri.factura.v1 --payload "$T/d2.json" "${P[@]}"
@@ -270,9 +274,11 @@ json.dump(p, open(T + "/politica.json", "w"))
 open(T + "/tarjetas", "w").write("\n".join(k["shares"][:2]) + "\n\n")
 EOF
 "$NUEVO" --dir "$E" --json status --policy-file "$T/politica.json" >"$T/st2.json" 2>/dev/null || true
-[ "$(campo "['attestation']" <"$T/st2.json")" = verified ] &&
-	ok "status con la política nueva: attestation verified" ||
+if [ "$(campo "['attestation']" <"$T/st2.json")" = verified ]; then
+	ok "status con la política nueva: attestation verified"
+else
 	mal "status con la política nueva no da verified"
+fi
 exige "recibo del bloque 0 emitido por el HEAD" 0 "$NUEVO" --dir "$E" receipt --block 0 \
 	--recipient "María Pérez" --out "$T/recibo-nuevo.txt" --policy-file "$T/politica.json" "${P[@]}"
 
@@ -281,13 +287,16 @@ titulo "6. Suprimir con autorización un bloque sellado por $VERSION"
 exige "erase sin autorización no borra nada" 1 "$NUEVO" --dir "$E" erase --block 0 \
 	--policy-file "$T/politica.json" "${P[@]}" --assume-confirmed
 ORDEN="$(grep -o 'nucleo erasure-key authorize .*' "$T/ult.err" || true)"
-[ -n "$ORDEN" ] && ok "y dice la orden para la custodia" || mal "erase no dio la orden para la custodia"
+if [ -n "$ORDEN" ]; then ok "y dice la orden para la custodia"; else mal "erase no dio la orden para la custodia"; fi
 # La custodia ejecuta ESA orden, tal cual, y teclea sus tarjetas en una consola: `script`
 # la simula. La salida no se enseña: la consola repite lo tecleado, y son tarjetas.
 script -qec "$(printf '%q --json %s' "$NUEVO" "${ORDEN#nucleo }")" /dev/null <"$T/tarjetas" >"$T/aut.out" 2>&1 || true
 AUT="$(grep -o 'nucleo-erasure-auth@v1:[0-9]*:[0-9a-f]\{128\}' "$T/aut.out" | head -1 || true)"
-[ -n "$AUT" ] && ok "la custodia autoriza con esa orden y dos tarjetas de supresión" ||
+if [ -n "$AUT" ]; then
+	ok "la custodia autoriza con esa orden y dos tarjetas de supresión"
+else
 	mal "erasure-key authorize no dio la autorización"
+fi
 exige "erase con la autorización" 0 "$NUEVO" --dir "$E" erase --block 0 \
 	--policy-file "$T/politica.json" --authorization "$AUT" "${P[@]}" --assume-confirmed
 exige "sync tras suprimir" 0 "$NUEVO" --dir "$E" sync --witness "$URL" --policy-file "$T/politica.json" "${P[@]}"

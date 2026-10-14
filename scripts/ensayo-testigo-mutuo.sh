@@ -103,14 +103,20 @@ titulo "Cada uno sincroniza con el testigo del OTRO"
 chmod 644 "$T/a/politica.json" "$T/b/politica.json"
 for X in a b; do
 	at=$("$N" --dir "$T/$X/ledger" --json status --policy-file "$T/$X/politica.json" | campo "['attestation']")
-	[ "$at" = "verified" ] && ok "$X atestiguado bajo su política ($at)" || mal "$X: attestation=$at"
+	if [ "$at" = "verified" ]; then ok "$X atestiguado bajo su política ($at)"; else mal "$X: attestation=$at"; fi
 done
 
 titulo "La política de cada uno acepta al testigo del otro, y no al propio"
-grep -q testigo.empresa-b.ec "$T/a/politica.json" && ! grep -q testigo.empresa-a.ec "$T/a/politica.json" &&
-	ok "la de A nombra al testigo de B" || mal "la política de A no es la esperada"
-grep -q testigo.empresa-a.ec "$T/b/politica.json" && ! grep -q testigo.empresa-b.ec "$T/b/politica.json" &&
-	ok "la de B nombra al testigo de A" || mal "la política de B no es la esperada"
+if grep -q testigo.empresa-b.ec "$T/a/politica.json" && ! grep -q testigo.empresa-a.ec "$T/a/politica.json"; then
+	ok "la de A nombra al testigo de B"
+else
+	mal "la política de A no es la esperada"
+fi
+if grep -q testigo.empresa-a.ec "$T/b/politica.json" && ! grep -q testigo.empresa-b.ec "$T/b/politica.json"; then
+	ok "la de B nombra al testigo de A"
+else
+	mal "la política de B no es la esperada"
+fi
 # El testigo de B no cosigna a B: su propio log no está en su configuración.
 if "$N" --dir "$T/b/ledger" sync --witness "$URL_B" --witness-name testigo.empresa-b.ec \
 	--witness-key "$KEY_B" --passphrase-file "$T/b/pass" >"$T/b/propio.out" 2>&1; then
@@ -134,12 +140,15 @@ set +e
 out=$("$N" --dir "$T/a/ledger" sync --witness "$URL_B" --policy-file "$T/a/politica.json" --passphrase-file "$T/a/pass" 2>&1)
 code=$?
 set -e
-[ "$code" = 2 ] && ok "el sync de A tras restaurar sale con 2" || mal "el sync de A tras restaurar salió con $code"
-[[ "$out" == *"ROLLBACK LOCAL DETECTADO"* ]] && ok "y dice ROLLBACK LOCAL DETECTADO" || mal "no dice que es un rollback: $out"
+if [ "$code" = 2 ]; then ok "el sync de A tras restaurar sale con 2"; else mal "el sync de A tras restaurar salió con $code"; fi
+if [[ "$out" == *"ROLLBACK LOCAL DETECTADO"* ]]; then ok "y dice ROLLBACK LOCAL DETECTADO"; else mal "no dice que es un rollback: $out"; fi
 st=$("$N" --dir "$T/a/ledger" status --policy-file "$T/a/politica.json" 2>&1 || true)
-[[ "$st" == *"ROLLBACK REGISTRADO"* ]] && ok "status de A sigue diciéndolo: queda constancia en su ledger" ||
+if [[ "$st" == *"ROLLBACK REGISTRADO"* ]]; then
+	ok "status de A sigue diciéndolo: queda constancia en su ledger"
+else
 	mal "status de A no lo recuerda:
 $st"
+fi
 
 titulo "B no se entera de nada de eso"
 echo '{"factura": "b-2"}' >"$T/b/f2.json"

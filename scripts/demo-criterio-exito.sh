@@ -73,7 +73,8 @@ printf '   binario: %s\n' "$NUCLEO"
 # ---------------------------------------------------------------------------
 titulo "init — vault, ledger y tarjetas de respaldo"
 EMPRESA="$TRABAJO/mi-empresa"
-export NUCLEO_TEST_SEED="$(printf '%064d' 7)"
+NUCLEO_TEST_SEED="$(printf '%064d' 7)"
+export NUCLEO_TEST_SEED
 salida_init="$("$NUCLEO" --dir "$EMPRESA" init \
   --origin nucleoledger.com/mi-empresa --assume-confirmed 2>/dev/null)"
 exige "crea el vault y el ledger"        "$salida_init" "vault y ledger creados"
@@ -153,7 +154,8 @@ mkdir -p "$TESTIGO"
 # La clave del log sale de la propia CLI: nadie debería tener que consultar la
 # base de datos con SQL para configurar un testigo.
 LOGPUB="$("$NUCLEO" --dir "$EMPRESA" --json status | python3 -c 'import json,sys; print(json.load(sys.stdin)["log_pubkey"])')"
-export NUCLEO_TEST_SEED="$(printf '%064d' 9)"
+NUCLEO_TEST_SEED="$(printf '%064d' 9)"
+export NUCLEO_TEST_SEED
 WKEY="$("$NUCLEO" witness key --db "$TESTIGO/testigo.db")"
 "$NUCLEO" witness serve \
   --addr 127.0.0.1:18977 --db "$TESTIGO/testigo.db" \
@@ -196,8 +198,12 @@ salida_recibo="$("$NUCLEO" --dir "$EMPRESA" receipt --block 0 \
 exige "emite el recibo"                    "$salida_recibo" "nucleo.org/receipt@v2"
 exige "muestra el tiempo declarado"        "$salida_recibo" "TIEMPO DECLARADO"
 exige "y el demostrable, por separado"     "$salida_recibo" "(atestiguado por testigos)"
-[[ -s "$TRABAJO/recibo.txt" ]] && printf '   ✔ el recibo se guardó en un fichero (%s bytes)\n' \
-  "$(wc -c < "$TRABAJO/recibo.txt")" || { printf '   ✘ no se escribió el recibo\n'; fallos=$((fallos+1)); }
+if [[ -s "$TRABAJO/recibo.txt" ]]; then
+  printf '   ✔ el recibo se guardó en un fichero (%s bytes)\n' "$(wc -c < "$TRABAJO/recibo.txt")"
+else
+  printf '   ✘ no se escribió el recibo\n'
+  fallos=$((fallos+1))
+fi
 
 # ---------------------------------------------------------------------------
 titulo "verificar el recibo con el verificador de TypeScript"
@@ -245,6 +251,9 @@ JS
   # Y la firma del emisor sobre el recibo completo (ADR-015): es la que hace que el
   # nombre del destinatario deje de ser una línea reescribible por cualquiera.
   exige "y la firma del recibo, destinatario incluido" "$salida_ts" "receiptSignatureVerified=true"
+  # SC2001 descartado: el sangrado va al principio de CADA línea, y ${var//…/…} no
+  # tiene ancla de principio de línea; sed sí.
+  # shellcheck disable=SC2001
   printf '   salida del verificador TS:\n%s\n' "$(echo "$salida_ts" | sed 's/^/     /')"
 else
   printf '   ⚠ node o el bundle no están disponibles; se salta la verificación cruzada\n'

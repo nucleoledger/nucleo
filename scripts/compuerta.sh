@@ -23,7 +23,7 @@
 set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$RAIZ"
+cd "$RAIZ" || exit 1
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -127,7 +127,8 @@ ejemplo() {
 	npm_listo examples/erp-node || return 1
 	(
 		cd examples/erp-node || exit 1
-		export NUCLEO_BIN="$TMP/ejemplo/nucleo$(go env GOEXE)"
+		NUCLEO_BIN="$TMP/ejemplo/nucleo$(go env GOEXE)"
+		export NUCLEO_BIN
 		rm -rf datos
 		npm run setup 2>&1 | tee "$TMP/setup.log" || exit 1
 		# setup imprime las RUTAS de la passphrase y de las tarjetas, nunca su contenido.

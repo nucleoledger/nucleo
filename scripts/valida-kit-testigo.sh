@@ -95,8 +95,10 @@ chmod 600 "$T/testigo.json"
 PID=$!
 for _ in $(seq 1 50); do grep -q "escuchando en" "$T/serve.log" 2>/dev/null && break; sleep 0.1; done
 sleep 0.3
-grep -q "logs servidos (2)" "$T/serve.log" && grep -q "logs retirados (1)" "$T/serve.log" ||
-	{ cat "$T/serve.log" >&2; falla "el ejemplo no arranca como dice"; }
+if ! { grep -q "logs servidos (2)" "$T/serve.log" && grep -q "logs retirados (1)" "$T/serve.log"; }; then
+	cat "$T/serve.log" >&2
+	falla "el ejemplo no arranca como dice"
+fi
 echo "   ✔ witness serve --config arranca con el ejemplo: 2 logs servidos, 1 retirado"
 
 echo "✔ deploy/witness/ es válido"
