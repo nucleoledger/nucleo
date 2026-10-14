@@ -185,7 +185,31 @@ bit_de_ejecucion() {
 	return $mal
 }
 
+# lint_shell: shellcheck en la misma versión que el job `scripts` del CI, que la fija
+# en su env.
+# Otra versión puede avisar de otras cosas: el 2026-10-09 un golangci-lint distinto del
+# del CI dio «0 issues» en local y rojo en el CI.
+lint_shell() {
+	local quiere tiene
+	quiere="$(awk '$1 == "SHELLCHECK_VERSION:" {print $2}' .github/workflows/ci.yml)"
+	quiere="${quiere#v}"
+	if ! command -v shellcheck >/dev/null; then
+		echo "no hay shellcheck. Hace falta el $quiere, el del CI: el binario estático de"
+		echo "https://github.com/koalaman/shellcheck/releases/tag/v$quiere, con el sha256 que fija"
+		echo ".github/workflows/ci.yml (SHELLCHECK_SHA256), en un directorio del PATH."
+		return 1
+	fi
+	tiene="$(shellcheck --version | awk '$1 == "version:" {print $2}')"
+	if [ "$tiene" != "$quiere" ]; then
+		echo "shellcheck $tiene, y el CI usa $quiere (.github/workflows/ci.yml, job scripts):"
+		echo "con otra versión, otros avisos. Instala el $quiere."
+		return 1
+	fi
+	shellcheck scripts/*.sh
+}
+
 paso "bit de ejecución de scripts/*.sh" bit_de_ejecucion
+paso "shellcheck de scripts/*.sh" lint_shell
 paso "gofmt" formato
 paso "go vet" go vet ./...
 paso "go vet -tags testhooks" go vet -tags testhooks ./...

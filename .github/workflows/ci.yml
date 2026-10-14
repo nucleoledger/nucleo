@@ -208,14 +208,42 @@ jobs:
       - name: Ensayo del testigo mutuo
         run: ./scripts/ensayo-testigo-mutuo.sh
 
-  # Los scripts de scripts/ (Sprint 20b). La comprobación del tercero (G45): un ledger
-  # recién creado con el binario del HEAD, una supresión autorizada y los dos recibos,
-  # comprobados sin Núcleo con sha256sum y openssl, como dice PROTOCOL §5.1. Sin red: el
-  # testigo escucha en 127.0.0.1.
+  # Los scripts de scripts/ (Sprint 20b). Tres cosas:
+  # - el bit de ejecución en el índice: sin él, un clon en Linux o macOS da «Permission
+  #   denied» (H7 de la revisión del 2026-10-11; en /mnt/c git no ve los permisos);
+  # - shellcheck, en una versión FIJADA y con el sha256 comprobado antes de ejecutarlo,
+  #   nunca -latest ni el que trae la imagen: un shellcheck nuevo con un aviso nuevo
+  #   rompería el CI sin que nadie cambiara nada aquí. scripts/compuerta.sh lee ESTAS
+  #   dos líneas de env para exigir la misma versión en local;
+  # - la comprobación del tercero (G45): un ledger recién creado con el binario del HEAD,
+  #   una supresión autorizada y los dos recibos, comprobados sin Núcleo con sha256sum y
+  #   openssl, como dice PROTOCOL §5.1. Sin red: el testigo escucha en 127.0.0.1.
   scripts:
     runs-on: ubuntu-24.04
+    env:
+      SHELLCHECK_VERSION: v0.11.0
+      # El digest que publica el release de GitHub para el asset .linux.x86_64.tar.xz
+      # (shellcheck no publica un fichero de checksums).
+      SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
     steps:
       - uses: actions/checkout@v7
+      - name: scripts/*.sh con el bit de ejecución en el índice
+        run: |
+          mal=$(git ls-files -s -- 'scripts/*.sh' | awk '$1 != "100755" {print $4}')
+          if [ -n "$mal" ]; then
+            echo "sin el bit de ejecución en el índice; pónselo con git update-index --chmod=+x:"
+            echo "$mal"
+            exit 1
+          fi
+      - name: shellcheck ${{ env.SHELLCHECK_VERSION }}, con el checksum comprobado
+        run: |
+          f="shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSLo "$RUNNER_TEMP/$f" "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/$f"
+          echo "${SHELLCHECK_SHA256}  $RUNNER_TEMP/$f" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP"
+          sc="$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}/shellcheck"
+          "$sc" --version
+          "$sc" scripts/*.sh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod

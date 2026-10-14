@@ -213,7 +213,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 2. cosign y shellcheck en esta máquina, con el checksum comprobado
 - [x] 3. H4: el ensayo exige la firma, o `NUCLEO_ENSAYO_SIN_FIRMA=1` y lo dice
 - [x] 4. G45: `scripts/tercero-supresion.sh`, sin red, en el ensayo, la compuerta y el CI
-- [ ] 5. shellcheck en todos los `scripts/*.sh`, y el job `scripts` del CI
+- [x] 5. shellcheck en todos los `scripts/*.sh`, y el job `scripts` del CI
 - [ ] 6. Cierre: tabla de la revisión, CHANGELOG, notas, compuerta y ensayo con cosign
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
