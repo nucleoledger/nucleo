@@ -242,15 +242,38 @@ func policySnippet(e *env, origin string, logKey, signerKey ed25519.PublicKey, w
 	// copió estas dos líneas tal como salían y la primera falló con
 	// "no hay terminal para pedir la passphrase". Un programa no puede dictar una receta
 	// que él mismo rechaza.
-	e.printf("\n  Y el cron, con ella:\n\n")
-	// En una sola línea: la continuación con «\» es de las shells POSIX, y en cmd no existe.
-	e.printf("    nucleo --dir %s sync --witness URL --policy-file politica.json --passphrase-file %s\n",
-		argShell(e.dir), argShell(rutaPassphraseEjemplo()))
-	e.printf("    nucleo --dir %s status --policy-file politica.json\n\n", argShell(e.dir))
-	e.printf("  `sync` firma un checkpoint, así que necesita la passphrase: en un cron va en\n")
-	e.printf("  un fichero que solo pueda leer su usuario (chmod 0600). `status` no la pide.\n\n")
+	// En Windows no hay cron ni chmod (Sprint 20b, decisión del dev): las mismas órdenes,
+	// para PowerShell y una tarea programada, y el consejo del fichero sin la orden de
+	// POSIX. La receta de schtasks o icacls no se da: no está probada.
+	if runtime.GOOS == "windows" {
+		e.printf("\n  Y las órdenes para una tarea programada, con ella (para PowerShell):\n\n")
+	} else {
+		e.printf("\n  Y el cron, con ella:\n\n")
+	}
+	for _, o := range ordenesProgramadas(e.dir) {
+		e.printf("    %s\n", o)
+	}
+	e.printf("\n")
+	if runtime.GOOS == "windows" {
+		e.printf("  `sync` firma un checkpoint, así que necesita la passphrase: en una tarea\n")
+		e.printf("  programada va en un fichero que solo pueda leer la cuenta que la ejecuta.\n")
+		e.printf("  `status` no la pide.\n\n")
+	} else {
+		e.printf("  `sync` firma un checkpoint, así que necesita la passphrase: en un cron va en\n")
+		e.printf("  un fichero que solo pueda leer su usuario (chmod 0600). `status` no la pide.\n\n")
+	}
 	e.printf("  Es lo mismo que tu contraparte necesita para verificar tus recibos:\n")
 	e.printf("  la misma política, el mismo fichero.\n")
+}
+
+// ordenesProgramadas son las dos órdenes de la receta del cron, listas para pegar.
+// En una sola línea cada una: la continuación con «\» es de las shells POSIX.
+func ordenesProgramadas(dir string) []string {
+	return []string{
+		fmt.Sprintf("nucleo --dir %s sync --witness URL --policy-file politica.json --passphrase-file %s",
+			argShell(dir), argShell(rutaPassphraseEjemplo())),
+		fmt.Sprintf("nucleo --dir %s status --policy-file politica.json", argShell(dir)),
+	}
 }
 
 // rutaPassphraseEjemplo es la ruta de ejemplo del fichero de la passphrase en la receta

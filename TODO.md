@@ -207,6 +207,15 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 6. ADR-033 candidato anotado: la rotación de `erasureKey`
 - [x] 7. Cierre parcial: tabla en la revisión, CHANGELOG, compuerta en verde
 
+## Sprint 20b — PowerShell, el ensayo con firma, shellcheck y el tercero en el CI
+- [x] 1. H2/H3: en Windows, las órdenes impresas son para PowerShell; test con la consola de
+      verdad (powershell.exe, pwsh, sh) y enmienda de ADR-032 §F
+- [ ] 2. cosign y shellcheck en esta máquina, con el checksum comprobado
+- [ ] 3. H4: el ensayo exige la firma, o `NUCLEO_ENSAYO_SIN_FIRMA=1` y lo dice
+- [ ] 4. G45: `scripts/tercero-supresion.sh`, sin red, en el ensayo, la compuerta y el CI
+- [ ] 5. shellcheck en todos los `scripts/*.sh`, y el job `scripts` del CI
+- [ ] 6. Cierre: tabla de la revisión, CHANGELOG, notas, compuerta y ensayo con cosign
+
 ## Cierre de v0.4.0-alpha (lo hace el dev)
 - [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
 - [ ] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de

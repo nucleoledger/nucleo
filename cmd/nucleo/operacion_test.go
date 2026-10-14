@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -431,11 +432,22 @@ func TestLaErgonomiaQueElEnsayoCorrigio(t *testing.T) {
 		out, _ := c3.runWant(t, exitOK, "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
 		// La receta impresa incluía `sync` SIN --passphrase-file, y en un cron eso
 		// falla con "no hay terminal para pedir la passphrase".
-		i := strings.Index(out, "Y el cron")
+		// En Windows no hay cron ni chmod: la receta es para una tarea programada, y no
+		// puede dar un consejo que allí no se puede seguir (Sprint 20b).
+		titulo := "Y el cron"
+		if runtime.GOOS == "windows" {
+			titulo = "tarea programada"
+		}
+		i := strings.Index(out, titulo)
 		if i < 0 {
 			t.Fatalf("sync ya no imprime la receta del cron:\n%s", out)
 		}
 		receta := out[i:]
+		// Sin la ruta del ledger, que es un directorio temporal con el nombre del test.
+		prosa := strings.ReplaceAll(receta, argShell(c3.dir), "DIR")
+		if runtime.GOOS == "windows" && (strings.Contains(prosa, "cron") || strings.Contains(prosa, "chmod")) {
+			t.Errorf("en Windows la receta habla de cron o de chmod, que allí no existen:\n%s", receta)
+		}
 		if !strings.Contains(receta, "--passphrase-file") {
 			t.Errorf("la receta del cron no lleva --passphrase-file, y sin ella falla el primer día:\n%s", receta)
 		}

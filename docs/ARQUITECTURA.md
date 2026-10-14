@@ -438,7 +438,8 @@ sequenceDiagram
    y lo dice.
 4. Comprueba la autorización **antes** de abrir el vault. Sin `--authorization`, no borra nada e
    imprime la orden exacta para la custodia (`cmd/nucleo/erasure_key.go#ordenAutorizar`, con la
-   ruta entrecomillada para la shell de la plataforma: `cmd/nucleo/comillas.go#argShell`). Con
+   ruta entrecomillada para la consola de la plataforma —PowerShell en Windows—:
+   `cmd/nucleo/comillas.go#argShell`). Con
    ella, la verifica con la `erasureKey` (`internal/erasure/autorizacion.go#VerifyCID`) y exige
    que su `through` sea **exactamente** el último bloque con ese contenido: si se volvió a sellar
    después de autorizarlo, la autorización no cubriría la copia nueva, y lo dice.

@@ -276,3 +276,35 @@ lo correcto: no sabría qué hacer con ella.
   falla.
 - Lo que la enmienda de ADR-031 decía de las tarjetas en `erase` (A') queda sustituido por §F.
   ADR-031 se deja como se escribió, con una nota que remite aquí.
+
+## Enmienda 2026-10-13 (Sprint 20b) — §F: en Windows, la orden es para PowerShell
+
+Autorizada por el dev. El texto de arriba se deja como se escribió.
+
+§F promete que `erase` sin autorización imprime «la orden exacta que tiene que ejecutar la
+custodia». En Windows, el Sprint 19b la entrecomillaba con comillas dobles, y la revisión
+externa del 2026-10-11 (H2, H3) mostró que, pegada, podía no ser la orden exacta: dentro de
+comillas dobles PowerShell expande `$HOME` y `` `n ``, y `cmd.exe` expande `%USERNAME%` (y
+`!USERNAME!` con la expansión retardada). Ninguna forma de entrecomillar sirve a la vez para
+las dos consolas.
+
+**Decisión: en Windows, las órdenes impresas son para PowerShell**, la consola por defecto de
+Windows 10/11. `cmd.exe` no se promete: pegada allí, la orden falla a la vista, porque la ruta,
+con las comillas dentro, no existe; y eso es aceptable. En concreto
+(`cmd/nucleo/comillas.go#argShell`):
+
+- Siempre comillas simples, que en PowerShell no expanden nada. Dentro, cada comilla simple
+  se duplica, también las tipográficas que PowerShell trata como tales (U+2018, U+2019,
+  U+201A, U+201B).
+- Antes, `filepath.Clean`, que quita la `\` final de un directorio: PowerShell 5.1 pasa una
+  ruta con espacios entre comillas dobles al programa, y esa `\` escapaba la comilla de cierre.
+- Toda orden impresa empieza por la palabra `nucleo`, sin comillas. Si alguna empezara por
+  una ruta entrecomillada, tendría que ir precedida de `& `, o PowerShell la tomaría por texto.
+- POSIX no cambia.
+- La receta que imprime `sync`, en Windows, es para una tarea programada y no habla de cron ni
+  de `chmod`; no se da la receta de `schtasks` ni de `icacls`, que no está probada.
+
+Lo comprueba la consola de verdad, no un modelo de ella:
+`cmd/nucleo/comillas_shell_test.go#TestLasOrdenesImpresasFuncionanEnLaConsolaDeVerdad` ejecuta
+cada orden con `powershell.exe` (5.1) y `pwsh` (7) en Windows —el CI corre en windows-2025, que
+trae los dos— y con `sh` en POSIX, y comprueba el argv exacto que recibe el programa.

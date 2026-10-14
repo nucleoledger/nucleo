@@ -96,9 +96,11 @@ SUPRIMIR UN REGISTRO
       --payload-hash H --through K
 
   y erase la comprueba antes de borrar nada y la sella en el evento. erase sin
-  --authorization dice exactamente qué orden hay que pedir. reconcile solo da
-  por suprimido un registro si la autorización verifica con la erasureKey de
-  la política; sin ella, el registro sigue faltando y el evento es un hallazgo.
+  --authorization dice exactamente qué orden hay que pedir, lista para pegar
+  en una shell POSIX o, en Windows, en PowerShell (no en cmd). reconcile solo
+  da por suprimido un registro si la autorización verifica con la erasureKey
+  de la política; sin ella, el registro sigue faltando y el evento es un
+  hallazgo.
 
   Cada supresión abre una alarma que viaja en el JSON de cada comando hasta
   que alguien la reconoce con «nucleo alert ack». Las copias de seguridad

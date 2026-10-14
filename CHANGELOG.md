@@ -197,6 +197,17 @@ Kept as it happened, because the second round exists to say it was not enough.
   on stdout from every `--json` invocation in the suite. Found by an AI model's review
   ([report](docs/revision-externa-modelo-20261011.md), versioned verbatim, with where each
   finding was closed).
+- **On Windows, the commands the CLI prints are for PowerShell.** The command `erase` gives
+  the custodian, the cron recipe `sync` prints and the ones in `init`, `backup`, `restore` and
+  the wrong-passphrase message quoted paths with double quotes on Windows, inside which
+  PowerShell expands `$HOME` and `` `n `` and `cmd.exe` expands `%USERNAME%`: pasted, the path
+  could change. Now they always use single quotes, with single quotes —straight or
+  typographic— doubled and a directory's trailing `\` removed (PowerShell 5.1 broke the
+  argument on it). `cmd.exe` is **not** promised: pasted there, the command fails visibly,
+  because the path does not exist. On Windows, the cron recipe is now for a scheduled task and
+  no longer mentions `chmod`. A test runs every printed command in the real console
+  (`powershell.exe` and `pwsh` on Windows, `sh` elsewhere) and checks the exact argv. Found by
+  the same review (H2, H3).
 - **`receipt --out` no longer leaves on disk a receipt that failed its own verification**: it
   verifies first and then writes atomically. Found by an AI model's review of the map
   ([report](docs/revision-externa-modelo-20261010.md), versioned verbatim, with where each

@@ -343,7 +343,8 @@ de supresión (ADR-032), que comprueba **antes** de tocar nada y cuyo `through` 
 exactamente el último bloque con ese contenido. Una política sin `erasureKey`, una autorización
 que falta o que no verifica y un `through` que no es el último son errores de uso
 (`error_class: "usage"`, código 1), y no se borra nada; el de la autorización que falta lleva en `error` la orden exacta que tiene
-que ejecutar la custodia, con la ruta entrecomillada para la shell de esta plataforma. Abre el
+que ejecutar la custodia, con la ruta entrecomillada para la consola de esta plataforma: una
+shell POSIX o, en Windows, PowerShell (comillas simples; `cmd.exe` no se promete). Abre el
 vault con la passphrase, como `seal` (`--passphrase-file` en un cron). En `--json` exige además
 `--assume-confirmed`, que salta la confirmación tecleada del hash. Pedir otra vez un contenido
 ya suprimido con autorización no necesita otra: contesta `already_erased`. Si el contenido ya no

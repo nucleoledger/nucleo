@@ -6,14 +6,13 @@ import (
 	"testing"
 )
 
-// partirOrden parte una orden impresa como la partiría quien la pega en la shell de goos:
-// en POSIX, con comillas simples, dobles y la barra invertida fuera de comillas; en
-// Windows, con las reglas con que un programa parte su línea de órdenes
-// (CommandLineToArgvW, las que sigue Go), donde la barra invertida solo cuenta delante
-// de una comilla.
+// partirOrden parte una orden impresa como la partiría quien la pega en la consola de
+// goos: en POSIX, con comillas simples, dobles y la barra invertida fuera de comillas; en
+// Windows, como PowerShell (comillasPowerShell). Es el modelo, que corre en cualquier
+// plataforma; la shell de verdad la ejecuta comillas_shell_test.go.
 func partirOrden(goos, s string) []string {
 	if goos == "windows" {
-		return partirWindows(s)
+		return partirPowerShell(s)
 	}
 	return partirPOSIX(s)
 }
@@ -62,43 +61,41 @@ func partirPOSIX(s string) []string {
 	return out
 }
 
-func partirWindows(s string) []string {
+// partirPowerShell: palabras separadas por blancos; dentro de comillas simples, nada
+// se expande, y una comilla simple —cualquiera de las cinco que PowerShell reconoce—
+// seguida de otra es la segunda, como carácter. Fuera de comillas solo se esperan
+// palabras sin nada especial, que es lo único que la CLI imprime sin ellas.
+func partirPowerShell(s string) []string {
 	var out []string
 	var cur strings.Builder
-	hay, dentro := false, false
-	for i := 0; i < len(s); i++ {
-		c := s[i]
+	hay := false
+	rs := []rune(s)
+	esComilla := func(r rune) bool { return strings.ContainsRune(comillasSimplesPowerShell, r) }
+	for i := 0; i < len(rs); i++ {
+		r := rs[i]
 		switch {
-		case (c == ' ' || c == '\t') && !dentro:
+		case r == ' ' || r == '\t':
 			if hay {
 				out = append(out, cur.String())
 				cur.Reset()
 				hay = false
 			}
-		case c == '\\':
+		case esComilla(r):
 			hay = true
-			n := 0
-			for i < len(s) && s[i] == '\\' {
-				n++
-				i++
-			}
-			if i < len(s) && s[i] == '"' {
-				cur.WriteString(strings.Repeat(`\`, n/2))
-				if n%2 == 1 {
-					cur.WriteByte('"')
-				} else {
-					dentro = !dentro
+			for i++; i < len(rs); i++ {
+				if esComilla(rs[i]) {
+					if i+1 < len(rs) && esComilla(rs[i+1]) {
+						i++
+						cur.WriteRune(rs[i])
+						continue
+					}
+					break
 				}
-			} else {
-				cur.WriteString(strings.Repeat(`\`, n))
-				i--
+				cur.WriteRune(rs[i])
 			}
-		case c == '"':
-			hay = true
-			dentro = !dentro
 		default:
 			hay = true
-			cur.WriteByte(c)
+			cur.WriteRune(r)
 		}
 	}
 	if hay {
@@ -108,21 +105,25 @@ func partirWindows(s string) []string {
 }
 
 // TestArgShellSobreviveALaShellDeCadaPlataforma: cada argumento, entrecomillado para una
-// plataforma y partido con las reglas de esa plataforma, vuelve tal cual. Las dos
-// plataformas se prueban desde cualquiera; el caso que el CI cazó en windows-2025 —una
-// ruta de Windows con espacios, que se entrecomillaba con comillas simples— va el primero.
+// plataforma y partido con el modelo de su consola, vuelve tal cual. Las dos plataformas
+// se prueban desde cualquiera; la consola de verdad, en comillas_shell_test.go.
 func TestArgShellSobreviveALaShellDeCadaPlataforma(t *testing.T) {
 	casos := map[string][]string{
 		"windows": {
 			`C:\Users\RUNNER~1\AppData\Local\Temp\Test 1\001\politica.json`,
 			`C:\Users\C-SERMIL\Documents\Obsidian Vault\nucleo\politica.json`,
 			`C:\sin\espacios\politica.json`,
-			`C:\termina en barra\`,
-			`C:\dos barras al final\\`,
+			`C:\$HOME\p.json`,
+			"C:\\foo`nbar\\p.json",
+			`C:\%USERNAME%\p.json`,
+			`C:\!USERNAME!\p.json`,
 			`\\servidor\recurso compartido\p.json`,
 			`con'comilla simple`,
+			"con\u2019tipográfica y \u2018las otras\u201a\u201b",
+			"dos seguidas '' y \u2019\u2019",
 			`con"comilla doble`,
 			`a&b|c<d>e^f(g)h;i,j=k!l%m`,
+			`C:\año\ñandú\p.json`,
 			``,
 		},
 		"linux": {
@@ -145,12 +146,12 @@ func TestArgShellSobreviveALaShellDeCadaPlataforma(t *testing.T) {
 			}
 		}
 	}
-	// En Windows, la barra invertida sola no obliga a entrecomillar; en POSIX, sí.
-	if q := argShellPara("windows", `C:\sin\espacios\p.json`); q != `C:\sin\espacios\p.json` {
-		t.Errorf("windows entrecomilla una ruta sin espacios: %s", q)
+	// En Windows, siempre comillas simples, aunque la ruta no lleve nada especial.
+	if q := argShellPara("windows", `C:\sin\espacios\p.json`); q != `'C:\sin\espacios\p.json'` {
+		t.Errorf("windows no entrecomilla una ruta sin espacios: %s", q)
 	}
-	// Y nunca comillas simples en Windows: cmd las deja dentro del argumento.
-	if q := argShellPara("windows", `C:\con espacios\p.json`); strings.Contains(q, "'") {
-		t.Errorf("windows con comillas simples: %s", q)
+	// Y nunca comillas dobles en Windows: dentro de ellas PowerShell expande $ y `.
+	if q := argShellPara("windows", `C:\$HOME\p.json`); strings.Contains(q, `"`) {
+		t.Errorf("windows con comillas dobles: %s", q)
 	}
 }
