@@ -200,6 +200,7 @@ paso "diferencial de los TRES verificadores" diferencial
 paso "criterio de éxito (demo-criterio-exito.sh)" ./scripts/demo-criterio-exito.sh
 paso "testigo mutuo (ensayo-testigo-mutuo.sh)" ./scripts/ensayo-testigo-mutuo.sh
 paso "kit del testigo (valida-kit-testigo.sh)" ./scripts/valida-kit-testigo.sh
+paso "el tercero comprueba una supresión (tercero-supresion.sh)" ./scripts/tercero-supresion.sh
 paso "ejemplo erp-node" ejemplo
 paso "Mermaid de ARQUITECTURA" mermaid
 paso "sin testigos huérfanos" sin_testigos_huerfanos

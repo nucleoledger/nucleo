@@ -7,7 +7,8 @@
 # política, sella y sincroniza contra la misma memoria del testigo; añade la clave de
 # supresión a la política, suprime con autorización un bloque sellado por la versión
 # vieja y reconcilia; verifica los recibos con el SDK publicado y con el del HEAD; y
-# comprueba la supresión como un tercero, con sha256sum y openssl (PROTOCOL §5.1).
+# comprueba la supresión como un tercero, con sha256sum y openssl (PROTOCOL §5.1), con
+# scripts/tercero-supresion.sh.
 #
 # Es el paso del ritual de RELEASING «repetir el ensayo contra el HEAD final antes de
 # etiquetar». No entra en scripts/compuerta.sh porque necesita red: descarga el release
@@ -320,32 +321,11 @@ exige "@nucleoledger/verify@$SDK_VIEJO rechaza la política con erasureKey (lo q
 
 # ---------------------------------------------------------------------------------
 titulo "8. Un tercero comprueba la supresión con sha256sum y openssl (PROTOCOL §5.1)"
-python3 - "$T" <<'EOF' >"$T/tercero.env"
-import json, shlex, sys
-T = sys.argv[1]
-def cabecera(f):
-    return json.loads(open(f).read().split("--- prueba verificable ---\n")[1].split("\n")[0])
-b, e = cabecera(T + "/recibo-tras.txt"), cabecera(T + "/recibo-evento.txt")
-p = json.load(open(T + "/politica.json"))
-_, k, sig = e["payload_cid"].split(":")
-for n, v in (("ORIGIN", p["origin"]), ("H", b["payload_hash"]), ("K", k), ("SIG", sig),
-             ("ERASURE_KEY", p["erasureKey"]), ("BI", b["index"]), ("EI", e["index"]), ("EPH", e["payload_hash"])):
-    print(f"{n}={shlex.quote(str(v))}")
-EOF
-# shellcheck disable=SC1091 # lo escribe el bloque de arriba
-. "$T/tercero.env"
-[ "$BI" -le "$K" ] && [ "$K" -lt "$EI" ] && ok "la autorización cubre el bloque ($BI ≤ $K < $EI)" ||
-	mal "la autorización no cubre el bloque ($BI, $K, $EI)"
-[ "$(printf '{"erased_payload_hash":"%s"}' "$H" | sha256sum | cut -d' ' -f1)" = "$EPH" ] &&
-	ok "el evento suprime el contenido del bloque" || mal "el evento no suprime ese contenido"
-printf 'nucleo.org/erasure-authorization@v1\norigin %s\nerased_payload_hash %s\nthrough %s\n' \
-	"$ORIGIN" "$H" "$K" | sha256sum | cut -d' ' -f1 | xxd -r -p >"$T/digest.bin"
-(printf '302a300506032b6570032100' && printf %s "$ERASURE_KEY") | xxd -r -p |
-	openssl pkey -pubin -inform DER -out "$T/erasure.pem"
-printf %s "$SIG" | xxd -r -p >"$T/sig.bin"
-openssl pkeyutl -verify -rawin -pubin -inkey "$T/erasure.pem" -in "$T/digest.bin" -sigfile "$T/sig.bin" >/dev/null 2>&1 &&
-	ok "la firma de la autorización verifica con openssl y la erasureKey de la política" ||
-	mal "la firma de la autorización no verifica con openssl"
+# La receta es scripts/tercero-supresion.sh, la misma que corren la compuerta y el CI
+# sobre un ledger recién creado; aquí, sobre los recibos de un despliegue que viene de
+# $VERSION.
+"$RAIZ/scripts/tercero-supresion.sh" comprueba "$T/recibo-tras.txt" "$T/recibo-evento.txt" "$T/politica.json" ||
+	mal "la comprobación del tercero falló (scripts/tercero-supresion.sh)"
 
 echo
 if [ "$fallos" -eq 0 ] && [ "$SIN_FIRMA" = 1 ]; then

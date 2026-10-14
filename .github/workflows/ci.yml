@@ -208,6 +208,20 @@ jobs:
       - name: Ensayo del testigo mutuo
         run: ./scripts/ensayo-testigo-mutuo.sh
 
+  # Los scripts de scripts/ (Sprint 20b). La comprobación del tercero (G45): un ledger
+  # recién creado con el binario del HEAD, una supresión autorizada y los dos recibos,
+  # comprobados sin Núcleo con sha256sum y openssl, como dice PROTOCOL §5.1. Sin red: el
+  # testigo escucha en 127.0.0.1.
+  scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Un tercero comprueba una supresión
+        run: ./scripts/tercero-supresion.sh
+
   # El kit del operador del testigo (deploy/witness/): la unidad de systemd con
   # `systemd-analyze verify` —fallando también ante cualquier aviso sobre ella, porque
   # verify sale con 0 aunque una directiva esté mal escrita—, el Caddyfile con `caddy
