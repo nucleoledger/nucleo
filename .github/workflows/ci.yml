@@ -247,6 +247,10 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # La red, aquí y a la vista (H9): el script compila con GOPROXY=off y solo
+      # necesita los módulos en caché.
+      - name: Los módulos de Go, en la caché
+        run: go mod download
       - name: Un tercero comprueba una supresión
         run: ./scripts/tercero-supresion.sh
       - name: El ensayo autentica checksums.txt antes de usarlo (sin red)

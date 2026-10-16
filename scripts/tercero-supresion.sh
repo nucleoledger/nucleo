@@ -8,18 +8,29 @@
 # necesita red y no corre en el CI (G45 decía «sin test automatizado»).
 #
 #   ./scripts/tercero-supresion.sh
-#       compila el HEAD, crea un ledger con una supresión autorizada —testigo en
-#       127.0.0.1, sin red—, emite los dos recibos y los comprueba como un tercero. Y
+#       el modo completo: compila el HEAD, crea un ledger con una supresión autorizada
+#       —testigo en 127.0.0.1—, emite los dos recibos y los comprueba como un tercero. Y
 #       comprueba que la comprobación muerde: con la erasureKey de otra clave, falla.
 #       Lo llaman la compuerta y el CI.
+#
+#   NUCLEO_BIN=<binario ya compilado> ./scripts/tercero-supresion.sh
+#       el modo completo con ese binario, sin compilar (y entonces sin go).
 #
 #   ./scripts/tercero-supresion.sh comprueba RECIBO_BLOQUE RECIBO_EVENTO POLITICA
 #       solo la comprobación del tercero, sobre recibos que ya existen. Lo llama
 #       ensayo-actualizacion.sh con los de un despliegue que viene de un release anterior.
 #
-# Necesita: python3, sha256sum, openssl y xxd; sin argumentos, además go y `script` de
-# util-linux (simula la consola donde la custodia teclea sus tarjetas). Sale con 0 si
-# todo cuadra y con 1 si no.
+# La red (H9 de la revisión del 2026-10-14). «comprueba» no necesita ni Núcleo ni red. El
+# modo completo no abre más conexión que la del testigo en 127.0.0.1, pero compila con go,
+# que en una máquina sin los módulos en la caché los bajaría de GOPROXY: por eso compila
+# con GOPROXY=off y GOFLAGS=-mod=readonly, y si faltan módulos sale con 1 diciendo la
+# orden que los baja (`go mod download`, que SÍ usa red y se ejecuta aparte, a la vista;
+# el job del CI lo hace en un paso propio antes de llamar a este script). Con NUCLEO_BIN
+# no compila y no hace falta ni la caché.
+#
+# Necesita: python3, sha256sum, openssl y xxd; en el modo completo, además `script` de
+# util-linux (simula la consola donde la custodia teclea sus tarjetas) y go con los
+# módulos en caché, o NUCLEO_BIN. Sale con 0 si todo cuadra y con 1 si no.
 #
 # Lo que NO comprueba: que los recibos verifiquen como recibos (eso lo hacen los SDK y la
 # CLI, con sus propios tests y el diferencial de los tres verificadores).
@@ -87,7 +98,9 @@ fi
 	exit 1
 }
 
-for orden in go python3 sha256sum openssl xxd script; do
+necesita=(python3 sha256sum openssl xxd script)
+[ -n "${NUCLEO_BIN:-}" ] || necesita+=(go)
+for orden in "${necesita[@]}"; do
 	command -v "$orden" >/dev/null || {
 		echo "falta \`$orden\`: el script lo necesita (ver su cabecera)" >&2
 		exit 1
@@ -118,8 +131,26 @@ corre() {
 	fi
 }
 
-N="$T/nucleo"
-(cd "$RAIZ" && go build -o "$N" ./cmd/nucleo)
+if [ -n "${NUCLEO_BIN:-}" ]; then
+	[ -x "$NUCLEO_BIN" ] || {
+		echo "NUCLEO_BIN=$NUCLEO_BIN no es un fichero ejecutable" >&2
+		exit 1
+	}
+	N="$NUCLEO_BIN"
+else
+	N="$T/nucleo"
+	# Sin red: solo con los módulos que ya están en la caché, y sin tocar go.mod ni go.sum.
+	if ! (cd "$RAIZ" && GOPROXY=off GOFLAGS=-mod=readonly go build -o "$N" ./cmd/nucleo) 2>"$T/build.err"; then
+		cat "$T/build.err" >&2
+		if grep -q 'GOPROXY=off\|module lookup disabled\|toolchain not available' "$T/build.err"; then
+			echo "✘ faltan módulos (o la toolchain que pide go.mod) en la caché de Go, y este script no usa la red para bajarlos." >&2
+			echo "  Bájalos aparte —eso sí usa red— y repite:" >&2
+			printf '    (cd %q && go mod download)\n' "$RAIZ" >&2
+			echo "  o pásale un binario ya compilado: NUCLEO_BIN=<binario> $0" >&2
+		fi
+		exit 1
+	fi
+fi
 E="$T/emp"
 O=tercero.example/empresa
 printf 'passphrase del tercero, larga de verdad\n' >"$T/pass"

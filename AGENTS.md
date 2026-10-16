@@ -39,7 +39,7 @@ nucleo/
 ├── scripts/                # compuerta.sh (LA compuerta, una orden), demo-criterio-exito.sh,
 │                           # lint.sh (el del CI), ensayo-testigo-mutuo.sh, valida-kit-testigo.sh,
 │                           # ensayo-actualizacion.sh (antes de etiquetar; necesita red)
-│                           # tercero-supresion.sh (G45: el tercero, sin Núcleo ni red)
+│                           # tercero-supresion.sh (G45: «comprueba», sin Núcleo ni red; completo, con módulos en caché)
 │                           # test-ensayo-orden.sh (H8: el orden de las descargas del ensayo, sin red)
 ├── tools/mermaid/          # validador de los Mermaid de ARQUITECTURA (dev, con su lockfile)
 ├── docs/
