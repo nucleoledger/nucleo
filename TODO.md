@@ -225,7 +225,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 4. El ejemplo con una sola política y `@nucleoledger/verify` 0.4.0-alpha.0 de npm
 - [x] 5. El ensayo verifica también con el paquete 0.4.0-alpha.0 del registro
 - [x] 6. Documentación: notas del release, RELEASING, versión de Go en CLAUDE/AGENTS
-- [ ] 7. Cierre: tabla de la revisión, compuerta y ensayo con cosign
+- [x] 7. Cierre: tabla de la revisión, compuerta y ensayo con cosign
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
 - [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI

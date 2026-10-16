@@ -21,6 +21,18 @@ SHA-256 `ffb484b20db14aa27eb3f5ac605b2734edcb27e48e7cf18cabad5fec8978f6e2`, el m
 | **Método** | ejecutó `go test ./...` y `-race`, con y sin `testhooks`, `scripts/lint.sh`, shellcheck, `tercero-supresion.sh`, la compuerta —en rojo solo por los tres pasos de PHP: no había PHP, y el propio informe lo dice— y el ensayo de actualización con cosign y sin él |
 | **Longitud** | 14.827 caracteres, 208 líneas |
 
+## Cierre
+
+Sprint 21 (2026-10-15). Cada hallazgo se contrastó con el código antes de aceptarlo; los tres
+eran ciertos. H10, que el informe da por mejora de cobertura sin defecto, sí tenía uno: al
+ejecutar sus casos en `powershell.exe` 5.1, la raíz UNC con espacio rompía el argv.
+
+| hallazgo | estado | commit | test |
+|---|---|---|---|
+| **H8** — el ensayo usa `checksums.txt` antes de autenticarlo | **cerrado**: `checksums.txt` y su firma → `cosign verify-blob` con la identidad exacta → la línea exacta del tarball en ese manifiesto ya autenticado (si no lo nombra, no se baja) → solo entonces el tarball → `sha256sum -c` → `tar`. Con `NUCLEO_ENSAYO_SIN_FIRMA=1`, el mismo orden sin cosign y con el aviso. `NUCLEO_ENSAYO_SOLO_PASO1=1` corta tras el paso 1 | `ce3ab19` | `scripts/test-ensayo-orden.sh`, sin red, con shims de `curl`, `cosign`, `sha256sum` y `tar` que anotan el orden: cosign antes del tarball y de `sha256sum`; cosign que falla → 2 sin tarball ni `tar`; sin cosign → 2 sin ni un `curl` (H4, que hasta ahora no tenía test); con la variable, sigue y avisa. Contra el script anterior, falla en tres de los cuatro casos. Lo corren la compuerta y el job `scripts` del CI. Y el ensayo completo con cosign v2.5.2, en verde |
+| **H9** — `tercero-supresion.sh` puede usar la red al compilar | **cerrado**: el modo completo compila con `GOPROXY=off` y `GOFLAGS=-mod=readonly`; si faltan módulos —o la toolchain de `go.mod`— sale con 1 y dice `go mod download`, que se corre aparte; `NUCLEO_BIN` evita compilar. El job `scripts` del CI baja los módulos en un paso propio, antes. Cabecera y G45 precisos | `d02c0fb` | el camino normal, el propio script en la compuerta y el CI. **Sin test automatizado** del camino sin caché: comprobado a mano con un `GOMODCACHE` vacío —sale con el mensaje; tras `go mod download` con esa caché, pasa— y con `NUCLEO_BIN` y sin `go` en el PATH |
+| **H10** — los bordes de Windows de `filepath.Clean`, sin test de consola | **cerrado, con un arreglo**: la rama Windows de `rutasConTrampa` gana `C:`, `\\servidor\mi recurso\`, `.\x` y componentes que acaban en espacio y en punto. Con la raíz UNC, PowerShell 5.1 partía el argv de las seis órdenes: `Clean` conserva la `\` final de una raíz y esa `\` escapaba la comilla de cierre. `rutaWindowsParaImprimir` le añade un `.` (el mismo directorio). G46 y CHANGELOG lo dicen; **la enmienda de ADR-032 §F sigue diciendo solo `filepath.Clean`** —los ADR no los toca el agente—: queda para el dev | `9b87ca5` | `cmd/nucleo/comillas_shell_test.go#TestLasOrdenesImpresasFuncionanEnLaConsolaDeVerdad` (ejecutado aquí con el binario de tests de Windows desde WSL y `powershell.exe` 5.1: 108 órdenes; `pwsh` no está en esta máquina, en el CI lo corren los dos) y `#TestRutaWindowsParaImprimir`, con los valores escritos a mano |
+
 FIN DEL PREÁMBULO
 
 ---
