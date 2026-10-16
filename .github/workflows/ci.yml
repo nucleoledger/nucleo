@@ -249,6 +249,8 @@ jobs:
           go-version-file: go.mod
       - name: Un tercero comprueba una supresión
         run: ./scripts/tercero-supresion.sh
+      - name: El ensayo autentica checksums.txt antes de usarlo (sin red)
+        run: ./scripts/test-ensayo-orden.sh
 
   # El kit del operador del testigo (deploy/witness/): la unidad de systemd con
   # `systemd-analyze verify` —fallando también ante cualquier aviso sobre ella, porque

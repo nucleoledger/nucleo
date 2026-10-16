@@ -100,9 +100,10 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
       etiquetar: `./scripts/ensayo-actualizacion.sh vX.Y.Z-anterior` (por omisión,
       `v0.3.1-alpha`; `NUCLEO_ENSAYO_SDK` elige la versión del SDK de npm que
       acompañaba a esa). Necesita `cosign` (la versión de `release.yml`): sin él sale
-      con 2 antes de descargar nada. Descarga el binario publicado, comprueba su sha256
-      contra `checksums.txt` y la firma de `checksums.txt` con cosign **antes** de
-      ejecutarlo, crea con él un despliegue de verdad y lo lleva al HEAD: apertura con la
+      con 2 antes de descargar nada. Baja primero `checksums.txt` y su firma, la verifica con
+      cosign, y **solo entonces** baja el binario publicado y comprueba su sha256 contra
+      ese manifiesto ya autenticado, antes de ejecutarlo (el orden lo fija
+      `scripts/test-ensayo-orden.sh`, sin red); crea con él un despliegue de verdad y lo lleva al HEAD: apertura con la
       misma política, sellado, `sync` contra la misma memoria del testigo, una supresión
       autorizada y los recibos verificados con el SDK publicado y con el del HEAD. No está
       en `scripts/compuerta.sh` porque necesita red. Sale con 2 si no puede comprobar, o

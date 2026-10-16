@@ -30,6 +30,12 @@
 # VERDE» a secas sino «ENSAYO EN VERDE — SIN FIRMA VERIFICADA»: un ensayo así no vale
 # para el ritual de RELEASING.
 #
+# El orden del paso 1 (H8): checksums.txt y su firma → cosign verify-blob → el tarball →
+# su línea exacta y sha256sum -c contra el manifiesto ya autenticado → tar.
+#
+# NUCLEO_ENSAYO_SOLO_PASO1=1 termina con 0 al acabar el paso 1, sin ejecutar nada de lo
+# descargado: lo usa scripts/test-ensayo-orden.sh, que comprueba ese orden sin red.
+#
 # Sale con 0 si todo cuadra, con 1 si falla alguna comprobación y con 2 si no se puede
 # comprobar, o no cuadra, que el binario descargado es el que se firmó: en ese caso no se
 # ejecuta nada de lo descargado.
@@ -114,22 +120,11 @@ VER="${VERSION#v}"
 ARCHIVO="nucleo_${VER}_${PLAT}.tar.gz"
 BASE="$REPO/releases/download/$VERSION"
 mkdir -p "$T/descarga" "$T/viejo"
-(
-	cd "$T/descarga"
-	curl -fsSLO "$BASE/$ARCHIVO"
-	curl -fsSLO "$BASE/checksums.txt"
-)
-# La línea del archivo, exacta: sin ella, sha256sum --ignore-missing daría por bueno un
-# checksums.txt que no lo nombra.
-if ! grep -q "  $ARCHIVO\$" "$T/descarga/checksums.txt"; then
-	echo "✘ checksums.txt de $VERSION no nombra $ARCHIVO: no se ejecuta nada" >&2
-	exit 2
-fi
-if ! (cd "$T/descarga" && grep "  $ARCHIVO\$" checksums.txt | sha256sum -c --quiet -); then
-	echo "✘ el sha256 de $ARCHIVO no es el de checksums.txt: no se ejecuta nada" >&2
-	exit 2
-fi
-ok "sha256 de $ARCHIVO igual al de checksums.txt"
+# El orden es la garantía (H8 de la revisión del 2026-10-14): primero checksums.txt y su
+# firma; cosign autentica el manifiesto; SOLO entonces se baja el tarball y se contrasta
+# con un manifiesto ya autenticado. Antes, sha256sum usaba un checksums.txt sin
+# autenticar. scripts/test-ensayo-orden.sh fija este orden sin red.
+(cd "$T/descarga" && curl -fsSLO "$BASE/checksums.txt")
 if [ "$SIN_FIRMA" = 0 ]; then
 	# La identidad EXACTA: el workflow release.yml sobre el tag de esta versión
 	# (docs/RELEASING.md, «Verificación en un solo comando»).
@@ -143,7 +138,7 @@ if [ "$SIN_FIRMA" = 0 ]; then
 	fi
 	if ! cosign verify-blob "$T/descarga/checksums.txt" "${firma[@]}" \
 		--certificate-identity "$ID" --certificate-oidc-issuer "$ISSUER" >"$T/cosign.log" 2>&1; then
-		echo "✘ la firma de checksums.txt no verifica con la identidad $ID: no se ejecuta nada" >&2
+		echo "✘ la firma de checksums.txt no verifica con la identidad $ID: no se descarga ni se ejecuta nada más" >&2
 		cat "$T/cosign.log" >&2
 		exit 2
 	fi
@@ -152,9 +147,26 @@ else
 	printf '   ⚠ NUCLEO_ENSAYO_SIN_FIRMA=1 y sin cosign: la FIRMA de checksums.txt NO se ha\n'
 	printf '     verificado, solo el sha256 contra un checksums.txt del mismo sitio\n'
 fi
+# La línea del archivo, exacta: sin ella, sha256sum --ignore-missing daría por bueno un
+# checksums.txt que no lo nombra. Se mira antes de bajar el tarball: si no lo nombra, no
+# hay nada que bajar.
+if ! grep -q "  $ARCHIVO\$" "$T/descarga/checksums.txt"; then
+	echo "✘ checksums.txt de $VERSION no nombra $ARCHIVO: no se descarga ni se ejecuta nada" >&2
+	exit 2
+fi
+(cd "$T/descarga" && curl -fsSLO "$BASE/$ARCHIVO")
+if ! (cd "$T/descarga" && grep "  $ARCHIVO\$" checksums.txt | sha256sum -c --quiet -); then
+	echo "✘ el sha256 de $ARCHIVO no es el de checksums.txt: no se ejecuta nada" >&2
+	exit 2
+fi
+ok "sha256 de $ARCHIVO igual al de checksums.txt"
 tar -xzf "$T/descarga/$ARCHIVO" -C "$T/viejo"
 VIEJO="$T/viejo/nucleo"
 printf '   binario publicado: %s  (%s)\n' "$(sha256sum "$VIEJO" | cut -c1-16)…" "$VERSION"
+if [ "${NUCLEO_ENSAYO_SOLO_PASO1:-}" = 1 ]; then
+	echo "NUCLEO_ENSAYO_SOLO_PASO1=1: termina tras el paso 1, sin ejecutar lo descargado"
+	exit 0
+fi
 
 titulo "2. El HEAD, y los dos SDK"
 NUEVO="$T/nuevo"
