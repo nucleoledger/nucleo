@@ -632,6 +632,12 @@ las prereleases se publican con su propio tag y `latest` queda para las estables
 - Que un recibo recién emitido por el binario verifica con el paquete **del
   registro** (`npm pack @nucleoledger/verify@<versión>`, no el build local).
 
+Y se apunta aquí, con su evidencia:
+
+| versión | tag | commit del tag | dist-tags | `npm audit signatures` | fecha |
+|---|---|---|---|---|---|
+| `0.4.0-alpha.0` | `vsdk-0.4.0-alpha.0` | `ec21632` | `latest` y `alpha` | «1 package has a verified registry signature» y «1 package has a verified attestation» | 2026-10-15 |
+
 ### Si el workflow falla
 
 No se publica nada y el tag se borra sin daño:

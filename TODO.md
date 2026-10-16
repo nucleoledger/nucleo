@@ -224,13 +224,20 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. H10: los bordes de Windows en el test de la consola de verdad
 - [x] 4. El ejemplo con una sola política y `@nucleoledger/verify` 0.4.0-alpha.0 de npm
 - [x] 5. El ensayo verifica también con el paquete 0.4.0-alpha.0 del registro
-- [ ] 6. Documentación: notas del release, RELEASING, versión de Go en CLAUDE/AGENTS
+- [x] 6. Documentación: notas del release, RELEASING, versión de Go en CLAUDE/AGENTS
 - [ ] 7. Cierre: tabla de la revisión, compuerta y ensayo con cosign
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
 - [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
 - [ ] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de
       `docs/releases/v0.4.0-alpha.md` y la tabla de RELEASING
+
+## Después del release de v0.4.0-alpha
+- [ ] G46: las cuatro órdenes que `comillas_shell_test.go` reconstruye con `printf` (`init` y
+      el ledger que no existe en `env.go`, `restore --new-passphrase` en `env.go` y
+      `backup.go`, `backup` en `init.go`), capturarlas de la salida real de la CLI
+- [ ] `release.yml`: `-timeout` explícito en su `go test`, como `ci.yml` y la compuerta. Es
+      configuración de release: decisión del dev
 
 ## Pendiente de producto
 - [x] **Sealer PHP** — Sprint 8 (ADR-021): verificador nativo y sellador envoltorio.

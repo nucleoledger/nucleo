@@ -1,7 +1,7 @@
 # CLAUDE.md — Contexto para agentes (Claude Code / OpenCode)
 
 # 🚀 STACK & ARCHITECTURE
-- **Lenguaje:** Go. Objetivo: **Go 1.27+** (por `crypto/mldsa` en stdlib). Versión local instalada: Go 1.27.1.
+- **Lenguaje:** Go. Objetivo: **Go 1.27+** (por `crypto/mldsa` en stdlib). Versión local: la que fija `go.mod` (`toolchain`; con `GOTOOLCHAIN=auto`, `go` cambia a ella sola).
 - **Módulo:** `github.com/nucleoledger/nucleo`
 - **Producto:** binario CLI `nucleo` (implementado: init/seal/status/verify/receipt/reconcile/sync/witness/backup/restore, códigos de salida 0/1/2/3) + SDK TypeScript publicado en `sdk/ts` (`@nucleoledger/verify`) + SDK de PHP en `sdk/php` (verificador NATIVO, sellador ENVOLTORIO del binario; ADR-021). El daemon `nucleod` sigue sin existir y no está planificado para v1.
 - **Sin Docker, sin base de datos externa, sin migraciones**: SQLite embebido (pure-Go, `modernc.org/sqlite`) append-only, con WAL y `synchronous=FULL`. Implementado en `internal/store`.

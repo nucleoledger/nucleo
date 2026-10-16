@@ -39,9 +39,10 @@ so there is no compatibility to keep.
 
 **Nothing to migrate.** Rehearsed with the published v0.3.1-alpha binary (sha256 `ebfeb36b…`)
 and the final code of this version, with
-[`scripts/ensayo-actualizacion.sh`](scripts/ensayo-actualizacion.sh) —which checks the downloaded
-binary against `checksums.txt`, and the signature of `checksums.txt` with cosign, before running
-it, and is now a step of the release ritual (`docs/RELEASING.md`)—: a ledger, a witness memory and a policy made
+[`scripts/ensayo-actualizacion.sh`](scripts/ensayo-actualizacion.sh) —which first verifies the
+signature of `checksums.txt` with cosign, only then downloads the binary and checks it against
+that authenticated `checksums.txt`, before running it, and is now a step of the release ritual
+(`docs/RELEASING.md`)—: a ledger, a witness memory and a policy made
 with v0.3.1-alpha open with this version —`status` gives `verified`, `verify --full` passes,
 sealing and `sync` against the same witness memory continue—. Adding `erasureKey` to that
 policy keeps it `verified`; an erasure of a block sealed by v0.3.1-alpha, authorized with the
@@ -49,7 +50,7 @@ command `erase` prints and two erasure cards, makes `reconcile` report it as era
 the new policy and as a finding (2) with the old one. A receipt issued by v0.3.1-alpha, one
 issued by this version, one issued after the erasure and the erasure event's own receipt all
 verify with the published `@nucleoledger/verify@0.3.0-alpha.0` and the old policy, and with
-0.4.0-alpha.0 and the new one; 0.3.0-alpha.0 rejects the new policy, as stated below. A third
+0.4.0-alpha.0 —the HEAD's build and the package from the registry— and the new one; 0.3.0-alpha.0 rejects the new policy, as stated below. A third
 party checked the erasure from the two receipts with `sha256sum` and `openssl`
 ([`scripts/tercero-supresion.sh`](scripts/tercero-supresion.sh)).
 
@@ -71,7 +72,11 @@ What you may notice:
 - **The PHP `Sealer`** takes an optional seventh argument, `onErasure`; existing calls work
   unchanged.
 - **`@nucleoledger/verify` 0.4.0-alpha.0**: the same receipt verification, and the policy grammar
-  with `erasureKey` (its README has the migration note). Published from its own `vsdk-` tag.
+  with `erasureKey` (its README has the migration note). **Already published**, on 2026-10-15,
+  from its own tag `vsdk-0.4.0-alpha.0` on `ec21632`, with `latest` and `alpha` on it and
+  `npm audit signatures` reporting a verified registry signature and a verified attestation.
+- **The Node example uses one policy**: it pins the published 0.4.0-alpha.0, adds `erasureKey`
+  to its only policy before erasing, and verifies the customer's receipt with that same policy.
 - **The published binary refuses to start if `NUCLEO_TEST_CARDS` is set**, like every other
   test hook.
 - **Do not go back to v0.3.1-alpha after an erasure.** It opens the ledger and verifies it, but
@@ -204,7 +209,9 @@ Kept as it happened, because the second round exists to say it was not enough.
   PowerShell expands `$HOME` and `` `n `` and `cmd.exe` expands `%USERNAME%`: pasted, the path
   could change. Now they always use single quotes, with single quotes —straight or
   typographic— doubled and a directory's trailing `\` removed (PowerShell 5.1 broke the
-  argument on it). `cmd.exe` is **not** promised: pasted there, the command fails visibly,
+  argument on it); a root, which cannot lose it (`\\server\share\`), gets a `.` after it,
+  which names the same directory —the real-console test caught a UNC root with a space
+  breaking the argument (H10 of the review of 2026-10-14)—. `cmd.exe` is **not** promised: pasted there, the command fails visibly,
   because the path does not exist. On Windows, the cron recipe is now for a scheduled task and
   no longer mentions `chmod`. A test runs every printed command in the real console
   (`powershell.exe` and `pwsh` on Windows, `sh` elsewhere) and checks the exact argv. Found by
@@ -213,12 +220,20 @@ Kept as it happened, because the second round exists to say it was not enough.
   `scripts/ensayo-actualizacion.sh` warned and went on to run the downloaded binary, checked
   only against a `checksums.txt` fetched from the same place. Now it exits 2 before downloading
   anything; `NUCLEO_ENSAYO_SIN_FIRMA=1` lets it go on, and then it ends in «ENSAYO EN VERDE —
-  SIN FIRMA VERIFICADA», which does not count for the release ritual. Same review (H4).
+  SIN FIRMA VERIFICADA», which does not count for the release ritual. Same review (H4). And
+  it authenticates `checksums.txt` **before** using it: signature first, then the tarball and
+  its hash against the authenticated manifest; it used to check the hash against a manifest
+  not yet verified (H8 of the review of 2026-10-14,
+  [report](docs/revision-externa-modelo-20261014.md)). `scripts/test-ensayo-orden.sh` pins the
+  order, and H4, without network, in the gate and in CI.
 - **The third party's check of an erasure is automated** (G45): the `sha256sum` and `openssl`
   recipe of PROTOCOL §5.1 is [`scripts/tercero-supresion.sh`](scripts/tercero-supresion.sh),
-  which builds HEAD, makes a ledger with an authorized erasure —witness on 127.0.0.1, no
-  network—, checks the two receipts as a third party and checks that the check bites. The
-  gate, CI and the upgrade rehearsal run it. Same review.
+  which builds HEAD, makes a ledger with an authorized erasure —witness on 127.0.0.1—, checks
+  the two receipts as a third party and checks that the check bites. The gate, CI and the
+  upgrade rehearsal run it. Same review. Its `comprueba` mode needs neither Núcleo nor
+  network; the full mode builds with `GOPROXY=off` and needs only the Go modules in the cache
+  —if they are missing it says to run `go mod download` separately—, or takes a built binary
+  in `NUCLEO_BIN` (H9 of the review of 2026-10-14).
 - **Shell scripts pass shellcheck**, pinned at v0.11.0 with its checksum verified, in a new
   CI job `scripts` that also requires every `scripts/*.sh` to be executable in the index.
 - **`receipt --out` no longer leaves on disk a receipt that failed its own verification**: it
