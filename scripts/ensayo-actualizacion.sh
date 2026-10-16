@@ -6,9 +6,9 @@
 # compila el HEAD y comprueba que ese despliegue sigue funcionando: lo abre con la misma
 # política, sella y sincroniza contra la misma memoria del testigo; añade la clave de
 # supresión a la política, suprime con autorización un bloque sellado por la versión
-# vieja y reconcilia; verifica los recibos con el SDK publicado y con el del HEAD; y
-# comprueba la supresión como un tercero, con sha256sum y openssl (PROTOCOL §5.1), con
-# scripts/tercero-supresion.sh.
+# vieja y reconcilia; verifica los recibos con el SDK publicado de esa versión, con el
+# del HEAD y con la versión del HEAD instalada desde npm; y comprueba la supresión como un
+# tercero, con sha256sum y openssl (PROTOCOL §5.1), con scripts/tercero-supresion.sh.
 #
 # Es el paso del ritual de RELEASING «repetir el ensayo contra el HEAD final antes de
 # etiquetar». No entra en scripts/compuerta.sh porque necesita red: descarga el release
@@ -168,7 +168,7 @@ if [ "${NUCLEO_ENSAYO_SOLO_PASO1:-}" = 1 ]; then
 	exit 0
 fi
 
-titulo "2. El HEAD, y los dos SDK"
+titulo "2. El HEAD, y los tres SDK"
 NUEVO="$T/nuevo"
 (cd "$RAIZ" && go build -o "$NUEVO" ./cmd/nucleo)
 printf '   HEAD: %s\n' "$(cd "$RAIZ" && git log --oneline -1)"
@@ -188,6 +188,19 @@ fi
 (cd "$RAIZ/sdk/ts" && { [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null; } && npx tsc -p tsconfig.json --outDir "$T/sdk-head")
 SDK_HEAD="$T/sdk-head/index.js"
 SDK_HEAD_VER="$(campo "['version']" <"$RAIZ/sdk/ts/package.json")"
+# Y la versión del HEAD tal como está en el REGISTRO: RELEASING pide verificar con el
+# paquete publicado, que es el que instalará quien verifique, y el SDK se publica antes
+# que el binario. Si esa versión no está en npm, el ensayo no está listo para el ritual.
+mkdir -p "$T/npm-nuevo"
+(cd "$T/npm-nuevo" && npm init -y >/dev/null && npm install --no-audit --no-fund "@nucleoledger/verify@$SDK_HEAD_VER" >/dev/null 2>&1) || true
+SDK_REGISTRO="$T/npm-nuevo/node_modules/@nucleoledger/verify/dist/index.js"
+if [ ! -f "$SDK_REGISTRO" ]; then
+	mal "@nucleoledger/verify@$SDK_HEAD_VER (la versión de sdk/ts/package.json) no está en npm: publica antes el SDK (tag vsdk-$SDK_HEAD_VER)"
+elif (cd "$T/npm-nuevo" && npm audit signatures 2>&1 | grep -q "verified attestation"); then
+	ok "@nucleoledger/verify@$SDK_HEAD_VER de npm, con su atestación"
+else
+	mal "@nucleoledger/verify@$SDK_HEAD_VER de npm sin atestación verificada"
+fi
 cat >"$T/verifica.mjs" <<'EOF'
 // node verifica.mjs <index.js del SDK> <recibo> <política>: 0 válido, 2 inválido, 3 política rechazada.
 import { readFileSync } from "node:fs";
@@ -330,12 +343,16 @@ exige "recibo del evento de supresión (bloque $EV)" 0 "$NUEVO" --dir "$E" recei
 para
 
 # ---------------------------------------------------------------------------------
-titulo "7. Los recibos, con el SDK publicado y con el del HEAD"
+titulo "7. Los recibos, con los SDK publicados y con el del HEAD"
 for r in recibo-viejo recibo-nuevo recibo-tras recibo-evento; do
 	exige "$r con @nucleoledger/verify@$SDK_VIEJO (npm) y la política de $VERSION" 0 \
 		node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/$r.txt" "$T/politica-vieja.json"
 	exige "$r con $SDK_HEAD_VER (HEAD) y la política nueva" 0 \
 		node "$T/verifica.mjs" "$SDK_HEAD" "$T/$r.txt" "$T/politica.json"
+	if [ -f "$SDK_REGISTRO" ]; then
+		exige "$r con @nucleoledger/verify@$SDK_HEAD_VER (npm) y la política nueva" 0 \
+			node "$T/verifica.mjs" "$SDK_REGISTRO" "$T/$r.txt" "$T/politica.json"
+	fi
 done
 exige "@nucleoledger/verify@$SDK_VIEJO rechaza la política con erasureKey (lo que dicen las notas)" 3 \
 	node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/recibo-nuevo.txt" "$T/politica.json"
