@@ -221,7 +221,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 1. H8: el ensayo autentica `checksums.txt` antes de usarlo; `scripts/test-ensayo-orden.sh`
       fija el orden sin red (y H4, que no tenía test)
 - [x] 2. H9: `tercero-supresion.sh` de verdad sin red (`GOPROXY=off`, `NUCLEO_BIN`)
-- [ ] 3. H10: los bordes de Windows en el test de la consola de verdad
+- [x] 3. H10: los bordes de Windows en el test de la consola de verdad
 - [ ] 4. El ejemplo con una sola política y `@nucleoledger/verify` 0.4.0-alpha.0 de npm
 - [ ] 5. El ensayo verifica también con el paquete 0.4.0-alpha.0 del registro
 - [ ] 6. Documentación: notas del release, RELEASING, versión de Go en CLAUDE/AGENTS

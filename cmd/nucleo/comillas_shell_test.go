@@ -47,10 +47,20 @@ func ecoArgv(fichero string) int {
 
 // rutasConTrampa son las rutas que han roto, o podrían romper, una orden pegada: las de
 // H2 ($HOME, `n) y H3 (%USERNAME%, !x!), las comillas simples recta y tipográfica, lo que
-// cmd y sh interpretan, un directorio con la barra final y un nombre no ASCII.
+// cmd y sh interpretan, un directorio con la barra final y un nombre no ASCII. En Windows,
+// además, los bordes de filepath.Clean (H10 de la revisión del 2026-10-14): la unidad
+// sola, una raíz UNC con espacio y \ final —Clean la deja con la \, y es justo la \ que
+// antes de una comilla de cierre rompía el argv en PowerShell 5.1—, una ruta relativa con
+// .\, y componentes que acaban en espacio y en punto, que Windows recorta al abrir el
+// fichero pero que la orden tiene que pasar tal cual.
 func rutasConTrampa() []string {
 	if runtime.GOOS == "windows" {
 		return []string{
+			`C:`,
+			`\\servidor\mi recurso\`,
+			`.\x`,
+			`C:\acaba en espacio \p.json`,
+			`C:\acaba en punto.\p.json`,
 			`C:\con espacio\p.json`,
 			`C:\$HOME\p.json`,
 			"C:\\foo`nbar\\p.json",
@@ -96,9 +106,19 @@ type ordenImpresa struct {
 // igual: "nucleo --dir " + argShell(dir) + el resto.
 func ordenesCon(ruta string) []ordenImpresa {
 	// La ruta que llega: en Windows argShell la limpia (la \ final), y es la misma ruta.
+	// Por eso el argv esperado es el de la ruta DESPUÉS de filepath.Clean, y no la ruta
+	// tal cual: "C:" llega como "C:." (el directorio actual de la unidad C, lo mismo),
+	// ".\x" como "x". La raíz UNC, que Clean deja con su \ final porque sin ella no es una
+	// raíz, llega con un . detrás: con la \ sola, PowerShell 5.1 partía el argv
+	// (rutaWindowsParaImprimir). Lo que este test fija es que la consola entrega a nucleo,
+	// byte a byte, lo que argShell quiso entregar; que es la misma ruta lo fija
+	// TestRutaWindowsParaImprimir, con los valores escritos a mano.
 	llega := ruta
 	if runtime.GOOS == "windows" {
 		llega = filepath.Clean(ruta)
+		if strings.HasSuffix(llega, `\`) {
+			llega += "."
+		}
 	}
 	hash := strings.Repeat("ab", 32)
 	cron := ordenesProgramadas(ruta)
@@ -191,7 +211,9 @@ func TestLasOrdenesImpresasFuncionanEnLaConsolaDeVerdad(t *testing.T) {
 					t.Errorf("%s:\n  orden: %s\n  llegó: %q\n  debía: %q", nombreConsola, o.linea, got[i], o.argv)
 				}
 			}
-			t.Logf("%s: %d órdenes, cada una con su argv exacto", nombreConsola, len(ordenes))
+			if !t.Failed() {
+				t.Logf("%s: %d órdenes, cada una con su argv exacto", nombreConsola, len(ordenes))
+			}
 		})
 	}
 }
@@ -236,4 +258,26 @@ func leerEcos(t *testing.T, fichero string) [][]string {
 		t.Fatal(err)
 	}
 	return out
+}
+
+// TestRutaWindowsParaImprimir: la ruta que se imprime en Windows, con los valores
+// escritos a mano (filepath.Clean de Windows solo se ejecuta en Windows).
+func TestRutaWindowsParaImprimir(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("filepath.Clean de Windows: solo en Windows (lo corre el job windows-2025 del CI)")
+	}
+	for _, c := range []struct{ ruta, quiero string }{
+		{`C:`, `C:.`},
+		{`C:\`, `C:\.`},
+		{`\\servidor\mi recurso\`, `\\servidor\mi recurso\.`},
+		{`\\servidor\mi recurso`, `\\servidor\mi recurso`},
+		{`.\x`, `x`},
+		{`C:\termina en barra\`, `C:\termina en barra`},
+		{`C:\acaba en espacio \p.json`, `C:\acaba en espacio \p.json`},
+		{`C:\acaba en punto.\p.json`, `C:\acaba en punto.\p.json`},
+	} {
+		if got := rutaWindowsParaImprimir(c.ruta); got != c.quiero {
+			t.Errorf("rutaWindowsParaImprimir(%q) = %q, quiero %q", c.ruta, got, c.quiero)
+		}
+	}
 }

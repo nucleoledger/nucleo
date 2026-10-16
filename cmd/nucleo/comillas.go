@@ -29,14 +29,28 @@ import (
 // argShell devuelve s listo para pegarlo como un argumento en la consola de esta
 // plataforma: la shell POSIX, o PowerShell en Windows.
 func argShell(s string) string {
-	// En Windows, antes de entrecomillar, filepath.Clean quita la \ final de un
-	// directorio: PowerShell 5.1 pasa a un programa una ruta con espacios entre comillas
-	// dobles, y la \ de antes de la comilla de cierre la escapa y rompe el argv
-	// (C:\a b\ llegaba como «C:\a b"»). Es la misma ruta. ("" se deja: Clean daría ".")
+	// En Windows, antes de entrecomillar, se quita la \ final de un directorio
+	// (rutaWindowsParaImprimir): PowerShell 5.1 pasa a un programa una ruta con espacios
+	// entre comillas dobles, y la \ de antes de la comilla de cierre la escapa y rompe el
+	// argv (C:\a b\ llegaba como «C:\a b"»). Es la misma ruta. ("" se deja: Clean daría ".")
 	if runtime.GOOS == "windows" && s != "" {
-		s = filepath.Clean(s)
+		s = rutaWindowsParaImprimir(s)
 	}
 	return argShellPara(runtime.GOOS, s)
+}
+
+// rutaWindowsParaImprimir es la ruta que se imprime en Windows: filepath.Clean, y si
+// aun así acaba en \ —una raíz, C:\ o \\servidor\recurso\, que Clean no puede recortar
+// porque sin la \ dejaría de serlo—, con un . detrás. Con espacios en la raíz UNC, la \
+// final volvía a romper el argv en PowerShell 5.1 (H10 de la revisión del 2026-10-14: lo
+// cazó el test de la consola de verdad). \\servidor\recurso\. es el mismo directorio:
+// Windows quita el . al resolverla, y filepath.Join también.
+func rutaWindowsParaImprimir(s string) string {
+	s = filepath.Clean(s)
+	if strings.HasSuffix(s, `\`) {
+		s += "."
+	}
+	return s
 }
 
 // argShellPara es argShell para una plataforma dada, sin la limpieza de la ruta; existe
