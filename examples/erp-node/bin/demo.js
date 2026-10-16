@@ -120,6 +120,9 @@ try {
 
 paso("3", "Pedir atestación a un testigo.");
 let testigo = null;
+// El recibo del cliente del paso 4; el paso 10 lo vuelve a verificar con la política que
+// ya lleva erasureKey.
+let reciboDelCliente = null;
 if (!(await responde(cfg.TESTIGO))) {
   testigo = await levanta({
     puerto: new URL(cfg.TESTIGO).port,
@@ -149,6 +152,7 @@ try {
   paso("4", "Emitir el recibo de la segunda factura y verificarlo con @nucleoledger/verify.");
   const f2 = emitidas[1];
   const recibo = await nucleo.recibo({ bloque: f2.nucleo.bloque, destinatario: f2.cliente });
+  reciboDelCliente = recibo;
   dice(`  recibo de ${recibo.bytes ?? recibo.texto.length} bytes para ${recibo.destinatario}`);
   dice(`  tiempo demostrable: ${recibo.tiempoDemostrable || "(ninguno)"}`);
   comprueba(recibo.texto.startsWith("nucleo.org/receipt@v2"), "el recibo no empieza por su magia @v2");
@@ -307,19 +311,16 @@ comprueba(conPass.code === 1 && String(contrato(conPass).error).includes("erasur
 dice("  con el fichero de la passphrase —lo que hay en el servidor— y sin clave de supresión: rechazado");
 
 // La custodia genera la clave de supresión EN SU EQUIPO —aquí, de juguete— y su clave
-// pública va a la política de quien reconcilia. Es otra política que la del verificador de
-// recibos a propósito: la contraparte no necesita erasureKey, y el verificador publicado
-// en npm que fija este ejemplo todavía no conoce ese miembro.
+// pública va a la política.
 const clave = contrato(await capturada(cfg.BINARIO, ["--json", "erasure-key", "init", "--assume-confirmed"]));
 comprueba(/^[0-9a-f]{64}$/.test(clave.erasure_key ?? ""), "erasure-key init no dio la clave");
 writeFileSync(join(cfg.DATOS, "tarjetas-supresion-DE-JUGUETE.txt"), (clave.shares ?? []).join("\n") + "\n", { mode: 0o600 });
-const politicaSupresion = join(cfg.DATOS, "politica-supresion.json");
-writeFileSync(politicaSupresion, JSON.stringify({ ...JSON.parse(readFileSync(cfg.FICHERO_POLITICA, "utf8")), erasureKey: clave.erasure_key }));
-dice("  la custodia genera la clave de supresión y su clave pública va a la política de reconcile");
+writeFileSync(cfg.FICHERO_POLITICA, JSON.stringify({ ...JSON.parse(readFileSync(cfg.FICHERO_POLITICA, "utf8")), erasureKey: clave.erasure_key }));
+dice("  la custodia genera la clave de supresión y su clave pública va a la política");
 
 // Con la passphrase y la política buena, pero sin autorización: no borra, y dice qué pedir.
 const sinAut = await capturada(cfg.BINARIO, ["--dir", cfg.DIR_LEDGER, "--json", "erase", "--block", String(victima),
-  "--policy-file", politicaSupresion, "--passphrase-file", cfg.FICHERO_PASSPHRASE, "--assume-confirmed"]);
+  "--policy-file", cfg.FICHERO_POLITICA, "--passphrase-file", cfg.FICHERO_PASSPHRASE, "--assume-confirmed"]);
 const orden = (String(contrato(sinAut).error).match(/nucleo erasure-key authorize .*/) ?? [""])[0];
 comprueba(sinAut.code === 1 && orden !== "", `erase sin autorización salió con ${sinAut.code}`);
 dice("  sin autorización: no borra nada, y dice la orden exacta que tiene que ejecutar la custodia");
@@ -340,7 +341,7 @@ if (process.platform !== "linux" || !existsSync("/usr/bin/script")) {
 
   // En el servidor ya no hace falta consola: la autorización es lo que decide.
   const ok = await capturada(cfg.BINARIO, ["--dir", cfg.DIR_LEDGER, "--json", "erase", "--block", String(victima),
-    "--policy-file", politicaSupresion, "--passphrase-file", cfg.FICHERO_PASSPHRASE,
+    "--policy-file", cfg.FICHERO_POLITICA, "--passphrase-file", cfg.FICHERO_PASSPHRASE,
     "--authorization", autorizacion, "--assume-confirmed"]);
   comprueba(ok.code === 0 && contrato(ok).already_erased === false, `erase con autorización salió con ${ok.code}`);
   dice(`  con la autorización: contenido del bloque ${victima} suprimido, y un evento sellado que la lleva`);
@@ -363,6 +364,12 @@ if (process.platform !== "linux" || !existsSync("/usr/bin/script")) {
   comprueba(despues.supresiones?.state === "none" && supresiones.length === 1, `tras ack: ${JSON.stringify(despues.supresiones)}`);
   dice("  reconocida por «demo» con alert ack: el hook deja de avisar; el evento sigue sellado");
 }
+
+// Una sola política: la misma, ya con erasureKey, sigue verificando el recibo del cliente
+// con el @nucleoledger/verify de npm (0.4.0-alpha.0 la acepta).
+const conClave = await verifyReceipt(reciboDelCliente?.texto ?? "", parsePolicyText(readFileSync(cfg.FICHERO_POLITICA, "utf8")));
+comprueba(conClave.valid === true, `con la política con erasureKey, el recibo no verificó: ${conClave.reasons.join(" | ")}`);
+dice("  y con esa misma política, ya con erasureKey, el recibo del cliente del paso 4 sigue verificando");
 
 // ————— el resumen —————
 
