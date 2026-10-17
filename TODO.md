@@ -275,7 +275,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       candidato pasa a llamarse ADR-034
 - [x] 1. ADR-033 PROPUESTO: la rotación de `erasureKey` (`retiredErasureKeys`, corte por
       índice del evento), con el plan conjunto
-- [ ] 2. ADR-034 PROPUESTO: verificar la ML-DSA-44 del log (`logMLDSAKey`), con el mismo plan
+- [x] 2. ADR-034 PROPUESTO: verificar la ML-DSA-44 del log (`logMLDSAKey`), con el mismo plan
 
 ## Después del release de v0.4.0-alpha
 - [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
@@ -300,7 +300,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [ ] **ADR-033 (PROPUESTO en el Sprint 26, antes de beta): rotación de erasureKey.** Claves de supresión retiradas
       en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
       supresiones históricas (hoy, el límite L21). Anotado en el Sprint 20a, sin diseñar.
-- [ ] **ADR-034 candidato: verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
+- [ ] **ADR-034 (PROPUESTO en el Sprint 26): verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
       (la raíz de confianza, ADR-017); Go con `crypto/mldsa` de la stdlib; TS y PHP no tienen
       ML-DSA sin dependencias: decidir si se verifica en los tres o se declara solo Go. Hoy,
       el límite L23. Anotado en el Sprint 25, sin diseñar.
