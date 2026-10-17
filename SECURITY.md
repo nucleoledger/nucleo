@@ -38,20 +38,28 @@ without detection; anything that reveals a committed value without the key;
 anything that makes a receipt verify when it should not, or fail when it should
 not; key handling; and the release pipeline.
 
-**Out of scope**, because they are documented properties rather than defects:
+**Out of scope**, because they are documented properties rather than defects. Each
+one is a limit in [`docs/GARANTIAS.md`](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza),
+which is where it is kept and where its decision and its test are named:
 
 - **A file cannot testify about its own completeness.** Whoever controls the
   ledger file can truncate it, and no check living inside that file can prove
   otherwise. That is what witnesses are for, and it is written up in
   [ADR-009](docs/adr/ADR-009-store-schema.md).
-- **A block's signature is not inside its Merkle leaf**, so a cosigned root does
-  not pin the `signature` column. `verify --full` catches corruption there.
-- **A receipt's recipient is not covered by any signature.** It is chosen at
-  issue time, after sealing. The name is an address, not proof.
-- **A network adversary can prevent detection** by blocking access to a witness.
-  That is availability, it is noisy, and it cannot forge attestation.
+  ([L22](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza))
+- **A receipt does not prove delivery**, and it does not stop the issuer from
+  issuing another receipt for the same record to someone else. See
+  [ADR-015](docs/adr/ADR-015-destinatario.md).
+  ([L8](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza))
+- **A network adversary can prevent detection** by blocking access to a witness,
+  and it cannot forge attestation. While the log has no new blocks, replaying an
+  older genuine exchange makes `sync` succeed without the witness being contacted;
+  the only tell is that the attestation does not get any younger, and `sync` warns
+  about it (`replay_suspect` in `--json`).
+  ([L4](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza))
 - **VRF commitments would not give privacy**, only third-party verifiability.
   See [ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md).
+  ([L15](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza))
 
 If you think one of those "documented properties" is worse than we describe, that
 **is** in scope. Being wrong about our own limits is exactly the kind of mistake
