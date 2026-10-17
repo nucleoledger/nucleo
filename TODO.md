@@ -233,7 +233,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 2. SECURITY «Out of scope» sin las dos viñetas falsas (G4, G15), cada límite con su Lnn (L22 nuevo)
 - [x] 3. README «Status», rondas contadas, recompilación hasta v0.3.1-alpha, lo de v0.4
 - [x] 4. PLAN y TODO con el estado real; AUTHORS con lo que se firma de verdad
-- [ ] 5. La guardia: `cmd/nucleo/docs_vigentes_test.go` y el paso de RELEASING antes del tag
+- [x] 5. La guardia: `cmd/nucleo/docs_vigentes_test.go` y el paso de RELEASING antes del tag
 
 ### P2 del Sprint 22, para después
 - [ ] `SECURITY.md` «No external audit yet»: las revisiones están en los ADR **y** en

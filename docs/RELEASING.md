@@ -114,6 +114,17 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
       termina en «ENSAYO EN VERDE — SIN FIRMA VERIFICADA»: **eso no vale para este
       paso**. Lo que diga va al apartado de actualización del CHANGELOG.
 - [ ] `CHANGELOG.md` con la sección de la versión, escrita a mano.
+- [ ] **La documentación vigente, contra lo que el código hace.** Releer `SECURITY.md`
+      contra `docs/GARANTIAS.md`: ninguna viñeta de «Out of scope» contradice una garantía,
+      y cada límite que dice es el de su fila Lnn. Y que el README «Status» y el «Estado:»
+      de `TODO.md` nombren la versión que se etiqueta y digan lo que hay de verdad: las
+      rondas, la última recompilación comprobada, lo que falta. **Lo automatiza**
+      `cmd/nucleo/docs_vigentes_test.go`, dentro de la compuerta: que cada viñeta de «Out of
+      scope» enlace GARANTIAS y cite un Lnn que existe, que ninguna cite un Gnn, y que el
+      README y TODO nombren la versión de la entrada más reciente del CHANGELOG. **No lo
+      automatiza** —es lectura, a mano—: que el texto de cada viñeta diga lo mismo que su
+      Lnn, ni que el resto del README, de TODO y de PLAN siga siendo verdad. En el Sprint 22
+      las dos viñetas falsas de SECURITY llevaban ahí desde la v0.2 sin que nada fallara.
 - [ ] `git status` limpio.
 - [ ] `goreleaser check` sin errores.
 
