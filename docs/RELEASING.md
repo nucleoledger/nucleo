@@ -376,6 +376,56 @@ tar xzf nucleo_0.2.0-alpha_linux_amd64.tar.gz
 ./nucleo help
 ```
 
+### 5. Opcional: la procedencia SLSA
+
+La firma de cosign dice que `checksums.txt` salió de `release.yml` sobre ese tag. La
+procedencia SLSA lo dice de **cada archivo**, y además de qué commit: `release.yml` la
+genera con `actions/attest-build-provenance` y GitHub la guarda junto al repositorio. Se
+comprueba con [`gh`](https://cli.github.com/), sobre el archivo que descargaste, sin
+descomprimirlo:
+
+```bash
+gh attestation verify nucleo_0.4.0-alpha_linux_amd64.tar.gz \
+  --repo nucleoledger/nucleo \
+  --signer-workflow nucleoledger/nucleo/.github/workflows/release.yml \
+  --source-ref refs/tags/v0.4.0-alpha \
+  --source-digest 978156fd39fa8accb7e5aa00e64b0ce83163c8bb
+```
+
+`--source-ref` es el tag de tu versión, y `--source-digest` el commit completo de ese tag
+(`git rev-parse v0.4.0-alpha^{commit}` en un clon, o el que dicen sus notas). En una
+terminal imprime los criterios que exige y termina así:
+
+```
+✓ Verification succeeded!
+
+The following 1 attestation matched the policy criteria
+
+- Attestation #1
+  - Build repo:..... nucleoledger/nucleo
+  - Build workflow:. .github/workflows/release.yml@refs/tags/v0.4.0-alpha
+  - Signer repo:.... nucleoledger/nucleo
+  - Signer workflow: .github/workflows/release.yml@refs/tags/v0.4.0-alpha
+```
+
+y sale con `0`. **Sin terminal** —en un script, con la salida a un fichero o a una
+tubería— no imprime nada cuando verifica: lo que cuenta es el código de salida. Con el
+tag de otra versión sale con `1` y lo dice:
+
+```
+Error: expected SourceRepositoryRef to be refs/tags/v0.3.1-alpha, got refs/tags/v0.4.0-alpha
+```
+
+Lo mismo con otro commit, otro workflow u otro repositorio: cada bandera es un criterio que
+se exige, y quitarla es dejar de exigirlo.
+
+**Necesita `gh` autenticado**, con cualquier cuenta de GitHub (`gh auth login`, o
+`GH_TOKEN`): la atestación se pide a la API de GitHub, y sin credenciales `gh` sale con `4`
+y pide `gh auth login` antes de mirar nada. Ese `4` no es un veredicto sobre el archivo.
+Comprobado el 2026-10-17 con gh 2.100.0, con y sin credenciales, sobre el archivo
+linux/amd64 de v0.4.0-alpha; los releases anteriores, desde v0.1.0-alpha, también tienen
+la suya.
+
 ### Verificación en un solo comando
 
 Para meterlo en un script de instalación:

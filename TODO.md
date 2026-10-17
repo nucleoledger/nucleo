@@ -255,7 +255,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 
 ## Sprint 24 — lo que dejó el release de v0.4.0-alpha, y `nucleo version`
 - [x] 1. El ancla rota de las notas de v0.4.0-alpha, y su guardia en `docs_vigentes_test.go`
-- [ ] 2. RELEASING: la receta de la procedencia SLSA (`gh attestation verify`)
+- [x] 2. RELEASING: la receta de la procedencia SLSA (`gh attestation verify`)
 - [ ] 3. `nucleo version`, y la reproducibilidad con los tres `-X` comprobada
 - [ ] 4. TODO al día tras la publicación de v0.4.0-alpha
 
