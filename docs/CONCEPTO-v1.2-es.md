@@ -31,6 +31,18 @@
 > `scripts/compuerta.sh`, una sola orden que sale distinto de 0 si algo falla
 > (`CONTRIBUTING.md`). Donde §17 dice «Taskfile», léase ese script.
 
+> **ENMIENDA del 2026-10-17 (Sprint 26), a la vista.** **La ML-DSA-44 se emite y ningún
+> verificador publicado la comprueba.** La fila «Firma del log» de §5.2 dice que los
+> verificadores ignoran las firmas desconocidas y que por eso añadirla no rompe nada. Es
+> cierto, y es justo la razón de que hoy no aporte seguridad verificable: Go, TypeScript, PHP
+> y la página la reconocen por su tamaño y la ignoran, porque la política —la raíz de
+> confianza, [ADR-017](adr/ADR-017-politica-raiz-de-confianza.md)— no fija la clave pública
+> ML-DSA del log y no hay contra qué verificarla (`docs/GARANTIAS.md`, L23). Las cosignatures
+> de los testigos, la firma de cada bloque y la del emisor del recibo son solo Ed25519 (L14).
+> Fijar esa clave y verificar la firma es [ADR-034](adr/ADR-034-verificar-mldsa44-del-log.md),
+> en estado de **propuesta**. Donde §5.2 dice «segunda firma post-cuántica», léase: se emite
+> en cada checkpoint y, hasta que ADR-034 se acepte e implemente, nadie la comprueba.
+
 ---
 
 ## 0. Resumen en un párrafo
@@ -103,6 +115,9 @@ El core sella cualquier registro de cualquier sistema en cualquier país; no con
 | Documentos externos (XML SRI, PDF) | Hasheados byte a byte, nunca re-canonicalizados |
 | Índices | ≤ 2⁵³ − 1 |
 | Almacenamiento | SQLite (Go puro), append-only con triggers anti UPDATE/DELETE, WAL, synchronous=FULL, un solo escritor |
+
+> *Enmendado (2026-10-17): la ML-DSA-44 de la fila «Firma del log» se emite y ningún
+> verificador publicado la comprueba (L23; ADR-034, propuesta). Ver la enmienda al principio.*
 
 ### 5.3 Modelo de confianza en capas (sin infraestructura del creador)
 1. **Cadena local sellada** — detecta ediciones.

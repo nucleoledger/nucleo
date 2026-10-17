@@ -79,7 +79,7 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **ADR-033 candidato (antes de beta): rotación de erasureKey.** Claves de supresión retiradas
   en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
   supresiones históricas (hoy, el límite L21). Sin diseñar.
-- **ADR candidato: verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
+- **ADR-034 candidato: verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
   (la raíz de confianza, ADR-017); Go con `crypto/mldsa` de la stdlib; TS y PHP no tienen
   ML-DSA sin dependencias: decidir si se verifica en los tres o se declara solo Go. Hoy, el
   límite L23: la firma se emite y nadie la comprueba. Sin diseñar.
