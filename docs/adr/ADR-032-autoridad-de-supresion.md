@@ -308,3 +308,27 @@ Lo comprueba la consola de verdad, no un modelo de ella:
 `cmd/nucleo/comillas_shell_test.go#TestLasOrdenesImpresasFuncionanEnLaConsolaDeVerdad` ejecuta
 cada orden con `powershell.exe` (5.1) y `pwsh` (7) en Windows —el CI corre en windows-2025, que
 trae los dos— y con `sh` en POSIX, y comprueba el argv exacto que recibe el programa.
+
+## Enmienda 2026-10-17 (Sprint 23) — §F: una raíz, en Windows, se imprime con un `.` detrás
+
+Autorizada por el dev. El texto de arriba, y el de la enmienda anterior, se dejan como se
+escribieron.
+
+La enmienda del 2026-10-13 dice que, antes de entrecomillar, `filepath.Clean` quita la `\`
+final de un directorio. Eso no vale para una **raíz**: `C:\` o `\\servidor\recurso\` siguen
+acabando en `\` después de `Clean`, porque sin esa `\` dejarían de ser la raíz. Y con un
+espacio en la raíz UNC —`\\servidor\mi recurso\`— PowerShell 5.1 la pasaba al programa entre
+comillas dobles, la `\` final escapaba la de cierre y el argv llegaba partido: la orden
+impresa no era «la orden exacta» que promete §F. Lo cazó el test de la consola de verdad
+(H10 de la revisión del 2026-10-14) en las seis órdenes que imprimen rutas.
+
+**Decisión: en Windows, si la ruta aún acaba en `\` después de `Clean`, se le añade un `.`
+antes de entrecomillarla** (`cmd/nucleo/comillas.go#rutaWindowsParaImprimir`, commit
+`9b87ca5`). `\\servidor\mi recurso\.` es el mismo directorio: Windows quita el `.` al
+resolverla, y `filepath.Join` también. Se eligió el `.` y no otra forma de escapar porque no
+depende de cómo cada versión de PowerShell reconstruye la línea de órdenes: la ruta deja de
+acabar en `\`, y no hay nada que escapar. Vale igual para `C:\`, que se imprime `C:\.`.
+
+Lo fija `TestRutaWindowsParaImprimir` con los valores calculados a mano, y
+`TestLasOrdenesImpresasFuncionanEnLaConsolaDeVerdad` comprueba con `powershell.exe` y `pwsh`
+que el programa recibe la ruta ya limpia, en un solo argumento.
