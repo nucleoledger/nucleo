@@ -68,7 +68,8 @@ NUCLEO_TEST_CARDS=x ./nucleo status ; echo $?            # → 1 (desde v0.4.0-a
 
 Comprobado sobre el binario linux/amd64 de v0.3.0-alpha: 0, 0, 1 y 1. Sobre el de
 v0.3.1-alpha, 0 y 0, y las cinco variables rechazadas con 1; en un binario compilado con
-`-tags testhooks`, las dos búsquedas dan 1.
+`-tags testhooks`, las dos búsquedas dan 1. Sobre el de v0.4.0-alpha, 0 y 0, y las seis
+variables rechazadas con 1.
 
 Se firma **el fichero de checksums**, no cada archivo por separado. El
 `checksums.txt` contiene el SHA-256 de todos los artefactos, así que una firma
@@ -451,7 +452,7 @@ go build -o nucleo ./cmd/nucleo
 
 Eso da un binario que funciona igual, pero no los mismos bytes que el publicado: las
 compilaciones de release llevan `-trimpath`, `-ldflags "-s -w"` y tres valores
-incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado con los cuatro
+incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado con los cinco
 releases publicados, bajando el binario linux/amd64 de la página del release y
 recompilándolo desde su tag con la orden de abajo, tal cual:
 
@@ -461,6 +462,7 @@ recompilándolo desde su tag con la orden de abajo, tal cual:
 | `v0.2.0-alpha` | go1.27.1 | `6442b03` | 2026-09-25 |
 | `v0.3.0-alpha` | go1.27.1 | `b417cb4` | 2026-10-02, sobre el binario del release aún en borrador, desde un clon limpio |
 | `v0.3.1-alpha` | go1.27.2 | `5237867` | 2026-10-10, ídem; el primero compilado con un Go distinto del instalado aquí, y reproducido con `GOTOOLCHAIN=go1.27.2` |
+| `v0.4.0-alpha` | go1.27.2 | `978156f` | 2026-10-17, ídem, con `GOTOOLCHAIN=go1.27.2`; el primero cuyo Go fija la directiva `toolchain` de `go.mod` del tag |
 
 Y el sha256 del binario linux/amd64, el mismo publicado y recompilado, **entero**: un
 hash abreviado a mano ya se copió mal una vez en esta tabla.
@@ -470,14 +472,15 @@ hash abreviado a mano ya se copió mal una vez en esta tabla.
 771ab28a4567b2a35525b04d783b877f7cb5f175064efc79577cbda4337ac3c4  v0.2.0-alpha
 189090c88c0bbea8d7f3e17957c7ac8508f9b648325d128d2634e2477dab6212  v0.3.0-alpha
 ebfeb36b7dc471d76c5c815800b9c24b1aad78ee7a0312059c2e59a1201f0d24  v0.3.1-alpha
+9a52a4e73475cf4a23fe0beec82b9dfcece573e26567ea8c7280989d1a82a779  v0.4.0-alpha
 ```
 
-En los cuatro, además, el certificado de la firma lleva la identidad exacta del tag
+En los cinco, además, el certificado de la firma lleva la identidad exacta del tag
 —`…/release.yml@refs/tags/v0.1.0-alpha`, `…@refs/tags/v0.2.0-alpha`,
-`…@refs/tags/v0.3.0-alpha` y `…@refs/tags/v0.3.1-alpha`—, y los de los tres últimos
-declaran en su extensión de Sigstore (OID 1.3.6.1.4.1.57264.1.3) el commit del tag
-—`6442b03`, `b417cb4f4f4847571ec86337056002143847c3e8` y
-`523786724d54a730b70405bbfef483b3ed5fe058`—, el mismo que dice el binario en
+`…@refs/tags/v0.3.0-alpha`, `…@refs/tags/v0.3.1-alpha` y `…@refs/tags/v0.4.0-alpha`—, y los
+de los cuatro últimos declaran en su extensión de Sigstore (OID 1.3.6.1.4.1.57264.1.3) el
+commit del tag —`6442b03`, `b417cb4f4f4847571ec86337056002143847c3e8`,
+`523786724d54a730b70405bbfef483b3ed5fe058` y `978156fd39fa8accb7e5aa00e64b0ce83163c8bb`—, el mismo que dice el binario en
 `vcs.revision`. El tag `v0.3.0-alpha` es además el primero **firmado con SSH**: GitHub lo
 da por válido (`verification.verified: true`, firmante `security@nucleoledger.com`).
 
