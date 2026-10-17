@@ -79,6 +79,10 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **ADR-033 candidato (antes de beta): rotación de erasureKey.** Claves de supresión retiradas
   en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
   supresiones históricas (hoy, el límite L21). Sin diseñar.
+- **ADR candidato: verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
+  (la raíz de confianza, ADR-017); Go con `crypto/mldsa` de la stdlib; TS y PHP no tienen
+  ML-DSA sin dependencias: decidir si se verifica en los tres o se declara solo Go. Hoy, el
+  límite L23: la firma se emite y nadie la comprueba. Sin diseñar.
 
 **Anotado, sin urgencia**
 - **cosign 3 en el CI de releases.** Hoy se firma con cosign 2.5.2 para publicar a la
@@ -96,7 +100,8 @@ Detalle y fuentes en `docs/adr/`. Resumen de lo que está cerrado:
 - Protocolo base **C2SP** (checkpoint, cosignature v1, witness HTTP, proof) — ADR-001, ADR-011.
 - Ed25519 sobre digest SHA-256, **más ML-DSA-44** como firma adicional del log por
   la extensión `0xff` de `signed-note` — ADR-007 y su addendum. Las cosignatures
-  de testigo siguen siendo Ed25519.
+  de testigo siguen siendo Ed25519. La firma ML-DSA se emite, pero ningún verificador
+  publicado la comprueba todavía (L23).
 - Tiempo declarado vs. demostrable, con política obligatoria para lo segundo — ADR-002.
 - Compromisos **HMAC-SHA-256** con subclave por tenant; el VRF queda descartado
   para el ledger porque da verificabilidad pero no privacidad — ADR-003 y su

@@ -262,6 +262,14 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. `nucleo version`, y la reproducibilidad con los tres `-X` comprobada
 - [x] 4. TODO al día tras la publicación de v0.4.0-alpha
 
+## Sprint 25 — la firma ML-DSA-44 se emite, y ningún verificador publicado la comprueba
+- [x] 1. GARANTIAS: G23 dice solo lo que fijan sus tests (se emite, y no rompe a los
+      verificadores C2SP); L23 nuevo; L14 sin «protege»
+- [x] 2. README: «emitted as an additional signature; no shipped verifier checks it yet»,
+      con enlace a L23, y fuera «post-quantum hygiene»
+- [x] 3. SECURITY «Out of scope» cita L23
+- [x] 4. El ADR candidato, anotado aquí y en PLAN
+
 ## Después del release de v0.4.0-alpha
 - [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
       checkpoint real) como test de regresión en Go, TypeScript, PHP y la página: ADR-017
@@ -285,6 +293,10 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [ ] **ADR-033 candidato (antes de beta): rotación de erasureKey.** Claves de supresión retiradas
       en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
       supresiones históricas (hoy, el límite L21). Anotado en el Sprint 20a, sin diseñar.
+- [ ] **ADR candidato: verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
+      (la raíz de confianza, ADR-017); Go con `crypto/mldsa` de la stdlib; TS y PHP no tienen
+      ML-DSA sin dependencias: decidir si se verifica en los tres o se declara solo Go. Hoy,
+      el límite L23. Anotado en el Sprint 25, sin diseñar.
 - [ ] Identidad de registro estable y eventos `issued`/`voided` en el perfil
       genérico: las facturas se anulan y hoy `reconcile` no lo modela (pide ADR)
 
