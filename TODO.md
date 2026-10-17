@@ -1,9 +1,9 @@
 # TODO.md — Backlog atómico
 
 Estado: el último release es **`v0.4.0-alpha`** (tag firmado con SSH, commit `978156f`),
-verificado el 2026-10-17 desde un directorio limpio —cosign con las dos recetas, sha256,
-procedencia SLSA— y recompilado byte a byte desde el tag (la tabla de RELEASING); su
-publicación la hace el dev (abajo, «Cierre de v0.4.0-alpha»). El anterior, `v0.3.1-alpha`.
+**publicado** como pre-release el 2026-10-17 (19:16:30 UTC), verificado ese día desde un
+directorio limpio —cosign con las dos recetas, sha256, procedencia SLSA— y recompilado byte
+a byte desde el tag (la tabla de RELEASING). El anterior, `v0.3.1-alpha`.
 `@nucleoledger/verify@0.4.0-alpha.0` **publicado** en npm con procedencia el 2026-10-15
 (tag `vsdk-0.4.0-alpha.0`, commit `ec21632`; `latest` y `alpha`).
 Lo detallado de cada versión vive en `CHANGELOG.md`.
@@ -250,14 +250,17 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       (run 39047178630, en verde)
 - [x] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de
       `docs/releases/v0.4.0-alpha.md` y la tabla de RELEASING (Sprint 23, 2026-10-17)
-- [ ] Aplicar las notas (`gh release edit v0.4.0-alpha --notes-file
-      docs/releases/v0.4.0-alpha.md`) y publicar el borrador
+- [x] Aplicar las notas (`gh release edit v0.4.0-alpha --notes-file
+      docs/releases/v0.4.0-alpha.md`) y publicar el borrador — publicado por el dev como
+      pre-release el 2026-10-17 (19:16:30 UTC)
+- [ ] Volver a aplicar las notas, con el ancla del CHANGELOG corregida en main (Sprint 24):
+      el mismo `gh release edit`; no toca los artefactos
 
 ## Sprint 24 — lo que dejó el release de v0.4.0-alpha, y `nucleo version`
 - [x] 1. El ancla rota de las notas de v0.4.0-alpha, y su guardia en `docs_vigentes_test.go`
 - [x] 2. RELEASING: la receta de la procedencia SLSA (`gh attestation verify`)
 - [x] 3. `nucleo version`, y la reproducibilidad con los tres `-X` comprobada
-- [ ] 4. TODO al día tras la publicación de v0.4.0-alpha
+- [x] 4. TODO al día tras la publicación de v0.4.0-alpha
 
 ## Después del release de v0.4.0-alpha
 - [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
