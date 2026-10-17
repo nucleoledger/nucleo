@@ -76,7 +76,7 @@ El backlog atómico está en `TODO.md`. En resumen:
   facturas se anulan y `reconcile` no lo modela. Toca el protocolo; pide ADR.
 
 **Deuda anotada, antes de beta**
-- **ADR-033 candidato (antes de beta): rotación de erasureKey.** Claves de supresión retiradas
+- **ADR-033 (propuesto en el Sprint 26, antes de beta): rotación de erasureKey.** Claves de supresión retiradas
   en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
   supresiones históricas (hoy, el límite L21). Sin diseñar.
 - **ADR-034 candidato: verificar ML-DSA-44.** La clave pública ML-DSA del log en la política

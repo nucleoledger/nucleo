@@ -270,6 +270,13 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. SECURITY «Out of scope» cita L23
 - [x] 4. El ADR candidato, anotado aquí y en PLAN
 
+## Sprint 26 — diseño, sin código: ADR-033 y ADR-034 propuestos, una sola subida de la política
+- [x] 0. CONCEPTO: enmienda a la vista, la ML-DSA-44 se emite y nadie la comprueba; el
+      candidato pasa a llamarse ADR-034
+- [x] 1. ADR-033 PROPUESTO: la rotación de `erasureKey` (`retiredErasureKeys`, corte por
+      índice del evento), con el plan conjunto
+- [ ] 2. ADR-034 PROPUESTO: verificar la ML-DSA-44 del log (`logMLDSAKey`), con el mismo plan
+
 ## Después del release de v0.4.0-alpha
 - [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
       checkpoint real) como test de regresión en Go, TypeScript, PHP y la página: ADR-017
@@ -290,7 +297,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [ ] **Verificar recibos ajenos desde la CLI.** No se hace ahora (decisión del Sprint 17):
       hoy un recibo se verifica con `@nucleoledger/verify`, con el SDK de PHP o con la página
       de `web/verify/`, y la CLI solo autoverifica los que emite.
-- [ ] **ADR-033 candidato (antes de beta): rotación de erasureKey.** Claves de supresión retiradas
+- [ ] **ADR-033 (PROPUESTO en el Sprint 26, antes de beta): rotación de erasureKey.** Claves de supresión retiradas
       en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
       supresiones históricas (hoy, el límite L21). Anotado en el Sprint 20a, sin diseñar.
 - [ ] **ADR-034 candidato: verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
