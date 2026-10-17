@@ -34,7 +34,7 @@ What this alpha has behind it, each item checked rather than claimed:
 - **Artifacts you can check**: releases signed keyless with cosign, with a SLSA
   provenance attestation; `@nucleoledger/verify` published from CI with npm provenance
   (`npm audit signatures`); and the published linux/amd64 binary of every release up to
-  `v0.3.1-alpha` rebuilt from its tag **byte for byte**
+  `v0.4.0-alpha` rebuilt from its tag **byte for byte**
   ([how, and the table](docs/RELEASING.md#compilar-desde-el-código)).
 
 What is still missing: that audit, any production use, a witness operated by someone other

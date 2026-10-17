@@ -1,11 +1,11 @@
 # TODO.md — Backlog atómico
 
-Estado: el último release publicado es **`v0.3.1-alpha`** (tag firmado con SSH, commit
-`5237867`), verificado y recompilado byte a byte desde el tag (la tabla de RELEASING).
+Estado: el último release es **`v0.4.0-alpha`** (tag firmado con SSH, commit `978156f`),
+verificado el 2026-10-17 desde un directorio limpio —cosign con las dos recetas, sha256,
+procedencia SLSA— y recompilado byte a byte desde el tag (la tabla de RELEASING); su
+publicación la hace el dev (abajo, «Cierre de v0.4.0-alpha»). El anterior, `v0.3.1-alpha`.
 `@nucleoledger/verify@0.4.0-alpha.0` **publicado** en npm con procedencia el 2026-10-15
-(tag `vsdk-0.4.0-alpha.0`, commit `ec21632`; `latest` y `alpha`). **`v0.4.0-alpha`
-preparada, sin etiquetar**: CHANGELOG y `docs/releases/v0.4.0-alpha.md` listos; el tag,
-el release y su verificación los hace el dev (abajo, «Cierre de v0.4.0-alpha»).
+(tag `vsdk-0.4.0-alpha.0`, commit `ec21632`; `latest` y `alpha`).
 Lo detallado de cada versión vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
@@ -246,9 +246,12 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       `docs/revision-externa-*`; nombrar los dos sitios
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
-- [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
-- [ ] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de
-      `docs/releases/v0.4.0-alpha.md` y la tabla de RELEASING
+- [x] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
+      (run 39047178630, en verde)
+- [x] Verificar el release desde un directorio limpio y completar la línea PENDIENTE de
+      `docs/releases/v0.4.0-alpha.md` y la tabla de RELEASING (Sprint 23, 2026-10-17)
+- [ ] Aplicar las notas (`gh release edit v0.4.0-alpha --notes-file
+      docs/releases/v0.4.0-alpha.md`) y publicar el borrador
 
 ## Después del release de v0.4.0-alpha
 - [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
