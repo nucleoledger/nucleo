@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // La documentación vigente deriva sola: en el Sprint 22, SECURITY.md seguía diciendo que la
@@ -26,12 +27,20 @@ import (
 //     de «Status» del README empieza por esa versión, en negrita, y el párrafo «Estado:» de
 //     TODO.md la nombra. Lo que el test NO puede ver es si lo que dicen alrededor es verdad:
 //     eso es el paso de RELEASING «antes del tag».
+//   - las notas del release más reciente —el de la entrada más nueva del CHANGELOG que
+//     tenga fichero en docs/releases/— solo enlazan anclas del CHANGELOG que existen. Las
+//     notas de v0.4.0-alpha salieron con #040-alpha--2026-10-11 cuando la sección ya
+//     decía 2026-10-17 (Sprint 22b), y el enlace llevaba al principio del fichero sin
+//     que nadie lo notara (Sprint 24). El enlace apunta al CHANGELOG del tag; aquí se
+//     compara con el de main, que para una versión ya publicada dice lo mismo.
 
 var (
 	reLimite      = regexp.MustCompile(`\bL(\d+)\b`)
 	reGarantia    = regexp.MustCompile(`\bG(\d+)\b`)
 	reFilaLimite  = regexp.MustCompile(`(?m)^\| (L\d+) \|`)
 	reEntradaLog  = regexp.MustCompile(`(?m)^## \[([^\]]+)\]`)
+	reEncabezado  = regexp.MustCompile(`(?m)^#{1,6} +(.+?) *$`)
+	reEnlaceLog   = regexp.MustCompile(`CHANGELOG\.md#([^)\s>]+)`)
 	enlaceLimites = "docs/GARANTIAS.md"
 )
 
@@ -155,6 +164,66 @@ func problemasDeVersion(changelog, readme, todo string) []string {
 	return problemas
 }
 
+// anclaDeGitHub devuelve el ancla que GitHub da a un encabezado: en minúsculas, sin
+// puntuación salvo el guion y el guion bajo, y cada espacio un guion. No colapsa los
+// guiones: «[0.4.0-alpha] — 2026-10-17» da «040-alpha--2026-10-17», con dos, porque la
+// raya desaparece y deja los dos espacios que tenía alrededor.
+func anclaDeGitHub(encabezado string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(encabezado)) {
+		switch {
+		case r == ' ':
+			b.WriteRune('-')
+		case r == '-' || r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r):
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// anclasDe devuelve las anclas de todos los encabezados de un documento Markdown.
+func anclasDe(md string) map[string]bool {
+	anclas := map[string]bool{}
+	for _, m := range reEncabezado.FindAllStringSubmatch(md, -1) {
+		anclas[anclaDeGitHub(m[1])] = true
+	}
+	return anclas
+}
+
+// notasMasRecientes devuelve la ruta de las notas de la versión más reciente: la de la
+// entrada más nueva del CHANGELOG que tenga fichero en docs/releases/. Mientras se
+// prepara una versión, su entrada existe antes que sus notas, y entonces cuentan las
+// de la anterior.
+func notasMasRecientes(changelog string, existe func(ruta string) bool) string {
+	for _, m := range reEntradaLog.FindAllStringSubmatch(changelog, -1) {
+		if m[1] == "Unreleased" {
+			continue
+		}
+		if ruta := "docs/releases/v" + m[1] + ".md"; existe(ruta) {
+			return ruta
+		}
+	}
+	return ""
+}
+
+// problemasDeAnclas devuelve los enlaces a CHANGELOG.md#… de unas notas que no llevan a
+// ningún encabezado del CHANGELOG.
+func problemasDeAnclas(notas, changelog string) []string {
+	anclas := anclasDe(changelog)
+	var problemas []string
+	for _, m := range reEnlaceLog.FindAllStringSubmatch(notas, -1) {
+		if !anclas[m[1]] {
+			problemas = append(problemas, "enlace a CHANGELOG.md#"+m[1]+": ningún encabezado del CHANGELOG da esa ancla")
+		}
+	}
+	return problemas
+}
+
+func existeEnElRepo(ruta string) bool {
+	_, err := os.Stat(filepath.Join("..", "..", ruta))
+	return err == nil
+}
+
 func leerDocumento(t *testing.T, ruta string) string {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "..", ruta))
@@ -182,6 +251,23 @@ func TestReadmeYTodoNombranLaVersionVigente(t *testing.T) {
 	for _, p := range problemasDeVersion(leerDocumento(t, "CHANGELOG.md"),
 		leerDocumento(t, "README.md"), leerDocumento(t, "TODO.md")) {
 		t.Error(p)
+	}
+}
+
+// TestLasNotasEnlazanAnclasQueExisten: los enlaces a CHANGELOG.md#… de las notas de la
+// versión más reciente llevan a un encabezado que existe.
+func TestLasNotasEnlazanAnclasQueExisten(t *testing.T) {
+	changelog := leerDocumento(t, "CHANGELOG.md")
+	ruta := notasMasRecientes(changelog, existeEnElRepo)
+	if ruta == "" {
+		t.Fatal("ninguna entrada del CHANGELOG tiene notas en docs/releases/")
+	}
+	notas := leerDocumento(t, ruta)
+	if !reEnlaceLog.MatchString(notas) {
+		t.Fatalf("%s no enlaza ninguna sección del CHANGELOG; si es a propósito, ajusta este test", ruta)
+	}
+	for _, p := range problemasDeAnclas(notas, changelog) {
+		t.Errorf("%s: %s", ruta, p)
 	}
 }
 
@@ -230,6 +316,38 @@ func TestLaGuardiaDeLosDocumentosMuerde(t *testing.T) {
 	}
 	for clase, d := range viejos {
 		if p := problemasDeVersion(d[0], d[1], d[2]); len(p) == 0 {
+			t.Errorf("%s: la guardia no lo detectó", clase)
+		}
+	}
+
+	// El ancla rota de las notas de v0.4.0-alpha, de vuelta: la fecha del enlace deja de
+	// ser la de la sección. Y el otro lado: la sección cambia de fecha y el enlace no.
+	rutaNotas := notasMasRecientes(changelog, existeEnElRepo)
+	notas := leerDocumento(t, rutaNotas)
+	versionNotas := strings.TrimSuffix(strings.TrimPrefix(rutaNotas, "docs/releases/v"), ".md")
+	enlace := reEnlaceLog.FindStringSubmatch(notas)
+	if enlace == nil {
+		t.Fatal("las notas más recientes no enlazan el CHANGELOG; ajusta este test")
+	}
+	fecha := regexp.MustCompile(`\d{4}-\d{2}-\d{2}$`)
+	if !fecha.MatchString(enlace[1]) {
+		t.Fatalf("el ancla %q no acaba en fecha; ajusta este test", enlace[1])
+	}
+	anclaVieja := fecha.ReplaceAllString(enlace[1], "2026-10-11")
+	if anclaVieja == enlace[1] {
+		anclaVieja = fecha.ReplaceAllString(enlace[1], "1999-01-01")
+	}
+	seccion := regexp.MustCompile(`(?m)^(## \[` + regexp.QuoteMeta(versionNotas) + `\] — )\S+`)
+	rotos := map[string][2]string{
+		"el enlace con la fecha de antes": {strings.Replace(notas, "CHANGELOG.md#"+enlace[1], "CHANGELOG.md#"+anclaVieja, 1), changelog},
+		"la sección con otra fecha":       {notas, seccion.ReplaceAllString(changelog, "${1}2099-12-31")},
+	}
+	for clase, d := range rotos {
+		if d[0] == notas && d[1] == changelog {
+			t.Errorf("%s: el reemplazo no cambió nada; ajusta este test", clase)
+			continue
+		}
+		if p := problemasDeAnclas(d[0], d[1]); len(p) == 0 {
 			t.Errorf("%s: la guardia no lo detectó", clase)
 		}
 	}

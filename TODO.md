@@ -253,6 +253,12 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [ ] Aplicar las notas (`gh release edit v0.4.0-alpha --notes-file
       docs/releases/v0.4.0-alpha.md`) y publicar el borrador
 
+## Sprint 24 — lo que dejó el release de v0.4.0-alpha, y `nucleo version`
+- [x] 1. El ancla rota de las notas de v0.4.0-alpha, y su guardia en `docs_vigentes_test.go`
+- [ ] 2. RELEASING: la receta de la procedencia SLSA (`gh attestation verify`)
+- [ ] 3. `nucleo version`, y la reproducibilidad con los tres `-X` comprobada
+- [ ] 4. TODO al día tras la publicación de v0.4.0-alpha
+
 ## Después del release de v0.4.0-alpha
 - [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
       checkpoint real) como test de regresión en Go, TypeScript, PHP y la página: ADR-017
