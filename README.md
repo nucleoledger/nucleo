@@ -104,7 +104,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 
 **C2SP.** Signed checkpoints (`tlog-checkpoint`) · witness cosignatures (`tlog-cosignature@v1`) · **the full HTTP witness protocol** (`tlog-witness`: `add-checkpoint` and the monitoring endpoint, with the spec version pinned in [ADR-011](docs/adr/ADR-011-witness-http.md)) · offline-verifiable receipts (`tlog-proof`).
 
-**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob removes the content while the chain and its receipts stay valid — which is the technical half of a deletion right, not a legal opinion that one has been satisfied (see the limits) · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 (FIPS 204) as an *additional* signature on the log's own checkpoint note**, carried in the `0xff` extension of `signed-note` under a Núcleo identifier ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)). It is backward-compatible by construction — and that cuts both ways: a standard C2SP verifier ignores it. Witness cosignatures are still Ed25519. This is post-quantum hygiene on one signature, **not** a post-quantum chain end to end; see the limits below.
+**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob removes the content while the chain and its receipts stay valid — which is the technical half of a deletion right, not a legal opinion that one has been satisfied (see the limits) · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 (FIPS 204) emitted as an *additional* signature on the log's own checkpoint note; no shipped verifier checks it yet** ([L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)). It is carried in the `0xff` extension of `signed-note` under a Núcleo identifier ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)), and it is backward-compatible by construction — and that cuts both ways: a standard C2SP verifier ignores it, and so do Núcleo's own Go, TypeScript and PHP verifiers and the web page, which recognize the line by its size. Checking it needs the log's ML-DSA public key pinned in the policy, a protocol change not yet made. Witness cosignatures, block signatures and the issuer's signature are Ed25519 only. Today it adds no verifiable security.
 
 **Ecuador profile.** `sri.factura.v1` with módulo-11 access-key validation, wired into `seal --profile ecuador.sri.factura`. It declares which fields are guessable and must travel as HMAC commitments rather than bare hashes.
 
@@ -181,7 +181,8 @@ the "a third between two runs" warning above, happening.
 section alone. A receipt the CLI actually issues also carries the human-readable text,
 the legal notice, the recipient, the block's and the issuer's Ed25519 signatures, and
 the checkpoint note with the log's **ML-DSA-44** signature — 2,420 bytes, some 3.2 KB in
-base64, which is most of the total (ADR-007). Only the proof grows with the log — logarithmically —
+base64, which is most of the total (ADR-007). That signature is emitted as an additional
+one, and no shipped verifier checks it yet ([L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)). Only the proof grows with the log — logarithmically —
 so a hundred-thousand-entry log adds about a kilobyte to the one-block figure. Still an
 email attachment or a PDF page, not a QR code.
 
@@ -390,7 +391,7 @@ The protocol and every design decision, with sources:
 - [`docs/RELEASING.md`](docs/RELEASING.md) — how releases are built, signed and verified
 - [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) — concept document (Spanish)
 
-Foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof), RFC 6962/9162, RFC 8785, RFC 9381, Ed25519 (everywhere) + ML-DSA-44 (FIPS 204, one extra log signature), XChaCha20-Poly1305, Argon2id, SLIP-0039.
+Foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof), RFC 6962/9162, RFC 8785, RFC 9381, Ed25519 (everywhere) + ML-DSA-44 (FIPS 204, one extra log signature, emitted but not yet checked by any shipped verifier), XChaCha20-Poly1305, Argon2id, SLIP-0039.
 
 ## Language
 
