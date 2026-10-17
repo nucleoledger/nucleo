@@ -11,6 +11,16 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Added
+
+- **`nucleo version`**: the version, commit, commit date and Go version of the binary, in one
+  line, or with `--json` as `{"ok", "version", "commit", "date", "go", "modified"}`
+  (docs/CLI-JSON.md). Release builds get the three values from the `-X` flags that
+  `.goreleaser.yaml` and the RELEASING rebuild recipe already passed; until now they had no
+  variable to land in, and the linker ignores an `-X` it cannot find. A plain `go build`
+  takes them from Go's build information (`vcs.revision`, `vcs.time`, `vcs.modified`), or
+  says `(devel)`.
+
 ## [0.4.0-alpha] — 2026-10-17
 
 ### What this version is

@@ -501,8 +501,12 @@ go build -o nucleo ./cmd/nucleo
 ```
 
 Eso da un binario que funciona igual, pero no los mismos bytes que el publicado: las
-compilaciones de release llevan `-trimpath`, `-ldflags "-s -w"` y tres valores
-incrustados. Con esos, **sí salen los mismos bytes**, y está comprobado con los cinco
+compilaciones de release llevan `-trimpath`, `-ldflags "-s -w"` y tres `-X` —la versión, el
+commit y su fecha—. **Hasta v0.4.0-alpha esas tres `-X` no tenían efecto**: el binario no
+tenía variables con esos nombres, y el enlazador ignora en silencio una `-X` que no
+encuentra. Desde la versión siguiente sí lo tienen —`nucleo version` imprime lo que se le
+pasó—, y para obtener los mismos bytes hay que pasar los mismos valores, que es lo que hace
+la orden de abajo. Con eso, **sí salen los mismos bytes**, y está comprobado con los cinco
 releases publicados, bajando el binario linux/amd64 de la página del release y
 recompilándolo desde su tag con la orden de abajo, tal cual:
 
@@ -544,7 +548,13 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
   -ldflags "-s -w -X main.version=0.2.0-alpha -X main.commit=$C -X main.date=$D" \
   -o nucleo ./cmd/nucleo
 sha256sum nucleo ruta/al/nucleo-descargado     # tienen que coincidir
+./nucleo version     # desde la versión siguiente a v0.4.0-alpha: la versión, $C y $D
 ```
+
+Con las `-X` con efecto, la receta sigue siendo reproducible: comprobado el 2026-10-17 en el
+Sprint 24, con dos clones limpios del commit que añadió `nucleo version` compilados con
+esta orden —con `0.0.0-sprint24` como versión—, que dieron el mismo sha256, y cuyo
+`nucleo version` imprimió la versión, el commit y la fecha pasados, con `modified: false`.
 
 Dos condiciones, y las dos importan: **la misma versión de Go** —la dice el propio
 binario publicado, primera línea de `go version -m`— y **el árbol limpio en el

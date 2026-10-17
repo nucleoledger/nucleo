@@ -23,6 +23,7 @@ SUBCOMANDOS
   backup      vuelve a emitir las tarjetas SLIP-0039 de la KEK
   restore     comprueba las tarjetas; con --new-passphrase fija otra passphrase
   alert       alert status — la alarma de frescura · alert ack — «me he enterado»
+  version     la versión, el commit y la fecha de este binario, y su Go
 
 BANDERAS GLOBALES
   --dir D     directorio del despliegue (por defecto, el actual)

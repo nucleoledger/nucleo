@@ -5,7 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nucleoledger/nucleo/internal/commit"
+	// Con alias: en este paquete, `commit` es la variable que rellena goreleaser con -X
+	// (version.go).
+	compromiso "github.com/nucleoledger/nucleo/internal/commit"
 	"github.com/nucleoledger/nucleo/internal/vault"
 	"github.com/nucleoledger/nucleo/profiles/ecuador"
 )
@@ -68,7 +70,7 @@ func commitmentsDe(v *vault.Vault, tenant, payloadHash string, p *profileResult)
 	}
 	out := make(map[string]string, len(p.sensitive))
 	for _, f := range p.sensitive {
-		c, err := commit.CommitField(key, f.Name, f.Value)
+		c, err := compromiso.CommitField(key, f.Name, f.Value)
 		if err != nil {
 			return nil, nil, err
 		}

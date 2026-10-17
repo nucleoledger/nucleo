@@ -419,6 +419,19 @@ No pide la passphrase: `log_state` no se firma.
 
 `{"ok": true, "usage": "<el texto de la ayuda>"}`.
 
+### `version`
+
+`{"ok": true, "version": "...", "commit": "...", "date": "...", "go": "go1.27.2",
+"modified": bool}`. Sale con `0` y no abre ningún ledger. `version`, `commit` y `date` son
+los que el release pasa con `-X` (`.goreleaser.yaml`): la versión sin la `v` del tag, el
+commit **completo** y el instante del commit, en RFC 3339 UTC. En un `go build` sin `-X`
+salen de la información de compilación de Go —la versión del módulo, `vcs.revision` y
+`vcs.time`—, y si tampoco la hay, `version` es `"(devel)"` y `commit` y `date` van
+**vacíos**: un consumidor no puede dar por hecho que traen un valor. `go` es la versión de
+Go con la que se compiló, y `modified` es `true` si el árbol tenía cambios sin commitear
+(`vcs.modified`), y `false` también cuando no se sabe. Los binarios publicados hasta
+v0.4.0-alpha no tienen este subcomando.
+
 ### `witness key`
 
 `{"public_key": hex, "created": bool}`.

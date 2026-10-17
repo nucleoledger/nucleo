@@ -131,6 +131,7 @@ var commands = map[string]func(*env, []string) error{
 	"backup":      cmdBackup,
 	"restore":     cmdRestore,
 	"alert":       cmdAlert,
+	"version":     cmdVersion,
 }
 
 func main() {
