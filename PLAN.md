@@ -26,11 +26,13 @@ varios logs con su kit y el testigo mutuo (Sprint 15), el mapa del sistema vigil
 intentó impedir usar la supresión para borrar huellas (Sprint 18) y la que de verdad lo
 impide, la autoridad de supresión (Sprint 19, ADR-032). PROTOCOL 0.7-draft. Notas en
 `docs/releases/v0.4.0-alpha.md`; la actualización desde v0.3.1-alpha, ensayada con el
-binario publicado. El SDK de TypeScript pasa a 0.4.0-alpha.0 (la política con `erasureKey`): su tag `vsdk` va antes que el del binario. Falta que el dev etiquete,
-publique y que se verifique el release.
+binario publicado. El SDK de TypeScript pasa a 0.4.0-alpha.0 (la política con `erasureKey`), **ya publicado**
+el 2026-10-15 desde el tag `vsdk-0.4.0-alpha.0` (commit `ec21632`), antes que el binario.
+Falta que el dev etiquete `v0.4.0-alpha`, publique y que se verifique el release.
 
-El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: cinco rondas
-adversariales, el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
+El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: seis rondas
+adversariales (la revisión del 2026-09-10, las tres auditorías del 2026-09-12 y las revisiones
+del 2026-09-13 y del 2026-09-19), el SDK de PHP, el ensayo de operación, el ejemplo de integración— vive
 en `CHANGELOG.md` y en `docs/adr/`, no aquí.
 
 # 🎯 DÓNDE ESTÁ EL PROYECTO
@@ -48,8 +50,10 @@ externa del 10-sep-2026 lo dijo en una frase que conviene no suavizar:
 De esos cinco frentes, tres están cerrados: el sellado desde PHP (Sprint 8, ADR-021),
 el backup restaurado (ensayo de operación del Sprint 10: el rollback detectado ya no
 se olvida) y el recibo ante un juez (aviso legal dentro del recibo, destinatario
-firmado por ADR-015). Quedan dos: **quién atestigua** y **la auditoría que no sea
-otro modelo**.
+firmado por ADR-015). Quedan dos. **Quién atestigua**, a medias: el software para que un tercero
+atestigüe existe y está ensayado en el CI —el testigo de varios logs (ADR-030), el testigo
+mutuo y el kit del operador—, pero ningún tercero independiente lo opera todavía. Y **la
+auditoría que no sea otro modelo**, pendiente.
 
 # 📋 LO QUE QUEDA
 

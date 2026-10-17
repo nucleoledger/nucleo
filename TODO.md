@@ -1,11 +1,12 @@
 # TODO.md — Backlog atómico
 
-Estado: **`v0.2.0-alpha` publicada** como pre-release el 2026-09-25 (commit `6442b03`)
-y verificada por el dev con la receta de RELEASING —cosign `Verified OK` con la
-identidad exacta del tag, sha256 OK, cero ganchos de prueba en el binario— y aquí
-—el binario linux/amd64 se recompila byte a byte desde el tag—.
-`@nucleoledger/verify@0.2.0-alpha.0` en npm con procedencia (`latest` y `alpha`).
-Lo detallado de los Sprints 7 a 11 vive en `CHANGELOG.md`.
+Estado: el último release publicado es **`v0.3.1-alpha`** (tag firmado con SSH, commit
+`5237867`), verificado y recompilado byte a byte desde el tag (la tabla de RELEASING).
+`@nucleoledger/verify@0.4.0-alpha.0` **publicado** en npm con procedencia el 2026-10-15
+(tag `vsdk-0.4.0-alpha.0`, commit `ec21632`; `latest` y `alpha`). **`v0.4.0-alpha`
+preparada, sin etiquetar**: CHANGELOG y `docs/releases/v0.4.0-alpha.md` listos; el tag,
+el release y su verificación los hace el dev (abajo, «Cierre de v0.4.0-alpha»).
+Lo detallado de cada versión vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
 commits, en `CHANGELOG.md` y en `docs/adr/`, que es donde hay que buscarlo. Una
@@ -226,6 +227,17 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 5. El ensayo verifica también con el paquete 0.4.0-alpha.0 del registro
 - [x] 6. Documentación: notas del release, RELEASING, versión de Go en CLAUDE/AGENTS
 - [x] 7. Cierre: tabla de la revisión, compuerta y ensayo con cosign
+
+## Sprint 22 — documentación vigente veraz antes de etiquetar v0.4.0-alpha
+- [x] 1. Auditoría de los documentos vigentes contra GARANTIAS, tags, tests y ficheros
+- [x] 2. SECURITY «Out of scope» sin las dos viñetas falsas (G4, G15), cada límite con su Lnn (L22 nuevo)
+- [x] 3. README «Status», rondas contadas, recompilación hasta v0.3.1-alpha, lo de v0.4
+- [x] 4. PLAN y TODO con el estado real; AUTHORS con lo que se firma de verdad
+- [ ] 5. La guardia: `cmd/nucleo/docs_vigentes_test.go` y el paso de RELEASING antes del tag
+
+### P2 del Sprint 22, para después
+- [ ] `SECURITY.md` «No external audit yet»: las revisiones están en los ADR **y** en
+      `docs/revision-externa-*`; nombrar los dos sitios
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
 - [ ] Etiquetar `v0.4.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
