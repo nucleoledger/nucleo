@@ -11,12 +11,13 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
-## [0.4.0-alpha] — 2026-10-11
+## [0.4.0-alpha] — 2026-10-17
 
 ### What this version is
 
-The witness becomes software a third party can operate, the system has a map that CI keeps
-honest, and erasure gets a command. Sprints 15 to 19. The erasure command was found to be a
+The witness becomes software a third party can operate —no third party operates one yet:
+it is rehearsed in CI, with the mutual witness and the operator kit—, the system has a map
+that CI keeps honest, and erasure gets a command. Sprints 15 to 19. The erasure command was found to be a
 way to hide tampering **before** it was ever published —whoever compromised the ERP server
 could turn a deleted sale from «missing» into «erased»—, and it took **two rounds** to close:
 

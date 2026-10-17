@@ -15,7 +15,10 @@ security firm.
 
 What this alpha has behind it, each item checked rather than claimed:
 
-- **Fourteen adversarial rounds, every executed exploit kept as a regression test** — the
+- **Fourteen adversarial rounds; three of them executed exploits** (the audits of 0.2-draft),
+  **and every one of those exploits but one is kept as a regression test** — the receipt of a
+  block signed by a foreign key ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md)) is
+  rejected by the code of the three verifiers, but no test pins it yet. The
   findings and the decisions they forced are in the table under
   [Security & audits](#security--audits) and in [`docs/adr/`](docs/adr/).
 - **An operations rehearsal**: a deployment run the way a small business would run it —
@@ -196,7 +199,7 @@ A locally sealed chain detects edits. Signed receipts held by counterparties sur
 
 This is a security product, so the process that built it is part of what you are trusting.
 
-**Three independent models reviewed each other's work.** Each sprint's output was audited adversarially by a different model than the one that wrote it, with the reviewer given the primary specifications rather than the implementation's own claims. Every finding was resolved with a decision recorded in an ADR, never with a silent patch.
+**Several AI models reviewed the work adversarially.** These are AI reviews, not independent human audits. The record names the model wherever it was kept: [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md) for the four pre-publication rounds, and the preamble of each report in `docs/revision-externa-*`, except the one of 2026-09-19; the audits recorded in ADR-014 to ADR-018 do not name theirs. In the pre-publication rounds the reviewer had the primary specifications in front of it rather than the implementation's own claims (ADR-013). Each finding is recorded with how it was closed: in an ADR, or in the closure table of its report, with the commit.
 
 **Findings that were found and closed**, with the reasoning preserved:
 
@@ -329,7 +332,9 @@ policy "verified" a forged ledger ([ADR-017](docs/adr/ADR-017-politica-raiz-de-c
 the third found nothing new in the receipt bytes and everything *next to* them — the
 policy file and the note's signature block, read differently by Go and TypeScript
 ([ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md), PROTOCOL 0.3-draft). All are
-in the findings table above; every exploit is now a regression test.
+in the findings table above; every exploit but one is now a regression test: the receipt of
+a block signed by a foreign key (ADR-017) is rejected by the code of the three verifiers, and
+no test pins it yet.
 
 The record of the pre-publication rounds is in
 [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md); the post-publication audits are in
@@ -354,12 +359,14 @@ wrote the receipt before verifying it ([report](docs/revision-externa-modelo-202
 two reviewed everything changed since v0.3.1-alpha, the erasure authority first
 ([report](docs/revision-externa-modelo-20261011.md),
 [report](docs/revision-externa-modelo-20261014.md)). Each report says where every finding was
-closed, with its commit and its test.
+closed, with its commit and its test. A seventh, on 2026-10-17, read only the documentation
+changed before the v0.4.0-alpha tag and found nothing blocking
+([report](docs/revision-externa-modelo-20261017.md)); it is not counted as a round.
 
 **How the fourteen rounds are counted:** four before the first release
 ([ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md), its table); the review after
 `v0.1.0-alpha` that led to ADR-014 and ADR-015; the three audits of 0.2-draft (ADR-016,
-ADR-017, ADR-018); and the six reviews with a report in `docs/revision-externa-*`.
+ADR-017, ADR-018); and the six reviews of the code with a report in `docs/revision-externa-*`.
 
 The operations rehearsal and the
 integration example are in the [status](#status) above and in the CHANGELOG.

@@ -235,8 +235,14 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 4. PLAN y TODO con el estado real; AUTHORS con lo que se firma de verdad
 - [x] 5. La guardia: `cmd/nucleo/docs_vigentes_test.go` y el paso de RELEASING antes del tag
 
+## Sprint 22b — las decisiones del dev antes del tag
+- [x] 1. La revisión externa del 2026-10-17, versionada tal cual con su procedencia
+- [x] 2. README «Security & audits» y exploits estrechados a lo comprobable; el testigo, sin
+      operador todavía (notas y CHANGELOG); SECURITY remite a `docs/revision-externa-*`
+- [x] 3. El checklist «Antes del tag» contra el HEAD final; CHANGELOG con la fecha del tag
+
 ### P2 del Sprint 22, para después
-- [ ] `SECURITY.md` «No external audit yet»: las revisiones están en los ADR **y** en
+- [x] `SECURITY.md` «No external audit yet»: las revisiones están en los ADR **y** en
       `docs/revision-externa-*`; nombrar los dos sitios
 
 ## Cierre de v0.4.0-alpha (lo hace el dev)
@@ -245,6 +251,9 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       `docs/releases/v0.4.0-alpha.md` y la tabla de RELEASING
 
 ## Después del release de v0.4.0-alpha
+- [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
+      checkpoint real) como test de regresión en Go, TypeScript, PHP y la página: ADR-017
+      lo promete y no existe (Sprint 22b, 2e). Al cerrarlo, el README deja de exceptuarlo
 - [ ] G46: las cuatro órdenes que `comillas_shell_test.go` reconstruye con `printf` (`init` y
       el ledger que no existe en `env.go`, `restore --new-passphrase` en `env.go` y
       `backup.go`, `backup` en `init.go`), capturarlas de la salida real de la CLI

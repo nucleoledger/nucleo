@@ -73,5 +73,6 @@ While the major version is `0`, only the latest release gets fixes.
 
 No professional third-party security audit has been performed on this code, and
 it has not been used in production by anyone. The reviews that shaped it were
-adversarial model-driven audits, documented in the ADRs — thorough, but not the
-same thing. Treat the software accordingly.
+adversarial reviews by AI models, documented in the ADRs and in the reports
+versioned verbatim in `docs/revision-externa-*` — thorough, but not the same
+thing. Treat the software accordingly.
