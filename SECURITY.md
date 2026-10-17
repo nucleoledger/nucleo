@@ -60,6 +60,13 @@ which is where it is kept and where its decision and its test are named:
 - **VRF commitments would not give privacy**, only third-party verifiability.
   See [ADR-003](docs/adr/ADR-003-compromisos-vrf-hmac.md).
   ([L15](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza))
+- **The ML-DSA-44 signature is emitted, but no shipped verifier checks it.** The
+  log adds it to its checkpoint note; Go, TypeScript, PHP and the web page
+  recognize the line by its size and do not verify it, so today it adds no
+  verifiable security. Checking it needs the log's ML-DSA public key pinned in the
+  policy, which is a protocol change with an ADR still to be written. See
+  [ADR-007](docs/adr/ADR-007-mldsa44-adicional.md).
+  ([L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza))
 
 If you think one of those "documented properties" is worse than we describe, that
 **is** in scope. Being wrong about our own limits is exactly the kind of mistake
