@@ -2,14 +2,24 @@
 
 Sergio Iván Ullaguari Alvarado <security@nucleoledger.com>
 
-This is the author of every commit in the repository's history. There is no
-other author.
+This is the author of every commit in the repository's history but one: commit
+`b894337` (2026-10-09) is a dependency bump authored by `dependabot[bot]`, merged
+by the author through GitHub's web interface in `5237867`, which records the author as
+"Sergio Ullaguari" with a GitHub no-reply address.
 
-Since 2026-10-02 the author commits and signs the release tags as the identity
-above. Commits made before 2026-10-02 (from 2026-09-03 to 2026-09-28) record the
-same person under the short name "Sergio U" and a different, personal e-mail
-address. The history is left as it is: rewriting it would change every commit
-hash after the first one, including those named by the published release tags.
+Since 2026-10-02 the author commits as the identity above. Commits made before
+2026-10-02 (from 2026-09-03 to 2026-09-28) record the same person under the short
+name "Sergio U" and a different, personal e-mail address. The history is left as
+it is: rewriting it would change every commit hash after the first one, including
+those named by the published release tags.
+
+What is signed, exactly: **commits are not**. The two that carry a signature,
+`b894337` and `5237867`, were signed by GitHub, not by the author. The tags
+`v0.3.0-alpha`, `v0.3.1-alpha`, `vsdk-0.3.0-alpha.0` and `vsdk-0.4.0-alpha.0` are
+signed with the author's SSH key as the identity above (`git tag -v`); the earlier
+tags `v0.1.0-alpha`, `v0.2.0-alpha` and `vsdk-0.2.0-alpha.0` are annotated but not
+signed. The release binaries are signed separately, keyless, by the release
+workflow (see `docs/RELEASING.md`).
 
 Most commits also carry a `Co-Authored-By:` trailer naming an AI model (Claude,
 by Anthropic), which the author used to write code and documentation. This file
