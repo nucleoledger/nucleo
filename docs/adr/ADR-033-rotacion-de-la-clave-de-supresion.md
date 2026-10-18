@@ -1,6 +1,6 @@
 # ADR-033-rotacion-de-la-clave-de-supresion
 
-**Estado:** PROPUESTA el 2026-10-17 (Sprint 26), sin código · **Fecha:** 2026-10-17 · **Fuentes:** ADR-032 (la autoridad de supresión) y su «Lo que NO resuelve», `docs/GARANTIAS.md` L21, ADR-017 (la política, raíz de confianza), ADR-018 (su formato de cable), ADR-030 (logs retirados en el testigo: retirar sin olvidar), ADR-028 (la alarma durable), PROTOCOL 0.7-draft §3.2 y §5.1, `internal/policy/policy.go`, `internal/estricto`, `sdk/ts/src/policy.ts`, `sdk/php/src/Policy.php`
+**Estado:** ACEPTADA el 2026-10-18 por el dev (Sprint 27), sin código; propuesta el 2026-10-17 (Sprint 26); las preguntas abiertas, respondidas en «Decisiones del dev (2026-10-18)» · **Fecha:** 2026-10-17 · **Fuentes:** ADR-032 (la autoridad de supresión) y su «Lo que NO resuelve», `docs/GARANTIAS.md` L21, ADR-017 (la política, raíz de confianza), ADR-018 (su formato de cable), ADR-030 (logs retirados en el testigo: retirar sin olvidar), ADR-028 (la alarma durable), PROTOCOL 0.7-draft §3.2 y §5.1, `internal/policy/policy.go`, `internal/estricto`, `sdk/ts/src/policy.ts`, `sdk/php/src/Policy.php`
 
 ## El problema
 
@@ -271,6 +271,118 @@ comprobadas con OpenSSL 3.
 - **El diferencial de políticas** muta el miembro nuevo como a los demás.
 - **`scripts/tercero-supresion.sh`**: la supresión autorizada con la clave retirada.
 
+## Decisiones del dev (2026-10-18)
+
+El dev acepta el ADR y cierra las preguntas abiertas 1 a 4 y la 10 (las 5 a 9 son de
+ADR-034 y se responden allí). Donde una decisión precisa o cambia el texto de arriba, manda
+esta sección.
+
+**1. La forma: un objeto clave → corte.** `retiredErasureKeys` es `{ "<clave>": corte }`, como
+en §A. El array `[{key, until}]` queda descartado y fijado como inválido en los vectores de
+política.
+
+**2. Sin `erasureKey`, vale.** Una política con `retiredErasureKeys` y sin `erasureKey` es
+válida, con el significado de §A: lo suprimido hasta cada corte sigue contando y ningún
+evento posterior cuenta.
+
+**3. Sin `erasure-key rotate` en la 0.5; el fragmento lo imprime `nucleo sync`.** La política
+nueva se escribe a mano con la receta de §D, pero nadie calcula el corte a ojo:
+**`nucleo sync --policy-file F`**, cuando `F` trae `erasureKey` y la atestación del testigo
+verificó, imprime después de la política (ADR-017 §c) el fragmento exacto que la política
+nueva tiene que llevar si se rota la clave de supresión:
+
+```
+Si rotas la clave de supresión, la política nueva lleva, además de la erasureKey nueva:
+  "retiredErasureKeys": {"<erasureKey de F>": 41}
+```
+
+- **El corte** es el mayor índice de un evento `nucleo.erasure.v1` autorizado (§C) con la
+  `erasureKey` de `F` **dentro del checkpoint que ese mismo `sync` acaba de atestiguar**
+  (índice < tamaño atestiguado). Por construcción, nunca queda por encima de lo atestiguado,
+  que es la condición de §B y §D.
+- **Las claves que `F` ya retiraba** van en el fragmento con sus cortes de siempre: la
+  política nueva las tiene que seguir listando, y un fragmento que las olvidara haría que
+  sus supresiones dejaran de contar al pegarlo.
+- **Sin ningún evento autorizado con esa clave** dentro de lo atestiguado, no hay fragmento
+  que pegar, y lo dice: *«ninguna supresión autorizada con la clave actual está atestiguada:
+  al rotarla no hace falta retiredErasureKeys para ella»*. Si `F` ya retiraba otras, imprime
+  esas.
+- **Con `--json`**, el mismo dato en el miembro `erasure_rotation` (`docs/CLI-JSON.md`):
+  `{"retiredErasureKeys": {…}, "attested_size": N}`, o `null` cuando la política no trae
+  `erasureKey` o la atestación no verificó.
+- **Por qué `sync` y no `erasure-key init`.** `init` es la orden de la custodia: no abre el
+  ledger y no puede saber qué se suprimió ni qué está atestiguado. `sync` es la orden que ya
+  imprime la política, y la única que sabe, en ese momento, hasta dónde llega lo atestiguado.
+  Sin `--policy-file` (con banderas sueltas), `sync` no conoce ninguna `erasureKey` y no
+  imprime nada de esto. El fragmento se puede pegar tal cual en el JSON de la política, que
+  es lo que exige la regla de los mensajes.
+
+§D, paso 2, queda así: *el corte se copia del fragmento que imprime `sync`*. Si se sospecha
+que la clave se usó mal, se sigue bajando a mano por debajo del primer evento sospechoso.
+
+**4. Se puede regularizar con la clave nueva, y el original no desaparece.** Nota sobre la
+pregunta: `erase` **ya** sella ese segundo evento —cuando el contenido ya no está y solo hay
+eventos sin autorización válida (`cmd/nucleo/erase.go#hayEventoSinAutorizar`)—; lo que no
+existía es la manera de contarlo en `reconcile`, que hoy sigue informando el original como
+hallazgo y sale con 2 para siempre. La regla exacta:
+
+> Sea `E` un evento `nucleo.erasure.v1` **no autorizado** (§C) que cumple el punto 2 de §C
+> —suprime un contenido `h` sellado antes que él—. `E` queda **regularizado por** el evento
+> `R` si y solo si:
+>
+> 1. `R` está autorizado (§C), con cualquiera de las claves que valen para **su** índice;
+> 2. `R.index > E.index`;
+> 3. `R` suprime el mismo contenido: `R.payload_hash = E.payload_hash`;
+> 4. el `through` de `R` cubre todo bloque con contenido `h` anterior a `E`:
+>    `through(R) ≥ max{ B.index : B.payload_hash = h, B.index < E.index }`.
+>
+> Si hay varios `R`, se nombra el de menor índice.
+
+- El punto 4 no usa el `through` de `E`: viene de una autorización que no vale y no se le
+  cree. `R` tiene que cubrir todo lo que `E` pudo pretender suprimir.
+- **Un `R` anterior a `E` no lo regulariza.** Un evento sin autorización sellado después de
+  una supresión legítima sigue siendo el servidor sellando lo que nadie autorizó.
+- **Un `E` que no cumple el punto 2** —no suprime ningún contenido anterior— no se regulariza:
+  no hay supresión que regularizar, y sigue siendo hallazgo.
+- **El original no desaparece.** `E` sale de `findings` y entra en una lista nueva,
+  `regularized`, que va **siempre** en `reconcile --json` (`[]` si no hay ninguna, como
+  `findings` y `erased`; ADR-025): `{index, sealed_hash, sealed_at, regularized_by, reason}`,
+  donde `reason` es por qué `E` no estaba autorizado. En texto, una línea por evento, en cada
+  reconciliación y para siempre: *«⚠ supresión no autorizada en el evento 42, regularizada en
+  el evento 57 (autorizada por la clave retirada …, cuyo corte es el índice 41; el evento es
+  el 42)»*. Los bloques que `R` cubre van en `erased` con `erased_by` = el primer evento
+  autorizado que los cubre, como hoy.
+- **El código de salida.** Un evento regularizado **no** cuenta como hallazgo: si no hay
+  otro, `reconcile` sale con **0**, con el aviso. La razón: regularizar exige una firma de
+  quien custodia la clave de supresión, que es justo la parte que el servidor no tiene
+  (ADR-032); quien suprimió sin autorización no puede regularizarse solo. El aviso es
+  permanente porque el hecho lo es: `E` está en la cadena, atestiguado, y quien audite tiene
+  que verlo aunque la salida sea 0.
+- La alarma durable del evento (ADR-028) no cambia: se abre con cada evento de supresión,
+  autorizado o no, y se cierra como hoy.
+
+**Su test**, en el mismo sprint que la regla (Go, `internal/reconcile`):
+
+- `TestSupresionNoAutorizadaRegularizada`: cadena con el contenido `X` en el bloque 0, el
+  evento `E` en el 2 —firmado con una clave que la política no lista, sellado con las piezas
+  internas, sin pasar por `erase`— y `R` en el 3, autorizado con la `erasureKey` y `through`
+  0. Esperado: `findings` vacío, `erased` = `[{index 0, erased_by 3}]`, `regularized` =
+  `[{index 2, regularized_by 3}]`.
+- Y los cuatro casos que **no** regularizan, cada uno con `E` en `findings`: `R` anterior a
+  `E`; `R` con un `through` que no cubre una segunda copia de `X` sellada entre `R.through` y
+  `E`; `R` tampoco autorizado; `E` que no suprime ningún contenido anterior.
+- Tiene que fallar si se quita la condición 2 o la 4 (se demuestra al escribirlo, como el
+  test del corte).
+- En la CLI (`cmd/nucleo`): la misma cadena sale con 0, el texto dice «regularizada en el
+  evento 3» y el JSON trae la entrada en `regularized`; sin `R`, sale con 2.
+- En `testdata/vectors/erasure/rotacion.json`, dos filas más, escritas a mano desde esta
+  regla: el evento 42 firmado con A (después del corte) y un evento 50 autorizado con B para
+  el mismo contenido → *«no autorizado, regularizado en el evento 50»*; y el mismo con el
+  evento autorizado en el 30 → *«no autorizado»* (anterior, no regulariza).
+
+**10. La 0.5 sale con los dos ADR implementados.** Ni el SDK ni el binario 0.5 se publican
+con un miembro aceptado en la gramática que nadie use.
+
 ## Plan conjunto con ADR-033 y ADR-034 (el mismo texto en los dos)
 
 Los dos ADR tocan lo mismo —la gramática de la política, PROTOCOL §3.2— y se proponen a la vez
@@ -316,9 +428,11 @@ desde el addendum de ADR-007 (lo comprueba el ensayo, abajo).
 4. **Go**: `internal/policy` (los dos miembros; `internal/estricto` no cambia, porque ninguno
    trae un tipo JSON nuevo), `internal/erasure` y `internal/reconcile` (las claves retiradas),
    `internal/proof` (la ML-DSA con `crypto/mldsa` y el campo de tres estados) y la CLI
-   (`sync` imprime `logMLDSAKey` en la política; la apertura la coteja; `erasure-key
-   authorize` rechaza una clave retirada; `reconcile --json` dice qué clave autorizó cada
-   supresión).
+   (`sync` imprime `logMLDSAKey` en la política y el fragmento de `retiredErasureKeys`; la
+   apertura la coteja; `erasure-key authorize` rechaza una clave retirada; `reconcile
+   --json` dice qué clave autorizó cada supresión y lista las regularizadas; y la orden
+   nueva `nucleo verify-receipt`, que verifica un recibo ajeno con una política —ADR-034,
+   decisión 8—).
 5. **TypeScript y PHP**: el parser contra los mismos vectores, el campo de tres estados en el
    resultado y su texto; la página de `web/verify/` con él.
 6. **El diferencial**: el catálogo de políticas muta los dos miembros nuevos; el de notas
@@ -347,8 +461,8 @@ gana estos pasos:
    evento del paso 1}` y `logMLDSAKey` copiada de lo que imprime `sync`. La supresión del
    paso 1 **sigue contando** (es el cambio de L21); una supresión nueva con B cuenta;
    `erasure-key authorize` con las tarjetas de A y la política nueva se rechaza.
-4. El recibo emitido por v0.4.0-alpha, con la política nueva: el verificador de Go dice
-   «ML-DSA verificada»; el SDK 0.5 del HEAD y el de npm lo aceptan y dicen lo que su opción
+4. El recibo emitido por v0.4.0-alpha, con la política nueva: el verificador de Go
+   —`nucleo verify-receipt` del HEAD— dice «ML-DSA verificada»; el SDK 0.5 del HEAD y el de npm lo aceptan y dicen lo que su opción
    de ADR-034 obliga a decir; el SDK 0.4 de npm **rechaza** la política nueva (miembro
    desconocido) y sigue aceptando la vieja.
 5. `scripts/tercero-supresion.sh` con la clave retirada: el tercero elige la clave por el
@@ -358,38 +472,59 @@ Que una clave retirada no autorice nada después de su corte no entra en el ensa
 probarlo hay que sellar un evento sin pasar por `erase`, y eso es un test de Go
 (ADR-033, «Los tests y los vectores»).
 
-### Preguntas abiertas para el dev
+### Preguntas abiertas para el dev (respondidas el 2026-10-18)
+
+Cada pregunta lleva debajo la respuesta del dev; el detalle está en la sección «Decisiones
+del dev (2026-10-18)» del ADR al que pertenece.
 
 1. **ADR-033, la forma.** ¿`retiredErasureKeys` como objeto `{clave: corte}` —recomendado: no
    añade arrays al lector estricto y una clave repetida ya es un error de la gramática— o
    como el array `[{key, until}]` de la idea de partida?
+   **Respuesta:** objeto clave → corte.
 2. **ADR-033, sin clave actual.** ¿Vale una política con `retiredErasureKeys` y sin
    `erasureKey` —«ya no suprimo, pero lo suprimido sigue contando»—? Se recomienda que sí.
+   **Respuesta:** sí, vale.
 3. **ADR-033, la herramienta.** ¿Un `nucleo erasure-key rotate --policy-file` que escriba la
    política nueva con el corte calculado desde el último checkpoint atestiguado, o se edita
    a mano con la receta de OPERACION? Se recomienda editarla a mano en la 0.5 y la orden
    cuando alguien rote de verdad.
+   **Respuesta:** a mano en la 0.5, sin `rotate`; pero `nucleo sync --policy-file` imprime el
+   fragmento exacto de `retiredErasureKeys`, con el corte calculado dentro de lo que ese
+   `sync` acaba de atestiguar (ADR-033, decisión 3).
 4. **ADR-033, volver a autorizar.** Si se pone el corte por debajo de un evento sospechoso,
    las supresiones legítimas de después dejan de contar. ¿Se permite sellar un segundo
    evento, autorizado con la clave nueva, para un bloque ya suprimido? El protocolo ya lo
    admite (§5.1 no prohíbe dos eventos para el mismo contenido); `erase` hoy no lo hace.
+   **Respuesta:** sí. El original no desaparece: `reconcile` lo informa como «no autorizada,
+   regularizada en el evento N» y sale con 0, con un aviso permanente en el texto y en el
+   JSON (`regularized`). Corrección: `erase` ya sella ese segundo evento; lo nuevo es cómo lo
+   cuenta `reconcile` (ADR-033, decisión 4, con la regla exacta y su test).
 5. **ADR-034, TypeScript y PHP.** Opción A (verificar de verdad, implementación propia),
    B (aceptar la clave y decir «presente sin verificar»; recomendada para la 0.5) o C (solo
    Go).
+   **Respuesta:** B. TS y PHP dan `"present-unverified"`; la divergencia con Go se declara
+   en el diferencial; README y GARANTIAS dicen que la comprobación post-cuántica solo la
+   hace el verificador de Go (ADR-034, decisión 5).
 6. **ADR-034, el nombre y la codificación.** `logMLDSAKey` en hexadecimal en minúsculas, 2624
    caracteres, como el resto de las claves de la política. ¿O otro nombre?
+   **Respuesta:** `logMLDSAKey`, hexadecimal en minúsculas, 2624 caracteres.
 7. **ADR-034, la implementación independiente para los vectores.** ¿Se aprueba OpenSSL ≥ 3.5
    como herramienta de desarrollo —no como dependencia del producto—, instalada con su
    checksum como las del ritual, junto con los vectores sigVer del ACVP del NIST? Con eso
    ADR-024 se revisa y `material/mldsa.json` desaparece.
+   **Respuesta:** aprobado, versión fijada con su checksum, solo para generar vectores, junto
+   con los sigVer del ACVP (ADR-034, decisión 7).
 8. **ADR-034, quién verifica fuera.** La única verificación de recibos en Go es la que la CLI
    hace de los suyos (TODO, «Verificar recibos ajenos desde la CLI»). Con la opción B, una
    contraparte no tiene dónde comprobar la ML-DSA. ¿Entra en la 0.5 una orden para verificar
    un recibo ajeno, o la 0.5 cierra L23 solo para el emisor?
+   **Respuesta:** entra `nucleo verify-receipt` (ADR-034, decisión 8).
 9. **ADR-034, el `sync`.** ¿La política que imprime `sync` lleva `logMLDSAKey` siempre? Se
    recomienda que sí desde v0.5: es la política completa del log, y una contraparte con el
    SDK 0.4 tiene que actualizar de todos modos para leer una política 0.8-draft.
+   **Respuesta:** sí, siempre.
 10. **Los dos.** ¿Se publica la 0.5 cuando estén los dos ADR implementados, o vale publicar el
     SDK 0.5 con los dos miembros aceptados en la gramática aunque la CLI implemente uno
     después? Se recomienda lo primero: una gramática que acepta un miembro que nadie usa es
     la promesa vacía que la enmienda de ADR-030 quitó.
+    **Respuesta:** la 0.5 se publica solo con los dos ADR implementados.

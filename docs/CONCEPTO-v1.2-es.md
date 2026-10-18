@@ -40,8 +40,9 @@
 > ML-DSA del log y no hay contra qué verificarla (`docs/GARANTIAS.md`, L23). Las cosignatures
 > de los testigos, la firma de cada bloque y la del emisor del recibo son solo Ed25519 (L14).
 > Fijar esa clave y verificar la firma es [ADR-034](adr/ADR-034-verificar-mldsa44-del-log.md),
-> en estado de **propuesta**. Donde §5.2 dice «segunda firma post-cuántica», léase: se emite
-> en cada checkpoint y, hasta que ADR-034 se acepte e implemente, nadie la comprueba.
+> **aceptada** el 2026-10-18 y sin implementar; cuando lo esté, la comprobará solo el
+> verificador de Go (opción B). Donde §5.2 dice «segunda firma post-cuántica», léase: se emite
+> en cada checkpoint y, hasta que ADR-034 se implemente, nadie la comprueba.
 
 ---
 
@@ -117,7 +118,7 @@ El core sella cualquier registro de cualquier sistema en cualquier país; no con
 | Almacenamiento | SQLite (Go puro), append-only con triggers anti UPDATE/DELETE, WAL, synchronous=FULL, un solo escritor |
 
 > *Enmendado (2026-10-17): la ML-DSA-44 de la fila «Firma del log» se emite y ningún
-> verificador publicado la comprueba (L23; ADR-034, propuesta). Ver la enmienda al principio.*
+> verificador publicado la comprueba (L23; ADR-034, aceptada y sin implementar). Ver la enmienda al principio.*
 
 ### 5.3 Modelo de confianza en capas (sin infraestructura del creador)
 1. **Cadena local sellada** — detecta ediciones.

@@ -1,6 +1,6 @@
 # ADR-034-verificar-mldsa44-del-log
 
-**Estado:** PROPUESTA el 2026-10-17 (Sprint 26), sin código · **Fecha:** 2026-10-17 · **Fuentes:** `docs/GARANTIAS.md` L14 y L23 (Sprint 25), ADR-007 y su addendum (la extensión `0xff` y el key ID), ADR-024 (el material ML-DSA prestado de los vectores), ADR-017 (la política, raíz de confianza), ADR-018 (su formato de cable), ADR-021 (el SDK de PHP), ADR-029 §F y ADR-030 §C (lo que se hace hoy con una clave comprometida), PROTOCOL 0.7-draft §3, §3.2, §3.3 y §6, `internal/checkpoint/mldsa.go`, `internal/proof/proof.go#esFirmaMLDSA`, `internal/identity/identity.go`, `sdk/ts/src/receipt.ts`, `sdk/php/src/Verifier.php`
+**Estado:** ACEPTADA el 2026-10-18 por el dev (Sprint 27), sin código; propuesta el 2026-10-17 (Sprint 26); las preguntas abiertas, respondidas en «Decisiones del dev (2026-10-18)» · **Fecha:** 2026-10-17 · **Fuentes:** `docs/GARANTIAS.md` L14 y L23 (Sprint 25), ADR-007 y su addendum (la extensión `0xff` y el key ID), ADR-024 (el material ML-DSA prestado de los vectores), ADR-017 (la política, raíz de confianza), ADR-018 (su formato de cable), ADR-021 (el SDK de PHP), ADR-029 §F y ADR-030 §C (lo que se hace hoy con una clave comprometida), PROTOCOL 0.7-draft §3, §3.2, §3.3 y §6, `internal/checkpoint/mldsa.go`, `internal/proof/proof.go#esFirmaMLDSA`, `internal/identity/identity.go`, `sdk/ts/src/receipt.ts`, `sdk/php/src/Verifier.php`
 
 ## El problema
 
@@ -259,6 +259,62 @@ Y, sobre eso:
   bajo una política que fija la clave—.
 - ADR-024 se revisa: el material prestado desaparece.
 
+## Decisiones del dev (2026-10-18)
+
+El dev acepta el ADR y cierra las preguntas abiertas 5 a 10 (las 1 a 4 son de ADR-033 y se
+responden allí). Donde una decisión precisa o cambia el texto de arriba, manda esta sección.
+
+**5. Opción B.** Go verifica la ML-DSA-44 con `crypto/mldsa`; TypeScript, PHP y la página
+aceptan `logMLDSAKey`, calculan su key ID, exigen la línea de esa clave y que mida 2420
+bytes, **no** la verifican y dan `logMLDSA: "present-unverified"` con el motivo *«este
+verificador no implementa ML-DSA-44»* (§D). La divergencia con Go —una línea con el key ID
+correcto y la firma mala es inválida en Go y válida, con `"present-unverified"`, en TS y
+PHP— **se declara en el diferencial**: el catálogo de notas re-firmadas la lista como
+esperada y comprueba que, cada vez que TS o PHP aceptan lo que Go rechaza, dicen
+`"present-unverified"` y el único motivo de Go es la ML-DSA. Cualquier otra divergencia
+sigue siendo un fallo. README y GARANTIAS lo dirán con estas palabras: **la comprobación
+post-cuántica solo la hace el verificador de Go** (`nucleo verify-receipt` y la
+autoverificación de `nucleo receipt`); L23 se cierra para Go y queda abierto, escrito, para
+TS, PHP y la página. B' (el ML-DSA de `node:crypto`) y A quedan para después, sin cambiar el
+formato.
+
+**6. El nombre: `logMLDSAKey`**, en hexadecimal en minúsculas, **exactamente 2624
+caracteres** (los 1312 bytes de `pkEncode`), como §A.
+
+**7. OpenSSL ≥ 3.5, aprobado como herramienta de desarrollo**, solo para generar vectores:
+no es dependencia del producto ni del binario. Se instala con una **versión fijada y su
+sha256**, como las herramientas del ritual (cosign, shellcheck, goreleaser), y la versión y
+la huella se anotan donde se anotan las de esas. Con ella, **los vectores sigVer del ACVP
+del NIST para ML-DSA-44**, un subconjunto con su procedencia y su checksum, como segunda
+referencia. ADR-024 se revisa en el sprint de los vectores y `material/mldsa.json`
+desaparece. Lo que necesite el CI para el `generar.py --check` de esas firmas es
+configuración de `.github/`, y la decide el dev en ese sprint.
+
+**8. Entra en la 0.5 `nucleo verify-receipt`**, para que L23 se cierre también para
+terceros y no solo para el emisor:
+
+```
+nucleo verify-receipt --receipt FICHERO --policy-file POLITICA [--json]
+```
+
+- Verifica un recibo **ajeno**, offline: no abre ningún ledger, no pide passphrase, no usa la
+  red. Es `internal/receipt` (`Parse` + `Verify`) con la política del fichero, el mismo
+  código que autoverifica `receipt`.
+- Sale con 0 si el recibo vale, con 2 si no (`exitVerify`), con 1 si el uso está mal (sin
+  `--policy-file`, fichero ilegible, política inválida).
+- Dice lo que dicen los SDK —validez, motivos, tiempo declarado y demostrable, índice,
+  testigos— y `logMLDSA`; con `--json`, un objeto documentado en `docs/CLI-JSON.md` con los
+  nombres del resultado de los SDK.
+- Con una política que fija `logMLDSAKey`, su resultado es `"verified"` o el recibo es
+  inválido: es el sitio donde una contraparte comprueba la firma post-cuántica.
+- Se añade al plan conjunto (implementación, ensayo) y a la lista de órdenes del README.
+
+**9. `sync` imprime siempre `logMLDSAKey`** en la política, desde la 0.5. La saca de
+`LogPQSeed`, así que es de las órdenes que abren la identidad (§A).
+
+**10. La 0.5 sale con los dos ADR implementados.** Ni el SDK ni el binario 0.5 se publican
+con un miembro aceptado en la gramática que nadie use.
+
 ## Plan conjunto con ADR-033 y ADR-034 (el mismo texto en los dos)
 
 Los dos ADR tocan lo mismo —la gramática de la política, PROTOCOL §3.2— y se proponen a la vez
@@ -304,9 +360,11 @@ desde el addendum de ADR-007 (lo comprueba el ensayo, abajo).
 4. **Go**: `internal/policy` (los dos miembros; `internal/estricto` no cambia, porque ninguno
    trae un tipo JSON nuevo), `internal/erasure` y `internal/reconcile` (las claves retiradas),
    `internal/proof` (la ML-DSA con `crypto/mldsa` y el campo de tres estados) y la CLI
-   (`sync` imprime `logMLDSAKey` en la política; la apertura la coteja; `erasure-key
-   authorize` rechaza una clave retirada; `reconcile --json` dice qué clave autorizó cada
-   supresión).
+   (`sync` imprime `logMLDSAKey` en la política y el fragmento de `retiredErasureKeys`; la
+   apertura la coteja; `erasure-key authorize` rechaza una clave retirada; `reconcile
+   --json` dice qué clave autorizó cada supresión y lista las regularizadas; y la orden
+   nueva `nucleo verify-receipt`, que verifica un recibo ajeno con una política —ADR-034,
+   decisión 8—).
 5. **TypeScript y PHP**: el parser contra los mismos vectores, el campo de tres estados en el
    resultado y su texto; la página de `web/verify/` con él.
 6. **El diferencial**: el catálogo de políticas muta los dos miembros nuevos; el de notas
@@ -335,8 +393,8 @@ gana estos pasos:
    evento del paso 1}` y `logMLDSAKey` copiada de lo que imprime `sync`. La supresión del
    paso 1 **sigue contando** (es el cambio de L21); una supresión nueva con B cuenta;
    `erasure-key authorize` con las tarjetas de A y la política nueva se rechaza.
-4. El recibo emitido por v0.4.0-alpha, con la política nueva: el verificador de Go dice
-   «ML-DSA verificada»; el SDK 0.5 del HEAD y el de npm lo aceptan y dicen lo que su opción
+4. El recibo emitido por v0.4.0-alpha, con la política nueva: el verificador de Go
+   —`nucleo verify-receipt` del HEAD— dice «ML-DSA verificada»; el SDK 0.5 del HEAD y el de npm lo aceptan y dicen lo que su opción
    de ADR-034 obliga a decir; el SDK 0.4 de npm **rechaza** la política nueva (miembro
    desconocido) y sigue aceptando la vieja.
 5. `scripts/tercero-supresion.sh` con la clave retirada: el tercero elige la clave por el
@@ -346,38 +404,59 @@ Que una clave retirada no autorice nada después de su corte no entra en el ensa
 probarlo hay que sellar un evento sin pasar por `erase`, y eso es un test de Go
 (ADR-033, «Los tests y los vectores»).
 
-### Preguntas abiertas para el dev
+### Preguntas abiertas para el dev (respondidas el 2026-10-18)
+
+Cada pregunta lleva debajo la respuesta del dev; el detalle está en la sección «Decisiones
+del dev (2026-10-18)» del ADR al que pertenece.
 
 1. **ADR-033, la forma.** ¿`retiredErasureKeys` como objeto `{clave: corte}` —recomendado: no
    añade arrays al lector estricto y una clave repetida ya es un error de la gramática— o
    como el array `[{key, until}]` de la idea de partida?
+   **Respuesta:** objeto clave → corte.
 2. **ADR-033, sin clave actual.** ¿Vale una política con `retiredErasureKeys` y sin
    `erasureKey` —«ya no suprimo, pero lo suprimido sigue contando»—? Se recomienda que sí.
+   **Respuesta:** sí, vale.
 3. **ADR-033, la herramienta.** ¿Un `nucleo erasure-key rotate --policy-file` que escriba la
    política nueva con el corte calculado desde el último checkpoint atestiguado, o se edita
    a mano con la receta de OPERACION? Se recomienda editarla a mano en la 0.5 y la orden
    cuando alguien rote de verdad.
+   **Respuesta:** a mano en la 0.5, sin `rotate`; pero `nucleo sync --policy-file` imprime el
+   fragmento exacto de `retiredErasureKeys`, con el corte calculado dentro de lo que ese
+   `sync` acaba de atestiguar (ADR-033, decisión 3).
 4. **ADR-033, volver a autorizar.** Si se pone el corte por debajo de un evento sospechoso,
    las supresiones legítimas de después dejan de contar. ¿Se permite sellar un segundo
    evento, autorizado con la clave nueva, para un bloque ya suprimido? El protocolo ya lo
    admite (§5.1 no prohíbe dos eventos para el mismo contenido); `erase` hoy no lo hace.
+   **Respuesta:** sí. El original no desaparece: `reconcile` lo informa como «no autorizada,
+   regularizada en el evento N» y sale con 0, con un aviso permanente en el texto y en el
+   JSON (`regularized`). Corrección: `erase` ya sella ese segundo evento; lo nuevo es cómo lo
+   cuenta `reconcile` (ADR-033, decisión 4, con la regla exacta y su test).
 5. **ADR-034, TypeScript y PHP.** Opción A (verificar de verdad, implementación propia),
    B (aceptar la clave y decir «presente sin verificar»; recomendada para la 0.5) o C (solo
    Go).
+   **Respuesta:** B. TS y PHP dan `"present-unverified"`; la divergencia con Go se declara
+   en el diferencial; README y GARANTIAS dicen que la comprobación post-cuántica solo la
+   hace el verificador de Go (ADR-034, decisión 5).
 6. **ADR-034, el nombre y la codificación.** `logMLDSAKey` en hexadecimal en minúsculas, 2624
    caracteres, como el resto de las claves de la política. ¿O otro nombre?
+   **Respuesta:** `logMLDSAKey`, hexadecimal en minúsculas, 2624 caracteres.
 7. **ADR-034, la implementación independiente para los vectores.** ¿Se aprueba OpenSSL ≥ 3.5
    como herramienta de desarrollo —no como dependencia del producto—, instalada con su
    checksum como las del ritual, junto con los vectores sigVer del ACVP del NIST? Con eso
    ADR-024 se revisa y `material/mldsa.json` desaparece.
+   **Respuesta:** aprobado, versión fijada con su checksum, solo para generar vectores, junto
+   con los sigVer del ACVP (ADR-034, decisión 7).
 8. **ADR-034, quién verifica fuera.** La única verificación de recibos en Go es la que la CLI
    hace de los suyos (TODO, «Verificar recibos ajenos desde la CLI»). Con la opción B, una
    contraparte no tiene dónde comprobar la ML-DSA. ¿Entra en la 0.5 una orden para verificar
    un recibo ajeno, o la 0.5 cierra L23 solo para el emisor?
+   **Respuesta:** entra `nucleo verify-receipt` (ADR-034, decisión 8).
 9. **ADR-034, el `sync`.** ¿La política que imprime `sync` lleva `logMLDSAKey` siempre? Se
    recomienda que sí desde v0.5: es la política completa del log, y una contraparte con el
    SDK 0.4 tiene que actualizar de todos modos para leer una política 0.8-draft.
+   **Respuesta:** sí, siempre.
 10. **Los dos.** ¿Se publica la 0.5 cuando estén los dos ADR implementados, o vale publicar el
     SDK 0.5 con los dos miembros aceptados en la gramática aunque la CLI implemente uno
     después? Se recomienda lo primero: una gramática que acepta un miembro que nadie usa es
     la promesa vacía que la enmienda de ADR-030 quitó.
+    **Respuesta:** la 0.5 se publica solo con los dos ADR implementados.
