@@ -277,6 +277,40 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       índice del evento), con el plan conjunto
 - [x] 2. ADR-034 PROPUESTO: verificar la ML-DSA-44 del log (`logMLDSAKey`), con el mismo plan
 
+## Sprint 27 — ADR-033 y ADR-034 ACEPTADOS; el exploit del recibo de ADR-017, como test
+- [x] 1. ADR-033 y ADR-034 ACEPTADOS: «Decisiones del dev (2026-10-18)» en cada uno, y cada
+      pregunta abierta del plan conjunto con su respuesta
+- [x] 2. TODO y PLAN: los dos ADR aceptados, y su implementación como los sprints de la 0.5
+- [ ] 3. El recibo del bloque firmado por una clave ajena, bajo el checkpoint real (ADR-017):
+      vector del oráculo y rechazo en Go, TS, PHP y la página; GARANTIAS y README
+
+## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
+La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
+es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
+- [ ] **Sprint A — PROTOCOL 0.8-draft** (por instrucción del dev): `retiredErasureKeys` y
+      `logMLDSAKey` en §3.2, la regla ML-DSA en §3.3, las claves retiradas y la regularización
+      en §5.1, con la nota de cabecera de la subida
+- [ ] **Sprint B — los vectores, antes que el código**: `policy/` (los dos miembros, con el
+      array `[{key, until}]` rechazado); `erasure/` (la segunda clave y `rotacion.json`, con
+      las filas de la regularización); OpenSSL ≥ 3.5 instalado con su versión y su sha256,
+      `mldsa/` y los recibos ML-DSA desde él, más el subconjunto sigVer del ACVP; ADR-024
+      revisado y `material/mldsa.json` fuera
+- [ ] **Sprint C — Go**: `internal/policy`; `internal/erasure` y `internal/reconcile` (claves
+      retiradas, `TestClaveRetiradaDespuesDelCorteNoCuenta`, la regularización y
+      `TestSupresionNoAutorizadaRegularizada`); `internal/proof` (ML-DSA con `crypto/mldsa`,
+      `LogMLDSA`); la CLI: `sync` con `logMLDSAKey` y el fragmento de `retiredErasureKeys`
+      (`erasure_rotation` en `--json`), la apertura que coteja la clave, `erasure-key
+      authorize` que rechaza una clave retirada, `reconcile --json` con la clave y
+      `regularized`, y `nucleo verify-receipt`
+- [ ] **Sprint D — TypeScript, PHP y la página**: los dos miembros en el parser, `logMLDSA`
+      con `"present-unverified"` (opción B); el diferencial con los miembros nuevos y la
+      divergencia declarada
+- [ ] **Sprint E — documentación y ensayo**: GARANTIAS (L14, L21, L23: la comprobación
+      post-cuántica solo la hace el verificador de Go), OPERACION §3 (rotar con el fragmento
+      de `sync`), CLI-JSON, README; `ensayo-actualizacion.sh` con los pasos del plan conjunto
+      y `tercero-supresion.sh` con la clave retirada
+- [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`
+
 ## Después del release de v0.4.0-alpha
 - [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
       checkpoint real) como test de regresión en Go, TypeScript, PHP y la página: ADR-017
@@ -294,16 +328,18 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       un tercero con incentivo (contador, certificadora, colegio de abogados).
       El software ya está (Sprint 15: varios logs, retirada, testigo mutuo y el kit
       del operador); lo que falta no es código: que alguien de fuera lo opere.
-- [ ] **Verificar recibos ajenos desde la CLI.** No se hace ahora (decisión del Sprint 17):
-      hoy un recibo se verifica con `@nucleoledger/verify`, con el SDK de PHP o con la página
-      de `web/verify/`, y la CLI solo autoverifica los que emite.
-- [ ] **ADR-033 (PROPUESTO en el Sprint 26, antes de beta): rotación de erasureKey.** Claves de supresión retiradas
-      en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
-      supresiones históricas (hoy, el límite L21). Anotado en el Sprint 20a, sin diseñar.
-- [ ] **ADR-034 (PROPUESTO en el Sprint 26): verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
-      (la raíz de confianza, ADR-017); Go con `crypto/mldsa` de la stdlib; TS y PHP no tienen
-      ML-DSA sin dependencias: decidir si se verifica en los tres o se declara solo Go. Hoy,
-      el límite L23. Anotado en el Sprint 25, sin diseñar.
+- [ ] **Verificar recibos ajenos desde la CLI.** Decidido el 2026-10-18 (ADR-034, decisión 8):
+      entra en la 0.5 como `nucleo verify-receipt`, en el Sprint C de arriba. Hasta entonces, un
+      recibo se verifica con `@nucleoledger/verify`, con el SDK de PHP o con la página de
+      `web/verify/`, y la CLI solo autoverifica los que emite.
+- [ ] **ADR-033 (ACEPTADO el 2026-10-18, sin implementar): rotación de erasureKey.**
+      `retiredErasureKeys` (clave → corte) en la política, para que rotar no invalide las
+      supresiones históricas (hoy, el límite L21), y la regularización con la clave nueva.
+      Implementación: los sprints de la 0.5, arriba.
+- [ ] **ADR-034 (ACEPTADO el 2026-10-18, sin implementar): verificar ML-DSA-44.**
+      `logMLDSAKey` en la política; Go la verifica con `crypto/mldsa`; TS, PHP y la página
+      dicen `"present-unverified"` (opción B). Hoy, el límite L23. Implementación: los sprints
+      de la 0.5, arriba.
 - [ ] Identidad de registro estable y eventos `issued`/`voided` en el perfil
       genérico: las facturas se anulan y hoy `reconcile` no lo modela (pide ADR)
 

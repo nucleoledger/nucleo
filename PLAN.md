@@ -75,14 +75,17 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **Identidad de registro y eventos `issued`/`voided`** en el perfil genérico: las
   facturas se anulan y `reconcile` no lo modela. Toca el protocolo; pide ADR.
 
-**Deuda anotada, antes de beta**
-- **ADR-033 (propuesto en el Sprint 26, antes de beta): rotación de erasureKey.** Claves de supresión retiradas
-  en la política, con un índice hasta el que siguen contando, para que rotar no invalide las
-  supresiones históricas (hoy, el límite L21). Sin diseñar.
-- **ADR-034 (propuesto en el Sprint 26): verificar ML-DSA-44.** La clave pública ML-DSA del log en la política
-  (la raíz de confianza, ADR-017); Go con `crypto/mldsa` de la stdlib; TS y PHP no tienen
-  ML-DSA sin dependencias: decidir si se verifica en los tres o se declara solo Go. Hoy, el
-  límite L23: la firma se emite y nadie la comprueba. Sin diseñar.
+**La 0.5: ADR-033 y ADR-034, ACEPTADOS el 2026-10-18, sin implementar**
+- **ADR-033: rotación de erasureKey.** `retiredErasureKeys` (clave → corte) en la política,
+  para que rotar no invalide las supresiones históricas (hoy, L21); `sync --policy-file`
+  imprime el fragmento con el corte dentro de lo atestiguado; una supresión no autorizada se
+  puede regularizar con la clave nueva y `reconcile` sale con 0 y un aviso permanente.
+- **ADR-034: verificar ML-DSA-44.** `logMLDSAKey` en la política; Go la verifica con
+  `crypto/mldsa`, también en la orden nueva `nucleo verify-receipt` (recibos ajenos); TS, PHP
+  y la página dicen `"present-unverified"` (opción B), con la divergencia declarada en el
+  diferencial. Hoy, L23: la firma se emite y nadie la comprueba.
+- Una sola subida de la política (PROTOCOL 0.8-draft) y una sola 0.5, que sale solo con los
+  dos implementados. Los sprints, en orden, en `TODO.md` («La 0.5»).
 
 **Anotado, sin urgencia**
 - **cosign 3 en el CI de releases.** Hoy se firma con cosign 2.5.2 para publicar a la
