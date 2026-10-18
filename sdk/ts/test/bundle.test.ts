@@ -86,6 +86,28 @@ describe("el bundle que sirve la página web", () => {
     });
   }
 
+  // El exploit del recibo de ADR-017 contra el fichero que carga la página: se rechaza por
+  // signerKey, y con la clave del header la misma prueba verifica (no cae por otra vía).
+  it("el bundle rechaza por signerKey el recibo de un bloque de clave ajena (ADR-017)", async () => {
+    const v = readJSON<Vector>("receipt", "invalido-bloque-de-clave-ajena.json");
+    const api = loadBundle();
+    const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{ valid: boolean; reasons: string[] }>;
+    const pol = {
+      origin: v.policy.origin,
+      logKey: v.policy.log_key,
+      signerKey: v.policy.signer_key,
+      witnesses: v.policy.witnesses,
+      quorum: v.policy.quorum,
+    };
+    const r = await verify(v.receipt, pol);
+    expect(r.valid).toBe(false);
+    expect(r.reasons).toContain("el bloque no está firmado por la clave del emisor que fija la política (signerKey)");
+    const ajena = /"signer_pubkey":"([0-9a-f]{64})"/.exec(v.receipt)?.[1];
+    expect(ajena).toBeDefined();
+    const conAjena = await verify(v.receipt, { ...pol, signerKey: ajena });
+    expect(conAjena.valid, `razones: ${conAjena.reasons.join(" | ")}`).toBe(true);
+  });
+
   // La tercera implementación del rechazo: la que de verdad va a usar la contraparte
   // es el BUNDLE, no la biblioteca. Que la biblioteca rechace un recibo redirigido no
   // prueba que la página lo rechace: podría servir un bundle viejo. Este test va

@@ -1,0 +1,21 @@
+{
+  "name": "invalido-bloque-de-clave-ajena",
+  "description": "El exploit del recibo de ADR-017: los bloques 1-4 re-firmados con una clave ajena, autoconsistentes, bajo un checkpoint firmado por la clave real del log y cosignado por el testigo real; el recibo del bloque 2 lo firma el atacante como emisor. Firmas, inclusión y quórum verifican; la política fija signerKey y el header declara otra clave: debe rechazarse.",
+  "receipt": "nucleo.org/receipt@v2\ndestinatario      : María Pérez (cédula 1712345678)  (firmado por el emisor)\nemisor (tenant)   : 1790012345001\ntipo de registro  : sri.factura.v1\nhash del contenido: 6b75de6c86109aadce553f98c7a55767f3feebb7fef8df1a8e52b97a23f6439d\nbloque            : 2\n\nTIEMPO DECLARADO  : 2026-09-06T14:32:00Z  (declarado por el sistema emisor)\nTIEMPO DEMOSTRABLE: 2026-09-06T15:00:00Z  (atestiguado por testigos)\n\nADVERTENCIA LEGAL\nEste recibo es evidencia técnica de integridad y tiempo. No constituye por sí\nmismo un acto público, una certificación notarial ni un pronunciamiento de\nautoridad. Su valor probatorio lo determina un perito o un juez.\n\n--- prueba verificable ---\n{\"index\":2,\"payload_cid\":\"blob://x\",\"payload_hash\":\"6b75de6c86109aadce553f98c7a55767f3feebb7fef8df1a8e52b97a23f6439d\",\"prev_hash\":\"ec9f882cecd20bdcc3dd9f36a9d8117535a5b2065a478ea85a2095b0826bf019\",\"signer_pubkey\":\"4c7a18618481ccd534c8c8243365f9345891c47d9e3a8e01ced4293eec2fa559\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-06T14:32:00Z\",\"type\":\"sri.factura.v1\"}\nBKbXh1oztsnhvuRjlLVoGmo2P1A7eOoiPShxgiiW0V2x6qWJcqAfQXDtR2xEO9qBg8g7StCMz+9OMSMQ+i7jDg==\n— 1790012345001 q+IG0rgo58PaFe/C0FPhk7TMrJOT5xn1Bt1T0hs6TPk/UqhsRhHvGgf0uzJCHmkeQk5IKTzzDQhKT+Tuf2oIAg==\nc2sp.org/tlog-proof@v1\n2\nEBPvnYLfY3KJdZDCGHEdugOkVFV4rbiqBYysJOy6xas=\nos7fE9gi9kQRAW2ZaV9HJe2cs2A5oKiBFLPeAbCoytc=\na22i8P75cwV3DOTdBy4Fvzt1Qi9Yiaty7gVZav0N4vg=\n\nnucleoledger.com/recibos\n5\n6Ab5garhnOebC92LkxtfzRfjxpco7Jx/S9F4k2/fUcs=\n\n— nucleoledger.com/recibos O0zkAARRxWMPHbjMlSPZq8U+SRXf6Z+FRtL78rbvlesrpYPbMHTedRgaXqydWqmxJawZZ5cXxv5AlnQ3sfsJ0RXA9gc=\n— witness.example/w1 D3og2AAAAABqnX/w3dwOOsp3BGcoRomoVRER6WDEt+FfQ4byi9IjHWcA3HnhPBUwPI/fS+SleK2Y4Ucvn6Bg832Y8x6rVCS3RMdTCA==\n",
+  "policy": {
+    "origin": "nucleoledger.com/recibos",
+    "log_key": "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628",
+    "signer_key": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664",
+    "witnesses": {
+      "witness.example/w1": "1e985ffbe45a77ee58253c6b392ae9272442cee842cec49dbf88fbb0fffd16a8"
+    },
+    "quorum": 1
+  },
+  "leaf_data": "26b71b29920a1d9319ae5a0b81ea52778e2d629ddd16dcd3555e956c819ab0f104a6d7875a33b6c9e1bee46394b5681a6a363f503b78ea223d2871822896d15db1eaa58972a01f4170ed476c443bda8183c83b4ad08ccfef4e312310fa2ee30e",
+  "leaf_rule": "leaf/v2",
+  "block_signature": "04a6d7875a33b6c9e1bee46394b5681a6a363f503b78ea223d2871822896d15db1eaa58972a01f4170ed476c443bda8183c83b4ad08ccfef4e312310fa2ee30e",
+  "valid": false,
+  "reason": "unexpected_signer",
+  "declared_time": "2026-09-06T14:32:00Z",
+  "block_index": 2
+}

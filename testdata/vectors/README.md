@@ -136,6 +136,16 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              valido-testigo-proto — el testigo se llama "__proto__": nombre válido de
              signed-note que en JavaScript desaparecía del mapa de testigos.
 
+             Sprint 27 (ADR-017, adición autorizada por el dev el 2026-10-18):
+             invalido-bloque-de-clave-ajena — el segundo exploit de la segunda auditoría,
+             tal como se ejecutó: los bloques 1-4 re-firmados con una clave ajena
+             (semilla 70), autoconsistentes, bajo un checkpoint firmado por la clave real
+             del log y cosignado por el testigo real; el recibo del bloque 2 lo firma el
+             atacante como emisor. Lo rechazan Go, TS, PHP y el bundle de la página por
+             signerKey, y cada uno tiene además un test que comprueba que, con signerKey
+             igual a la clave del header, la misma prueba verifica: no cae por otra vía.
+             Los 18 vectores anteriores no cambiaron un byte (generar.py --check).
+
 - policy/    vectores de la POLÍTICA de verificación (PROTOCOL.md §3.2, ADR-018):
              el texto EXACTO de cada documento y su veredicto. Escritos a mano por
              policy/generar.py leyendo la tabla de PROTOCOL.md —ninguna línea del

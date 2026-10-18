@@ -281,7 +281,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 1. ADR-033 y ADR-034 ACEPTADOS: «Decisiones del dev (2026-10-18)» en cada uno, y cada
       pregunta abierta del plan conjunto con su respuesta
 - [x] 2. TODO y PLAN: los dos ADR aceptados, y su implementación como los sprints de la 0.5
-- [ ] 3. El recibo del bloque firmado por una clave ajena, bajo el checkpoint real (ADR-017):
+- [x] 3. El recibo del bloque firmado por una clave ajena, bajo el checkpoint real (ADR-017):
       vector del oráculo y rechazo en Go, TS, PHP y la página; GARANTIAS y README
 
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
@@ -312,9 +312,9 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
 - [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`
 
 ## Después del release de v0.4.0-alpha
-- [ ] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
-      checkpoint real) como test de regresión en Go, TypeScript, PHP y la página: ADR-017
-      lo promete y no existe (Sprint 22b, 2e). Al cerrarlo, el README deja de exceptuarlo
+- [x] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
+      checkpoint real) como test de regresión en Go, TypeScript, PHP y la página: hecho en el
+      Sprint 27 (vector `invalido-bloque-de-clave-ajena`); el README ya no lo exceptúa
 - [ ] G46: las cuatro órdenes que `comillas_shell_test.go` reconstruye con `printf` (`init` y
       el ledger que no existe en `env.go`, `restore --new-passphrase` en `env.go` y
       `backup.go`, `backup` en `init.go`), capturarlas de la salida real de la CLI

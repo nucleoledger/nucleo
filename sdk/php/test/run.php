@@ -190,7 +190,27 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     // recompusiera de otra manera, la inclusión no habría verificado.
     igual('recibo ' . $v['name'] . ': regla de hoja', 'leaf/v2', $v['leaf_rule']);
 }
-comprueba('hay vectores de recibo', $n >= 18, sprintf('solo %d', $n));
+comprueba('hay vectores de recibo', $n >= 19, sprintf('solo %d', $n));
+
+// El exploit del recibo de ADR-017, tal como se ejecutó: bloques re-firmados con una clave
+// ajena bajo el checkpoint real. Se rechaza por signerKey; y con la clave del header la
+// misma prueba verifica, que es lo que demuestra que no cae por otra vía.
+$ajeno = leerJSON($vectores . '/receipt/invalido-bloque-de-clave-ajena.json');
+$r = Verifier::verify($ajeno['receipt'], politicaDelVector($ajeno['policy']));
+comprueba(
+    'recibo de un bloque de clave ajena (ADR-017): rechazado por signerKey',
+    !$r->valid && in_array('el bloque no está firmado por la clave del emisor que fija la política (signerKey)', $r->reasons, true),
+    'razones: ' . implode(' | ', $r->reasons)
+);
+$m = [];
+preg_match('/"signer_pubkey":"([0-9a-f]{64})"/', $ajeno['receipt'], $m);
+$conAjena = politicaDelVector(array_merge($ajeno['policy'], ['signer_key' => $m[1] ?? '']));
+$r = Verifier::verify($ajeno['receipt'], $conAjena);
+comprueba(
+    'recibo de un bloque de clave ajena (ADR-017): con signerKey = la clave del header, verifica',
+    ($m[1] ?? '') !== $ajeno['policy']['signer_key'] && $r->valid,
+    'razones: ' . implode(' | ', $r->reasons)
+);
 
 // ---------------------------------------------------------------- no lanza nunca
 grupo('el verificador no lanza con ninguna entrada');

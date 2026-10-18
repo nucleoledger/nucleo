@@ -16,9 +16,11 @@ security firm.
 What this alpha has behind it, each item checked rather than claimed:
 
 - **Fourteen adversarial rounds; three of them executed exploits** (the audits of 0.2-draft),
-  **and every one of those exploits but one is kept as a regression test** — the receipt of a
-  block signed by a foreign key ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md)) is
-  rejected by the code of the three verifiers, but no test pins it yet. The
+  **and every one of those exploits is kept as a regression test** — the last to get one, the
+  receipt of a block signed by a foreign key under the real checkpoint
+  ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md)), is a shared vector that Go,
+  TypeScript, PHP and the web page reject, and each of those tests fails if the signer check is
+  switched off. The
   findings and the decisions they forced are in the table under
   [Security & audits](#security--audits) and in [`docs/adr/`](docs/adr/).
 - **An operations rehearsal**: a deployment run the way a small business would run it —
@@ -333,9 +335,9 @@ policy "verified" a forged ledger ([ADR-017](docs/adr/ADR-017-politica-raiz-de-c
 the third found nothing new in the receipt bytes and everything *next to* them — the
 policy file and the note's signature block, read differently by Go and TypeScript
 ([ADR-018](docs/adr/ADR-018-politica-formato-de-cable.md), PROTOCOL 0.3-draft). All are
-in the findings table above; every exploit but one is now a regression test: the receipt of
-a block signed by a foreign key (ADR-017) is rejected by the code of the three verifiers, and
-no test pins it yet.
+in the findings table above, and every exploit is now a regression test — the receipt of a
+block signed by a foreign key (ADR-017) included, as a shared vector rejected by Go,
+TypeScript, PHP and the web page.
 
 The record of the pre-publication rounds is in
 [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md); the post-publication audits are in

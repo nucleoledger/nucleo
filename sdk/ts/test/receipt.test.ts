@@ -39,8 +39,8 @@ describe("entorno", () => {
 describe("vectores de recibo generados por Go", () => {
   const files = listVectors("receipt");
 
-  it("hay dieciocho vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo y la firma ML-DSA del log y el timestamp con fracción", () => {
-    expect(files).toHaveLength(18);
+  it("hay diecinueve vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo, la firma ML-DSA del log, el timestamp con fracción, el testigo __proto__ y el bloque de clave ajena (ADR-017)", () => {
+    expect(files).toHaveLength(19);
   });
 
   for (const file of files) {
@@ -69,6 +69,22 @@ describe("vectores de recibo generados por Go", () => {
 
 describe("razones de rechazo", () => {
   const valid = readJSON<Vector>("receipt", "valido-1-cosignature.json");
+
+  // El exploit del recibo de ADR-017, tal como se ejecutó: bloques re-firmados con una clave
+  // ajena bajo el checkpoint real. Se rechaza por el firmante; y con signerKey igual a la
+  // clave del header la misma prueba verifica, que es lo que demuestra que no cae por otra vía.
+  it("el recibo de un bloque firmado por una clave ajena se rechaza por signerKey (ADR-017)", async () => {
+    const v = readJSON<Vector>("receipt", "invalido-bloque-de-clave-ajena.json");
+    const r = await verifyReceipt(v.receipt, toPolicy(v));
+    expect(r.valid).toBe(false);
+    expect(r.reasons).toContain("el bloque no está firmado por la clave del emisor que fija la política (signerKey)");
+
+    const ajena = /"signer_pubkey":"([0-9a-f]{64})"/.exec(v.receipt)?.[1];
+    expect(ajena).toBeDefined();
+    expect(ajena).not.toBe(v.policy.signer_key);
+    const conAjena = await verifyReceipt(v.receipt, { ...toPolicy(v), signerKey: ajena! });
+    expect(conAjena.valid, `razones: ${conAjena.reasons.join(" | ")}`).toBe(true);
+  });
 
   it("el encabezado alterado se rechaza por no derivarse de la prueba", async () => {
     const altered = readJSON<Vector>("receipt", "alterado-encabezado.json");

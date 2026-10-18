@@ -200,18 +200,21 @@ def header(indice, prev_hash, payload, timestamp, signer_pub):
     }
 
 
-def cadena(n, tenant_sk, fraccion_en_bloque_0=None):
-    """Devuelve la lista de (header, canónico, hash, firma) de n bloques."""
-    pub = publica(tenant_sk)
+def cadena(n, tenant_sk, fraccion_en_bloque_0=None, firmante=None):
+    """Devuelve la lista de (header, canónico, hash, firma) de n bloques.
+
+    firmante(i), si se da, elige la clave que firma el bloque i —y cuya pública va en su
+    signer_pubkey—; sin él, todos los firma tenant_sk."""
     bloques, prev = [], GENESIS
     for i in range(n):
+        sk = firmante(i) if firmante else tenant_sk
         ts = rfc3339(BASE + i * 60)
         if i == 0 and fraccion_en_bloque_0:
             ts = fraccion_en_bloque_0
-        h = header(i, prev, b'{"factura":%d,"importe":"1250.00"}' % i, ts, pub)
+        h = header(i, prev, b'{"factura":%d,"importe":"1250.00"}' % i, ts, publica(sk))
         canon = jcs(h)
         digest = sha256(canon)
-        bloques.append((h, canon, digest, tenant_sk.sign(digest)))
+        bloques.append((h, canon, digest, sk.sign(digest)))
         prev = digest.hex()
     return bloques
 
@@ -259,6 +262,8 @@ TENANT_SK = clave(1)
 LOG_SK = clave(50)
 W1_SK = clave(90)
 W2_SK = clave(91)
+# La clave del atacante del exploit de ADR-017: no está en ninguna política.
+ATACANTE_SK = clave(70)
 DESTINATARIO = "María Pérez (cédula 1712345678)"
 W1 = "witness.example/w1"
 
@@ -381,6 +386,21 @@ def genera():
     out.append(vector("invalido-cosignature-duplicada",
                       "Un solo testigo cosigna y su línea aparece DOS veces; el emisor re-firmó el recibo. La política exige 2 de 2 testigos: un testigo cuenta una vez (PROTOCOL.md §3.3). Debe rechazarse.",
                       rec, hoja, firma, pol2, False, bloques[2][0]["timestamp"], None, 2, "duplicate_cosignature"))
+
+    # El exploit del recibo de ADR-017, tal como lo ejecutó la segunda auditoría: los
+    # bloques 1-4 re-firmados con la clave del atacante —signer_pubkey apuntando a ella,
+    # firmas autoconsistentes—, el checkpoint firmado por la clave REAL del log y cosignado
+    # por el testigo REAL, y el recibo del bloque 2 firmado como emisor por el atacante.
+    # Todo verifica salvo una cosa: la política fija signerKey, y no es la del header.
+    bloques = cadena(5, TENANT_SK, firmante=lambda i: TENANT_SK if i == 0 else ATACANTE_SK)
+    hojas = [d + f for (_, _, d, f) in bloques]
+    prov = BASE + 30 * 60
+    nota_real = nota(ORIGIN, 5, raiz(hojas), LOG_SK, [(W1, W1_SK, prov)])
+    rec, hoja, firma = recibo(bloques, 2, DESTINATARIO, nota_real, rfc3339(prov), ATACANTE_SK)
+    out.append(vector("invalido-bloque-de-clave-ajena",
+                      "El exploit del recibo de ADR-017: los bloques 1-4 re-firmados con una clave ajena, autoconsistentes, bajo un checkpoint firmado por la clave real del log y cosignado por el testigo real; el recibo del bloque 2 lo firma el atacante como emisor. Firmas, inclusión y quórum verifican; la política fija signerKey y el header declara otra clave: debe rechazarse.",
+                      rec, hoja, firma, politica([(W1, W1_SK)], 1), False,
+                      bloques[2][0]["timestamp"], None, 2, "unexpected_signer"))
     return out
 
 
