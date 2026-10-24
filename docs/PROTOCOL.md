@@ -1,6 +1,22 @@
 # Núcleo Protocol Specification
 
-**Version: 0.7-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; wire formats stabilize at v1.0)**
+**Version: 0.8-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; wire formats stabilize at v1.0)**
+
+> **0.8-draft adds two optional policy members, and no artifact changes a byte**
+> ([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md),
+> [ADR-034](adr/ADR-034-verificar-mldsa44-del-log.md)). What it accepts beyond 0.7-draft:
+> policies with `retiredErasureKeys` —erasure keys that no longer sign, each with the last
+> event index it still authorizes (§3.2, §5.1)— and with `logMLDSAKey` —the log's ML-DSA-44
+> public key, which makes the log's ML-DSA-44 line REQUIRED and verifiable (§3.2, §3.3)—. And
+> one reconciliation rule: an unauthorized erasure event that a later authorized event
+> **regularizes** is reported as regularized instead of as an integrity finding (§5.1).
+> What does not change: no block, leaf, root, checkpoint or receipt changes a byte; a policy
+> without the two new members is valid under 0.7-draft and 0.8-draft alike and means the
+> same, and every receipt that verifies under 0.7-draft with it verifies under 0.8-draft. The
+> regularization rule is the only verdict that moves for such a policy, and only for a chain
+> that holds an unauthorized erasure event followed by an authorized one for the same
+> content (ADR-033, decision 4). A 0.7-draft verifier rejects a policy that carries either new
+> member, as an unknown member — correctly, since it would not know what to do with it.
 
 > **0.7-draft changes when an erasure COUNTS** ([ADR-032](adr/ADR-032-autoridad-de-supresion.md)).
 > Under 0.6-draft an erasure event counted if the tenant key signed it — and that key is opened
@@ -142,7 +158,7 @@ itself):
 Núcleo is a C2SP-compatible log. Pinned specs (record exact versions in ADR-001 when implemented):
 
 - **Checkpoint**: `c2sp.org/tlog-checkpoint` — signed note with origin line, tree size, root hash. A log MUST NOT sign a checkpoint inconsistent with any previously signed one. Origin line: `nucleoledger.com/<tenant-log-id>` (final scheme fixed at first release). Núcleo emits exactly three body lines; the parser currently rejects extension lines (fail closed). Verbatim-preserving parsing is required before witnessing third-party logs.
-- **Log signature**: Ed25519 signed-note signature (type 0x01) REQUIRED. Key ID algorithm bytes are distinct per role and enter the key ID hash: log signature: signed-note type 0x01; witness cosignatures: c2sp.org/tlog-cosignature@v1 with key ID algorithm byte 0x04 (0x06 reserved for future ML-DSA-44 cosignatures). An additional **ML-DSA-44** cosignature-style signature SHOULD be added (verifiers ignore unknown signatures, so this is backward-compatible).
+- **Log signature**: Ed25519 signed-note signature (type 0x01) REQUIRED. Key ID algorithm bytes are distinct per role and enter the key ID hash: log signature: signed-note type 0x01; witness cosignatures: c2sp.org/tlog-cosignature@v1 with key ID algorithm byte 0x04 (0x06 reserved for future ML-DSA-44 cosignatures). An additional **ML-DSA-44** cosignature-style signature SHOULD be added (verifiers ignore unknown signatures, so this is backward-compatible). Since 0.8-draft, a policy that carries `logMLDSAKey` makes that signature REQUIRED and verifiable (§3.3); without it, verifiers ignore it as before.
 - **Witness cosignatures**: `c2sp.org/tlog-cosignature@v1` (72-byte timestamped_signature). Witness protocol: `c2sp.org/tlog-witness` — the witness MUST persist the new checkpoint atomically with the consistency check before responding (rollback-race prevention).
 - **Receipt / proof bundle**: `c2sp.org/tlog-proof` — self-contained offline-verifiable proof (checkpoint + cosignatures + index + inclusion proof + extra data). The Núcleo *receipt* IS a tlog-proof plus a human-readable wrapper. QR codes carry a URL to the static verifier + the entry hash, NOT the full proof.
 - **Archived segments**: `c2sp.org/tlog-tiles` static tiles.
@@ -259,6 +275,8 @@ value is an object with these members:
 | `logKey` | string | REQUIRED, exactly 64 characters from `[0-9a-f]` |
 | `signerKey` | string | OPTIONAL in the format; REQUIRED to verify a receipt |
 | `erasureKey` | string | OPTIONAL; exactly 64 characters from `[0-9a-f]`; the Ed25519 public key that authorizes erasures (§5.1); MUST differ from `logKey`, from `signerKey` and from every witness key |
+| `retiredErasureKeys` | object | OPTIONAL (0.8-draft); at least one member; every name exactly 64 characters from `[0-9a-f]`, the Ed25519 public key of a retired erasure key; every value the key's **cutoff**: a JSON number literal matching `0\|[1-9][0-9]*` (no sign, no fraction, no exponent), at most 2^53 − 1 (§5.1); every name MUST differ from `erasureKey`, from `logKey`, from `signerKey` and from every witness key. It is valid without `erasureKey` |
+| `logMLDSAKey` | string | OPTIONAL (0.8-draft); exactly 2624 characters from `[0-9a-f]`: the 1312 bytes of the log's ML-DSA-44 public key, encoded as FIPS 204 `pkEncode` (§3.3) |
 | `witnesses` | object | REQUIRED, at least one member; every name non-empty; every value exactly 64 characters from `[0-9a-f]`; no public key under two names |
 | `quorum` | integer | REQUIRED; a JSON number literal matching `-?(0\|[1-9][0-9]*)` (no fraction, no exponent); `1 ≤ quorum ≤ count(witnesses)` |
 
@@ -279,6 +297,24 @@ ledger declares, and `signerKey`, when present, MUST equal the key that signs ev
 block (ADR-017). `erasureKey`, when present, MUST differ from the key that signs the blocks
 (ADR-032): a policy whose erasure key is a server key authorizes nothing.
 
+**The two members of 0.8-draft** ([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md),
+[ADR-034](adr/ADR-034-verificar-mldsa44-del-log.md)):
+
+- `retiredErasureKeys` is an object, not an array, so that a key listed twice is a duplicated
+  member name — rejected by the rule above, also when the two names are equal only after
+  unescaping. `{}` MUST be rejected: it would mean the same as leaving the member out, and one
+  document has one spelling (ADR-018). A retired key equal to `erasureKey` MUST be rejected: the
+  policy would say both that the key is current and that it is retired. When a ledger is opened
+  with a policy, a retired key MUST NOT be the key that signs the blocks — the rule for
+  `erasureKey`, applied to each retired key, and checked there because a policy without
+  `signerKey` does not show that key to the parser.
+- `logMLDSAKey` needs no separation rule: it plays the role of `logKey`, and by its length it
+  cannot equal any Ed25519 key of the policy. Every 1312-byte string decodes as an ML-DSA-44
+  public key, so its length is its whole well-formedness. When a ledger is opened with a
+  policy that carries it, it MUST equal the ML-DSA-44 public key of the log's identity, wherever
+  the implementation opens that identity; an implementation MUST NOT claim the comparison where
+  it did not open it.
+
 ### 3.3 Signed-note signature block and cosignature counting (normative)
 
 A Núcleo verifier MUST read the signature lines of a checkpoint note itself, with
@@ -297,14 +333,62 @@ these rules, and MUST NOT rely on a signed-note library's leniency:
 
 Counting:
 
-- A line whose (name, key ID) belongs to a key of the policy — the log key or a
-  witness key — MUST verify. If any such line fails, the note is invalid, even if
-  another line for the same key verifies.
+- A line whose (name, key ID) belongs to a key of the policy — the log key, the log's
+  ML-DSA-44 key when the policy carries `logMLDSAKey` (below), or a witness key — MUST
+  verify. If any such line fails, the note is invalid, even if another line for the same
+  key verifies.
 - A witness counts ONCE toward the quorum, however many lines it has.
 - A witness's time is the EARLIEST timestamp among its cosignature lines that verify;
   the provable time (§4) is the minimum across counted witnesses. The order of the
   lines, which the issuer chooses, MUST NOT affect the result.
 - Lines of keys the policy does not know are ignored (c2sp.org/signed-note).
+
+**The log's ML-DSA-44 line** (0.8-draft, [ADR-034](adr/ADR-034-verificar-mldsa44-del-log.md)).
+The log signs every checkpoint twice: the Ed25519 line (§3) and a line of type `0xff`
+([ADR-007](adr/ADR-007-mldsa44-adicional.md)) named after the origin, whose key ID is
+
+```
+SHA-256( <origin> ‖ "\n" ‖ 0xff ‖ "nucleoledger.com/sig/ml-dsa-44@v1" ‖ "\n" ‖ <public key, 1312 bytes> )[:4]
+```
+
+and whose signature, after the key ID, is 2420 bytes: ML-DSA-44 of FIPS 204, the pure
+variant, with an **empty context**, over the note text — the same bytes the Ed25519 line
+signs. A line *has the shape* of this signature when it is named after the origin and its
+base64 decodes to exactly 4 + 2420 bytes.
+
+With a policy that carries `logMLDSAKey` `P`:
+
+1. The lines named after the origin with the key ID of `P` are lines of a policy key, and
+   every one MUST verify: `ML-DSA.Verify(P, text, σ)` with the empty context. If any fails,
+   the note is invalid, even if another line of `P` verifies.
+2. There MUST be at least one. Without it the receipt is invalid: the policy pins the log's
+   ML-DSA-44 key and the checkpoint does not carry its signature. A line with the shape of
+   an ML-DSA-44 signature and another key ID is a line of a key the policy does not know: it
+   is ignored, and does not satisfy this rule.
+3. The Ed25519 line of the log remains REQUIRED. ML-DSA-44 adds to it; it does not replace it.
+
+Without `logMLDSAKey`, a line with the shape of an ML-DSA-44 signature decides nothing, as in
+0.7-draft.
+
+A verifier that does not implement ML-DSA-44 MUST still apply rule 2 and rule 3 — compute the
+key ID of `P` and require a line with it — and MUST reject a line with that key ID whose
+signature is not exactly 2420 bytes; it does not apply the `Verify` of rule 1, and MUST say
+so in its result (below). In the reference implementation the Go verifier implements
+ML-DSA-44 (`crypto/mldsa`); the TypeScript SDK, the PHP SDK and the static verifier do not
+(ADR-034, decision 5). The divergence is declared, and it is the only one: a line with the
+key ID of `P` and a bad 2420-byte signature makes the receipt invalid for Go and valid, with
+`"present-unverified"`, for the others.
+
+Every verifier's result carries the field `logMLDSA`, with one of three values:
+
+| value | meaning |
+|---|---|
+| `"verified"` | the policy carries `logMLDSAKey`, and every line of that key verified |
+| `"present-unverified"` | there is a line with the shape of an ML-DSA-44 signature and nobody verified it: the policy does not carry `logMLDSAKey`, or this verifier does not implement ML-DSA-44. The verifier's text output says which |
+| `"absent"` | there is no line with that shape. With `logMLDSAKey`, the receipt is already invalid |
+
+A verifier MUST NOT report `"verified"` for a line it did not verify. The field is verifier
+output, not wire format: the receipt and its human-readable text do not change.
 
 ## 4. Time (normative)
 
@@ -341,7 +425,7 @@ particular deployment — what remains is the `payload_hash` and the commitments
 data about the erased document. The protocol states the technical fact and takes no
 position on the legal one (corrected 2026-09-13, fourth audit).
 
-### 5.1 Erasure event (normative, 0.6-draft; authorization 0.7-draft)
+### 5.1 Erasure event (normative, 0.6-draft; authorization 0.7-draft; retired keys and regularization 0.8-draft)
 
 Erasing a record's content —its encrypted blob and its commitments— MUST leave a sealed
 **erasure event** in the same chain, so that an erased record is distinguishable from one
@@ -394,19 +478,63 @@ nucleo-erasure-auth@v1:<k>:<signature as 128 lower-case hex characters>
 The header — and so `payload_cid` — is signed by the tenant, committed by the leaf and carried
 whole by every receipt (§3.1); the payload is not. That is why the signature is here.
 
-**When an event is authorized.** Given a policy with `origin` and `erasureKey`, an event `E` is
+**When an event is authorized.** Given a policy with `origin`, `erasureKey` (optional) and
+`retiredErasureKeys` (optional, 0.8-draft), an event `E` of type `nucleo.erasure.v1` is
 authorized if and only if (1) its `payload_cid` has the form above with `<k>` < `E.index`;
 (2) some block before `E` has a `payload_hash` `<h>` with `E.payload_hash` = SHA-256 of the
-erasure payload for `<h>`; and (3) the signature verifies under `erasureKey` over the text built
-from the policy's `origin`, `<h>` and `<k>`. Without a policy, or with a policy without
-`erasureKey`, no event is authorized.
+erasure payload for `<h>`; and (3) the signature verifies, over the text built from the
+policy's `origin`, `<h>` and `<k>`, under **some** of these keys:
+
+- `erasureKey`, whatever `E.index` is;
+- a key `K` of `retiredErasureKeys` with `E.index` ≤ `retiredErasureKeys[K]`.
+
+Without a policy, or with a policy with neither `erasureKey` nor `retiredErasureKeys`, no event
+is authorized.
+
+**Retired keys** ([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md)). The value of a
+retired key is its **cutoff**, and it is the index of the erasure event, **inclusive**: a retired
+key with cutoff `c` authorizes the events whose index is ≤ `c`, and none other. It is neither the
+`<k>` of the authorization —which says what the authorization covers, not when it was used— nor
+a time. A retired key has no lower bound and needs none: an authorization travels inside the
+event's header, so a key can only have authorized events sealed after it existed. The current
+`erasureKey` has no lower bound either. Windows always overlap —they all start at the beginning
+of the chain— and that is correct: an event inside two windows counts if either key signed it,
+and cutoffs need not be in any order. A retired key used for an event with index > `c` does not
+authorize it: the event is not authorized, by condition (3), and it is reported as an integrity
+finding like any other. That is what makes retiring a key worth something.
+
+The cutoff SHOULD be at or below what the witnesses have already attested: an event with index
+≤ `c` was then either already sealed when the key was retired, or can only be added by rewriting
+the chain below `c`, which the third layer of ADR-017 detects. A cutoff above what is attested is
+not a policy error —a reconciliation need not know what was attested— but it leaves a window: the
+retired key still authorizes events sealed up to it.
 
 **When a block counts as erased.** A block `B` counts as erased if and only if there is an
 authorized event for `B.payload_hash` with `B.index` ≤ `<k>`. Since `<k>` < `E.index`, the event
 is later than `B`; an earlier event erased an earlier copy, which `B` sealed again. A
-reconciliation MUST report every event that is not authorized as an integrity finding, and the
-block it claimed to erase as missing. Erasure events are Núcleo's own blocks, not records of
-the live system.
+reconciliation MUST report every event that is not authorized and not regularized (below) as an
+integrity finding, and the block it claimed to erase, unless it counts as erased, as missing.
+Erasure events are Núcleo's own blocks, not records of the live system.
+
+**Regularization** (0.8-draft, ADR-033, decision 4). Let `E` be an event of type
+`nucleo.erasure.v1` that is **not authorized** and that satisfies condition (2) above: it erases a
+content `<h>` sealed before it. `E` is **regularized by** the event `R` if and only if:
+
+1. `R` is authorized, under any of the keys that are valid for **its** index;
+2. `R.index` > `E.index`;
+3. `R` erases the same content: `R.payload_hash` = `E.payload_hash`;
+4. the `<k>` of `R` covers every block with content `<h>` before `E`:
+   `<k>(R)` ≥ max{ `B.index` : `B.payload_hash` = `<h>`, `B.index` < `E.index` }.
+
+If several events regularize `E`, the one with the lowest index is named. Condition 4 does not
+use the `<k>` of `E`: it comes from an authorization that is not valid, and is not believed. An
+`R` earlier than `E` does not regularize it, and an `E` that does not satisfy condition (2) is
+not regularized: there is no erasure to regularize. A regularized event is **not** an integrity
+finding, and it does not disappear either: a reconciliation MUST report it, in every
+reconciliation, with the event that regularized it and the reason `E` was not authorized. The
+blocks `R` covers count as erased by the rule above. Regularizing requires a signature of the
+holder of an erasure key, which is the part the server does not have (ADR-032): whoever erased
+without authorization cannot regularize it alone.
 
 Test vector, computed outside the implementation with Python's `cryptography` and checked with
 OpenSSL 3 (`testdata/vectors/erasure/`): seed `000102…1f` (the 32 bytes 0x00 to 0x1f), public key
@@ -415,11 +543,16 @@ OpenSSL 3 (`testdata/vectors/erasure/`): seed `000102…1f` (the 32 bytes 0x00 t
 166 bytes, its SHA-256 is `24dc174105ced3274e000da312e198508f1f6aa283f0394f99afad3cf76cc7b7`, and
 the signature is
 `47eaf6d83b72696fa1e7001b41ad249c94b68548607fd8b97e855a19c6d785306c1e2aa0e75b1bf2e018924be20f6fd8aad5ad6796f74e3e38035252cd00ac07`.
+A second key, for rotation (0.8-draft): seed `202122…3f` (the 32 bytes 0x20 to 0x3f), public key
+`29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7`, over the same text:
+`57da70e2ec25f0eea6114dc3ea69031ea2bb303293a0cdcd0ccce354a4c540155b98394233ed5096669bbe960827b1ec38ef9ddb4e67cec4a599a87ed3e42f0a`.
 
 **A third party, without Núcleo.** With the receipt of the event, the receipt of the erased
 block and the policy: verify both receipts; check that the block's `index` ≤ `<k>` < the event's
 index and that the event's `payload_hash` is the SHA-256 of
-`{"erased_payload_hash":"<the block's payload_hash>"}`; then verify the signature:
+`{"erased_payload_hash":"<the block's payload_hash>"}`; choose the key by the event's index
+—`erasureKey`, or a key of `retiredErasureKeys` whose cutoff is ≥ that index; if several are
+candidates, it is enough that one verifies—; then verify the signature with it:
 
 ```
 printf 'nucleo.org/erasure-authorization@v1\norigin %s\nerased_payload_hash %s\nthrough %s\n' \
