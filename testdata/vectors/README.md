@@ -65,7 +65,7 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
 
              La suite de Go ya no los escribe: TestVectoresGoldenDicenLaVerdad los lee y
              comprueba que Go se comporta como declaran, y TestMain toma la huella del
-             directorio —material/ incluido— antes y después y falla si algo cambió.
+             directorio antes y después y falla si algo cambió.
 
              ENMENDADO el 2026-09-18 (ADR-024). Aquí decía que la ÚNICA excepción era
              valido-firma-mldsa-del-log, que lo generaba Go entero. Ya no: ese vector lo
@@ -87,6 +87,14 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
 
              (el test ejecuta el primer paso por su cuenta; está escrito para no copiar
              el cuerpo a mano, que es donde se cuela una divergencia).
+
+             ENMENDADO el 2026-10-24 (Sprint 29; ADR-024, enmienda; ADR-034, decisión
+             7). Ya no hay material prestado: material/mldsa.json, TestRegeneraMaterialMLDSA
+             y --mldsa-body se fueron. Las firmas ML-DSA-44 de las notas las hace OpenSSL
+             3.5.9 (mldsa/openssl_mldsa.py) desde la misma semilla, 200..231, y son los
+             mismos bytes que firmaba Go: valido-firma-mldsa-del-log no cambió ni uno.
+             Desde entonces generar.py necesita ese openssl, y si no está dice la orden
+             que lo instala (./scripts/instala-openssl.sh).
 
              Historia: 3 recibos golden generados por internal/receipt:
              valido-1-cosignature, alterado-encabezado, cosignature-no-confiable.
@@ -145,6 +153,54 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              signerKey, y cada uno tiene además un test que comprueba que, con signerKey
              igual a la clave del header, la misma prueba verifica: no cae por otra vía.
              Los 18 vectores anteriores no cambiaron un byte (generar.py --check).
+
+             Sprint 29 (ADR-034 §F, adición autorizada por el dev): seis recibos con una
+             política que fija log_mldsa_key, la clave ML-DSA-44 del log, sobre la escena
+             de valido-1-cosignature; las líneas ML-DSA las firma OpenSSL y la alterada
+             lleva un bit de z cambiado, que OpenSSL confirma que no verifica:
+               valido-mldsa-fijada-verificada            la línea buena
+               invalido-mldsa-fijada-ausente              ninguna línea ML-DSA
+               invalido-mldsa-fijada-alterada             la firma alterada
+               invalido-mldsa-fijada-dos-lineas-una-mala  la buena y la alterada
+               invalido-mldsa-solo-de-otra-clave          solo una línea de otra clave
+               valido-mldsa-fijada-y-linea-de-otra-clave  la buena y una de otra clave
+             Llevan "requires": "0.8-draft"; "valid" y "reason" son los de Go, que
+             verifica ML-DSA, y "verdicts" declara el de cada uno: go, ts y php (opción
+             B de la decisión 5: exigen la línea de la clave y dicen
+             "present-unverified", así que la alterada vale en TS y PHP) y
+             without_log_mldsa_key, el de una política sin la clave, que es el de todo
+             lector 0.7-draft y el que comprueban los tests hasta los Sprints C y D.
+             Los 19 vectores anteriores no cambiaron un byte (sha256 antes y después).
+
+- mldsa/     vectores ML-DSA-44 (FIPS 204) de una implementación INDEPENDIENTE, OpenSSL
+             3.5.9 (ADR-034, «Los vectores»; adición autorizada por el dev, Sprint 29).
+             firmas.json: (clave pública, mensaje, firma, veredicto) con dos claves
+             desde semillas fijas (A = 200..231, la del log de receipt/; B = 100..131),
+             firmas deterministas (rnd = 0^32), variante pura; el veredicto es
+             ML-DSA.Verify con contexto VACÍO. 5 válidos y 10 negativos: un bit cambiado
+             en c̃, en z (dos) y en las pistas (un índice y una cuenta), otra clave, otro
+             mensaje, 2419 y 2421 bytes, y una firma con el contexto «nucleo». Cada caso
+             dice cómo se firmó y qué mutación lleva. generar.py se niega a escribir un
+             caso cuyo veredicto no sea el que da OpenSSL. Sin mensaje vacío: pkeyutl
+             -rawin no lo firma.
+
+                 python3 testdata/vectors/mldsa/generar.py --check
+
+             acvp-sigver-mldsa44.json: el subconjunto sigVer del ACVP del NIST
+             (usnistgov/ACVP-Server, commit a7f283cdc87d2d6dd93c1bac59e5622c5f9f8324,
+             gen-val/json-files/ML-DSA-sigVer-FIPS204/internalProjection.json, sha256
+             47cdd6314c7f746d02421ffcba89d4dbc7bb875ac49e07a029fdfc26fba55437) con el
+             filtro de Núcleo: ML-DSA-44, interfaz externa, variante pura, contexto
+             vacío. Ese filtro deja UN caso (tcId 10, «modified message», negativo): los
+             otros 14 ML-DSA-44 puros del fichero llevan contexto. Lo extrae acvp.py
+             --extraer; acvp.py --check, sin red, comprueba el sha256 del subconjunto
+             (8e4a9375b883ba5a1d1d86954dc4f0358e6d17b53730ae3a71aed596ff3131c8) y que
+             OpenSSL da el veredicto del NIST.
+
+             El cruce: internal/checkpoint.TestMLDSAVectoresOpenSSL comprueba que
+             crypto/mldsa deriva las mismas claves, que SignDeterministic (y
+             MLDSASigner.Sign) firma BYTE A BYTE lo que firmó OpenSSL y que da cada
+             veredicto; TestMLDSAVectoresACVP, que da el del NIST.
 
 - policy/    vectores de la POLÍTICA de verificación (PROTOCOL.md §3.2, ADR-018):
              el texto EXACTO de cada documento y su veredicto. Escritos a mano por

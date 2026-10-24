@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { listVectors, readJSON } from "./vectors.js";
+import { esperado, listVectors, readJSON } from "./vectors.js";
 import { LEGAL_NOTICE } from "../src/receipt.js";
 
 // Verificación ANTI-TEATRO.
@@ -27,6 +27,8 @@ interface Vector {
   valid: boolean;
   provable_time?: string;
   block_index: number;
+  requires?: string;
+  verdicts?: { without_log_mldsa_key: { valid: boolean } };
 }
 
 /** loadBundle evalúa el bundle en un contexto limpio, como haría el navegador. */
@@ -78,8 +80,8 @@ describe("el bundle que sirve la página web", () => {
         witnesses: v.policy.witnesses,
         quorum: v.policy.quorum,
       });
-      expect(result.valid).toBe(v.valid);
-      if (v.valid) {
+      expect(result.valid).toBe(esperado(v));
+      if (esperado(v)) {
         expect(result.provableTime).toBe(v.provable_time ?? null);
         expect(result.blockIndex).toBe(BigInt(v.block_index));
       }

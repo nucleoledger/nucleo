@@ -18,16 +18,18 @@ un vector debe provocar.
     python3 testdata/vectors/receipt/generar.py          # reescribe los vectores
     python3 testdata/vectors/receipt/generar.py --check  # falla si difieren (lo usa el CI)
 
-valido-firma-mldsa-del-log se construye TAMBIÉN aquí, con una sola pieza prestada: los
-bytes de la clave pública y de la firma ML-DSA-44, que vienen de material/mldsa.json
-porque no hay ML-DSA en esta caja de herramientas (ADR-024). Todo lo demás de ese vector
-—la nota, el árbol, la hoja, el texto, la firma del emisor y hasta el key ID de la propia
-línea ML-DSA— sale de aquí, y se comprueba que la firma prestada es sobre EXACTAMENTE el
-cuerpo de nota que este oráculo produce. Ningún verificador comprueba esa firma; el
-material se regenera con:
+Las firmas ML-DSA-44 de la nota se las pide a OpenSSL 3.5.9 (testdata/vectors/mldsa/
+openssl_mldsa.py), la implementación independiente que aprobó el dev (ADR-034, decisión 7).
+Hasta el 2026-10-24 eran bytes prestados por Go, material/mldsa.json (ADR-024 y su
+enmienda): OpenSSL firma, con la misma semilla y sobre el mismo cuerpo, exactamente los
+mismos bytes, así que valido-firma-mldsa-del-log no cambió ni uno al cambiar de origen. Sin
+ese openssl, este oráculo no corre, y dice la orden que lo instala.
 
-    python3 testdata/vectors/receipt/generar.py --mldsa-body   # el cuerpo a firmar
-    NUCLEO_REGENERAR_MATERIAL_MLDSA=1 go test ./internal/receipt -run TestRegeneraMaterialMLDSA
+Los vectores con "requires": "0.8-draft" (ADR-034 §F) llevan una política que fija la
+clave ML-DSA del log (log_mldsa_key) y declaran el veredicto de cada verificador en
+"verdicts": el de Go, que la verifica, el de TypeScript y PHP, que con la opción B no la
+verifican y dicen "present-unverified", y el de una política sin log_mldsa_key, que es
+el de todo lector 0.7-draft. "valid" y "reason" son los de Go.
 """
 
 import base64, hashlib, json, os, struct, sys
@@ -35,6 +37,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
+# Sin __pycache__/ dentro de testdata/: dejaría el árbol sucio después de cada --check.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(AQUI, "..", "mldsa"))
+import openssl_mldsa as om  # noqa: E402
 
 ORIGIN = "nucleoledger.com/recibos"
 TENANT = "1790012345001"
@@ -59,9 +65,13 @@ ALG_COSIGNATURE = 0x04
 # no se los cree a nadie.
 ALG_EXT = 0xFF
 MLDSA_EXT_ID = "nucleoledger.com/sig/ml-dsa-44@v1"
-# En un subdirectorio a propósito: los tests recorren *.json de este directorio
-# esperando vectores, y el material no es un vector.
-MATERIAL_MLDSA = os.path.join(AQUI, "material", "mldsa.json")
+# Las semillas ML-DSA-44: la del log (la misma 200..231 con la que Go firmaba el material
+# prestado) y la de una clave que ninguna política fija.
+LOG_MLDSA_SEED = bytes(range(200, 232))
+OTRA_MLDSA_SEED = bytes(range(100, 132))
+# El byte y el bit que cambia la firma ML-DSA «alterada»: dentro de z (bytes 32-2335).
+MLDSA_BYTE_ALTERADO, MLDSA_BIT_ALTERADO = 32 + 1000, 3
+REQUIERE = "0.8-draft"
 
 
 def clave(b):
@@ -146,36 +156,31 @@ def key_hash_mldsa(nombre, pub):
     return h.digest()[:4]
 
 
-def material_mldsa():
-    """La única pieza que este oráculo no puede calcular: los bytes ML-DSA-44.
+def firma_mldsa(tipo, cuerpo):
+    """(pub, firma) de una línea ML-DSA-44 del log, desde OpenSSL.
 
-    Se presta la clave pública y la firma; el key ID se recompone aquí. Ver ADR-024.
+    "buena": la clave del log; "mala": la misma con un bit de z cambiado; "ajena": una
+    clave que la política no fija. OpenSSL confirma cada veredicto antes de que entre en
+    un vector: una "mala" que verificara no probaría nada.
     """
-    with open(MATERIAL_MLDSA, encoding="utf-8") as fh:
-        m = json.load(fh)
-    pub = bytes.fromhex(m["public_key_hex"])
-    firma = bytes.fromhex(m["signature_hex"])
-    if len(pub) != 1312 or len(firma) != 2420:
-        raise SystemExit("material/mldsa.json: tamaños que no son de ML-DSA-44")
-    return m, pub, firma
+    semilla = OTRA_MLDSA_SEED if tipo == "ajena" else LOG_MLDSA_SEED
+    pub, firma = om.publica(semilla), om.firma(semilla, cuerpo)
+    if tipo == "mala":
+        b = bytearray(firma)
+        b[MLDSA_BYTE_ALTERADO] ^= 1 << MLDSA_BIT_ALTERADO
+        firma = bytes(b)
+    if om.verifica(pub, cuerpo, firma) != (tipo != "mala"):
+        raise SystemExit(f"OpenSSL no da el veredicto esperado para la firma ML-DSA {tipo!r}")
+    return pub, firma
 
 
-def nota(origin, size, root, log_sk, cosignatures, mldsa=False):
-    """cosignatures: lista de (nombre, sk, unix). La firma del log va primero."""
+def nota(origin, size, root, log_sk, cosignatures, mldsa=()):
+    """cosignatures: lista de (nombre, sk, unix). La firma del log va primero, y detrás
+    las líneas ML-DSA-44 que pida mldsa ("buena", "mala", "ajena"), en ese orden."""
     cuerpo = cuerpo_checkpoint(origin, size, root)
     lineas = linea_de_firma(origin, key_hash(origin, publica(log_sk), ALG_ED25519), log_sk.sign(cuerpo.encode()))
-    if mldsa:
-        m, pub, firma = material_mldsa()
-        # La firma prestada tiene que ser sobre ESTE cuerpo. Si la escena cambia, el
-        # material caduca y hay que volver a firmarlo: se dice aquí y no se parchea.
-        if m["signed_note_body"] != cuerpo:
-            raise SystemExit(
-                "material/mldsa.json firma otro cuerpo de nota que el de esta escena.\n"
-                "Regenéralo:\n"
-                "  python3 testdata/vectors/receipt/generar.py --mldsa-body\n"
-                "  NUCLEO_REGENERAR_MATERIAL_MLDSA=1 go test ./internal/receipt -run TestRegeneraMaterialMLDSA")
-        if m["origin"] != origin:
-            raise SystemExit("material/mldsa.json es de otro origin")
+    for tipo in mldsa:
+        pub, firma = firma_mldsa(tipo, cuerpo.encode())
         lineas += linea_de_firma(origin, key_hash_mldsa(origin, pub), firma)
     for nombre, sk, unix in cosignatures:
         mensaje = f"cosignature/v1\ntime {unix}\n".encode() + cuerpo.encode()
@@ -298,7 +303,7 @@ def vector(nombre, descripcion, rec, hoja, firma_bloque, pol, valido, declared, 
     return v
 
 
-def escena(n, cosigners=1, nombre_testigo=W1, fraccion=None, tiempos=None, mldsa=False):
+def escena(n, cosigners=1, nombre_testigo=W1, fraccion=None, tiempos=None, mldsa=()):
     bloques = cadena(n, TENANT_SK, fraccion)
     hojas = [d + f for (_, _, d, f) in bloques]
     r = raiz(hojas)
@@ -324,12 +329,12 @@ def genera():
     rec5, bloques5, nota5, prov5 = valido(
         "valido-1-cosignature", "Recibo correcto con una cosignature de un testigo aceptado. Debe verificar.", 5, 2)
 
-    # La firma ML-DSA-44 del log: misma escena que valido-1-cosignature más la línea
-    # prestada (ADR-024). Ningún verificador la comprueba; lo que el vector prueba es que
-    # los tres la IGNORAN sin listarla como clave desconocida.
+    # La firma ML-DSA-44 del log: misma escena que valido-1-cosignature más su línea, que
+    # firma OpenSSL. Con una política sin logMLDSAKey ningún verificador la comprueba; lo
+    # que el vector prueba es que los tres la IGNORAN sin listarla como clave desconocida.
     valido("valido-firma-mldsa-del-log",
            "la nota trae además la firma ML-DSA-44 del log (ADR-007): se ignora al verificar y la página la reconoce como del log",
-           5, 2, mldsa=True)
+           5, 2, mldsa=("buena",))
 
     # alterado-encabezado: el tenant cambiado EN EL TEXTO.
     alterado = rec5.replace("emisor (tenant)   : " + TENANT, "emisor (tenant)   : 9999999999001", 1)
@@ -401,20 +406,83 @@ def genera():
                       "El exploit del recibo de ADR-017: los bloques 1-4 re-firmados con una clave ajena, autoconsistentes, bajo un checkpoint firmado por la clave real del log y cosignado por el testigo real; el recibo del bloque 2 lo firma el atacante como emisor. Firmas, inclusión y quórum verifican; la política fija signerKey y el header declara otra clave: debe rechazarse.",
                       rec, hoja, firma, politica([(W1, W1_SK)], 1), False,
                       bloques[2][0]["timestamp"], None, 2, "unexpected_signer"))
+
+    out.extend(genera_mldsa())
     return out
 
 
-def cuerpo_de_la_escena_mldsa():
-    """El cuerpo de nota que hay que firmar con ML-DSA, para poder pedirlo a Go."""
-    bloques = cadena(5, TENANT_SK)
-    hojas = [d + f for (_, _, d, f) in bloques]
-    return cuerpo_checkpoint(ORIGIN, 5, raiz(hojas))
+# --- La política que fija la clave ML-DSA del log (ADR-034, PROTOCOL 0.8-draft §3.3) ----
+
+
+def genera_mldsa():
+    """Los recibos de ADR-034 §F: la misma escena que valido-1-cosignature, con una
+    política que fija log_mldsa_key y distintas líneas ML-DSA-44 en la nota."""
+    out = []
+    pol = dict(politica([(W1, W1_SK)], 1), log_mldsa_key=om.publica(LOG_MLDSA_SEED).hex())
+
+    def caso(nombre, desc, lineas, go, sin_clave):
+        """go: (valid, log_mldsa o motivo); sin_clave: log_mldsa con una política sin la
+        clave, donde todos valen. TS y PHP (opción B, decisión 5): exigen una línea de la
+        clave de 2420 bytes y no la verifican."""
+        bloques, _, nota_bytes, provable = escena(5, mldsa=lineas)
+        rec, hoja, firma = recibo(bloques, 2, DESTINATARIO, nota_bytes, rfc3339(provable), TENANT_SK)
+        de_la_clave = "buena" in lineas or "mala" in lineas
+        sdk = ({"valid": True, "log_mldsa": "present-unverified"} if de_la_clave
+               else {"valid": False, "reason": "mldsa_signature_missing"})
+        v = {
+            "name": nombre,
+            "description": desc,
+            "requires": REQUIERE,
+            "receipt": rec,
+            "policy": pol,
+            "leaf_data": hoja.hex(),
+            "leaf_rule": "leaf/v2",
+            "block_signature": firma.hex(),
+            "valid": go[0],
+        }
+        if not go[0]:
+            v["reason"] = go[1]
+        v["declared_time"] = bloques[2][0]["timestamp"]
+        # Se publica siempre: es el tiempo de los verificadores que dan el recibo por bueno.
+        v["provable_time"] = rfc3339(provable)
+        v["block_index"] = 2
+        v["verdicts"] = {
+            "go": {"valid": True, "log_mldsa": go[1]} if go[0] else {"valid": False, "reason": go[1]},
+            "ts": sdk,
+            "php": sdk,
+            "without_log_mldsa_key": {"valid": True, "log_mldsa": sin_clave},
+        }
+        out.append(v)
+
+    caso("valido-mldsa-fijada-verificada",
+         "La política fija la clave ML-DSA-44 del log y la nota trae su firma, válida. Go la verifica; TypeScript y PHP "
+         "la exigen y dicen que no la verificaron.",
+         ("buena",), (True, "verified"), "present-unverified")
+    caso("invalido-mldsa-fijada-ausente",
+         "La política fija la clave ML-DSA-44 del log y la nota no trae ninguna línea ML-DSA: inválido en los tres "
+         "(«la política fija la clave ML-DSA del log y el checkpoint no trae su firma»).",
+         (), (False, "mldsa_signature_missing"), "absent")
+    caso("invalido-mldsa-fijada-alterada",
+         f"La línea de la clave fijada trae la firma con el bit {MLDSA_BIT_ALTERADO} del byte {MLDSA_BYTE_ALTERADO} "
+         "cambiado (en z). Inválido en Go; válido con \"present-unverified\" en TypeScript y PHP, que no verifican "
+         "ML-DSA (la divergencia declarada de la decisión 5); válido con una política sin la clave.",
+         ("mala",), (False, "mldsa_signature_invalid"), "present-unverified")
+    caso("invalido-mldsa-fijada-dos-lineas-una-mala",
+         "Dos líneas de la clave fijada, la buena primero y después la alterada: toda línea de una clave de la "
+         "política tiene que verificar (PROTOCOL §3.3), así que inválido en Go aunque una verifique.",
+         ("buena", "mala"), (False, "mldsa_signature_invalid"), "present-unverified")
+    caso("invalido-mldsa-solo-de-otra-clave",
+         "La única línea con forma de ML-DSA-44 a nombre del log es de OTRA clave, firma válida: se ignora "
+         "(c2sp.org/signed-note) y equivale a no traer ninguna. Inválido en los tres.",
+         ("ajena",), (False, "mldsa_signature_missing"), "present-unverified")
+    caso("valido-mldsa-fijada-y-linea-de-otra-clave",
+         "La línea buena de la clave fijada y otra de una clave que la política no conoce: esa se ignora y el "
+         "recibo vale.",
+         ("buena", "ajena"), (True, "verified"), "present-unverified")
+    return out
 
 
 def main():
-    if "--mldsa-body" in sys.argv:
-        sys.stdout.write(cuerpo_de_la_escena_mldsa())
-        return 0
     check = "--check" in sys.argv
     vectores = genera()
     diferentes = []

@@ -7,12 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"testing"
 
-	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/proof"
 )
 
@@ -49,6 +47,17 @@ type vectorFile struct {
 	DeclaredTime string `json:"declared_time"`
 	ProvableTime string `json:"provable_time,omitempty"`
 	BlockIndex   uint64 `json:"block_index"`
+	// Requires nombra la versión del protocolo que el vector exige: "0.8-draft" en los
+	// recibos con una política que fija log_mldsa_key (ADR-034 §F). Valid y Reason son
+	// entonces los de Go con ML-DSA, y Verdicts dice el de cada verificador.
+	Requires string `json:"requires,omitempty"`
+	Verdicts struct {
+		// WithoutLogMLDSAKey es el veredicto con la política sin log_mldsa_key: el de
+		// todo lector 0.7-draft, este incluido hasta el Sprint C.
+		WithoutLogMLDSAKey struct {
+			Valid bool `json:"valid"`
+		} `json:"without_log_mldsa_key"`
+	} `json:"verdicts"`
 }
 
 type vectorPolicy struct {
@@ -67,61 +76,13 @@ type vectorPolicy struct {
 // del código bajo prueba"— no se cumplía justo aquí: los recibos golden salían de
 // internal/receipt, el paquete que verifican, así que reproducían sus propios errores.
 //
-// Lo único que Go sigue aportando a los vectores son los BYTES ML-DSA-44 de
-// valido-firma-mldsa-del-log —la clave pública y la firma—, porque no hay ML-DSA en la
-// caja de herramientas del oráculo (ADR-024). El vector entero lo construye el oráculo:
-// la nota, el árbol, la hoja, el texto, la firma del emisor y hasta el key ID de la
-// propia línea ML-DSA, que recompone desde la especificación. Y comprueba que la firma
-// prestada es sobre exactamente el cuerpo de nota que él produce.
-//
-// El material se regenera en dos pasos, porque el oráculo tiene que decir primero QUÉ
-// hay que firmar:
-//
-//	NUCLEO_REGENERAR_MATERIAL_MLDSA=1 go test ./internal/receipt -run TestRegeneraMaterialMLDSA
-//
-// (ese test ejecuta `generar.py --mldsa-body` por su cuenta para no copiar el cuerpo a
-// mano, que es exactamente donde se cuela una divergencia).
-func TestRegeneraMaterialMLDSA(t *testing.T) {
-	if os.Getenv("NUCLEO_REGENERAR_MATERIAL_MLDSA") != "1" {
-		t.Skip("solo se regenera a petición: NUCLEO_REGENERAR_MATERIAL_MLDSA=1")
-	}
-	dir := filepath.Join("..", "..", "testdata", "vectors", "receipt")
-	cuerpo, err := exec.Command("python3", filepath.Join(dir, "generar.py"), "--mldsa-body").Output()
-	if err != nil {
-		t.Fatalf("el oráculo tiene que decir qué cuerpo firmar: %v", err)
-	}
-	seed := make([]byte, checkpoint.MLDSASeedSize)
-	for i := range seed {
-		seed[i] = byte(200 + i)
-	}
-	mldsa, err := checkpoint.NewMLDSASigner(testOrigin, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	firma, err := mldsa.Sign(cuerpo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	material := map[string]any{
-		"comentario": "La única pieza de los vectores de recibo que no sale del oráculo Python: " +
-			"los bytes ML-DSA-44. Ningún verificador los comprueba. Ver ADR-024 y generar.py.",
-		"origin":           testOrigin,
-		"alg":              checkpoint.AlgMLDSA44Ext,
-		"extension_id":     checkpoint.MLDSAExtensionID,
-		"public_key_hex":   hex.EncodeToString(mldsa.PublicKey()),
-		"signature_hex":    hex.EncodeToString(firma),
-		"signed_note_body": string(cuerpo),
-		"firmado_por":      "internal/checkpoint.MLDSASigner.Sign (determinista), semilla 200..231",
-	}
-	raw, err := json.MarshalIndent(material, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "material", "mldsa.json"), append(raw, '\n'), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("material/mldsa.json escrito: %d bytes de firma sobre %d bytes de cuerpo", len(firma), len(cuerpo))
-}
+// Tampoco los bytes ML-DSA-44: desde el Sprint 29 los firma OpenSSL 3.5.9, la
+// implementación independiente de ADR-034 (decisión 7), y no Go. Aquí vivía
+// TestRegeneraMaterialMLDSA, que escribía material/mldsa.json con
+// checkpoint.MLDSASigner; se borra con el material (ADR-024, enmienda del 2026-10-24).
+// OpenSSL firma los mismos bytes que firmaba Go —lo comprueba
+// internal/checkpoint.TestMLDSAVectoresOpenSSL—, así que valido-firma-mldsa-del-log no
+// cambió ni uno.
 
 // TestVectoresGoldenDicenLaVerdad lee TODOS los vectores del directorio —vengan del
 // oráculo o de aquí— y comprueba que Go se comporta como cada uno declara. Es la otra
@@ -139,6 +100,15 @@ func TestVectoresGoldenDicenLaVerdad(t *testing.T) {
 		var v vectorFile
 		if err := json.Unmarshal(raw, &v); err != nil {
 			t.Fatal(err)
+		}
+		switch v.Requires {
+		case "":
+		case "0.8-draft":
+			// Este verificador no lee log_mldsa_key hasta el Sprint C (policyFromVector
+			// no la copia): tiene que dar el veredicto de una política sin ella.
+			v.Valid = v.Verdicts.WithoutLogMLDSAKey.Valid
+		default:
+			t.Fatalf("%s: requires %q, una versión que este test no conoce", v.Name, v.Requires)
 		}
 		t.Run(v.Name, func(t *testing.T) {
 			assertVector(t, v)
@@ -175,8 +145,8 @@ func TestVectoresGoldenDicenLaVerdad(t *testing.T) {
 // Aquí vivía exportValid, que escribía un vector desde este paquete. Se borra con el
 // Sprint 8 (ADR-024): ya no queda ni un vector de recibo que Go escriba, así que el
 // código que sabía escribirlos tampoco tiene que quedarse. Lo que Go aporta son los
-// bytes ML-DSA de material/mldsa.json, y eso lo hace TestRegeneraMaterialMLDSA sin
-// tocar ningún vector.
+// bytes ML-DSA de material/mldsa.json, y eso lo hacía TestRegeneraMaterialMLDSA sin
+// tocar ningún vector (ya no: los firma OpenSSL, arriba).
 
 // assertVector comprueba que el vector se comporte como declara.
 func assertVector(t *testing.T, v vectorFile) {
@@ -237,12 +207,8 @@ func TestMain(m *testing.M) {
 	dir := filepath.Join("..", "..", "testdata", "vectors", "receipt")
 	antes := huellaDeVectores(dir)
 	code := m.Run()
-	// La única excepción, y es explícita: la regeneración del material ML-DSA escribe a
-	// propósito, y solo con su variable puesta. Sin ella, cualquier escritura en el
-	// directorio hunde la ejecución, que es de lo que va este guardián.
-	if os.Getenv("NUCLEO_REGENERAR_MATERIAL_MLDSA") == "1" {
-		os.Exit(code)
-	}
+	// Sin excepciones desde que se fue el material ML-DSA prestado (ADR-024, enmienda del
+	// 2026-10-24): cualquier escritura en el directorio hunde la ejecución.
 	if despues := huellaDeVectores(dir); despues != antes {
 		fmt.Fprintln(os.Stderr, "los tests MODIFICARON los vectores golden: un golden que el test reescribe no juzga nada")
 		if code == 0 {
@@ -254,18 +220,12 @@ func TestMain(m *testing.M) {
 
 // huellaDeVectores resume el contenido del directorio en un hash.
 //
-// Incluye el material prestado de material/: no es un vector, pero es material golden y
-// una suite que lo reescribiera estaría haciendo lo mismo que este guardián prohíbe.
+// Incluía material/, el material ML-DSA prestado; se fue con ADR-024 enmendado.
 func huellaDeVectores(dir string) string {
 	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
 	if err != nil {
 		return "error: " + err.Error()
 	}
-	mat, err := filepath.Glob(filepath.Join(dir, "material", "*.json"))
-	if err != nil {
-		return "error: " + err.Error()
-	}
-	files = append(files, mat...)
 	sort.Strings(files)
 	h := sha256.New()
 	for _, f := range files {

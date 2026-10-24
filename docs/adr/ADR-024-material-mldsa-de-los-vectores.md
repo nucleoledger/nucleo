@@ -1,6 +1,33 @@
 # ADR-024-material-mldsa-de-los-vectores
 
-**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8) · **Fecha:** 2026-09-18 · **Fuentes:** [revisión externa, por un modelo, del 2026-09-13](../revision-externa-modelo-20260913.md) hallazgo H9 (la independencia de los golden), cerrado en dos pasos: el oráculo Python del Sprint 7f y este ADR; ADR-007 (ML-DSA-44 adicional), `testdata/vectors/receipt/generar.py`, `internal/receipt/vectors_export_test.go`
+**Estado:** ACEPTADA el 2026-09-18 por el dev (Sprint 8); enmendada el 2026-10-24 (Sprint 29: el material prestado, sustituido por OpenSSL y el ACVP) · **Fecha:** 2026-09-18 · **Fuentes:** [revisión externa, por un modelo, del 2026-09-13](../revision-externa-modelo-20260913.md) hallazgo H9 (la independencia de los golden), cerrado en dos pasos: el oráculo Python del Sprint 7f y este ADR; ADR-007 (ML-DSA-44 adicional), `testdata/vectors/receipt/generar.py`, `internal/receipt/vectors_export_test.go`
+
+## Enmienda 2026-10-24 (Sprint 29) — el material prestado se sustituye y desaparece
+
+Lo que este ADR previó («si algún día entra una, este ADR se revisa y el material
+desaparece») ha pasado: el dev aprobó OpenSSL 3.5.9 como herramienta de desarrollo
+(ADR-034, decisión 7), instalada con su sha256 y su firma PGP comprobados
+(`scripts/instala-openssl.sh`, `docs/RELEASING.md`). Con ella:
+
+- **`material/mldsa.json` se borra**, junto con `TestRegeneraMaterialMLDSA` y
+  `generar.py --mldsa-body`. Ningún test lo usa ya. `generar.py` le pide la clave y la firma
+  ML-DSA-44 a OpenSSL (`testdata/vectors/mldsa/openssl_mldsa.py`) sobre el cuerpo de nota que
+  él mismo produce, así que la precondición «la firma es de ESTE cuerpo» deja de existir: la
+  firma se hace sobre él.
+- **`valido-firma-mldsa-del-log` no cambió un byte.** OpenSSL, con la misma semilla
+  (200..231) y el modo determinista, firma exactamente los bytes que prestaba Go. Es la
+  primera comprobación cruzada, y la deja escrita `internal/checkpoint.TestMLDSAVectoresOpenSSL`.
+- **Las firmas ML-DSA de los vectores ya no son de Go ni las comprueba solo Go:** salen de
+  una implementación independiente (`testdata/vectors/mldsa/firmas.json`, 15 casos) y se
+  contrastan con el NIST (`acvp-sigver-mldsa44.json`, el subconjunto sigVer del ACVP en un
+  commit fijado). La regla anti-circularidad deja de tener la excepción de 3732 bytes.
+- **«Ningún verificador los comprueba» ya no es la justificación**, ni hace falta: con
+  `logMLDSAKey` en la política (ADR-034) Go los comprobará, y los recibos nuevos de ADR-034 §F
+  —con firma buena, alterada, ausente o de otra clave— dependen de que la firma sea real. La
+  alternativa descartada de los bytes aleatorios habría sido, como se dijo abajo, mentira
+  ese día.
+
+El resto del texto se conserva como historia de la decisión.
 
 ## El problema
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { verifyReceipt, type Policy } from "../src/index.js";
 import { ed25519Available } from "../src/crypto.js";
-import { listVectors, readJSON } from "./vectors.js";
+import { esperado, listVectors, readJSON } from "./vectors.js";
 
 interface Vector {
   name: string;
@@ -18,6 +18,10 @@ interface Vector {
   declared_time: string;
   provable_time?: string;
   block_index: number;
+  // "0.8-draft" en los recibos cuya política fija log_mldsa_key (ADR-034 §F): valid es
+  // entonces el de Go, y verdicts dice el de cada verificador.
+  requires?: string;
+  verdicts?: { without_log_mldsa_key: { valid: boolean } };
 }
 
 function toPolicy(v: Vector): Policy {
@@ -39,8 +43,8 @@ describe("entorno", () => {
 describe("vectores de recibo generados por Go", () => {
   const files = listVectors("receipt");
 
-  it("hay diecinueve vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo, la firma ML-DSA del log, el timestamp con fracción, el testigo __proto__ y el bloque de clave ajena (ADR-017)", () => {
-    expect(files).toHaveLength(19);
+  it("hay veinticinco vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo, la firma ML-DSA del log, el timestamp con fracción, el testigo __proto__, el bloque de clave ajena (ADR-017) y los seis de la clave ML-DSA fijada (ADR-034, exigen 0.8-draft)", () => {
+    expect(files).toHaveLength(25);
   });
 
   for (const file of files) {
@@ -48,10 +52,11 @@ describe("vectores de recibo generados por Go", () => {
 
     it(`${v.name}: ${v.description}`, async () => {
       const result = await verifyReceipt(v.receipt, toPolicy(v));
+      const valido = esperado(v);
 
-      expect(result.valid, `razones: ${result.reasons.join(" | ")}`).toBe(v.valid);
+      expect(result.valid, `razones: ${result.reasons.join(" | ")}`).toBe(valido);
 
-      if (!v.valid) {
+      if (!valido) {
         // Un rechazo sin explicación es inútil para quien lo recibe.
         expect(result.reasons.length).toBeGreaterThan(0);
         expect(result.provableTime).toBeNull();

@@ -190,6 +190,16 @@ $n = 0;
 foreach (glob($vectores . '/receipt/*.json') as $f) {
     $v = leerJSON($f);
     $n++;
+    // "requires": "0.8-draft" (ADR-034 §F): la política fija log_mldsa_key, que
+    // politicaDelVector no copia y este SDK no lee hasta el Sprint D. Hasta entonces, el
+    // veredicto que tiene que dar es el de una política sin ella; "valid" es el de Go.
+    $exige = $v['requires'] ?? '';
+    if ($exige === '0.8-draft') {
+        $v['valid'] = $v['verdicts']['without_log_mldsa_key']['valid'];
+    } elseif ($exige !== '') {
+        comprueba('recibo ' . $v['name'], false, 'requires ' . $exige . ': versión que este test no conoce');
+        continue;
+    }
     $r = Verifier::verify($v['receipt'], politicaDelVector($v['policy']));
     comprueba(
         'recibo ' . $v['name'],
@@ -206,7 +216,7 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     // recompusiera de otra manera, la inclusión no habría verificado.
     igual('recibo ' . $v['name'] . ': regla de hoja', 'leaf/v2', $v['leaf_rule']);
 }
-comprueba('hay vectores de recibo', $n >= 19, sprintf('solo %d', $n));
+comprueba('hay vectores de recibo', $n >= 25, sprintf('solo %d', $n));
 
 // El exploit del recibo de ADR-017, tal como se ejecutó: bloques re-firmados con una clave
 // ajena bajo el checkpoint real. Se rechaza por signerKey; y con la clave del header la

@@ -196,12 +196,19 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 			t.Fatal(err)
 		}
 		var v struct {
-			Name    string         `json:"name"`
-			Receipt string         `json:"receipt"`
-			Policy  politicaVector `json:"policy"`
+			Name     string         `json:"name"`
+			Receipt  string         `json:"receipt"`
+			Policy   politicaVector `json:"policy"`
+			Requires string         `json:"requires"`
 		}
 		if err := json.Unmarshal(raw, &v); err != nil {
 			t.Fatal(err)
+		}
+		if v.Requires != "" {
+			// Exige 0.8-draft (ADR-034): su política fija log_mldsa_key, que ningún
+			// verificador lee todavía. Entra en el catálogo con la divergencia declarada
+			// de la decisión 5, en el Sprint D.
+			continue
 		}
 		pol := proof.Policy{Origin: v.Policy.Origin, Quorum: v.Policy.Quorum,
 			Witnesses: map[string]ed25519.PublicKey{}}
