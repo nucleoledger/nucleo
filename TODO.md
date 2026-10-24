@@ -284,17 +284,26 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. El recibo del bloque firmado por una clave ajena, bajo el checkpoint real (ADR-017):
       vector del oráculo y rechazo en Go, TS, PHP y la página; GARANTIAS y README
 
+## Sprint 28 — la 0.5: Sprint A completo y Sprint B sin ML-DSA
+- [x] 1. PROTOCOL 0.8-draft: §3.2 (`retiredErasureKeys`, `logMLDSAKey`), §3.3 (la línea
+      ML-DSA-44 y `logMLDSA`), §5.1 (claves retiradas, regularización) y la nota de cabecera
+- [x] 2. Vectores de política 0.8-draft (58), marcados «exigen 0.8» en los tests
+- [x] 3. Vectores de supresión: la segunda clave y `rotacion.json` (16 casos)
+
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
 La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
 es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
-- [ ] **Sprint A — PROTOCOL 0.8-draft** (por instrucción del dev): `retiredErasureKeys` y
+- [x] **Sprint A — PROTOCOL 0.8-draft** (Sprint 28, por instrucción del dev): `retiredErasureKeys` y
       `logMLDSAKey` en §3.2, la regla ML-DSA en §3.3, las claves retiradas y la regularización
       en §5.1, con la nota de cabecera de la subida
-- [ ] **Sprint B — los vectores, antes que el código**: `policy/` (los dos miembros, con el
-      array `[{key, until}]` rechazado); `erasure/` (la segunda clave y `rotacion.json`, con
-      las filas de la regularización); OpenSSL ≥ 3.5 instalado con su versión y su sha256,
-      `mldsa/` y los recibos ML-DSA desde él, más el subconjunto sigVer del ACVP; ADR-024
-      revisado y `material/mldsa.json` fuera
+- [ ] **Sprint B — los vectores, antes que el código** — **parcial (sin ML-DSA)**, Sprint 28:
+  - [x] `policy/` (los dos miembros, con el array `[{key, until}]` rechazado; llevan
+        `"requires": "0.8-draft"` y los lectores 0.7-draft los rechazan como miembro
+        desconocido hasta los Sprints C y D)
+  - [x] `erasure/` (la segunda clave y `rotacion.json`, con las filas de la regularización)
+  - [ ] Sprint 29: OpenSSL ≥ 3.5 instalado con su versión y su sha256, `mldsa/` y los
+        recibos ML-DSA desde él, más el subconjunto sigVer del ACVP; ADR-024 revisado y
+        `material/mldsa.json` fuera; el CI del `--check` (decisión del dev)
 - [ ] **Sprint C — Go**: `internal/policy`; `internal/erasure` y `internal/reconcile` (claves
       retiradas, `TestClaveRetiradaDespuesDelCorteNoCuenta`, la regularización y
       `TestSupresionNoAutorizadaRegularizada`); `internal/proof` (ML-DSA con `crypto/mldsa`,
