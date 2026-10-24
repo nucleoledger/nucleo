@@ -145,6 +145,7 @@ Las consecuencias, una por una:
 - **Sin `erasureKey` y sin `retiredErasureKeys`**, ningún evento está autorizado, como hoy.
 - **Una política sin `retiredErasureKeys` significa exactamente lo que significa en
   0.7-draft.** Ningún veredicto cambia para quien no use el miembro.
+  *Enmienda 2026-10-24 (Sprint 29):* falso para la regularización de la decisión 4, que **sí** cambia un veredicto con una política sin `retiredErasureKeys` —un evento no autorizado seguido de otro autorizado para el mismo contenido pasa de salida 2 a salida 0—; manda la decisión, como ya dice la cabecera de PROTOCOL 0.8-draft.
 - **Un corte por encima de lo atestiguado** no es un error de la política —la reconciliación
   no tiene por qué saber qué atestiguó el testigo—, pero deja una ventana: la clave retirada
   aún puede autorizar eventos que se sellen hasta ese índice. La reconciliación lo **avisa**
