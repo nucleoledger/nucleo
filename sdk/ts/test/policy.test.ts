@@ -10,6 +10,10 @@ import { listVectors, readJSON } from "./vectors.js";
 // mano desde la tabla. Los mismos ficheros los lee internal/policy en Go. Se pasan
 // por la biblioteca Y por el bundle que carga la página: es el bundle el que lee lo
 // que la contraparte pega en el formulario.
+//
+// Los vectores con "requires": "0.8-draft" (ADR-033, ADR-034) son de una gramática que
+// este SDK todavía no implementa: hasta el Sprint D, los válidos se tienen que RECHAZAR
+// como miembro desconocido, que es lo que PROTOCOL §3.2 manda a un lector 0.7-draft.
 
 interface PolicyVector {
   name: string;
@@ -17,6 +21,7 @@ interface PolicyVector {
   text: string;
   valid: boolean;
   reason: string;
+  requires?: string;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +44,16 @@ const acepta = (f: (t: string) => unknown, t: string): boolean => {
   }
 };
 
+// El mensaje con que f rechaza t, o null si lo acepta.
+const rechazo = (f: (t: string) => unknown, t: string): string | null => {
+  try {
+    f(t);
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+};
+
 describe("vectores de política", () => {
   const files = listVectors("policy");
   const delBundle = bundleParse();
@@ -49,7 +64,20 @@ describe("vectores de política", () => {
 
   for (const file of files) {
     const v = readJSON<PolicyVector>("policy", file);
+    if (v.requires === "0.8-draft") {
+      it(`${v.name} (exige 0.8-draft): ${v.description}`, () => {
+        for (const [donde, f] of [["biblioteca", parsePolicyText], ["bundle de la página", delBundle]] as const) {
+          const msg = rechazo(f, v.text);
+          expect(msg, donde).not.toBeNull();
+          if (v.valid) {
+            expect(msg, donde).toContain("miembro desconocido");
+          }
+        }
+      });
+      continue;
+    }
     it(`${v.name}: ${v.description}`, () => {
+      expect(v.requires, "versión que este test no conoce").toBeUndefined();
       expect(acepta(parsePolicyText, v.text), "biblioteca").toBe(v.valid);
       expect(acepta(delBundle, v.text), "bundle de la página").toBe(v.valid);
       if (v.valid) {

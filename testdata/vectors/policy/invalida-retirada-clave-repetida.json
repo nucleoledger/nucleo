@@ -1,0 +1,8 @@
+{
+  "name": "invalida-retirada-clave-repetida",
+  "description": "La misma clave retirada dos veces.",
+  "text": "{\"origin\":\"nucleoledger.com/mi-empresa\",\"logKey\":\"5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628\",\"erasureKey\":\"29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7\",\"retiredErasureKeys\":{\"03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8\":41,\"03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8\":50},\"witnesses\":{\"witness.nucleoledger.com/w1\":\"dd7e84d010aed28a416e928f50c4c09ac0f94a8f5b346548168bddb61cdb7263\"},\"quorum\":1}",
+  "valid": false,
+  "reason": "duplicate_member",
+  "requires": "0.8-draft"
+}

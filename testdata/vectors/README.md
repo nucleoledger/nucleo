@@ -153,3 +153,11 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              para que cualquiera repita el cálculo. Los leen el parser de Go, el del
              SDK y el del bundle de la página, y los tres tienen que dar el mismo
              veredicto. Adición autorizada por el dev (Sprint 7e).
+
+             Sprint 28 (PROTOCOL 0.8-draft, ADR-033 y ADR-034, adición autorizada por el
+             dev): 58 vectores de los dos miembros nuevos, retiredErasureKeys y
+             logMLDSAKey —9 válidos, 49 inválidos, entre ellos el array [{key, until}]
+             descartado en la decisión 1—. Llevan "requires": "0.8-draft": un lector
+             0.7-draft los rechaza todos como miembro desconocido (§3.2), y hasta los
+             Sprints C y D los tests lo comprueban así (los válidos, con ese mensaje).
+             Los 76 vectores anteriores no cambiaron un byte (sha256 antes y después).

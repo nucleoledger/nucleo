@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Genera los vectores de POLÍTICA (PROTOCOL.md §3.2, ADR-018; erasureKey, ADR-032).
+# Genera los vectores de POLÍTICA (PROTOCOL.md §3.2, ADR-018; erasureKey, ADR-032;
+# retiredErasureKeys y logMLDSAKey, 0.8-draft, ADR-033 y ADR-034).
 #
 # Cada vector es un texto de política EXACTO y el veredicto que la tabla de
 # PROTOCOL.md §3.2 le da. Los veredictos están escritos a mano aquí, caso por caso,
@@ -31,9 +32,14 @@ def base(**extra):
 VECTORES = []
 
 
-def v(nombre, valido, texto, descripcion, motivo=""):
-    VECTORES.append({"name": nombre, "description": descripcion, "text": texto,
-                     "valid": valido, "reason": motivo})
+def v(nombre, valido, texto, descripcion, motivo="", exige=None):
+    x = {"name": nombre, "description": descripcion, "text": texto,
+         "valid": valido, "reason": motivo}
+    if exige:
+        # La versión de PROTOCOL que da el veredicto. Un lector anterior rechaza el
+        # documento por traer un miembro desconocido (§3.2), sea cual sea "valid".
+        x["requires"] = exige
+    VECTORES.append(x)
 
 
 MIN = '{"origin":"%s","logKey":"%s","witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, W1, K3)
@@ -170,6 +176,133 @@ v("invalida-erasurekey-igual-signerkey", False,
 v("invalida-erasurekey-igual-testigo", False,
   '{"origin":"%s","logKey":"%s","erasureKey":"%s","witnesses":{"%s":"%s","%s":"%s"},"quorum":1}' % (O, K1, K4, W1, K3, W2, K4),
   "La clave de supresión es la de un testigo: una clave, dos papeles.", "erasure_key_reused")
+
+# ---- 0.8-draft (ADR-033, ADR-034): retiredErasureKeys y logMLDSAKey ----
+# Los veredictos, a mano desde las filas de PROTOCOL §3.2 y las «Decisiones del dev» de
+# los dos ADR. Todos llevan "requires": "0.8-draft".
+#
+# KB es la pública de la semilla 202122…3f: la clave nueva de testdata/vectors/erasure/.
+# K5 (la de 000102…1f) hace de clave retirada. ML es una clave pública ML-DSA-44 que no
+# es de nadie: toda cadena de 1312 bytes se decodifica como una (ADR-034 §A), así que
+# para la gramática basta con la longitud.
+KB = "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7"
+ML = bytes(i % 256 for i in range(1312)).hex()
+assert len(ML) == 2624
+V8 = "0.8-draft"
+
+
+def p8(nombre, valido, cuerpo, descripcion, motivo=""):
+    # cuerpo va entre logKey y witnesses, con su coma delante.
+    v(nombre, valido, '{"origin":"%s","logKey":"%s"%s,"witnesses":{"%s":"%s"},"quorum":1}' % (O, K1, cuerpo, W1, K3),
+      descripcion, motivo, exige=V8)
+
+
+def ret(objeto):
+    return ',"erasureKey":"%s","retiredErasureKeys":%s' % (KB, objeto)
+
+
+# válidas
+p8("valida-retirada-una", True, ret('{"%s":41}' % K5),
+   "Una clave retirada con su corte, y la clave actual en erasureKey.")
+p8("valida-retiradas-dos", True, ret('{"%s":41,"%s":120}' % (K5, K4)),
+   "Dos claves retiradas, cada una con su corte.")
+p8("valida-retirada-sin-erasurekey", True, ',"retiredErasureKeys":{"%s":41}' % K5,
+   "Sin erasureKey: quien ya no suprime y no quiere que lo suprimido deje de contar (decisión 2).")
+p8("valida-retirada-corte-0", True, ret('{"%s":0}' % K5), "Corte 0.")
+p8("valida-retirada-corte-maximo", True, ret('{"%s":9007199254740991}' % K5), "Corte 2^53 − 1.")
+p8("valida-retirada-sangrada", True, ret('{ "%s" :\n 41 }' % K5),
+   "Espacio en blanco JSON dentro del objeto de claves retiradas.")
+p8("valida-retirada-con-signerkey", True, ',"signerKey":"%s"' % K2 + ret('{"%s":41}' % K5),
+   "Con signerKey, distinta de la clave retirada.")
+p8("valida-con-logmldsakey", True, ',"logMLDSAKey":"%s"' % ML,
+   "Con logMLDSAKey, la clave pública ML-DSA-44 del log en 2624 hexadecimales.")
+p8("valida-con-los-dos-miembros", True,
+   ',"signerKey":"%s","logMLDSAKey":"%s"' % (K2, ML) + ret('{"%s":41}' % K5),
+   "Los dos miembros de 0.8-draft a la vez, con erasureKey y signerKey.")
+
+# inválidas: retiredErasureKeys, la forma
+p8("invalida-retiradas-array", False, ret('[{"key":"%s","until":41}]' % K5),
+   "El array [{key, until}] de la idea de partida, descartado (decisión 1).", "type")
+p8("invalida-retiradas-vacio", False, ret("{}"),
+   "Objeto vacío: significaría lo mismo que no ponerlo.", "no_retired_keys")
+p8("invalida-retiradas-null", False, ret("null"), "retiredErasureKeys null.", "null")
+p8("invalida-retiradas-cadena", False, ret('"%s"' % K5), "retiredErasureKeys es una cadena.", "type")
+p8("invalida-retiradas-duplicado", False,
+   ',"erasureKey":"%s","retiredErasureKeys":{"%s":41},"retiredErasureKeys":{"%s":7}' % (KB, K5, K4),
+   "El miembro retiredErasureKeys dos veces.", "duplicate_member")
+p8("invalida-retiradas-variante-minusculas", False, ',"erasureKey":"%s","retirederasurekeys":{"%s":41}' % (KB, K5),
+   "retirederasurekeys en vez de retiredErasureKeys.", "case_variant")
+p8("invalida-retiradas-variante-mayuscula-inicial", False, ',"erasureKey":"%s","RetiredErasureKeys":{"%s":41}' % (KB, K5),
+   "RetiredErasureKeys en vez de retiredErasureKeys.", "case_variant")
+
+# inválidas: retiredErasureKeys, las claves
+p8("invalida-retirada-clave-repetida", False, ret('{"%s":41,"%s":50}' % (K5, K5)),
+   "La misma clave retirada dos veces.", "duplicate_member")
+p8("invalida-retirada-clave-repetida-por-escape", False, ret('{"%s":41,"\\u0030%s":50}' % (K5, K5[1:])),
+   "La misma clave dos veces, la segunda con su primer carácter escrito \\u0030.", "duplicate_member")
+p8("invalida-retirada-clave-63", False, ret('{"%s":41}' % K5[:63]), "Clave retirada de 63 caracteres.", "hex")
+p8("invalida-retirada-clave-65", False, ret('{"%s0":41}' % K5), "Clave retirada de 65 caracteres.", "hex")
+p8("invalida-retirada-clave-mayusculas", False, ret('{"%s":41}' % K5.upper()),
+   "Clave retirada en mayúsculas: segunda representación.", "hex")
+p8("invalida-retirada-clave-no-hex", False, ret('{"%sg":41}' % K5[:63]), "Clave retirada con una g.", "hex")
+p8("invalida-retirada-clave-vacia", False, ret('{"":41}'), "Clave retirada vacía.", "hex")
+p8("invalida-retirada-igual-erasurekey", False, ret('{"%s":41}' % KB),
+   "La clave retirada es la actual: ¿está retirada o no?", "erasure_key_reused")
+p8("invalida-retirada-igual-logkey", False, ret('{"%s":41}' % K1),
+   "La clave retirada es la del log.", "erasure_key_reused")
+p8("invalida-retirada-igual-signerkey", False, ',"signerKey":"%s"' % K2 + ret('{"%s":41}' % K2),
+   "La clave retirada es la del firmante.", "erasure_key_reused")
+v("invalida-retirada-igual-testigo", False,
+  '{"origin":"%s","logKey":"%s","erasureKey":"%s","retiredErasureKeys":{"%s":41},"witnesses":{"%s":"%s","%s":"%s"},"quorum":1}'
+  % (O, K1, KB, K4, W1, K3, W2, K4),
+  "La clave retirada es la de un testigo.", "erasure_key_reused", exige=V8)
+p8("invalida-retirada-igual-testigo-sin-erasurekey", False, ',"retiredErasureKeys":{"%s":41}' % K3,
+   "Sin erasureKey, la clave retirada sigue sin poder ser la de un testigo.", "erasure_key_reused")
+
+# inválidas: retiredErasureKeys, el corte
+for texto, nombre, desc in [
+    ("-1", "negativo", "Corte negativo."),
+    ("-0", "menos-cero", "Corte -0: el corte no lleva signo."),
+    ("41.0", "fraccion", "Corte 41.0: literal con fracción."),
+    ("4.1e1", "exponente", "Corte 4.1e1: literal con exponente."),
+    ("41e0", "exponente-entero", "Corte 41e0: exponente sin fracción."),
+    ("041", "cero-a-la-izquierda", "Corte 041: JSON no admite ceros a la izquierda."),
+    ('"41"', "cadena", "Corte como cadena."),
+    ("null", "null", "Corte null."),
+    ("true", "booleano", "Corte true."),
+    ("{}", "objeto", "Corte que es un objeto."),
+    ("9007199254740992", "2-53", "Corte 2^53, uno más que el índice máximo de PROTOCOL §1."),
+    ("99999999999999999999", "enorme", "Corte de 20 dígitos."),
+]:
+    p8("invalida-retirada-corte-" + nombre, False, ret('{"%s":%s}' % (K5, texto)), desc, "cutoff")
+
+# inválidas: logMLDSAKey
+for valor, nombre, desc, motivo in [
+    ('"%s"' % ML[:2623], "2623", "logMLDSAKey de 2623 caracteres.", "hex"),
+    ('"%s0"' % ML, "2625", "logMLDSAKey de 2625 caracteres.", "hex"),
+    ('"%s"' % ML[:2622], "2622", "logMLDSAKey de 2622 caracteres: 1311 bytes.", "hex"),
+    ('"%s"' % (ML + "00"), "2626", "logMLDSAKey de 2626 caracteres: 1313 bytes.", "hex"),
+    ('"%s"' % K1, "64", "logMLDSAKey con la longitud de una clave Ed25519.", "hex"),
+    ('"%s"' % ML.upper(), "mayusculas", "logMLDSAKey en mayúsculas: segunda representación.", "hex"),
+    ('"%sA"' % ML[:2623], "una-mayuscula", "logMLDSAKey con una sola mayúscula, al final.", "hex"),
+    ('"%sg"' % ML[:2623], "no-hex", "logMLDSAKey con una g.", "hex"),
+    ('"%s "' % ML[:2623], "espacio", "logMLDSAKey con un espacio dentro de la cadena.", "hex"),
+    ('""', "vacia", "logMLDSAKey vacía: si está, es una clave.", "hex"),
+    ("null", "null", "logMLDSAKey null.", "null"),
+    ("1", "numero", "logMLDSAKey es un número.", "hex"),
+    ('{}', "objeto", "logMLDSAKey es un objeto.", "type"),
+]:
+    p8("invalida-logmldsakey-" + nombre, False, ',"logMLDSAKey":%s' % valor, desc, motivo)
+p8("invalida-logmldsakey-duplicada", False, ',"logMLDSAKey":"%s","logMLDSAKey":"%s"' % (ML, ML),
+   "logMLDSAKey dos veces, con el mismo valor.", "duplicate_member")
+p8("invalida-logmldsakey-duplicada-por-escape", False, ',"logMLDSAKey":"%s","logMLDSA\\u004bey":"%s"' % (ML, ML),
+   "logMLDSAKey y logMLDSA\\u004bey: el mismo nombre tras decodificar el escape.", "duplicate_member")
+p8("invalida-logmldsakey-variante-minusculas", False, ',"logmldsakey":"%s"' % ML,
+   "logmldsakey en vez de logMLDSAKey.", "case_variant")
+p8("invalida-logmldsakey-variante-mixta", False, ',"logMldsaKey":"%s"' % ML,
+   "logMldsaKey en vez de logMLDSAKey.", "case_variant")
+p8("invalida-logmldsakey-junto-a-variante", False, ',"logMLDSAKey":"%s","logMldsaKey":"%s"' % (ML, ML),
+   "logMLDSAKey y logMldsaKey en el mismo documento.", "case_variant")
 
 # ---- inválidas: documento ----
 v("invalida-basura-detras", False, MIN + '\n{"signerKey":"%s"} esto no es JSON' % K2, "El hallazgo BAJO #8: contenido después del objeto.", "trailing")

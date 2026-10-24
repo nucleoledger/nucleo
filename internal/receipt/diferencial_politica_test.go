@@ -48,11 +48,18 @@ func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
 			t.Fatal(err)
 		}
 		var v struct {
-			Name string `json:"name"`
-			Text string `json:"text"`
+			Name     string `json:"name"`
+			Text     string `json:"text"`
+			Requires string `json:"requires"`
 		}
 		if err := json.Unmarshal(raw, &v); err != nil {
 			t.Fatal(err)
+		}
+		if v.Requires != "" {
+			// Exige 0.8-draft (ADR-033, ADR-034): los tres lectores de hoy la rechazan
+			// entera como miembro desconocido. El catálogo la muta en el Sprint D, cuando
+			// la lean los tres.
+			continue
 		}
 		if len(v.Text) > 4096 {
 			continue // el vector del límite de tamaño: mutarlo carácter a carácter no aporta

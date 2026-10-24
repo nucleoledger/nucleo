@@ -160,6 +160,22 @@ foreach (glob($vectores . '/policy/*.json') as $f) {
         $ok = false;
         $err = $e->getMessage();
     }
+    // "requires": "0.8-draft" (ADR-033, ADR-034): una gramática que este SDK todavía no
+    // implementa. Hasta el Sprint D, los válidos se tienen que RECHAZAR como miembro
+    // desconocido, que es lo que PROTOCOL §3.2 manda a un lector 0.7-draft.
+    $exige = $v['requires'] ?? '';
+    if ($exige === '0.8-draft') {
+        comprueba(
+            'política ' . $v['name'] . ' (exige 0.8-draft)',
+            !$ok && (!$v['valid'] || str_contains($err, 'miembro desconocido')),
+            $ok ? 'este lector debía rechazarla' : 'debía rechazarla como miembro desconocido y dice: ' . $err
+        );
+        continue;
+    }
+    if ($exige !== '') {
+        comprueba('política ' . $v['name'], false, 'requires ' . $exige . ': versión que este test no conoce');
+        continue;
+    }
     comprueba(
         'política ' . $v['name'],
         $ok === $v['valid'],
