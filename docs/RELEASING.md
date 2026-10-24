@@ -156,6 +156,34 @@ también que rechaza un binario cuyo sha256 no coincide, y que falla sin red.
 
 Funciona en Linux y macOS (amd64 y arm64); en Windows, desde WSL.
 
+### Las herramientas de desarrollo, con versión y checksum
+
+Ninguna entra en el binario ni es dependencia del producto; las exigen el ensayo, la
+compuerta o la prueba en seco, y cada una se instala comprobando de dónde viene:
+
+| herramienta | versión | comprobación | dónde se fija |
+|---|---|---|---|
+| cosign | v2.5.2 | sha256 `bcfeae05557a9f313ee4392d2f335d0ff69ebbfd232019e3736fb04999fe1734`, el de `cosign_checksums.txt` | `release.yml` (`cosign-release`) |
+| shellcheck | v0.11.0 | sha256 del `.linux.x86_64.tar.xz` `8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198`, el digest que publica GitHub | `ci.yml`, job `scripts` |
+| goreleaser | v2.18.3 | sha256 del tarball contra `checksums.txt`, cuya firma cosign se verifica | `release.yml` (`~> v2`) |
+| OpenSSL | 3.5.9 | sha256 `603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a` **y** firma PGP de la clave `B146 647E 45A7 B339 47AB 226B 2A2C 87D1 6169 2D40` | `scripts/instala-openssl.sh` |
+
+OpenSSL 3.5.9 es la implementación independiente de ML-DSA-44 con la que se generan y se
+comprueban los vectores ML-DSA (ADR-034, decisión 7; ADR-024, enmienda del 2026-10-24): no
+la usa el producto. Se instala, compilada y sin tocar el OpenSSL del sistema, con
+
+```bash
+./scripts/instala-openssl.sh      # en ~/.local/opt/openssl-3.5.9; un par de minutos, con red
+```
+
+La huella de la clave de firma se tomó de **dos fuentes independientes**, que coincidían el
+2026-10-24: la página de descargas de openssl.org (<https://openssl-library.org/source/>,
+«signed by the OpenSSL signing certificate whose primary key has the fingerprint …») y
+`doc/fingerprints.txt` del repositorio de GitHub en el tag `openssl-3.5.9` («OpenSSL:»).
+Firma la subclave `C46E D3F2 CBEF DA1F DAAD A442 64ED 7B1D CCE7 1CB2`, certificada por la
+primaria; el script compara la huella de la primaria que da `gpg` en `VALIDSIG`. Subir de
+versión es cambiar las tres constantes del script, con las dos fuentes otra vez.
+
 ### El tag
 
 Desde `v0.3.0-alpha`, el tag va **firmado** con una clave SSH (`-s` en vez de `-a`; ver
