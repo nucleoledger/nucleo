@@ -290,20 +290,28 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 2. Vectores de política 0.8-draft (58), marcados «exigen 0.8» en los tests
 - [x] 3. Vectores de supresión: la segunda clave y `rotacion.json` (16 casos)
 
+## Sprint 29 — el resto del Sprint B: ML-DSA-44 desde OpenSSL y el ACVP
+- [x] 0. Enmienda a ADR-033 §C: la regularización sí cambia un veredicto sin `retiredErasureKeys`
+- [x] 1. OpenSSL 3.5.9 con sha256 y firma PGP comprobados (huella de dos fuentes); RELEASING
+- [x] 2. `mldsa/`, el subconjunto del ACVP, los recibos ML-DSA y el cruce de Go; ADR-024
+- [x] 3. El job `mldsa-vectores` del CI y la compuerta
+
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
 La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
 es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
 - [x] **Sprint A — PROTOCOL 0.8-draft** (Sprint 28, por instrucción del dev): `retiredErasureKeys` y
       `logMLDSAKey` en §3.2, la regla ML-DSA en §3.3, las claves retiradas y la regularización
       en §5.1, con la nota de cabecera de la subida
-- [ ] **Sprint B — los vectores, antes que el código** — **parcial (sin ML-DSA)**, Sprint 28:
+- [x] **Sprint B — los vectores, antes que el código** — Sprints 28 y 29:
   - [x] `policy/` (los dos miembros, con el array `[{key, until}]` rechazado; llevan
         `"requires": "0.8-draft"` y los lectores 0.7-draft los rechazan como miembro
         desconocido hasta los Sprints C y D)
   - [x] `erasure/` (la segunda clave y `rotacion.json`, con las filas de la regularización)
-  - [ ] Sprint 29: OpenSSL ≥ 3.5 instalado con su versión y su sha256, `mldsa/` y los
-        recibos ML-DSA desde él, más el subconjunto sigVer del ACVP; ADR-024 revisado y
-        `material/mldsa.json` fuera; el CI del `--check` (decisión del dev)
+  - [x] Sprint 29: OpenSSL 3.5.9 instalado con su sha256 y su firma PGP
+        (`scripts/instala-openssl.sh`), `mldsa/` (15 casos) y los seis recibos ML-DSA desde
+        él, más el subconjunto sigVer del ACVP (1 caso con el filtro de contexto vacío); el
+        cruce Go ↔ OpenSSL ↔ NIST en `internal/checkpoint`; ADR-024 enmendado y
+        `material/mldsa.json` fuera; el job `mldsa-vectores` y la compuerta (opción b)
 - [ ] **Sprint C — Go**: `internal/policy`; `internal/erasure` y `internal/reconcile` (claves
       retiradas, `TestClaveRetiradaDespuesDelCorteNoCuenta`, la regularización y
       `TestSupresionNoAutorizadaRegularizada`); `internal/proof` (ML-DSA con `crypto/mldsa`,
