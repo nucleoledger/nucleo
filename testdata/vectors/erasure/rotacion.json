@@ -1,0 +1,865 @@
+{
+  "description": "La rotación de la clave de supresión (PROTOCOL 0.8-draft §5.1, ADR-033): qué clave vale para qué evento, y la regularización. Cadenas dispersas: solo están los bloques cuyo contenido importa; los demás índices no coinciden con ninguno y no son eventos. Las firmas, con cryptography; los veredictos, escritos a mano.",
+  "origin": "nucleoledger.com/mi-empresa",
+  "keys": {
+    "A": {
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "role": "retirada, corte 41"
+    },
+    "B": {
+      "seed": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "public_key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+      "role": "actual (erasureKey)"
+    },
+    "C": {
+      "seed": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+      "public_key": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d",
+      "role": "ni actual ni retirada"
+    }
+  },
+  "reasons": {
+    "retired_after_cutoff": "firmado con una clave retirada cuyo corte es menor que el índice del evento",
+    "unknown_key": "la firma no verifica con ninguna clave de la política",
+    "no_erased_block": "ningún bloque anterior al evento tiene el contenido que dice suprimir"
+  },
+  "cases": [
+    {
+      "name": "a-40",
+      "description": "Evento 40 firmado con A, retirada con corte 41: autorizado.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 40,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 40,
+            "authorized": true,
+            "authorized_by": "retiredErasureKeys",
+            "key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 40
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": []
+      }
+    },
+    {
+      "name": "a-41-borde",
+      "description": "Evento 41 firmado con A: el corte es incluido, autorizado.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 41,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 41,
+            "authorized": true,
+            "authorized_by": "retiredErasureKeys",
+            "key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 41
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": []
+      }
+    },
+    {
+      "name": "a-42-despues-del-corte",
+      "description": "Evento 42 firmado con A: después del corte, no autorizado; el bloque falta.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "retired_after_cutoff"
+          }
+        ],
+        "erased": [],
+        "missing": [
+          10
+        ],
+        "findings": [
+          42
+        ],
+        "regularized": []
+      }
+    },
+    {
+      "name": "b-20-sin-desde",
+      "description": "Evento 20 firmado con B, la actual: autorizado, la clave actual no tiene «desde».",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 20,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:f676508d953decca115c392a4a987827a08510e5e46eee21779fe8b1a2dfa912ad30fe910ba48da25ceb19aaef6a722159dcb4cecc66288a0022a0407ffaf50f"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 20,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 20
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": []
+      }
+    },
+    {
+      "name": "b-42",
+      "description": "Evento 42 firmado con B: autorizado.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:f676508d953decca115c392a4a987827a08510e5e46eee21779fe8b1a2dfa912ad30fe910ba48da25ceb19aaef6a722159dcb4cecc66288a0022a0407ffaf50f"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 42
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": []
+      }
+    },
+    {
+      "name": "c-42-otra-clave",
+      "description": "Evento 42 firmado con C, ni actual ni retirada: no autorizado.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:b99cbba4a4327caafd84f56854c6197160c4ae7ad05e4b6da3f14657758bd9d31cfd913dc806049eb2dff9230c42645709520209b284f3867cf17960292f2c0e"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "unknown_key"
+          }
+        ],
+        "erased": [],
+        "missing": [
+          10
+        ],
+        "findings": [
+          42
+        ],
+        "regularized": []
+      }
+    },
+    {
+      "name": "sin-erasurekey-a-40",
+      "description": "Sin erasureKey, evento 40 firmado con A: lo suprimido hasta el corte sigue contando.",
+      "policy": {
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 40,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 40,
+            "authorized": true,
+            "authorized_by": "retiredErasureKeys",
+            "key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 40
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": []
+      }
+    },
+    {
+      "name": "sin-erasurekey-b-42",
+      "description": "Sin erasureKey, evento 42 firmado con B: B no está en la política, no autorizado.",
+      "policy": {
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:f676508d953decca115c392a4a987827a08510e5e46eee21779fe8b1a2dfa912ad30fe910ba48da25ceb19aaef6a722159dcb4cecc66288a0022a0407ffaf50f"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "unknown_key"
+          }
+        ],
+        "erased": [],
+        "missing": [
+          10
+        ],
+        "findings": [
+          42
+        ],
+        "regularized": []
+      }
+    },
+    {
+      "name": "regulariza-50",
+      "description": "E en 42 firmado con A (después del corte) y R en 50 autorizado con B para el mismo contenido: E no autorizado, regularizado en el evento 50; no es hallazgo.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        },
+        {
+          "index": 50,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:f676508d953decca115c392a4a987827a08510e5e46eee21779fe8b1a2dfa912ad30fe910ba48da25ceb19aaef6a722159dcb4cecc66288a0022a0407ffaf50f"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "retired_after_cutoff"
+          },
+          {
+            "index": 50,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 50
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": [
+          {
+            "index": 42,
+            "regularized_by": 50
+          }
+        ]
+      }
+    },
+    {
+      "name": "regulariza-el-de-menor-indice",
+      "description": "Dos R, en 50 y en 60: se nombra el de menor índice.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        },
+        {
+          "index": 50,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:f676508d953decca115c392a4a987827a08510e5e46eee21779fe8b1a2dfa912ad30fe910ba48da25ceb19aaef6a722159dcb4cecc66288a0022a0407ffaf50f"
+        },
+        {
+          "index": 60,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:f676508d953decca115c392a4a987827a08510e5e46eee21779fe8b1a2dfa912ad30fe910ba48da25ceb19aaef6a722159dcb4cecc66288a0022a0407ffaf50f"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "retired_after_cutoff"
+          },
+          {
+            "index": 50,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          },
+          {
+            "index": 60,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 50
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": [
+          {
+            "index": 42,
+            "regularized_by": 50
+          }
+        ]
+      }
+    },
+    {
+      "name": "regulariza-con-clave-retirada",
+      "description": "E en 30 firmado con C y R en 40 firmado con A, dentro de su corte: R vale con las claves de SU índice, y regulariza.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 30,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:b99cbba4a4327caafd84f56854c6197160c4ae7ad05e4b6da3f14657758bd9d31cfd913dc806049eb2dff9230c42645709520209b284f3867cf17960292f2c0e"
+        },
+        {
+          "index": 40,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 30,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "unknown_key"
+          },
+          {
+            "index": 40,
+            "authorized": true,
+            "authorized_by": "retiredErasureKeys",
+            "key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 40
+          }
+        ],
+        "missing": [],
+        "findings": [],
+        "regularized": [
+          {
+            "index": 30,
+            "regularized_by": 40
+          }
+        ]
+      }
+    },
+    {
+      "name": "no-regulariza-r-no-autorizado",
+      "description": "Condición 1: R en 50 firmado con C tampoco está autorizado.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        },
+        {
+          "index": 50,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:b99cbba4a4327caafd84f56854c6197160c4ae7ad05e4b6da3f14657758bd9d31cfd913dc806049eb2dff9230c42645709520209b284f3867cf17960292f2c0e"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "retired_after_cutoff"
+          },
+          {
+            "index": 50,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "unknown_key"
+          }
+        ],
+        "erased": [],
+        "missing": [
+          10
+        ],
+        "findings": [
+          42,
+          50
+        ],
+        "regularized": []
+      }
+    },
+    {
+      "name": "no-regulariza-r-anterior",
+      "description": "Condición 2: R autorizado con B en 30, ANTES de E en 42: no regulariza; E sigue siendo hallazgo y el bloque 10 cuenta como suprimido por R.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 30,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:f676508d953decca115c392a4a987827a08510e5e46eee21779fe8b1a2dfa912ad30fe910ba48da25ceb19aaef6a722159dcb4cecc66288a0022a0407ffaf50f"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 30,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          },
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "retired_after_cutoff"
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 30
+          }
+        ],
+        "missing": [],
+        "findings": [
+          42
+        ],
+        "regularized": []
+      }
+    },
+    {
+      "name": "no-regulariza-otro-contenido",
+      "description": "Condición 3: R suprime otro contenido (el del bloque 11).",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 11,
+          "type": "registro",
+          "payload_hash": "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:10:e1948ac166f45b562b8bcec0a38900a1027f8548ff971da95d27346acab2031a23314339f7bbf3d7718f83c18c58c6042eddc5d95afb014432f72c97bcb6e707"
+        },
+        {
+          "index": 50,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "35511910f74fa15152b2341e9d61f40ebbabbc17a311db511b68eb038085ff28",
+          "payload_cid": "nucleo-erasure-auth@v1:11:c94dad7f956201e96e443fc63053a3acaaa26da3f30335699202519089c4f11e7e2bfe7f3b5ba409e94bf616534787717a5217d12657437abfbff8f6fdafee0b"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "retired_after_cutoff"
+          },
+          {
+            "index": 50,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 11,
+            "erased_by": 50
+          }
+        ],
+        "missing": [
+          10
+        ],
+        "findings": [
+          42
+        ],
+        "regularized": []
+      }
+    },
+    {
+      "name": "no-regulariza-through-corto",
+      "description": "Condición 4: dos copias del contenido, en 10 y en 35; R tiene through 20 y no cubre la de 35. El through 35 de E no cuenta: su autorización no vale.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 10,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 35,
+          "type": "registro",
+          "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:35:314f5e028275f4c9bc99f4b05215627637f32e3017e504b7abde9ad22c27d96086939c4cc7f58867da20e2e6b1c90a8456b139e2b06202450e1c7afb7ee58408"
+        },
+        {
+          "index": 50,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737",
+          "payload_cid": "nucleo-erasure-auth@v1:20:cc5688461a0c98a540b67c9909bf3fc7c167ee012b261aea88d3bcdc01ee38675e08bdcf9ea21f6aec53940bcb62fbd0d8d7aeb52de727182f5f9f4251f3940f"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "retired_after_cutoff"
+          },
+          {
+            "index": 50,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 10,
+            "erased_by": 50
+          }
+        ],
+        "missing": [
+          35
+        ],
+        "findings": [
+          42
+        ],
+        "regularized": []
+      }
+    },
+    {
+      "name": "no-regulariza-sin-contenido-previo",
+      "description": "E en 42, firmado con B, no suprime ningún contenido anterior (el único bloque con ese contenido es el 45): no hay supresión que regularizar, aunque R en 50 suprima el 45.",
+      "policy": {
+        "erasureKey": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+        "retiredErasureKeys": {
+          "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8": 41
+        }
+      },
+      "blocks": [
+        {
+          "index": 42,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "4c339de3359d282c7edf8cb12ff920fc6cbeace24a29e3017a88a5e38f33ca65",
+          "payload_cid": "nucleo-erasure-auth@v1:41:a77575c71b4cb5cab28805ddaedbde189fd1e75c01b3e6ad94d303140c1c1b45d3935196bff54fbe95c89a5245da0630eff0d383bb8630bb8e79fb7bd9282000"
+        },
+        {
+          "index": 45,
+          "type": "registro",
+          "payload_hash": "dd7e84d010aed28a416e928f50c4c09ac0f94a8f5b346548168bddb61cdb7263"
+        },
+        {
+          "index": 50,
+          "type": "nucleo.erasure.v1",
+          "payload_hash": "4c339de3359d282c7edf8cb12ff920fc6cbeace24a29e3017a88a5e38f33ca65",
+          "payload_cid": "nucleo-erasure-auth@v1:45:742a76f70a4855c91990a5747be325561195c385d2a996b3b411e26fedc8bc1a25c662975a1673d5a047274383911700aafd3361e1d89acda3b88fb7f89bbb06"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "index": 42,
+            "authorized": false,
+            "authorized_by": null,
+            "key": null,
+            "reason": "no_erased_block"
+          },
+          {
+            "index": 50,
+            "authorized": true,
+            "authorized_by": "erasureKey",
+            "key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            "reason": ""
+          }
+        ],
+        "erased": [
+          {
+            "index": 45,
+            "erased_by": 50
+          }
+        ],
+        "missing": [],
+        "findings": [
+          42
+        ],
+        "regularized": []
+      }
+    }
+  ]
+}

@@ -546,6 +546,8 @@ the signature is
 A second key, for rotation (0.8-draft): seed `202122…3f` (the 32 bytes 0x20 to 0x3f), public key
 `29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7`, over the same text:
 `57da70e2ec25f0eea6114dc3ea69031ea2bb303293a0cdcd0ccce354a4c540155b98394233ed5096669bbe960827b1ec38ef9ddb4e67cec4a599a87ed3e42f0a`.
+The rotation scenario —which key counts for which event, and regularization, with the verdicts
+written by hand— is `testdata/vectors/erasure/rotacion.json`.
 
 **A third party, without Núcleo.** With the receipt of the event, the receipt of the erased
 block and the policy: verify both receipts; check that the block's `index` ≤ `<k>` < the event's

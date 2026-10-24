@@ -1,0 +1,13 @@
+{
+  "description": "La autorización de PROTOCOL §5.1 sobre el mismo texto, con la segunda clave: la clave nueva de una rotación (ADR-033).",
+  "seed": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+  "public_key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+  "origin": "nucleoledger.com/mi-empresa",
+  "erased_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "through": 7,
+  "message": "nucleo.org/erasure-authorization@v1\norigin nucleoledger.com/mi-empresa\nerased_payload_hash e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nthrough 7\n",
+  "message_sha256": "24dc174105ced3274e000da312e198508f1f6aa283f0394f99afad3cf76cc7b7",
+  "signature": "57da70e2ec25f0eea6114dc3ea69031ea2bb303293a0cdcd0ccce354a4c540155b98394233ed5096669bbe960827b1ec38ef9ddb4e67cec4a599a87ed3e42f0a",
+  "payload_cid": "nucleo-erasure-auth@v1:7:57da70e2ec25f0eea6114dc3ea69031ea2bb303293a0cdcd0ccce354a4c540155b98394233ed5096669bbe960827b1ec38ef9ddb4e67cec4a599a87ed3e42f0a",
+  "event_payload_hash": "1de24cf3e82d924ec8cb94c7d56af49adcb8776cd45b32a2e9d29b5c7053a737"
+}

@@ -161,3 +161,20 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              0.7-draft los rechaza todos como miembro desconocido (§3.2), y hasta los
              Sprints C y D los tests lo comprueban así (los válidos, con ese mensaje).
              Los 76 vectores anteriores no cambiaron un byte (sha256 antes y después).
+
+- erasure/   vectores de la AUTORIZACIÓN DE SUPRESIÓN (PROTOCOL.md §5.1, ADR-032):
+             autorizacion.json y casos.json. El texto firmado lo construye
+             erasure/generar.py a mano desde §5.1 y la firma Ed25519 la hace la
+             biblioteca cryptography de Python; ninguna línea usa internal/erasure.
+
+             Sprint 28 (PROTOCOL 0.8-draft, ADR-033, adición autorizada por el dev):
+             autorizacion-segunda-clave.json —la misma autorización con la semilla
+             202122…3f, la clave nueva de una rotación— y rotacion.json, 16 cadenas
+             dispersas con la política {erasureKey: B, retiredErasureKeys: {A: 41}} (o
+             sin erasureKey): las seis filas de la tabla de ADR-033, las dos de la
+             decisión 2 y las de la regularización de la decisión 4 —tres que
+             regularizan y una por cada condición que falla, más la de un evento que no
+             suprime nada anterior—. Los veredictos están escritos a mano en el
+             generador; las 25 firmas se comprobaron además con OpenSSL 3.0.2
+             (pkeyutl -verify -rawin), cada una con la clave que dice y ninguna con las
+             otras dos. autorizacion.json y casos.json no cambiaron un byte.
