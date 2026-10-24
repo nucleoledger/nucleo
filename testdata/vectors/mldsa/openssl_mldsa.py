@@ -37,6 +37,8 @@ def openssl():
     falta = (f"hace falta OpenSSL {VERSION} en {ruta} (o en $NUCLEO_OPENSSL), la implementación "
              f"independiente de ML-DSA-44 de los vectores. Instálalo, desde la raíz del repositorio, con:\n"
              f"  {INSTALA}")
+    if os.environ.get("NUCLEO_OPENSSL"):
+        falta += "\ny quita NUCLEO_OPENSSL, que apunta a otro sitio: unset NUCLEO_OPENSSL"
     if not os.access(ruta, os.X_OK):
         raise SystemExit(falta)
     version = subprocess.run([ruta, "version"], capture_output=True, text=True).stdout

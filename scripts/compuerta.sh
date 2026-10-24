@@ -20,6 +20,11 @@
 # PATH. Si es un php.exe de Windows llamado desde WSL, el binario que ejecuta se compila
 # para Windows y las rutas se traducen con wslpath. Sin PHP, los pasos de PHP FALLAN: la
 # afirmación de los tres verificadores no se da por comprobada con dos.
+#
+# Y OpenSSL 3.5.9 en ~/.local/opt/openssl-3.5.9 (o en $NUCLEO_OPENSSL), la implementación
+# independiente de ML-DSA-44 con la que se comprueban los vectores ML-DSA y los recibos
+# (ADR-034, decisión 7). Sin él esos pasos FALLAN y dicen la orden que lo instala:
+# ./scripts/instala-openssl.sh.
 set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -208,6 +213,28 @@ lint_shell() {
 	shellcheck scripts/*.sh
 }
 
+# openssl_listo: el OpenSSL de los vectores ML-DSA, en la versión que fija
+# scripts/instala-openssl.sh, que es también lo que compila el job mldsa-vectores del CI.
+openssl_listo() {
+	local quiere ruta
+	quiere="$(awk -F= '$1 == "VERSION" {print $2}' scripts/instala-openssl.sh)"
+	ruta="${NUCLEO_OPENSSL:-$HOME/.local/opt/openssl-$quiere/bin/openssl}"
+	if [ ! -x "$ruta" ]; then
+		echo "no hay OpenSSL $quiere en $ruta: es la implementación independiente de ML-DSA-44 de"
+		echo "los vectores. Instálalo (compila, comprobando sha256 y firma PGP; un par de minutos, con red):"
+		echo "  ./scripts/instala-openssl.sh"
+		[ -z "${NUCLEO_OPENSSL:-}" ] || echo "y quita NUCLEO_OPENSSL, que apunta a otro sitio: unset NUCLEO_OPENSSL"
+		return 1
+	fi
+	if ! "$ruta" version | grep -q "^OpenSSL $quiere "; then
+		echo "$ruta dice «$("$ruta" version)», y los vectores son de OpenSSL $quiere. Instala el $quiere:"
+		echo "  ./scripts/instala-openssl.sh"
+		[ -z "${NUCLEO_OPENSSL:-}" ] || echo "y quita NUCLEO_OPENSSL, que apunta a otro sitio: unset NUCLEO_OPENSSL"
+		return 1
+	fi
+	"$ruta" version
+}
+
 paso "bit de ejecución de scripts/*.sh" bit_de_ejecucion
 paso "shellcheck de scripts/*.sh" lint_shell
 paso "gofmt" formato
@@ -218,6 +245,9 @@ paso "lint (scripts/lint.sh)" ./scripts/lint.sh
 paso "go test -race" go test ./... -race -count=1 -timeout 15m
 paso "go test -race -tags testhooks" go test -tags testhooks ./... -race -count=1 -timeout 15m
 paso "SDK de TypeScript" sdk_ts
+paso "OpenSSL de los vectores ML-DSA" openssl_listo
+paso "vectores ML-DSA-44 (mldsa/generar.py --check)" python3 testdata/vectors/mldsa/generar.py --check
+paso "subconjunto del ACVP (mldsa/acvp.py --check)" python3 testdata/vectors/mldsa/acvp.py --check
 paso "vectores de recibo (generar.py --check)" python3 testdata/vectors/receipt/generar.py --check
 paso "PHP con ext-sodium" php_listo
 paso "suite de PHP, con el binario" suite_php

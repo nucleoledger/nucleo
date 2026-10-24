@@ -354,12 +354,9 @@ jobs:
           node-version-file: sdk/ts/.nvmrc
           cache: npm
           cache-dependency-path: sdk/ts/package-lock.json
-      # Los recibos golden salen de un oráculo Python INDEPENDIENTE (Sprint 7f). Si
-      # el repositorio y el oráculo dejan de coincidir, alguien editó un vector a mano
-      # o cambió el formato sin regenerarlos: en los dos casos el vector ha dejado de
-      # ser una vara externa y hay que enterarse aquí.
-      - name: Los vectores golden coinciden con el oráculo
-        run: python3 testdata/vectors/receipt/generar.py --check
+      # Los recibos golden salen de un oráculo Python INDEPENDIENTE (Sprint 7f), y su
+      # --check vivía aquí. Desde el Sprint 29 el oráculo firma las líneas ML-DSA-44 con
+      # OpenSSL 3.5.9, que este job no tiene: lo corre el job mldsa-vectores, entero.
       - name: Catálogo con los veredictos de Go
         run: NUCLEO_DIFERENCIAL_OUT="$RUNNER_TEMP/catalogo.json" go test ./internal/receipt -run '^TestDiferencialGeneraCatalogo$'
       # PHP es el TERCER verificador desde el Sprint 8 (ADR-021 §F), escrito desde
@@ -408,6 +405,51 @@ jobs:
           npm ci
           npm run bundle
           node scripts/diferencial.mjs "$RUNNER_TEMP/catalogo.json"
+
+  # Los vectores ML-DSA-44 y los recibos, contra una implementación INDEPENDIENTE
+  # (ADR-034, decisión 7; la opción b del dev en el Sprint 29): OpenSSL 3.5.9, compilado
+  # por scripts/instala-openssl.sh, que antes de compilar comprueba el sha256 del
+  # tarball y su firma PGP contra la huella fijada. Ni la versión ni el sha256 se repiten
+  # aquí: se leen del script, que es donde viven.
+  #
+  # La caché va por versión, sha256 y el propio script: si cambia cualquiera, se compila
+  # otra vez, con las dos comprobaciones. Lo que se cachea lo escribió este job.
+  #
+  # Si el repositorio y el oráculo dejan de coincidir, alguien editó un vector a mano o
+  # cambió el formato sin regenerarlos: en los dos casos el vector ha dejado de ser una
+  # vara externa y hay que enterarse aquí.
+  mldsa-vectores:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: La versión y el sha256 de OpenSSL, del script que lo instala
+        id: openssl
+        run: |
+          version=$(awk -F= '$1 == "VERSION" {print $2}' scripts/instala-openssl.sh)
+          sha256=$(awk -F= '$1 == "SHA256" {print $2}' scripts/instala-openssl.sh)
+          [ -n "$version" ] && [ -n "$sha256" ]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "prefijo=$HOME/.local/opt/openssl-$version" >> "$GITHUB_OUTPUT"
+      # Acción nueva en este workflow: fijada por commit, no por tag.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
+        with:
+          path: ${{ steps.openssl.outputs.prefijo }}
+          key: openssl-${{ steps.openssl.outputs.version }}-${{ steps.openssl.outputs.sha256 }}-${{ hashFiles('scripts/instala-openssl.sh') }}-${{ runner.os }}-${{ runner.arch }}
+      - name: OpenSSL ${{ steps.openssl.outputs.version }}, con su sha256 y su firma PGP comprobados
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./scripts/instala-openssl.sh
+      - name: El OpenSSL que usan los oráculos
+        run: |
+          "${{ steps.openssl.outputs.prefijo }}/bin/openssl" version
+          "${{ steps.openssl.outputs.prefijo }}/bin/openssl" list -signature-algorithms | grep ML-DSA-44
+      - name: mldsa/ coincide con OpenSSL
+        run: python3 testdata/vectors/mldsa/generar.py --check
+      - name: OpenSSL da el veredicto del NIST en el subconjunto del ACVP
+        run: python3 testdata/vectors/mldsa/acvp.py --check
+      - name: Los recibos golden coinciden con el oráculo, los ML-DSA incluidos
+        run: python3 testdata/vectors/receipt/generar.py --check
 
   # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
   # La configuración y el porqué de cada exclusión están en .golangci.yml.
