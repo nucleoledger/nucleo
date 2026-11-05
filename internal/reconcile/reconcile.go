@@ -322,7 +322,9 @@ func clasificaEventos(blocks []*ledger.Block, auth erasure.Authority) (map[strin
 		if !ok || c.desde >= b.Header.Index {
 			err = fmt.Errorf("%w: no suprime ningún contenido anterior de la cadena", erasure.ErrNotAuthorized)
 		} else {
-			through, err = auth.Check(b, c.hash)
+			var v erasure.Verdict
+			v, err = auth.Check(b, c.hash)
+			through = v.Through
 		}
 		if err != nil {
 			hallazgos = append(hallazgos, Finding{

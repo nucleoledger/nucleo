@@ -298,7 +298,7 @@ func eventoDeSupresion(s *store.Store, auth erasure.Authority, h string, desde u
 		return nil, err
 	}
 	for _, ev := range eventos {
-		if through, err := auth.Check(ev, h); err == nil && through >= desde {
+		if v, err := auth.Check(ev, h); err == nil && v.Through >= desde {
 			return ev, nil
 		}
 	}
