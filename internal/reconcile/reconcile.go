@@ -17,10 +17,12 @@
 package reconcile
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/nucleoledger/nucleo/internal/erasure"
@@ -503,4 +505,27 @@ func FromSlice(records []Record) Source {
 		}
 		return nil
 	}
+}
+
+// AuthorizedEvent es un evento de supresión autorizado (PROTOCOL §5.1) y qué clave lo
+// autorizó.
+type AuthorizedEvent struct {
+	Index   uint64
+	Verdict erasure.Verdict
+}
+
+// AuthorizedEvents devuelve, en orden de la cadena, los eventos de supresión de blocks que
+// la autoridad dada autoriza, con la misma regla que Reconcile. La usa sync para calcular
+// el corte de la clave actual dentro de lo que el testigo acaba de atestiguar (ADR-033,
+// decisión 3): dos implementaciones de la regla acabarían diciendo cosas distintas.
+func AuthorizedEvents(blocks []*ledger.Block, auth erasure.Authority) []AuthorizedEvent {
+	autorizados, _, _ := clasificaEventos(blocks, auth)
+	var out []AuthorizedEvent
+	for _, lista := range autorizados {
+		for _, a := range lista {
+			out = append(out, AuthorizedEvent{Index: a.evento.Header.Index, Verdict: a.veredicto})
+		}
+	}
+	slices.SortFunc(out, func(a, b AuthorizedEvent) int { return cmp.Compare(a.Index, b.Index) })
+	return out
 }

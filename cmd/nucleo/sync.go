@@ -208,6 +208,16 @@ func cmdSync(e *env, args []string) error {
 	// Una cosignature verificada y que no nace vieja es atestación fresca: la alarma, si
 	// la había, deja de tener motivo y se cierra aquí (ADR-028 §C). Una que ya nacía vieja
 	// no cierra nada: es justo la que un replay por la red devolvería.
+	// El fragmento de retiredErasureKeys para rotar la clave de supresión (ADR-033,
+	// decisión 3): solo con una política de fichero que traiga erasureKey y con la
+	// atestación verificada, porque el corte se calcula dentro de lo atestiguado.
+	var rotacion *rotacionSupresion
+	if file != nil && file.ErasureKey != "" && res.Attested {
+		if rotacion, err = fragmentoDeRotacion(s, file, res.LocalSize); err != nil {
+			return err
+		}
+	}
+
 	alarma := leeAlarma(e, s)
 	cerrada := store.StaleAlarm{}
 	if res.Attested && !vieja && alarma.Estado != alarmaNinguna {
@@ -228,7 +238,9 @@ func cmdSync(e *env, args []string) error {
 		// este ledger con atestación verificada, y lo mismo que la contraparte
 		// necesita para verificar sus recibos (ADR-017 c).
 		"policy": politicaDeSalida(file, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub),
-		"alert":  alarma.json(),
+		// El fragmento para rotar la clave de supresión, o null (ADR-033, decisión 3).
+		"erasure_rotation": rotacion,
+		"alert":            alarma.json(),
 		// Las supresiones sin reconocer, en cada comando (ADR-031, enmienda).
 		"erasure_alert": alarmaDeSupresion(e, s).json(),
 	}, func() {
@@ -248,6 +260,9 @@ func cmdSync(e *env, args []string) error {
 		// Si ya vino de fichero, quien lo invocó ya lo tiene; si no, se le da hecho.
 		if file == nil {
 			policySnippet(e, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub)
+		}
+		if rotacion != nil {
+			rotacion.imprime(e)
 		}
 	})
 	return nil

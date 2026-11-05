@@ -238,6 +238,14 @@ func borraEstado(t *testing.T, dir, k string) int64 {
 // firmado por el tenant, con payload_cid "none://": sin autorización (ADR-032).
 func sellaSupresionForjada(t *testing.T, c *cli, h0 string) {
 	t.Helper()
+	sellaSupresionConCID(t, c, h0, "none://")
+}
+
+// sellaSupresionConCID es lo mismo con el payload_cid dado: por ejemplo, la autorización
+// de una clave retirada, sellada después de su corte sin pasar por erase, que la
+// rechazaría (ADR-033).
+func sellaSupresionConCID(t *testing.T, c *cli, h0, cid string) {
+	t.Helper()
 	s, _, err := store.Open(filepath.Join(c.dir, "nucleo.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -260,7 +268,7 @@ func sellaSupresionForjada(t *testing.T, c *cli, h0 string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hd, err := ledger.NewHeader(prev, testTenant, erasure.Type, payload, "none://", id.TenantPublic(), now())
+	hd, err := ledger.NewHeader(prev, testTenant, erasure.Type, payload, cid, id.TenantPublic(), now())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -187,6 +187,15 @@ func cmdErasureKeyAuthorize(e *env, args []string) error {
 	defer vault.Wipe(seed)
 	priv := ed25519.NewKeyFromSeed(seed)
 	defer vault.Wipe(priv)
+	// Unas tarjetas de una clave RETIRADA no son unas tarjetas cualquiera: son las buenas de
+	// antes, y lo útil es decirlo (ADR-033 §D). Lo que firmaran ya no contaría —el evento
+	// iría después de su corte—, así que no se firma nada.
+	if c, retirada := autoridad.Retired[hex.EncodeToString(priv.Public().(ed25519.PublicKey))]; retirada {
+		return usageErr("las tarjetas reconstruyen una clave de supresión RETIRADA en la política %q: esa\n"+
+			"  clave está retirada desde el índice %d (retiredErasureKeys) y no autoriza ningún evento\n"+
+			"  posterior; lo que firmara no contaría. Autoriza con las tarjetas de la clave actual, la\n"+
+			"  erasureKey de la política (ADR-033).", *policyFile, c)
+	}
 	if !priv.Public().(ed25519.PublicKey).Equal(key) {
 		return usageErr("las tarjetas reconstruyen una clave, pero NO es la erasureKey de la política %q.\n"+
 			"  ¿Son las tarjetas del vault? Esas no autorizan supresiones: hacen falta las de la\n"+
