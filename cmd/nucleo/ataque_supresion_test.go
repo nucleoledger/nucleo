@@ -69,7 +69,9 @@ func TestElFicheroDeLaPassphraseNoSuprime(t *testing.T) {
 // las piezas internas, sin pasar por erase ni por seal: abre el vault, borra la copia
 // cifrada y sella un evento de supresión firmado con la clave del tenant. Con ADR-031 y
 // su enmienda, eso era una supresión: reconcile salía con 0. Ahora sigue en 2, con el
-// registro faltante y el evento como supresión no autorizada.
+// registro faltante y el evento como supresión no autorizada, hasta que la custodia de la
+// clave de supresión autoriza la supresión y el evento forjado queda regularizado
+// (ADR-033, decisión 4): salida 0, y el aviso, para siempre.
 func TestLaClaveDelServidorNoSuprime(t *testing.T) {
 	c := newCLI(t)
 	sp := c.initConSupresion(t)
@@ -102,16 +104,44 @@ func TestLaClaveDelServidorNoSuprime(t *testing.T) {
 	}
 	// Y la vía legítima sigue abierta: con la autorización, erase sella un evento que la
 	// lleva —el contenido ya no estaba, no hay nada que borrar— y el registro cuenta como
-	// suprimido. El evento forjado sigue siendo un hallazgo: no lo arregla nadie.
+	// suprimido. Hasta el Sprint 30 el evento forjado seguía siendo un hallazgo y la
+	// reconciliación salía con 2 para siempre. Desde ADR-033 (decisión 4) el evento
+	// autorizado lo REGULARIZA: es posterior, del mismo contenido y su through cubre el
+	// bloque 0. Salida 0, pero el forjado no desaparece: sale en «regularized» y en el
+	// texto, en cada reconciliación. Regularizar exige la firma de la custodia, que es
+	// justo lo que el atacante no tiene.
 	c.mustRun("--json", "erase", "--block", "0", "--policy-file", sp.politica,
 		"--authorization", c.autoriza(t, sp, h0, 0), "--assume-confirmed")
-	out, _ = c.runWant(t, exitVerify, "--json", "reconcile", "--source", vivos, "--policy-file", sp.politica)
-	r.Findings, r.Erased = nil, nil
-	if err := json.Unmarshal([]byte(out), &r); err != nil {
+	out = c.mustRun("--json", "reconcile", "--source", vivos, "--policy-file", sp.politica)
+	var reg struct {
+		Findings []json.RawMessage `json:"findings"`
+		Erased   []struct {
+			Index        uint64 `json:"index"`
+			ErasedBy     uint64 `json:"erased_by"`
+			AuthorizedBy string `json:"authorized_by"`
+			ErasureKey   string `json:"erasure_key"`
+		} `json:"erased"`
+		Regularized []struct {
+			Index         uint64 `json:"index"`
+			RegularizedBy uint64 `json:"regularized_by"`
+			Reason        string `json:"reason"`
+			AuthorizedBy  string `json:"authorized_by"`
+			ErasureKey    string `json:"erasure_key"`
+		} `json:"regularized"`
+		OK bool `json:"ok"`
+	}
+	if err := json.Unmarshal([]byte(out), &reg); err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Erased) != 1 || len(r.Findings) != 1 || r.Findings[0].Index != 2 {
+	if !reg.OK || len(reg.Findings) != 0 || len(reg.Erased) != 1 || reg.Erased[0].ErasedBy != 3 ||
+		reg.Erased[0].AuthorizedBy != "erasureKey" || reg.Erased[0].ErasureKey != sp.erasureKey ||
+		len(reg.Regularized) != 1 || reg.Regularized[0].Index != 2 || reg.Regularized[0].RegularizedBy != 3 ||
+		reg.Regularized[0].Reason == "" || reg.Regularized[0].ErasureKey != sp.erasureKey {
 		t.Errorf("reconcile tras la supresión autorizada:\n%s", out)
+	}
+	texto := c.mustRun("reconcile", "--source", vivos, "--policy-file", sp.politica)
+	if !strings.Contains(texto, "⚠ supresión no autorizada en el bloque 2, regularizada en el evento 3 (") {
+		t.Errorf("el texto no avisa de la regularizada:\n%s", texto)
 	}
 }
 

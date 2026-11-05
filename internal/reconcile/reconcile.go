@@ -88,6 +88,33 @@ type Finding struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// Autoria dice qué clave de la política autorizó un evento de supresión (ADR-033 §C).
+type Autoria struct {
+	// AuthorizedBy es el miembro de la política que trae la clave: "erasureKey" o
+	// "retiredErasureKeys".
+	AuthorizedBy string `json:"authorized_by"`
+	// ErasureKey es la clave, en hexadecimal.
+	ErasureKey string `json:"erasure_key"`
+	// Cutoff es su corte, si es una clave retirada; no va si es la actual.
+	Cutoff *uint64 `json:"cutoff,omitempty"`
+}
+
+func autoria(v erasure.Verdict) Autoria {
+	if !v.Retired {
+		return Autoria{AuthorizedBy: "erasureKey", ErasureKey: v.Key}
+	}
+	c := v.Cutoff
+	return Autoria{AuthorizedBy: "retiredErasureKeys", ErasureKey: v.Key, Cutoff: &c}
+}
+
+// Describe dice la clave en una frase, para el texto.
+func (a Autoria) Describe() string {
+	if a.Cutoff == nil {
+		return "la clave actual (erasureKey " + a.ErasureKey + ")"
+	}
+	return fmt.Sprintf("la clave retirada %s, cuyo corte es el índice %d", a.ErasureKey, *a.Cutoff)
+}
+
 // Erased es un bloque cuyo contenido se suprimió.
 type Erased struct {
 	// Index es el bloque cuyo contenido se suprimió.
@@ -100,6 +127,28 @@ type Erased struct {
 	ErasedBy uint64 `json:"erased_by"`
 	// ErasedAt es el tiempo declarado del evento.
 	ErasedAt string `json:"erased_at"`
+	// La clave que autorizó el evento ErasedBy.
+	Autoria
+}
+
+// Regularized es un evento de supresión que no estaba autorizado y que otro posterior,
+// autorizado, regularizó (ADR-033, decisión 4; PROTOCOL 0.8-draft §5.1). No es un
+// hallazgo, y tampoco desaparece: sale en cada reconciliación, para siempre, porque el
+// evento sigue en la cadena y quien audite tiene que verlo.
+type Regularized struct {
+	// Index es el bloque del evento no autorizado.
+	Index uint64 `json:"index"`
+	// SealedHash es su payload_hash.
+	SealedHash string `json:"sealed_hash"`
+	// SealedAt es su tiempo declarado.
+	SealedAt string `json:"sealed_at"`
+	// RegularizedBy es el bloque del evento autorizado que lo regulariza: el de menor
+	// índice, si hay varios.
+	RegularizedBy uint64 `json:"regularized_by"`
+	// Reason es por qué el evento Index no estaba autorizado.
+	Reason string `json:"reason"`
+	// La clave que autorizó el evento RegularizedBy.
+	Autoria
 }
 
 // Report es el resultado de un recorrido completo.
@@ -116,6 +165,9 @@ type Report struct {
 	// suprimió (ADR-031). No son hallazgos: hay un evento sellado que lo dice, y la
 	// clave de supresión de la política lo autorizó (ADR-032).
 	Erased []Erased `json:"erased"`
+	// Regularized son los eventos de supresión no autorizados que uno posterior, autorizado,
+	// regularizó. Van siempre, vacíos si no hay ninguno, como Findings y Erased.
+	Regularized []Regularized `json:"regularized"`
 	// FullVerify recoge el resultado de VerifyFull si se pidió.
 	FullVerify *FullVerifyResult `json:"full_verify,omitempty"`
 }
@@ -193,12 +245,13 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 	// contrato de docs/CLI-JSON.md promete un array. Un consumidor estricto
 	// (ADR-025) que lo lea como array se rompería justo en el caso bueno —el cotejo
 	// que cuadra— si esto fuera nil.
-	rep := &Report{TreeSize: uint64(n), Findings: []Finding{}, Erased: []Erased{}}
+	rep := &Report{TreeSize: uint64(n), Findings: []Finding{}, Erased: []Erased{}, Regularized: []Regularized{}}
 
 	// Los eventos de supresión, y cuáles están autorizados. Se leen del ledger firmado
 	// y de la política, y de nada más: la reconciliación no abre el vault, y un
 	// marcador fuera de la cadena lo podría poner cualquiera que escriba el fichero.
-	autorizados, noAutorizados := clasificaEventos(blocks, opts.Erasure)
+	autorizados, noAutorizados, regularizados := clasificaEventos(blocks, opts.Erasure)
+	rep.Regularized = append(rep.Regularized, regularizados...)
 	seen := make(map[uint64]bool, len(blocks))
 
 	err = src(func(rec Record) error {
@@ -252,13 +305,14 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 		if b.Header.Type == erasure.Type {
 			continue
 		}
-		if ev := eventoQueSuprime(autorizados, b); ev != nil {
+		if a := eventoQueSuprime(autorizados, b); a != nil {
 			rep.Erased = append(rep.Erased, Erased{
 				Index:      b.Header.Index,
 				SealedHash: b.Header.PayloadHash,
 				SealedAt:   b.Header.Timestamp,
-				ErasedBy:   ev.Header.Index,
-				ErasedAt:   ev.Header.Timestamp,
+				ErasedBy:   a.evento.Header.Index,
+				ErasedAt:   a.evento.Header.Timestamp,
+				Autoria:    autoria(a.veredicto),
 			})
 			continue
 		}
@@ -291,66 +345,126 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 // autorizacion es un evento de supresión autorizado: cubre los bloques de su
 // contenido con índice ≤ through.
 type autorizacion struct {
-	evento  *ledger.Block
-	through uint64
+	evento    *ledger.Block
+	through   uint64
+	veredicto erasure.Verdict
 }
 
 // clasificaEventos aplica PROTOCOL §5.1: devuelve los eventos autorizados, por el
-// contenido que suprimen, y un hallazgo por cada evento que no lo está.
+// contenido que suprimen; un hallazgo por cada evento que no lo está y nadie regularizó;
+// y los regularizados.
 //
 // El contenido de un evento no está en la cadena —se sella con su hash—, así que se
 // busca entre los bloques anteriores: el que, puesto en el evento, da su payload_hash.
-func clasificaEventos(blocks []*ledger.Block, auth erasure.Authority) (map[string][]autorizacion, []Finding) {
+//
+// Va en dos pasadas, porque quien regulariza un evento es POSTERIOR a él: primero se
+// decide cada evento como siempre (autorizado o no, ADR-032 y ADR-033 §C); después, cada
+// no autorizado que suprime un contenido sellado antes se coteja con los autorizados.
+func clasificaEventos(blocks []*ledger.Block, auth erasure.Authority) (map[string][]autorizacion, []Finding, []Regularized) {
+	// copias guarda, por el payload_hash que tendría su evento, el contenido y el ÚLTIMO
+	// bloque que lo selló hasta el punto del recorrido. Para la condición 4 de la
+	// regularización hace falta el máximo índice de las copias anteriores al evento, no
+	// el primero: un contenido sellado dos veces, con una autorización que solo cubre la
+	// primera copia, no regulariza la supresión de las dos.
 	type contenido struct {
-		hash  string
-		desde uint64 // el primer bloque que lo selló
+		hash   string
+		ultima uint64
 	}
-	porEvento := map[string]contenido{}
+	copias := map[string]contenido{}
+	type evento struct {
+		b *ledger.Block
+		// hash es el contenido que suprime y maxAntes, el último bloque con ese contenido
+		// anterior al evento; ok dice si lo hay (la condición 2 de §5.1).
+		hash     string
+		maxAntes uint64
+		ok       bool
+		err      error
+	}
+	var eventos []evento
 	autorizados := map[string][]autorizacion{}
-	var hallazgos []Finding
 	for _, b := range blocks {
 		if b.Header.Type != erasure.Type {
-			eph, err := erasure.EventPayloadHash(b.Header.PayloadHash)
-			if _, ya := porEvento[eph]; err == nil && !ya {
-				porEvento[eph] = contenido{hash: b.Header.PayloadHash, desde: b.Header.Index}
+			if eph, err := erasure.EventPayloadHash(b.Header.PayloadHash); err == nil {
+				copias[eph] = contenido{hash: b.Header.PayloadHash, ultima: b.Header.Index}
 			}
 			continue
 		}
-		c, ok := porEvento[b.Header.PayloadHash]
-		var through uint64
-		var err error
-		if !ok || c.desde >= b.Header.Index {
-			err = fmt.Errorf("%w: no suprime ningún contenido anterior de la cadena", erasure.ErrNotAuthorized)
+		c, ok := copias[b.Header.PayloadHash]
+		ev := evento{b: b, hash: c.hash, maxAntes: c.ultima, ok: ok && c.ultima < b.Header.Index}
+		if !ev.ok {
+			ev.err = fmt.Errorf("%w: no suprime ningún contenido anterior de la cadena", erasure.ErrNotAuthorized)
 		} else {
-			var v erasure.Verdict
-			v, err = auth.Check(b, c.hash)
-			through = v.Through
+			v, err := auth.Check(b, c.hash)
+			if err == nil {
+				autorizados[c.hash] = append(autorizados[c.hash], autorizacion{evento: b, through: v.Through, veredicto: v})
+			}
+			ev.err = err
 		}
-		if err != nil {
-			hallazgos = append(hallazgos, Finding{
-				Status:     StatusUnauthorizedErasure,
-				Index:      b.Header.Index,
-				SealedHash: b.Header.PayloadHash,
-				SealedAt:   b.Header.Timestamp,
-				Tenant:     b.Header.Tenant,
-				Type:       b.Header.Type,
-				Reason:     err.Error(),
-			})
+		eventos = append(eventos, ev)
+	}
+
+	var hallazgos []Finding
+	var regularizados []Regularized
+	for _, ev := range eventos {
+		if ev.err == nil {
 			continue
 		}
-		autorizados[c.hash] = append(autorizados[c.hash], autorizacion{evento: b, through: through})
+		b := ev.b
+		if ev.ok {
+			if r := regulariza(autorizados[ev.hash], b.Header.Index, ev.maxAntes); r != nil {
+				regularizados = append(regularizados, Regularized{
+					Index:         b.Header.Index,
+					SealedHash:    b.Header.PayloadHash,
+					SealedAt:      b.Header.Timestamp,
+					RegularizedBy: r.evento.Header.Index,
+					Reason:        ev.err.Error(),
+					Autoria:       autoria(r.veredicto),
+				})
+				continue
+			}
+		}
+		hallazgos = append(hallazgos, Finding{
+			Status:     StatusUnauthorizedErasure,
+			Index:      b.Header.Index,
+			SealedHash: b.Header.PayloadHash,
+			SealedAt:   b.Header.Timestamp,
+			Tenant:     b.Header.Tenant,
+			Type:       b.Header.Type,
+			Reason:     ev.err.Error(),
+		})
 	}
-	return autorizados, hallazgos
+	return autorizados, hallazgos, regularizados
+}
+
+// regulariza busca, entre los eventos autorizados de un contenido —en orden de la
+// cadena—, el primero que regulariza el evento no autorizado del índice e
+// (ADR-033, decisión 4; PROTOCOL 0.8-draft §5.1). Que R esté en la lista ya es la
+// condición 1 (autorizado, con las claves de SU índice) y la 3 (el mismo contenido, luego
+// el mismo payload_hash). Quedan:
+//
+//   - la 2: R es posterior a E. Un evento sin autorización sellado después de una
+//     supresión legítima sigue siendo el servidor sellando lo que nadie autorizó;
+//   - la 4: el through de R llega a la última copia del contenido anterior a E. El
+//     through de E no se usa: viene de una autorización que no vale.
+func regulariza(autorizados []autorizacion, e, maxAntes uint64) *autorizacion {
+	for i := range autorizados {
+		r := &autorizados[i]
+		if r.evento.Header.Index > e && r.through >= maxAntes {
+			return r
+		}
+	}
+	return nil
 }
 
 // eventoQueSuprime devuelve el primer evento autorizado que cubre a b, o nil. Lo cubre
 // si su autorización llega hasta b (through ≥ b.index): una autorización anterior a b
 // suprimió una copia anterior del mismo contenido, y b la volvió a sellar después. Como
 // through es anterior al evento, el evento es posterior a b.
-func eventoQueSuprime(autorizados map[string][]autorizacion, b *ledger.Block) *ledger.Block {
-	for _, a := range autorizados[b.Header.PayloadHash] {
-		if a.through >= b.Header.Index {
-			return a.evento
+func eventoQueSuprime(autorizados map[string][]autorizacion, b *ledger.Block) *autorizacion {
+	lista := autorizados[b.Header.PayloadHash]
+	for i := range lista {
+		if lista[i].through >= b.Header.Index {
+			return &lista[i]
 		}
 	}
 	return nil

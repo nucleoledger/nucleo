@@ -7,8 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
+	"github.com/nucleoledger/nucleo/internal/erasure"
 	"github.com/nucleoledger/nucleo/internal/reconcile"
 )
 
@@ -64,6 +66,7 @@ func cmdReconcile(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
+	avisaCorteAbierto(e, opts.Erasure, rep.TreeSize)
 	alarma := registraAlarma(e, s, st)
 	supresiones := alarmaDeSupresion(e, s)
 	st.warn(e)
@@ -86,7 +89,7 @@ func cmdReconcile(e *env, args []string) error {
 		data["ok"] = len(rep.Findings) == 0 && (rep.FullVerify == nil || rep.FullVerify.OK)
 		e.printJSON(data)
 	} else {
-		printReport(e, rep, opts.Erasure.Key == nil)
+		printReport(e, rep, opts.Erasure.Key == nil && len(opts.Erasure.Retired) == 0)
 		e.printf("\n")
 		printAttestation(e, res)
 		printFreshness(e, st)
@@ -162,6 +165,9 @@ func printReport(e *env, rep *reconcile.Report, sinClave bool) {
 	if len(rep.Erased) > 0 {
 		e.printf("suprimidos : %d\n", len(rep.Erased))
 	}
+	if len(rep.Regularized) > 0 {
+		e.printf("regularizadas: %d\n", len(rep.Regularized))
+	}
 	if rep.FullVerify != nil {
 		if rep.FullVerify.OK {
 			e.printf("ledger     : ✔ verificación exhaustiva superada\n")
@@ -175,6 +181,17 @@ func printReport(e *env, rep *reconcile.Report, sinClave bool) {
 		e.printf("      bloque         : %d\n", x.Index)
 		e.printf("      hash sellado   : %s\n", x.SealedHash)
 		e.printf("      suprimido en   : el bloque %d, el %s  (tiempo declarado)\n", x.ErasedBy, x.ErasedAt)
+		e.printf("      autorizado por : %s\n", x.Describe())
+	}
+	// Una supresión no autorizada que otra posterior, autorizada, regularizó (ADR-033,
+	// decisión 4). No es un hallazgo y la salida puede ser 0, pero se dice en cada
+	// reconciliación y para siempre: el evento sigue en la cadena, atestiguado.
+	for _, r := range rep.Regularized {
+		e.printf("\n")
+		e.printf("  ⚠ supresión no autorizada en el bloque %d, regularizada en el evento %d (%s)\n",
+			r.Index, r.RegularizedBy, r.Reason)
+		e.printf("      sellado el     : %s  (tiempo declarado)\n", r.SealedAt)
+		e.printf("      el evento %d lo autorizó %s\n", r.RegularizedBy, r.Describe())
 	}
 	sinAutoridad := false
 	if len(rep.Findings) == 0 {
@@ -217,6 +234,36 @@ func printReport(e *env, rep *reconcile.Report, sinClave bool) {
 	e.printf("\n  Núcleo no impidió estos cambios: la base operativa no es suya. Lo que\n")
 	e.printf("  hace es recordar qué decía cada registro cuando se selló, y desde\n")
 	e.printf("  cuándo. La alteración deja de ser invisible.\n")
+}
+
+// avisaCorteAbierto avisa, por stderr y sin cambiar la salida, de cada clave retirada cuyo
+// corte pasa del último índice de la cadena (ADR-033 §C): esa clave todavía autoriza los
+// eventos que se sellen hasta su corte. No es un error de la política —la reconciliación
+// no sabe qué está atestiguado—, pero sí una ventana abierta.
+//
+// ADR-033 §C dice «mayor o igual que el último índice»; aquí es «mayor». Un corte IGUAL al
+// último índice no deja ventana —todo evento que se selle después tiene un índice mayor—,
+// y es justo el corte que imprime sync cuando el último bloque es la última supresión: el
+// aviso mandaría bajar un corte correcto, y un consejo así es peor que ninguno (la regla
+// de los mensajes). PROTOCOL §5.1 habla de la ventana de un corte POR ENCIMA.
+func avisaCorteAbierto(e *env, auth erasure.Authority, treeSize uint64) {
+	if treeSize == 0 {
+		return
+	}
+	ultimo := treeSize - 1
+	ks := make([]string, 0, len(auth.Retired))
+	for k := range auth.Retired {
+		ks = append(ks, k)
+	}
+	slices.Sort(ks)
+	for _, k := range ks {
+		if c := auth.Retired[k]; c > ultimo {
+			fmt.Fprintf(e.stderr, "⚠ la clave retirada %s todavía autoriza eventos hasta el índice %d, y la cadena va\n"+
+				"  por el %d: un evento sellado con ella hasta ese índice contaría. El corte es el\n"+
+				"  último evento legítimo que ya esté atestiguado; bájalo en la política si la\n"+
+				"  retiraste porque alguien pudo tenerla (ADR-033 §D).\n", k, c, ultimo)
+		}
+	}
 }
 
 // checkpointOf parsea la nota de un checkpoint guardado.
