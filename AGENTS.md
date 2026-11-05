@@ -42,6 +42,7 @@ nucleo/
 │                           # tercero-supresion.sh (G45: «comprueba», sin Núcleo ni red; completo, con módulos en caché)
 │                           # test-ensayo-orden.sh (H8: el orden de las descargas del ensayo, sin red)
 │                           # instala-openssl.sh (OpenSSL 3.5.9 para los vectores ML-DSA, con sha256 y PGP)
+│                           # autores.sh (las identidades de git log = las cuatro de AUTHORS; compuerta, no CI)
 ├── tools/mermaid/          # validador de los Mermaid de ARQUITECTURA (dev, con su lockfile)
 ├── docs/
 │   ├── PROTOCOL.md         # LA LEY. Todo cambio de formato exige ADR + bump aquí

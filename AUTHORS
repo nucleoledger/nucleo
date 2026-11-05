@@ -15,6 +15,7 @@ commits):
 To check it against the history: `git log --format='%an <%ae>' | sort | uniq -c`
 must show no identity outside these four (the two of the author, `dependabot[bot]`
 and the web one); a fifth means this file has stopped being true.
+`scripts/autores.sh` checks exactly that, as a step of `scripts/compuerta.sh`.
 
 Since 2026-10-02 the author commits as the identity above. Commits made before
 2026-10-02 (from 2026-09-03 to 2026-09-28) record the same person under the short
@@ -25,9 +26,9 @@ those named by the published release tags.
 What is signed, exactly: **commits are not**. The only commits that carry a
 signature are the two kinds made on GitHub (the `dependabot[bot]` updates and the
 web merges of its pull requests), and that signature is GitHub's, not the author's.
-The tags `v0.3.0-alpha`, `v0.3.1-alpha`, `vsdk-0.3.0-alpha.0` and
-`vsdk-0.4.0-alpha.0` are signed with the author's SSH key as the identity above
-(`git tag -v`); the earlier tags `v0.1.0-alpha`, `v0.2.0-alpha` and
+Every tag from version 0.3.0 on, of the binary (`v0.3.0-alpha` and later) and of
+the SDK (`vsdk-0.3.0-alpha.0` and later), is signed with the author's SSH key as
+the identity above (`git tag -v`); `v0.1.0-alpha`, `v0.2.0-alpha` and
 `vsdk-0.2.0-alpha.0` are annotated but not signed. The release binaries are
 signed separately, keyless, by the release workflow (see `docs/RELEASING.md`).
 

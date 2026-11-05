@@ -237,6 +237,7 @@ openssl_listo() {
 
 paso "bit de ejecución de scripts/*.sh" bit_de_ejecucion
 paso "shellcheck de scripts/*.sh" lint_shell
+paso "identidades de AUTHORS (autores.sh)" ./scripts/autores.sh
 paso "gofmt" formato
 paso "go vet" go vet ./...
 paso "go vet -tags testhooks" go vet -tags testhooks ./...
