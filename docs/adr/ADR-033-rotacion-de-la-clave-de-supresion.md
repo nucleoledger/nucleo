@@ -2,6 +2,8 @@
 
 **Estado:** ACEPTADA el 2026-10-18 por el dev (Sprint 27), sin código; propuesta el 2026-10-17 (Sprint 26); las preguntas abiertas, respondidas en «Decisiones del dev (2026-10-18)» · **Fecha:** 2026-10-17 · **Fuentes:** ADR-032 (la autoridad de supresión) y su «Lo que NO resuelve», `docs/GARANTIAS.md` L21, ADR-017 (la política, raíz de confianza), ADR-018 (su formato de cable), ADR-030 (logs retirados en el testigo: retirar sin olvidar), ADR-028 (la alarma durable), PROTOCOL 0.7-draft §3.2 y §5.1, `internal/policy/policy.go`, `internal/estricto`, `sdk/ts/src/policy.ts`, `sdk/php/src/Policy.php`
 
+*Enmienda 2026-11-04 (Sprint 30b) — Implementación:* implementado en Go (Sprint C1, Sprint 30: G47–G49, commits `4ebef0d` a `3684de5`); pendiente: TS, PHP y la página (Sprint D) y la documentación de operación (Sprint E). El «sin código» del estado, de arriba, era verdad el día que se aceptó.
+
 ## El problema
 
 ADR-032 hizo que una supresión cuente solo si la autoriza la clave de supresión cuya parte

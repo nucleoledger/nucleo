@@ -362,11 +362,15 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       entra en la 0.5 como `nucleo verify-receipt`, en el Sprint C de arriba. Hasta entonces, un
       recibo se verifica con `@nucleoledger/verify`, con el SDK de PHP o con la página de
       `web/verify/`, y la CLI solo autoverifica los que emite.
-- [ ] **ADR-033 (ACEPTADO el 2026-10-18, sin implementar): rotación de erasureKey.**
-      `retiredErasureKeys` (clave → corte) en la política, para que rotar no invalide las
-      supresiones históricas (hoy, el límite L21), y la regularización con la clave nueva.
+- [ ] **ADR-033 (ACEPTADO el 2026-10-18; implementado en Go (Sprint C1, Sprint 30: G47–G49);
+      pendiente: TS, PHP y la página (Sprint D) y la documentación de operación (Sprint E)):
+      rotación de erasureKey.** `retiredErasureKeys` (clave → corte) en la política, para que
+      rotar no invalide las supresiones históricas (era el límite L21, reescrito en el C1), y
+      la regularización con la clave nueva.
       Implementación: los sprints de la 0.5, arriba.
-- [ ] **ADR-034 (ACEPTADO el 2026-10-18, sin implementar): verificar ML-DSA-44.**
+- [ ] **ADR-034 (ACEPTADO el 2026-10-18; vectores listos (Sprint 29); implementación
+      pendiente: Go (Sprint C2), TS, PHP y la página (Sprint D); sin implementar):
+      verificar ML-DSA-44.**
       `logMLDSAKey` en la política; Go la verifica con `crypto/mldsa`; TS, PHP y la página
       dicen `"present-unverified"` (opción B). Hoy, el límite L23. Implementación: los sprints
       de la 0.5, arriba.

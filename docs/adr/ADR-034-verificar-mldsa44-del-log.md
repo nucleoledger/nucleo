@@ -2,6 +2,8 @@
 
 **Estado:** ACEPTADA el 2026-10-18 por el dev (Sprint 27), sin código; propuesta el 2026-10-17 (Sprint 26); las preguntas abiertas, respondidas en «Decisiones del dev (2026-10-18)» · **Fecha:** 2026-10-17 · **Fuentes:** `docs/GARANTIAS.md` L14 y L23 (Sprint 25), ADR-007 y su addendum (la extensión `0xff` y el key ID), ADR-024 (el material ML-DSA prestado de los vectores), ADR-017 (la política, raíz de confianza), ADR-018 (su formato de cable), ADR-021 (el SDK de PHP), ADR-029 §F y ADR-030 §C (lo que se hace hoy con una clave comprometida), PROTOCOL 0.7-draft §3, §3.2, §3.3 y §6, `internal/checkpoint/mldsa.go`, `internal/proof/proof.go#esFirmaMLDSA`, `internal/identity/identity.go`, `sdk/ts/src/receipt.ts`, `sdk/php/src/Verifier.php`
 
+*Enmienda 2026-11-04 (Sprint 30b) — Implementación:* vectores listos (Sprint 29); implementación pendiente: Go (Sprint C2), TS, PHP y la página (Sprint D). Sin implementar: el «sin código» del estado, de arriba, sigue siendo verdad. Go ya lee `logMLDSAKey` en la política y la guarda (Sprint C1), sin usarla.
+
 ## El problema
 
 Todo checkpoint que firma el log lleva dos firmas: Ed25519 (`0x01`) y ML-DSA-44 (extensión

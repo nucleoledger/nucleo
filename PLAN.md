@@ -75,12 +75,17 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **Identidad de registro y eventos `issued`/`voided`** en el perfil genérico: las
   facturas se anulan y `reconcile` no lo modela. Toca el protocolo; pide ADR.
 
-**La 0.5: ADR-033 y ADR-034, ACEPTADOS el 2026-10-18, sin implementar**
-- **ADR-033: rotación de erasureKey.** `retiredErasureKeys` (clave → corte) en la política,
-  para que rotar no invalide las supresiones históricas (hoy, L21); `sync --policy-file`
+**La 0.5: ADR-033 y ADR-034, ACEPTADOS el 2026-10-18**
+- **ADR-033: rotación de erasureKey.** ACEPTADO el 2026-10-18; implementado en Go (Sprint C1,
+  Sprint 30: G47–G49); pendiente: TS, PHP y la página (Sprint D) y la documentación de
+  operación (Sprint E). `retiredErasureKeys` (clave → corte) en la política,
+  para que rotar no invalide las supresiones históricas (era el límite L21, reescrito en el
+  C1); `sync --policy-file`
   imprime el fragmento con el corte dentro de lo atestiguado; una supresión no autorizada se
   puede regularizar con la clave nueva y `reconcile` sale con 0 y un aviso permanente.
-- **ADR-034: verificar ML-DSA-44.** `logMLDSAKey` en la política; Go la verifica con
+- **ADR-034: verificar ML-DSA-44.** ACEPTADO el 2026-10-18; vectores listos (Sprint 29);
+  implementación pendiente: Go (Sprint C2), TS, PHP y la página (Sprint D); sin implementar.
+  `logMLDSAKey` en la política; Go la verificará con
   `crypto/mldsa`, también en la orden nueva `nucleo verify-receipt` (recibos ajenos); TS, PHP
   y la página dicen `"present-unverified"` (opción B), con la divergencia declarada en el
   diferencial. Hoy, L23: la firma se emite y nadie la comprueba.
