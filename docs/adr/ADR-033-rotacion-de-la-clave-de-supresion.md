@@ -152,6 +152,7 @@ Las consecuencias, una por una:
   por stderr, sin cambiar la salida, cuando el corte es mayor o igual que el último índice de
   la cadena: *«la clave retirada … todavía autoriza eventos hasta el índice …, y la cadena va
   por el …»*.
+  *Enmienda 2026-11-04 (Sprint 30b, autorizada por el dev):* el aviso salta cuando el corte es **mayor** que el último índice de la cadena, no «mayor o igual». Con el corte igual al último índice no queda ventana —el siguiente evento tendrá un índice mayor—, y ese es justo el corte que imprime `sync` cuando el último bloque es la última supresión: con «mayor o igual», el aviso mandaría bajar un corte correcto. Implementado en el Sprint C1 (commit `74d9a3f`, `cmd/nucleo/reconcile.go#avisaCorteAbierto`) y fijado por `cmd/nucleo/regularizacion_test.go#TestAvisoDeCorteAbierto`, que comprueba que avisa con el corte por encima del último índice y calla con el corte en él.
 
 `reconcile --json` gana, en cada entrada de `erased`, qué clave la autorizó: la actual o una
 retirada, con su corte (`docs/CLI-JSON.md`).
