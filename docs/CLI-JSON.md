@@ -251,6 +251,9 @@ página web:
 }
 ```
 
+Con `--policy-file`, es la política del fichero **entera**: también `erasureKey`,
+`retiredErasureKeys` y `logMLDSAKey` si el fichero los trae (PROTOCOL 0.8-draft §3.2).
+
 ## Por subcomando
 
 ### `init`
@@ -368,8 +371,9 @@ El informe de `internal/reconcile` más el estado de la historia:
 | campo | tipo |
 |---|---|
 | `tree_size`, `checked`, `verified` | enteros — bloques, registros comparados, coincidentes |
-| `findings` | array —**siempre array**, vacío cuando el cotejo cuadra— de `{status, index, sealed_hash, current_hash, sealed_at, tenant, type, reason}`; `status` es `"discrepancia"` (el vivo cambió), `"faltante"` (el vivo ya no lo tiene), `"no sellado"` (el vivo tiene algo que el ledger no) o `"supresión no autorizada"` (un evento `nucleo.erasure.v1` sin una autorización que verifique con la `erasureKey` de la política, ADR-032: sin `--policy-file` —las banderas sueltas del testigo no traen esa clave—, o con una política sin `erasureKey`, lo son todos; el bloque que decía suprimir sale además como `"faltante"`). En ese último estado, `index` y `sealed_hash` son los del **evento**, y `reason` —que solo va en él— dice por qué no cuenta, en texto para personas: no es un conjunto cerrado. `sealed_at` es el tiempo **declarado** del bloque |
-| `erased` | array —**siempre array**— de `{index, sealed_hash, sealed_at, erased_by, erased_at}`: bloques que el sistema vivo no tiene porque su contenido se **suprimió** con autorización (ADR-031, ADR-032). **No son hallazgos** y no cambian `ok` ni el código de salida; `erased_by` es el bloque del evento `nucleo.erasure.v1`, y `erased_at` su tiempo declarado |
+| `findings` | array —**siempre array**, vacío cuando el cotejo cuadra— de `{status, index, sealed_hash, current_hash, sealed_at, tenant, type, reason}`; `status` es `"discrepancia"` (el vivo cambió), `"faltante"` (el vivo ya no lo tiene), `"no sellado"` (el vivo tiene algo que el ledger no) o `"supresión no autorizada"` (un evento `nucleo.erasure.v1` sin una autorización que verifique con la `erasureKey` de la política, o con una de sus `retiredErasureKeys` cuyo corte sea ≥ el índice del evento —ADR-032, ADR-033—, y que ningún evento posterior regulariza: sin `--policy-file` —las banderas sueltas del testigo no traen esa clave—, o con una política sin `erasureKey`, lo son todos; el bloque que decía suprimir sale además como `"faltante"`). En ese último estado, `index` y `sealed_hash` son los del **evento**, y `reason` —que solo va en él— dice por qué no cuenta, en texto para personas: no es un conjunto cerrado. `sealed_at` es el tiempo **declarado** del bloque |
+| `erased` | array —**siempre array**— de `{index, sealed_hash, sealed_at, erased_by, erased_at, authorized_by, erasure_key, cutoff}`: bloques que el sistema vivo no tiene porque su contenido se **suprimió** con autorización (ADR-031, ADR-032). **No son hallazgos** y no cambian `ok` ni el código de salida; `erased_by` es el bloque del evento `nucleo.erasure.v1`, y `erased_at` su tiempo declarado. Qué clave autorizó ese evento (ADR-033 §C, desde v0.5): `authorized_by` es `"erasureKey"` (la actual) o `"retiredErasureKeys"` (una retirada), `erasure_key` la clave en hexadecimal, y `cutoff` —**solo** con una retirada— su corte |
+| `regularized` | array —**siempre array**, vacío si no hay ninguna, desde v0.5— de `{index, sealed_hash, sealed_at, regularized_by, reason, authorized_by, erasure_key, cutoff}`: eventos de supresión **no autorizados** que un evento posterior, autorizado, del mismo contenido y cuyo `through` cubre todas las copias anteriores, **regulariza** (ADR-033, decisión 4; PROTOCOL 0.8-draft §5.1). **No son hallazgos**: no cambian `ok` ni el código de salida. Pero salen en cada reconciliación, para siempre, porque el evento sigue en la cadena. `index`, `sealed_hash` y `sealed_at` son los del evento no autorizado; `regularized_by`, el índice del evento que lo regulariza —el menor, si hay varios—; `reason`, por qué el primero no estaba autorizado (texto para personas, como el de `findings`); y `authorized_by`, `erasure_key` y `cutoff`, la clave que autorizó el segundo, como en `erased`. En texto: «⚠ supresión no autorizada en el bloque E, regularizada en el evento R (motivo)» |
 | `full_verify` | `{run, ok, error}`. **`--full` vale `true` por omisión en `reconcile`**: el cotejo recomprueba todas las firmas históricas salvo que se pase `--full=false`, y entonces el campo no sale |
 | `attestation`, `attested`, `attested_size`, `signer`, `freshness` | misma semántica que `status`: un cotejo que coincide sobre una historia sin atestiguar coincide con un ledger que podría estar truncado |
 | `alert`, `erasure_alert` | ver arriba. La alarma de supresión se abre por todo evento, autorizado o no: el veredicto es `findings` |
@@ -390,6 +394,7 @@ código `2` (`cmd/nucleo/reconcile_json_test.go#TestReconcileJSONConPoliticaDeOt
 | `replay_suspect` | bool — la cosignature recibida ya nacía vieja (ver `freshness` arriba) |
 | `first_time` | bool — era el primer checkpoint de este log para ese testigo |
 | `policy` | objeto, ver arriba — lo que hace falta para volver a abrir con todo verificado |
+| `erasure_rotation` | objeto o `null` (desde v0.5; ADR-033, decisión 3) — el fragmento que la política nueva tiene que llevar si se rota la clave de supresión: `{"retiredErasureKeys": {…}, "attested_size": N}`. Solo con `--policy-file` cuya política trae `erasureKey` y con `attested: true`; si no, `null`. `retiredErasureKeys` lleva la `erasureKey` del fichero con su **corte** —el mayor índice de un evento de supresión que ella autoriza dentro del checkpoint que ese `sync` acaba de atestiguar, siempre `< attested_size`— y las claves que el fichero ya retiraba, con sus cortes. Si la clave actual no autorizó ninguno, no va; y si además el fichero no retiraba ninguna, el objeto queda **vacío**: entonces la política nueva no lleva el miembro, porque `{}` es inválido en una política (PROTOCOL §3.2) |
 | `alert` | objeto, ver arriba. Un `sync` que obtiene una cosignature verificada que no nace vieja **cierra** la alarma |
 
 Con rollback detectado: `{"ok": false, "rollback": true, "local_size": N,
@@ -448,7 +453,10 @@ política como `erasureKey`, y las tarjetas de la clave de supresión, que **son
 "through"}`, con `origin` tomado de la política. La autorización no es secreta: va a ir en el
 `payload_cid` del evento (PROTOCOL §5.1). También en `--json` pide las tarjetas en una
 consola —sin consola es un error de uso—, y las rechaza si no reconstruyen la `erasureKey` de
-esa política.
+esa política. Si reconstruyen una clave de sus `retiredErasureKeys` (desde v0.5, ADR-033 §D),
+el error de uso lo dice —«esa clave está retirada desde el índice N»— y no firma nada: lo
+que firmara iría después del corte y no contaría. Se autoriza con las tarjetas de la clave
+actual.
 
 ### `backup` / `restore`
 

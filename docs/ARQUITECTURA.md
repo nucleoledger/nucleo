@@ -386,12 +386,18 @@ supresión **autorizado** que cubre su contenido hasta él, sale en `erased` y n
 están autorizados lo decide `internal/reconcile/reconcile.go#clasificaEventos`: el contenido de
 cada evento se busca entre los bloques anteriores por el `payload_hash` que llevaría
 (`internal/erasure/erasure.go#EventPayloadHash`), y la firma de su `payload_cid` se comprueba
-con la `erasureKey` de la política (`internal/erasure/autorizacion.go#Authority.Check`), sin
-abrir el vault. Es la regla de PROTOCOL §5.1. Un evento que no está autorizado es un hallazgo,
-`"supresión no autorizada"` con su `reason`, y el bloque que decía suprimir sigue siendo
-faltante. La clave sale solo de `--policy-file` (`internal/policy/policy.go#File.ErasureAuthority`):
-con las banderas sueltas del testigo, o con una política sin `erasureKey`, no hay clave y ningún
-evento está autorizado. Los eventos no se cuentan como faltantes.
+con la `erasureKey` de la política o con una de sus `retiredErasureKeys` cuyo corte sea ≥ el
+índice del evento (`internal/erasure/autorizacion.go#Authority.Check`, ADR-033 §C), sin abrir
+el vault. Es la regla de PROTOCOL §5.1. Cada entrada de `erased` dice qué clave autorizó su
+evento. Un evento que no está autorizado es un hallazgo, `"supresión no autorizada"` con su
+`reason`, y el bloque que decía suprimir sigue siendo faltante, salvo que un evento posterior,
+autorizado, del mismo contenido y que cubra su última copia anterior lo **regularice**
+(`internal/reconcile/reconcile.go#regulariza`, ADR-033, decisión 4): entonces sale en
+`regularized` y no en `findings`. Las claves salen solo de `--policy-file`
+(`internal/policy/policy.go#File.ErasureAuthority`): con las banderas sueltas del testigo, o con
+una política sin `erasureKey` ni `retiredErasureKeys`, no hay clave y ningún evento está
+autorizado. Los eventos no se cuentan como faltantes. La misma regla la usa `sync` para el
+corte del fragmento de rotación (`internal/reconcile/reconcile.go#AuthorizedEvents`).
 
 ### 2.6a La supresión, en dos equipos (ADR-031, ADR-032)
 

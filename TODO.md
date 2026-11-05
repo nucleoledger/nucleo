@@ -312,20 +312,24 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
         él, más el subconjunto sigVer del ACVP (1 caso con el filtro de contexto vacío); el
         cruce Go ↔ OpenSSL ↔ NIST en `internal/checkpoint`; ADR-024 enmendado y
         `material/mldsa.json` fuera; el job `mldsa-vectores` y la compuerta (opción b)
-- [ ] **Sprint C — Go**: `internal/policy`; `internal/erasure` y `internal/reconcile` (claves
-      retiradas, `TestClaveRetiradaDespuesDelCorteNoCuenta`, la regularización y
-      `TestSupresionNoAutorizadaRegularizada`); `internal/proof` (ML-DSA con `crypto/mldsa`,
-      `LogMLDSA`); la CLI: `sync` con `logMLDSAKey` y el fragmento de `retiredErasureKeys`
-      (`erasure_rotation` en `--json`), la apertura que coteja la clave, `erasure-key
-      authorize` que rechaza una clave retirada, `reconcile --json` con la clave y
-      `regularized`, y `nucleo verify-receipt`
+- [ ] **Sprint C1 — Go, ADR-033** (Sprint 30): `internal/policy` (los dos miembros; el motivo
+      de cada vector), `internal/erasure` y `internal/reconcile` (claves retiradas,
+      `TestClaveRetiradaDespuesDelCorteNoCuenta`, la regularización y
+      `TestSupresionNoAutorizadaRegularizada`); la CLI: el fragmento de `retiredErasureKeys` en
+      `sync` (`erasure_rotation` en `--json`), `erasure-key authorize` que rechaza una clave
+      retirada, `reconcile --json` con la clave y `regularized`; CLI-JSON, GARANTIAS (G47–G49,
+      L21) y ARQUITECTURA
+- [ ] **Sprint C2 — Go, ADR-034**: `internal/proof` (ML-DSA con `crypto/mldsa`, `LogMLDSA`);
+      `sync` imprime `logMLDSAKey` siempre; la apertura coteja la clave; `nucleo verify-receipt`
 - [ ] **Sprint D — TypeScript, PHP y la página**: los dos miembros en el parser, `logMLDSA`
       con `"present-unverified"` (opción B); el diferencial con los miembros nuevos y la
       divergencia declarada
-- [ ] **Sprint E — documentación y ensayo**: GARANTIAS (L14, L21, L23: la comprobación
-      post-cuántica solo la hace el verificador de Go), OPERACION §3 (rotar con el fragmento
-      de `sync`), CLI-JSON, README; `ensayo-actualizacion.sh` con los pasos del plan conjunto
-      y `tercero-supresion.sh` con la clave retirada
+- [ ] **Sprint E — documentación y ensayo**: GARANTIAS (L14, L23: la comprobación
+      post-cuántica solo la hace el verificador de Go; L21 ya se reescribió en el C1),
+      OPERACION §3 (rotar con el fragmento de `sync`: es lo que el C1 deja sin escribir),
+      CLI-JSON de lo que traiga el C2, README (rotación, regularización y ML-DSA);
+      `ensayo-actualizacion.sh` con los pasos del plan conjunto y `tercero-supresion.sh` con
+      la clave retirada
 - [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`
 
 ## Después del release de v0.4.0-alpha

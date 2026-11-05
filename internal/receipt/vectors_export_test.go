@@ -53,7 +53,7 @@ type vectorFile struct {
 	Requires string `json:"requires,omitempty"`
 	Verdicts struct {
 		// WithoutLogMLDSAKey es el veredicto con la política sin log_mldsa_key: el de
-		// todo lector 0.7-draft, este incluido hasta el Sprint C.
+		// todo lector 0.7-draft, este incluido hasta el Sprint C2.
 		WithoutLogMLDSAKey struct {
 			Valid bool `json:"valid"`
 		} `json:"without_log_mldsa_key"`
@@ -104,7 +104,7 @@ func TestVectoresGoldenDicenLaVerdad(t *testing.T) {
 		switch v.Requires {
 		case "":
 		case "0.8-draft":
-			// Este verificador no lee log_mldsa_key hasta el Sprint C (policyFromVector
+			// Este verificador no lee log_mldsa_key hasta el Sprint C2 (policyFromVector
 			// no la copia): tiene que dar el veredicto de una política sin ella.
 			v.Valid = v.Verdicts.WithoutLogMLDSAKey.Valid
 		default:
