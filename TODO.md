@@ -296,6 +296,15 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 2. `mldsa/`, el subconjunto del ACVP, los recibos ML-DSA y el cruce de Go; ADR-024
 - [x] 3. El job `mldsa-vectores` del CI y la compuerta
 
+## Sprint 30 — la 0.5, Sprint C1: ADR-033 en Go
+- [x] 0. AUTHORS: los tags por regla; `scripts/autores.sh` en la compuerta (las cuatro identidades)
+- [x] 1. `internal/policy`: `retiredErasureKeys` y `logMLDSAKey`; los vectores 0.8 en Go, con su motivo
+- [x] 2. `internal/erasure`: `Check` con la clave actual y las retiradas dentro de su corte
+- [x] 3. `internal/reconcile`: la regularización, la clave en `erased`; mutaciones 2, 4 y desde
+- [x] 4. CLI: `authorize` rechaza una clave retirada; `sync` imprime el fragmento de rotación
+- [x] 5. Compatibilidad con una política 0.7: todo igual salvo la regularización
+- [x] 6. CLI-JSON, GARANTIAS (G47–G49, L21), ARQUITECTURA; README, OPERACION §3 y ensayo al Sprint E
+
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
 La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
 es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
@@ -312,7 +321,7 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
         él, más el subconjunto sigVer del ACVP (1 caso con el filtro de contexto vacío); el
         cruce Go ↔ OpenSSL ↔ NIST en `internal/checkpoint`; ADR-024 enmendado y
         `material/mldsa.json` fuera; el job `mldsa-vectores` y la compuerta (opción b)
-- [ ] **Sprint C1 — Go, ADR-033** (Sprint 30): `internal/policy` (los dos miembros; el motivo
+- [x] **Sprint C1 — Go, ADR-033** (Sprint 30): `internal/policy` (los dos miembros; el motivo
       de cada vector), `internal/erasure` y `internal/reconcile` (claves retiradas,
       `TestClaveRetiradaDespuesDelCorteNoCuenta`, la regularización y
       `TestSupresionNoAutorizadaRegularizada`); la CLI: el fragmento de `retiredErasureKeys` en
