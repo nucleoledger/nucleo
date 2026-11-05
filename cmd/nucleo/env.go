@@ -177,7 +177,19 @@ func (e *env) openStoreWith(wp *store.WitnessPolicy) (*store.Store, store.OpenRe
 		return nil, store.OpenResult{}, err
 	}
 	// La clave de supresión no puede ser la que firma los bloques (ADR-032 §B). El parser
-	// no lo ve si la política no trae signerKey; el ledger abierto, sí.
+	// no lo ve si la política no trae signerKey; el ledger abierto, sí. Lo mismo para cada
+	// clave retirada (ADR-033 §A): una clave del servidor no autorizó nada, nunca.
+	if wp != nil {
+		for _, k := range wp.RetiredErasureKeys {
+			if hex.EncodeToString(k) == res.SignerKey {
+				s.Close()
+				return nil, store.OpenResult{}, usageErr("una clave de retiredErasureKeys de la política es la clave que firma los\n" +
+					"  bloques de este ledger, que la passphrase abre: con ella, quien controle el servidor\n" +
+					"  podría autorizar sus propias supresiones hasta el corte. Una clave de supresión, actual\n" +
+					"  o retirada, no está en el servidor: quita esa clave de retiredErasureKeys (ADR-033)")
+			}
+		}
+	}
 	if wp != nil && len(wp.ErasureKey) > 0 && hex.EncodeToString(wp.ErasureKey) == res.SignerKey {
 		s.Close()
 		return nil, store.OpenResult{}, usageErr("la erasureKey de la política es la clave que firma los bloques de este ledger,\n" +

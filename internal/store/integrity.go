@@ -230,6 +230,9 @@ type WitnessPolicy struct {
 	// ErasureKey es la clave de supresión de la política (ADR-032). El almacén no la usa
 	// para abrir; viaja aquí para que quien abre compruebe que no es la del firmante.
 	ErasureKey ed25519.PublicKey
+	// RetiredErasureKeys son las claves de supresión retiradas de la política (ADR-033).
+	// Tampoco las usa el almacén: viajan para la misma comprobación que ErasureKey.
+	RetiredErasureKeys []ed25519.PublicKey
 }
 
 // ErrPolicy indica una política de apertura que no puede verificar nada.

@@ -113,6 +113,9 @@ func VerifyCID(key ed25519.PublicKey, origin, payloadHash, cid string) (uint64, 
 type Authority struct {
 	Origin string
 	Key    ed25519.PublicKey
+	// Retired son las claves retiradas de la política, en hexadecimal, con su corte
+	// (ADR-033): cada una autoriza solo los eventos con índice ≤ su corte.
+	Retired map[string]uint64
 }
 
 // Check decide si el evento ev, que dice suprimir el contenido payloadHash, está

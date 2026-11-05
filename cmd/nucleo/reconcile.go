@@ -49,7 +49,7 @@ func cmdReconcile(e *env, args []string) error {
 	// (ADR-032). Sin --policy-file, o con una política sin erasureKey, ninguna cuenta.
 	opts := reconcile.Options{IncludeFullVerify: *full}
 	if pol != nil {
-		opts.Erasure.Origin, opts.Erasure.Key = pol.ErasureAuthority()
+		opts.Erasure = pol.ErasureAuthority()
 	}
 	rep, err := reconcile.Reconcile(s, jsonlSource(*source), opts)
 	if err != nil {

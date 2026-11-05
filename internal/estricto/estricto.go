@@ -42,18 +42,24 @@ type Opciones struct {
 // estricta y devuelve sus miembros en orden.
 func Leer(raw []byte, o Opciones) ([]Miembro, error) {
 	if len(raw) > o.Max {
-		return nil, fmt.Errorf("%w: mide %d bytes y el máximo es %d", o.Error, len(raw), o.Max)
+		return nil, nuevoError(o.Error, ClaseTamano, nil, fmt.Sprintf("mide %d bytes y el máximo es %d", len(raw), o.Max))
 	}
 	if !utf8.Valid(raw) {
-		return nil, fmt.Errorf("%w: no es UTF-8 válido", o.Error)
+		return nil, nuevoError(o.Error, ClaseUTF8, nil, "no es UTF-8 válido")
 	}
 	if bytes.HasPrefix(raw, []byte("\xef\xbb\xbf")) {
-		return nil, fmt.Errorf("%w: empieza con BOM", o.Error)
+		return nil, nuevoError(o.Error, ClaseBOM, nil, "empieza con BOM")
 	}
 	p := &lector{s: raw, o: o}
 	p.espacios()
 	if p.i >= len(p.s) || p.s[p.i] != '{' {
-		return nil, fmt.Errorf("%w: el documento tiene que ser un objeto JSON", o.Error)
+		// Otro valor JSON en vez del objeto es un tipo equivocado; lo que no empieza como
+		// ningún valor —vacío, un comentario— no es JSON.
+		clase := ClaseSintaxis
+		if p.i < len(p.s) && bytes.IndexByte([]byte(`["-0123456789tfn`), p.s[p.i]) >= 0 {
+			clase = ClaseNoObjeto
+		}
+		return nil, nuevoError(o.Error, clase, nil, "el documento tiene que ser un objeto JSON")
 	}
 	obj, err := p.objeto(1)
 	if err != nil {
@@ -61,9 +67,24 @@ func Leer(raw []byte, o Opciones) ([]Miembro, error) {
 	}
 	p.espacios()
 	if p.i != len(p.s) {
-		return nil, fmt.Errorf("%w: hay contenido después del objeto (posición %d)", o.Error, p.i)
+		return nil, nuevoError(o.Error, ClaseDetras, nil, fmt.Sprintf("hay contenido después del objeto (posición %d)", p.i))
 	}
 	return obj, nil
+}
+
+// claseDeValor dice qué hay en la posición actual cuando no es cadena, número ni objeto.
+// El mensaje es el mismo para todos (Opciones.MsgValor); la clase no.
+func (p *lector) claseDeValor() Clase {
+	resto := p.s[p.i:]
+	switch {
+	case bytes.HasPrefix(resto, []byte("null")):
+		return ClaseNull
+	case bytes.HasPrefix(resto, []byte("true")), bytes.HasPrefix(resto, []byte("false")):
+		return ClaseBooleano
+	case resto[0] == '[':
+		return ClaseArray
+	}
+	return ClaseSintaxis
 }
 
 // Valor es un valor JSON leído. Solo existen los tipos que estos formatos pueden
@@ -82,13 +103,15 @@ type Miembro struct {
 }
 
 type lector struct {
-	s []byte
-	i int
-	o Opciones
+	s    []byte
+	i    int
+	o    Opciones
+	ruta []string // los nombres de los miembros que se están leyendo, desde el documento
 }
 
-func (p *lector) errorf(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format+" (posición %d)", append([]any{p.o.Error}, append(args, p.i)...)...)
+// errorf es un error de la clase dada en la posición actual, con la ruta actual.
+func (p *lector) errorf(clase Clase, format string, args ...any) error {
+	return nuevoError(p.o.Error, clase, p.ruta, fmt.Sprintf(format+" (posición %d)", append(args, p.i)...))
 }
 
 func (p *lector) espacios() {
@@ -106,7 +129,7 @@ func (p *lector) espacios() {
 // Opciones.Profundidad es error.
 func (p *lector) objeto(profundidad int) ([]Miembro, error) {
 	if profundidad > p.o.Profundidad {
-		return nil, p.errorf("%s", p.o.MsgAnidado)
+		return nil, p.errorf(ClaseAnidado, "%s", p.o.MsgAnidado)
 	}
 	p.i++ // '{'
 	var out []Miembro
@@ -119,30 +142,32 @@ func (p *lector) objeto(profundidad int) ([]Miembro, error) {
 	for {
 		p.espacios()
 		if p.i >= len(p.s) || p.s[p.i] != '"' {
-			return nil, p.errorf("se esperaba el nombre de un miembro")
+			return nil, p.errorf(ClaseSintaxis, "se esperaba el nombre de un miembro")
 		}
 		nombre, err := p.cadena()
 		if err != nil {
 			return nil, err
 		}
 		if vistos[nombre] {
-			return nil, p.errorf("el miembro %q está repetido", nombre)
+			return nil, p.errorf(ClaseRepetido, "el miembro %q está repetido", nombre)
 		}
 		vistos[nombre] = true
 		p.espacios()
 		if p.i >= len(p.s) || p.s[p.i] != ':' {
-			return nil, p.errorf("se esperaba ':'")
+			return nil, p.errorf(ClaseSintaxis, "se esperaba ':'")
 		}
 		p.i++
 		p.espacios()
+		p.ruta = append(p.ruta, nombre)
 		v, err := p.valor(profundidad)
 		if err != nil {
 			return nil, err
 		}
+		p.ruta = p.ruta[:len(p.ruta)-1]
 		out = append(out, Miembro{nombre, v})
 		p.espacios()
 		if p.i >= len(p.s) {
-			return nil, p.errorf("objeto sin cerrar")
+			return nil, p.errorf(ClaseSintaxis, "objeto sin cerrar")
 		}
 		switch p.s[p.i] {
 		case ',':
@@ -151,14 +176,14 @@ func (p *lector) objeto(profundidad int) ([]Miembro, error) {
 			p.i++
 			return out, nil
 		default:
-			return nil, p.errorf("se esperaba ',' o '}'")
+			return nil, p.errorf(ClaseSintaxis, "se esperaba ',' o '}'")
 		}
 	}
 }
 
 func (p *lector) valor(profundidad int) (Valor, error) {
 	if p.i >= len(p.s) {
-		return Valor{}, p.errorf("falta un valor")
+		return Valor{}, p.errorf(ClaseSintaxis, "falta un valor")
 	}
 	switch c := p.s[p.i]; {
 	case c == '"':
@@ -171,7 +196,7 @@ func (p *lector) valor(profundidad int) (Valor, error) {
 		n, err := p.numero()
 		return Valor{Tipo: 'n', Numero: n}, err
 	default:
-		return Valor{}, p.errorf("%s", p.o.MsgValor)
+		return Valor{}, p.errorf(p.claseDeValor(), "%s", p.o.MsgValor)
 	}
 }
 
@@ -183,7 +208,7 @@ func (p *lector) cadena() (string, error) {
 	var b []byte
 	for {
 		if p.i >= len(p.s) {
-			return "", p.errorf("cadena sin cerrar")
+			return "", p.errorf(ClaseSintaxis, "cadena sin cerrar")
 		}
 		c := p.s[p.i]
 		switch {
@@ -191,7 +216,7 @@ func (p *lector) cadena() (string, error) {
 			p.i++
 			return string(b), nil
 		case c < 0x20:
-			return "", p.errorf("carácter de control sin escapar dentro de una cadena")
+			return "", p.errorf(ClaseSintaxis, "carácter de control sin escapar dentro de una cadena")
 		case c != '\\':
 			b = append(b, c)
 			p.i++
@@ -199,7 +224,7 @@ func (p *lector) cadena() (string, error) {
 		}
 		p.i++
 		if p.i >= len(p.s) {
-			return "", p.errorf("escape incompleto")
+			return "", p.errorf(ClaseSintaxis, "escape incompleto")
 		}
 		e := p.s[p.i]
 		p.i++
@@ -225,7 +250,7 @@ func (p *lector) cadena() (string, error) {
 			switch {
 			case utf16.IsSurrogate(r) && u < 0xdc00:
 				if p.i+1 >= len(p.s) || p.s[p.i] != '\\' || p.s[p.i+1] != 'u' {
-					return "", p.errorf("surrogate UTF-16 alto sin su pareja")
+					return "", p.errorf(ClaseSurrogate, "surrogate UTF-16 alto sin su pareja")
 				}
 				p.i += 2
 				bajo, err := p.hex4()
@@ -233,26 +258,26 @@ func (p *lector) cadena() (string, error) {
 					return "", err
 				}
 				if bajo < 0xdc00 || bajo > 0xdfff {
-					return "", p.errorf("surrogate UTF-16 alto sin su pareja")
+					return "", p.errorf(ClaseSurrogate, "surrogate UTF-16 alto sin su pareja")
 				}
 				r = utf16.DecodeRune(r, rune(bajo))
 			case utf16.IsSurrogate(r):
-				return "", p.errorf("surrogate UTF-16 bajo suelto")
+				return "", p.errorf(ClaseSurrogate, "surrogate UTF-16 bajo suelto")
 			}
 			b = utf8.AppendRune(b, r)
 		default:
-			return "", p.errorf("escape desconocido \\%c", e)
+			return "", p.errorf(ClaseSintaxis, "escape desconocido \\%c", e)
 		}
 	}
 }
 
 func (p *lector) hex4() (uint16, error) {
 	if p.i+4 > len(p.s) {
-		return 0, p.errorf("escape \\u incompleto")
+		return 0, p.errorf(ClaseSintaxis, "escape \\u incompleto")
 	}
 	v, err := strconv.ParseUint(string(p.s[p.i:p.i+4]), 16, 16)
 	if err != nil {
-		return 0, p.errorf("escape \\u con dígitos no hexadecimales")
+		return 0, p.errorf(ClaseSintaxis, "escape \\u con dígitos no hexadecimales")
 	}
 	p.i += 4
 	return uint16(v), nil
@@ -274,13 +299,19 @@ func (p *lector) numero() (string, error) {
 	}
 	if p.i < len(p.s) && p.s[p.i] == '0' {
 		p.i++
+		// RFC 8259 no admite ceros a la izquierda. Sin esta línea el 0 se leía como el
+		// número entero y el error salía después, como un separador que falta, fuera del
+		// miembro al que pertenece el número. Se acepta y se rechaza lo mismo que antes.
+		if p.i < len(p.s) && p.s[p.i] >= '0' && p.s[p.i] <= '9' {
+			return "", p.errorf(ClaseNumero, "número con un cero a la izquierda")
+		}
 	} else if digitos() == 0 {
-		return "", p.errorf("número mal formado")
+		return "", p.errorf(ClaseNumero, "número mal formado")
 	}
 	if p.i < len(p.s) && p.s[p.i] == '.' {
 		p.i++
 		if digitos() == 0 {
-			return "", p.errorf("número mal formado")
+			return "", p.errorf(ClaseNumero, "número mal formado")
 		}
 	}
 	if p.i < len(p.s) && (p.s[p.i] == 'e' || p.s[p.i] == 'E') {
@@ -289,7 +320,7 @@ func (p *lector) numero() (string, error) {
 			p.i++
 		}
 		if digitos() == 0 {
-			return "", p.errorf("número mal formado")
+			return "", p.errorf(ClaseNumero, "número mal formado")
 		}
 	}
 	return string(p.s[ini:p.i]), nil

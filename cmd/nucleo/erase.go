@@ -59,7 +59,7 @@ func cmdErase(e *env, args []string) error {
 	// convertir el registro en un faltante. Mejor no empezar.
 	auth := erasure.Authority{}
 	if pol != nil {
-		auth.Origin, auth.Key = pol.ErasureAuthority()
+		auth = pol.ErasureAuthority()
 	}
 	if auth.Key == nil {
 		return usageErr("erase necesita --policy-file con una política que traiga erasureKey: la clave de\n" +

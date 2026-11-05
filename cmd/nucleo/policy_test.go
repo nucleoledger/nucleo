@@ -217,3 +217,41 @@ func TestErasureKeyNoPuedeSerLaDelFirmante(t *testing.T) {
 		t.Errorf("no dice por qué:\n%s", errOut)
 	}
 }
+
+// TestClaveRetiradaNoPuedeSerLaDelFirmante (ADR-033 §A): la regla de ADR-032 §B, aplicada
+// a cada clave retirada. Sin signerKey en la política el parser no ve la clave que firma
+// los bloques; al abrir, sí. Con erasureKey y sin ella.
+func TestClaveRetiradaNoPuedeSerLaDelFirmante(t *testing.T) {
+	c := newCLI(t)
+	c.initLedger()
+	c.sealFile(`{"x":1}`)
+	url, name, key := startTestWitness(t, c.logPubKey(t))
+	js := c.mustRun("--json", "sync", "--witness", url, "--witness-name", name, "--witness-key", key)
+	var v struct {
+		Policy map[string]any `json:"policy"`
+	}
+	if err := json.Unmarshal([]byte(js), &v); err != nil {
+		t.Fatal(err)
+	}
+	firmante := v.Policy["signerKey"].(string)
+	delete(v.Policy, "signerKey")
+	for nombre, conActual := range map[string]bool{"con erasureKey": true, "sin erasureKey": false} {
+		t.Run(nombre, func(t *testing.T) {
+			if conActual {
+				v.Policy["erasureKey"] = "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7"
+			} else {
+				delete(v.Policy, "erasureKey")
+			}
+			v.Policy["retiredErasureKeys"] = map[string]int{firmante: 3}
+			raw, _ := json.Marshal(v.Policy)
+			path := filepath.Join(c.dir, "politica.json")
+			if err := os.WriteFile(path, raw, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, errOut := c.runWant(t, exitUsage, "status", "--policy-file", path)
+			if !strings.Contains(errOut, "retiredErasureKeys") || !strings.Contains(errOut, "no está en el servidor") {
+				t.Errorf("no dice por qué:\n%s", errOut)
+			}
+		})
+	}
+}

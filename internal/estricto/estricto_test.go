@@ -69,3 +69,39 @@ func TestHexClaveYAsciiIgual(t *testing.T) {
 		t.Error("AsciiIgual")
 	}
 }
+
+// TestClaseYRuta: el error del lector dice qué falló y en qué miembro, sin cambiar su
+// texto. Es lo que necesita quien da un motivo con nombre (internal/policy).
+func TestClaseYRuta(t *testing.T) {
+	o := Opciones{Error: errPrueba, Max: 256, Profundidad: 2, MsgAnidado: "hondo", MsgValor: "valor"}
+	for _, c := range []struct {
+		doc   string
+		clase Clase
+		ruta  string
+	}{
+		{`{"a": null}`, ClaseNull, "a"},
+		{`{"a": {"b": true}}`, ClaseBooleano, "a/b"},
+		{`{"a": [1]}`, ClaseArray, "a"},
+		{`{"a": {"b": {}}}`, ClaseAnidado, "a/b"},
+		{`{"a": 01}`, ClaseNumero, "a"},
+		{`{"a": 1, "a": 2}`, ClaseRepetido, ""},
+		{`[]`, ClaseNoObjeto, ""},
+		{`// x`, ClaseSintaxis, ""},
+		{``, ClaseSintaxis, ""},
+		{`{"a": "\udc00"}`, ClaseSurrogate, "a"},
+		{`{} {}`, ClaseDetras, ""},
+	} {
+		_, err := Leer([]byte(c.doc), o)
+		e := Como(err)
+		if e == nil {
+			t.Errorf("%s: %v no es un *Error", c.doc, err)
+			continue
+		}
+		if e.Clase != c.clase || strings.Join(e.Ruta, "/") != c.ruta {
+			t.Errorf("%s: clase %q ruta %q, want %q %q", c.doc, e.Clase, strings.Join(e.Ruta, "/"), c.clase, c.ruta)
+		}
+		if !errors.Is(err, errPrueba) || !strings.HasPrefix(err.Error(), errPrueba.Error()+": ") {
+			t.Errorf("%s: el texto o el centinela cambiaron: %v", c.doc, err)
+		}
+	}
+}

@@ -150,7 +150,8 @@ func cmdErasureKeyAuthorize(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
-	origin, key := f.ErasureAuthority()
+	autoridad := f.ErasureAuthority()
+	origin, key := autoridad.Origin, autoridad.Key
 	if key == nil {
 		return usageErr("la política %q no trae erasureKey: sin ella ninguna supresión cuenta, y no hay\n"+
 			"  clave que comprobar. Genera la clave con `nucleo erasure-key init` y pon su clave\n"+
