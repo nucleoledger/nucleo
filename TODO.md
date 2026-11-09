@@ -305,6 +305,18 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 5. Compatibilidad con una política 0.7: todo igual salvo la regularización
 - [x] 6. CLI-JSON, GARANTIAS (G47–G49, L21), ARQUITECTURA; README, OPERACION §3 y ensayo al Sprint E
 
+## Sprint 31 — la 0.5, Sprint C2: ADR-034 en Go, y tres cierres del C1
+- [x] 0a. Fuzz diferencial de la política: el Parse de hoy frente al de v0.4.0-alpha
+      (`FuzzPoliticaFrenteAV04`, en el job fuzz del CI)
+- [ ] 0b. `erase` avisa, antes de sellar, de que regularizar es ratificar (`regularizes`)
+- [ ] 0c. `scripts/autores.sh` compara sha256 de las identidades
+- [ ] 1. El ACVP con contexto: los 14 casos ML-DSA-44 puros, grupo aparte
+- [ ] 2. La verificación ML-DSA-44 en `internal/proof` y `internal/receipt`; `LogMLDSA`
+- [ ] 3. La CLI: la apertura coteja `logMLDSAKey`; `sync` la imprime siempre
+- [ ] 4. `nucleo verify-receipt`
+- [ ] 5. Compatibilidad con una política sin `logMLDSAKey`, y el diferencial
+- [ ] 6. CLI-JSON, GARANTIAS, ADR-034 (Implementación), PLAN y TODO
+
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
 La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
 es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.

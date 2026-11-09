@@ -188,7 +188,7 @@ jobs:
   #     lo único que el corpus no puede hacer.
   #
   # 15 segundos por fuzzer y no 30: ocho fuzzers × 15 s más el arranque dan unos
-  # 2m30s, que es justo lo que ya tarda el job más lento (test en macOS). Así el
+  # 2m30s (nueve desde el Sprint 31, con el diferencial de la política: unos 2m45s), que es justo lo que ya tarda el job más lento (test en macOS). Así el
   # tiempo total de CI no sube, porque este job no pasa a ser el camino crítico.
   # Con 30 s sí lo sería, y el precio —cuatro minutos de espera en cada push— no
   # lo compensa un fuzzing que de todas formas es demasiado corto para encontrar
@@ -319,6 +319,7 @@ jobs:
           internal/proof FuzzParseProof
           internal/receipt FuzzParseReceipt
           internal/receipt FuzzTextoLegible
+          internal/policy FuzzPoliticaFrenteAV04
           LIST
       # Un hallazgo del fuzzer deja un fichero nuevo en testdata/fuzz. En CI eso
       # se perdería al terminar el job, así que se sube como artefacto: sin él,
