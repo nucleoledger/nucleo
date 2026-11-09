@@ -17,6 +17,9 @@ SUBCOMANDOS
   status      muestra el estado del ledger y si está atestiguado
   verify      verifica la integridad del ledger  (--full para la exhaustiva)
   receipt     emite el recibo FIRMADO de un bloque para un destinatario
+  verify-receipt
+              verifica un recibo ajeno con una política, sin ledger, sin passphrase y sin
+              red; con logMLDSAKey en la política, también la firma post-cuántica del log
   reconcile   coteja el sistema vivo contra lo sellado
   sync        pide atestación a un testigo
   witness     witness serve — levanta un testigo · witness key — su clave pública

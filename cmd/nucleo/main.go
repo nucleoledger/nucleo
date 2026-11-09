@@ -125,13 +125,16 @@ var commands = map[string]func(*env, []string) error{
 	// clave de supresión (ADR-032).
 	"erasure-key": cmdErasureKey,
 	"receipt":     cmdReceipt,
-	"reconcile":   cmdReconcile,
-	"sync":        cmdSync,
-	"witness":     cmdWitness,
-	"backup":      cmdBackup,
-	"restore":     cmdRestore,
-	"alert":       cmdAlert,
-	"version":     cmdVersion,
+	// verify-receipt tampoco abre ningún ledger: verifica un recibo ajeno con una política
+	// (ADR-034, decisión 8).
+	"verify-receipt": cmdVerifyReceipt,
+	"reconcile":      cmdReconcile,
+	"sync":           cmdSync,
+	"witness":        cmdWitness,
+	"backup":         cmdBackup,
+	"restore":        cmdRestore,
+	"alert":          cmdAlert,
+	"version":        cmdVersion,
 }
 
 func main() {
