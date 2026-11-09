@@ -273,3 +273,96 @@ func TestSinErasureKeyNoHayFragmento(t *testing.T) {
 		t.Errorf("habla de rotar sin erasureKey:\n%s", out)
 	}
 }
+
+// conSupresionNoAutorizada prepara un ledger cuyo bloque 0 tiene ya una supresión NO
+// autorizada (evento en el bloque 2, con la firma de la autorización alterada) y devuelve
+// los argumentos de un erase autorizado del bloque 0, que la regulariza.
+func conSupresionNoAutorizada(t *testing.T) (*cli, []string, string) {
+	t.Helper()
+	c := newCLI(t)
+	sp := c.initConSupresion(t)
+	c.sealFile(`{"venta":"001","cliente":"Ana"}`)
+	c.sealFile(`{"venta":"002","cliente":"Luis"}`)
+	h0, _ := contenidoDe(t, c.dir, 0)
+	buena := c.autoriza(t, sp, h0, 0)
+	i := len(buena) - 10
+	repl := byte('A')
+	if buena[i] == 'A' {
+		repl = 'B'
+	}
+	mala := buena[:i] + string(repl) + buena[i+1:]
+	sellaSupresionConCID(t, c, h0, mala) // bloque 2: la supresión que nadie autorizó
+	return c, []string{"erase", "--block", "0", "--policy-file", sp.politica, "--authorization", buena}, h0
+}
+
+// TestRegularizarEsRatificar (Sprint 31, cierre del C1; ADR-033, decisión 4): cuando erase
+// va a sellar un evento autorizado sobre un contenido que ya tiene una supresión no
+// autorizada, lo dice ANTES de sellar —en la confirmación tecleada, o por stderr con
+// --assume-confirmed— y lo deja en la salida: en el texto y en regularizes de --json.
+// Sin supresión previa no hay aviso ni regularizes: la salida es la de siempre.
+func TestRegularizarEsRatificar(t *testing.T) {
+	const aviso = "esto REGULARIZA la supresión no autorizada del evento 2 ("
+	const ratificar = "regularizar es ratificar ese borrado: hazlo solo si la supresión estaba pedida de verdad."
+
+	t.Run("la confirmación lo muestra y --json lo deja", func(t *testing.T) {
+		c, args, _ := conSupresionNoAutorizada(t)
+		var errOut string
+		conEntrada(t, "00000000\n", func() {
+			_, errOut = c.runWant(t, exitUsage, args...)
+		})
+		if !strings.Contains(errOut, aviso) || !strings.Contains(errOut, ratificar) {
+			t.Fatalf("la confirmación no dice que regulariza:\n%s", errOut)
+		}
+		if strings.Index(errOut, "REGULARIZA") > strings.Index(errOut, "Para confirmar") {
+			t.Errorf("el aviso va después de pedir la confirmación:\n%s", errOut)
+		}
+		if bloques(t, c.dir) != 3 {
+			t.Fatal("una confirmación equivocada selló algo")
+		}
+
+		out, errOut := c.runWant(t, exitOK, append([]string{"--json"}, append(args, "--assume-confirmed")...)...)
+		if !strings.Contains(errOut, aviso) {
+			t.Errorf("con --json --assume-confirmed no avisa por stderr:\n%s", errOut)
+		}
+		var v struct {
+			Index       uint64 `json:"index"`
+			Regularizes []struct {
+				Index  uint64 `json:"index"`
+				Reason string `json:"reason"`
+			} `json:"regularizes"`
+		}
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatal(err)
+		}
+		if v.Index != 3 || len(v.Regularizes) != 1 || v.Regularizes[0].Index != 2 || v.Regularizes[0].Reason == "" {
+			t.Fatalf("regularizes:\n%s", out)
+		}
+	})
+
+	t.Run("con --assume-confirmed queda en el texto", func(t *testing.T) {
+		c, args, _ := conSupresionNoAutorizada(t)
+		out, errOut := c.runWant(t, exitOK, append(args, "--assume-confirmed")...)
+		if !strings.Contains(errOut, aviso) || !strings.Contains(out, aviso) || !strings.Contains(out, ratificar) {
+			t.Fatalf("el aviso no queda en la salida:\nstdout:\n%s\nstderr:\n%s", out, errOut)
+		}
+	})
+
+	t.Run("sin supresión previa no hay aviso", func(t *testing.T) {
+		c := newCLI(t)
+		sp := c.initConSupresion(t)
+		c.sealFile(`{"venta":"001","cliente":"Ana"}`)
+		h0, _ := contenidoDe(t, c.dir, 0)
+		out, errOut := c.runWant(t, exitOK, "--json", "erase", "--block", "0", "--policy-file", sp.politica,
+			"--authorization", c.autoriza(t, sp, h0, 0), "--assume-confirmed")
+		var v map[string]any
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatal(err)
+		}
+		if r, ok := v["regularizes"]; ok {
+			t.Errorf("regularizes = %#v sin nada que regularizar; no tenía que salir", r)
+		}
+		if strings.Contains(out+errOut, "REGULARIZA") {
+			t.Errorf("avisa sin nada que regularizar:\n%s\n%s", out, errOut)
+		}
+	})
+}

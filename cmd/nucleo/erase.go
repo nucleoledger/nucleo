@@ -165,6 +165,16 @@ func cmdErase(e *env, args []string) error {
 			cubre, through, ordenAutorizar(pf.file.v, h, through))
 	}
 
+	// Regularizar es ratificar (ADR-033, decisión 4): si el contenido ya tiene eventos de
+	// supresión que esta política no autoriza, el evento que se va a sellar los regulariza,
+	// y reconcile dejará de contarlos como hallazgo. Eso es dar por bueno un borrado que
+	// nadie autorizó, y se dice ANTES de sellar: en la confirmación, o por stderr con
+	// --assume-confirmed; y queda en la salida.
+	regulariza, err := supresionesNoAutorizadas(s, auth, h, afectados[0])
+	if err != nil {
+		return err
+	}
+
 	v, id, err := e.unlock(s, *passFile, "Passphrase del vault: ")
 	if err != nil {
 		return err
@@ -174,8 +184,12 @@ func cmdErase(e *env, args []string) error {
 		return err
 	}
 
-	if !*yes {
-		ok, err := tecleaElHash(e, h, afectados)
+	if *yes {
+		for _, r := range regulariza {
+			fmt.Fprintf(e.stderr, "⚠ %s\n", avisoRegulariza(r))
+		}
+	} else {
+		ok, err := tecleaElHash(e, h, afectados, regulariza)
 		if err != nil {
 			return err
 		}
@@ -245,6 +259,11 @@ func cmdErase(e *env, args []string) error {
 		"already_erased":      false,
 		"wal_purged":          walVacio,
 	}
+	// Solo cuando hay algo que regularizar: así la salida de una supresión normal es la de
+	// siempre, byte a byte (los vectores de testdata/vectors/cli-json/ no cambian).
+	if len(regulariza) > 0 {
+		salida["regularizes"] = regulariza
+	}
 	st, err := sealTail(e, s, res, wp != nil, ev.Header.Index+1, salida)
 	if err != nil {
 		return err
@@ -257,6 +276,9 @@ func cmdErase(e *env, args []string) error {
 		e.printf("  hash del contenido: %s\n", h)
 		e.printf("  bloques afectados : %s\n", strings.TrimPrefix(listaBloques(afectados), "el "))
 		e.printf("  evento sellado    : bloque %d\n", ev.Header.Index)
+		for _, r := range regulariza {
+			e.printf("\n  ⚠ %s\n", avisoRegulariza(r))
+		}
 		e.printf("\n  La cadena y los recibos ya emitidos siguen verificando: demuestran el hash,\n")
 		e.printf("  no el contenido. Las copias de seguridad del ledger hechas antes de hoy aún\n")
 		e.printf("  lo contienen, cifrado: destrúyelas o déjalas fuera del alcance de quien tenga\n")
@@ -312,6 +334,39 @@ func hayEventoSinAutorizar(s *store.Store, h string, desde uint64) (bool, error)
 	return len(eventos) > 0, err
 }
 
+// supresionNoAutorizada es un evento de supresión que la política no autoriza y que el
+// evento que erase va a sellar regulariza (ADR-033, decisión 4).
+type supresionNoAutorizada struct {
+	// Index es el bloque del evento no autorizado.
+	Index uint64 `json:"index"`
+	// Reason es por qué no está autorizado, como el reason de reconcile.
+	Reason string `json:"reason"`
+}
+
+// supresionesNoAutorizadas devuelve los eventos de supresión del contenido h posteriores
+// al bloque desde que la política no autoriza, en orden. Son los que el evento autorizado
+// de erase regulariza: llega a la última copia del contenido y va detrás de todos, que es
+// lo que reconcile exige para contarlos como regularizados.
+func supresionesNoAutorizadas(s *store.Store, auth erasure.Authority, h string, desde uint64) ([]supresionNoAutorizada, error) {
+	eventos, err := eventosDe(s, h, desde)
+	if err != nil {
+		return nil, err
+	}
+	out := []supresionNoAutorizada{}
+	for _, ev := range eventos {
+		if _, err := auth.Check(ev, h); err != nil {
+			out = append(out, supresionNoAutorizada{Index: ev.Header.Index, Reason: err.Error()})
+		}
+	}
+	return out, nil
+}
+
+// avisoRegulariza es la frase que dice qué significa regularizar: ratificar un borrado.
+func avisoRegulariza(r supresionNoAutorizada) string {
+	return fmt.Sprintf("esto REGULARIZA la supresión no autorizada del evento %d (%s); regularizar es ratificar ese borrado: hazlo solo si la supresión estaba pedida de verdad.",
+		r.Index, r.Reason)
+}
+
 // eventosDe devuelve los eventos de supresión del contenido h posteriores al bloque
 // desde, en orden.
 func eventosDe(s *store.Store, h string, desde uint64) ([]*ledger.Block, error) {
@@ -342,9 +397,15 @@ func eventosDe(s *store.Store, h string, desde uint64) ([]*ledger.Block, error) 
 // tecleaElHash enseña lo que se va a suprimir y pide teclear el principio del hash.
 // No es un trámite: suprimir no tiene vuelta atrás, y el bloque equivocado —un dígito
 // mal copiado en --block— es el error que esto detiene.
-func tecleaElHash(e *env, h string, afectados []uint64) (bool, error) {
+//
+// Si el evento regulariza supresiones no autorizadas, lo dice aquí, antes de que se
+// teclee nada: es lo que se está confirmando.
+func tecleaElHash(e *env, h string, afectados []uint64, regulariza []supresionNoAutorizada) (bool, error) {
 	fmt.Fprintf(e.stderr, "Se va a suprimir, SIN VUELTA ATRÁS, el contenido %s\n", h)
 	fmt.Fprintf(e.stderr, "de %s. La cadena no cambia; el contenido no se podrá recuperar.\n", listaBloques(afectados))
+	for _, r := range regulariza {
+		fmt.Fprintf(e.stderr, "⚠ %s\n", avisoRegulariza(r))
+	}
 	fmt.Fprintf(e.stderr, "Para confirmar, escribe los %d primeros caracteres de ese hash: ", prefijoConfirmacion)
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil {

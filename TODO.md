@@ -308,7 +308,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 ## Sprint 31 — la 0.5, Sprint C2: ADR-034 en Go, y tres cierres del C1
 - [x] 0a. Fuzz diferencial de la política: el Parse de hoy frente al de v0.4.0-alpha
       (`FuzzPoliticaFrenteAV04`, en el job fuzz del CI)
-- [ ] 0b. `erase` avisa, antes de sellar, de que regularizar es ratificar (`regularizes`)
+- [x] 0b. `erase` avisa, antes de sellar, de que regularizar es ratificar (`regularizes`)
 - [ ] 0c. `scripts/autores.sh` compara sha256 de las identidades
 - [ ] 1. El ACVP con contexto: los 14 casos ML-DSA-44 puros, grupo aparte
 - [ ] 2. La verificación ML-DSA-44 en `internal/proof` y `internal/receipt`; `LogMLDSA`
@@ -348,6 +348,9 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
 - [ ] **Sprint E — documentación y ensayo**: GARANTIAS (L14, L23: la comprobación
       post-cuántica solo la hace el verificador de Go; L21 ya se reescribió en el C1),
       OPERACION §3 (rotar con el fragmento de `sync`: es lo que el C1 deja sin escribir),
+      OPERACION: cuándo regularizar y cuándo no —regularizar es ratificar el borrado no
+      autorizado; solo si la supresión estaba pedida de verdad, y qué hacer si no (es un
+      incidente: ADR-032)—, con el aviso que `erase` da desde el Sprint 31,
       CLI-JSON de lo que traiga el C2, README (rotación, regularización y ML-DSA);
       `ensayo-actualizacion.sh` con los pasos del plan conjunto y `tercero-supresion.sh` con
       la clave retirada
