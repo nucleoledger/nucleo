@@ -314,7 +314,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 2. La verificación ML-DSA-44 en `internal/proof` y `internal/receipt`; `LogMLDSA`; tres mutaciones
 - [x] 3. La CLI: la apertura coteja `logMLDSAKey` (seal, sync, receipt, erase); `sync` la imprime siempre
 - [x] 4. `nucleo verify-receipt` (0 vale, 2 no, 1 uso; todos los vectores con el veredicto de Go)
-- [ ] 5. Compatibilidad con una política sin `logMLDSAKey`, y el diferencial
+- [x] 5. Compatibilidad con una política sin `logMLDSAKey` (4677 casos contra el código de v0.4.0-alpha), y el diferencial
 - [ ] 6. CLI-JSON, GARANTIAS, ADR-034 (Implementación), PLAN y TODO
 
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
