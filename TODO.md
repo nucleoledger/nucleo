@@ -309,7 +309,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 0a. Fuzz diferencial de la política: el Parse de hoy frente al de v0.4.0-alpha
       (`FuzzPoliticaFrenteAV04`, en el job fuzz del CI)
 - [x] 0b. `erase` avisa, antes de sellar, de que regularizar es ratificar (`regularizes`)
-- [ ] 0c. `scripts/autores.sh` compara sha256 de las identidades
+- [x] 0c. `scripts/autores.sh` compara sha256 de las identidades, no el texto
 - [ ] 1. El ACVP con contexto: los 14 casos ML-DSA-44 puros, grupo aparte
 - [ ] 2. La verificación ML-DSA-44 en `internal/proof` y `internal/receipt`; `LogMLDSA`
 - [ ] 3. La CLI: la apertura coteja `logMLDSAKey`; `sync` la imprime siempre
