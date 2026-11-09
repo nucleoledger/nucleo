@@ -356,7 +356,9 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       autorizado; solo si la supresión estaba pedida de verdad, y qué hacer si no (es un
       incidente: ADR-032)—, con el aviso que `erase` da desde el Sprint 31,
       (CLI-JSON del C2: hecho en el Sprint 31), README (rotación, regularización, ML-DSA y
-      `verify-receipt` en la lista de órdenes);
+      `verify-receipt` en la lista de órdenes); el ejemplo `examples/erp-node` al SDK 0.5 y
+      fuera el `delete sync.policy.logMLDSAKey` provisional de `bin/setup.js` (Sprint 31: el
+      SDK 0.4 publicado rechaza la política que `sync` imprime ahora);
       `ensayo-actualizacion.sh` con los pasos del plan conjunto y `tercero-supresion.sh` con
       la clave retirada
 - [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`

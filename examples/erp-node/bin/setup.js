@@ -144,6 +144,13 @@ async function main() {
     ]);
     const sync = JSON.parse(r.salida);
     if (!sync.policy) fatal("sync no devolvió la política, y es el único comando que la entrega");
+    // PROVISIONAL, hasta que el ejemplo pase al SDK 0.5 (Sprints D y E, TODO.md). Desde la
+    // 0.5, sync devuelve siempre logMLDSAKey, la clave ML-DSA-44 del log (ADR-034, decisión
+    // 9), y el verificador que usa este ejemplo es el PUBLICADO, @nucleoledger/verify
+    // 0.4.0-alpha.0, que rechaza ese miembro por desconocido (PROTOCOL 0.8-draft, «La
+    // compatibilidad»). Es lo que le pasa a una contraparte con el SDK 0.4: se queda con la
+    // política sin la clave y verifica como siempre, sin la firma post-cuántica.
+    delete sync.policy.logMLDSAKey;
     writeFileSync(cfg.FICHERO_POLITICA, JSON.stringify(sync.policy, null, 2) + "\n");
     dice(`  política escrita en ${cfg.FICHERO_POLITICA}`);
     dice(`  testigos que acepta: ${Object.keys(sync.policy.witnesses ?? {}).join(", ") || "ninguno"}`);
