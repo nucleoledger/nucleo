@@ -46,7 +46,8 @@ type File struct {
 	// 0.8-draft §3.2). nil si el documento no trae el miembro; si lo trae, no está vacío.
 	RetiredErasureKeys map[string]uint64
 	// LogMLDSAKey es la clave pública ML-DSA-44 del log, 2624 hexadecimales, o "" (ADR-034).
-	// Este paquete la lee y la guarda; quien la coteja y la usa es otro (Sprint C2).
+	// ProofPolicy la pasa al verificador de recibos, que la exige y la verifica (Sprint C2);
+	// la apertura del ledger la coteja con la identidad donde la abre (cmd/nucleo).
 	LogMLDSAKey string
 	Witnesses   map[string]string
 	Quorum      int
@@ -458,6 +459,9 @@ func (f *File) ProofPolicy() proof.Policy {
 		Witnesses: map[string]ed25519.PublicKey{}}
 	if f.SignerKey != "" {
 		p.SignerKey = clave(f.SignerKey)
+	}
+	if f.LogMLDSAKey != "" {
+		p.LogMLDSAKey, _ = hex.DecodeString(f.LogMLDSAKey) // Parse ya garantizó 2624 hexadecimales
 	}
 	for n, k := range f.Witnesses {
 		p.Witnesses[n] = clave(k)

@@ -45,6 +45,24 @@ var (
 	// ErrSignature indica que una línea de firma de una clave que la política
 	// conoce no verifica (PROTOCOL.md §3.3).
 	ErrSignature = errors.New("proof: una firma de una clave conocida no verifica")
+	// ErrMLDSASignature indica que una línea de la clave ML-DSA-44 que fija la política no
+	// verifica, o no mide lo que mide una firma ML-DSA-44 (PROTOCOL 0.8-draft §3.3, regla 1).
+	ErrMLDSASignature = errors.New("proof: la firma post-cuántica (ML-DSA-44) del log no verifica")
+	// ErrMLDSAMissing indica que la política fija la clave ML-DSA-44 del log y el
+	// checkpoint no trae ninguna línea de esa clave (PROTOCOL 0.8-draft §3.3, regla 2).
+	ErrMLDSAMissing = errors.New("proof: la política fija la clave ML-DSA-44 del log y el checkpoint no trae su firma")
+)
+
+// Los tres estados de Result.LogMLDSA (PROTOCOL 0.8-draft §3.3, ADR-034 §D).
+const (
+	// LogMLDSAVerified: la política fija la clave y toda línea de esa clave verificó.
+	LogMLDSAVerified = "verified"
+	// LogMLDSAPresentUnverified: hay una línea a nombre del log con forma de ML-DSA-44 y
+	// nadie la verificó. En Go, solo porque la política no fija la clave: este
+	// verificador implementa ML-DSA-44.
+	LogMLDSAPresentUnverified = "present-unverified"
+	// LogMLDSAAbsent: no hay ninguna línea con esa forma.
+	LogMLDSAAbsent = "absent"
 )
 
 // Receipt es el recibo serializable: el índice de la entrada, su camino de
@@ -77,6 +95,10 @@ type Policy struct {
 	Witnesses map[string]ed25519.PublicKey
 	// Quorum es el número mínimo de cosignatures de testigos distintos.
 	Quorum int
+	// LogMLDSAKey es la clave pública ML-DSA-44 del log, los 1312 bytes de pkEncode
+	// (logMLDSAKey, PROTOCOL 0.8-draft §3.2), o nil. Con ella, la firma ML-DSA-44 del log
+	// es OBLIGATORIA y se verifica (§3.3); sin ella, una línea con su forma no decide nada.
+	LogMLDSAKey []byte
 }
 
 // Result es lo que el verificador puede afirmar tras validar el recibo.
@@ -97,6 +119,10 @@ type Result struct {
 	// no, y el diferencial —al comparar el dictamen entero y no solo el veredicto—
 	// encontró la asimetría en su primera ejecución.
 	LogExtraSigs []string
+	// LogMLDSA es qué se sabe de la firma ML-DSA-44 del log: LogMLDSAVerified,
+	// LogMLDSAPresentUnverified o LogMLDSAAbsent. Nunca LogMLDSAVerified sin haber
+	// llamado a ML-DSA.Verify con la clave de la política sobre cada línea de esa clave.
+	LogMLDSA string
 }
 
 // Format serializa el recibo. El separador es la primera línea en blanco: todo
@@ -196,6 +222,15 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 		return Result{}, err
 	}
 	verifiers := []note.Verifier{logVerifier}
+	// La clave ML-DSA-44 de la política NO se le pasa a x/mod: descartaría sin verificarlas
+	// las líneas repetidas de esa clave, y §3.3 exige que verifiquen todas. Se leen abajo,
+	// línea a línea, como las cosignatures.
+	var mldsaVerifier *checkpoint.MLDSAVerifier
+	if p.LogMLDSAKey != nil {
+		if mldsaVerifier, err = checkpoint.NewMLDSAVerifier(p.Origin, p.LogMLDSAKey); err != nil {
+			return Result{}, fmt.Errorf("%w: logMLDSAKey: %w", ErrPolicy, err)
+		}
+	}
 	witnessVerifiers := make(map[string]*witness.Verifier, len(p.Witnesses))
 	for name, pub := range p.Witnesses {
 		v, err := witness.NewVerifier(name, pub)
@@ -230,6 +265,7 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 	// tiempo demostrable, y Go y TypeScript daban veredictos opuestos.
 	res := Result{Checkpoint: c}
 	logSigned := false
+	mldsaVerificadas := 0
 	var earliest time.Time
 	counted := make(map[string]bool, len(witnessVerifiers))
 	for _, l := range lines {
@@ -238,6 +274,23 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 				return Result{}, fmt.Errorf("%w: una línea de la firma del log", ErrSignature)
 			}
 			logSigned = true
+			continue
+		}
+		// Reglas 1 y 2 de la línea ML-DSA-44 (§3.3): toda línea con el nombre del origin y
+		// el key ID de la clave de la política es de esa clave, y TIENE que verificar —con
+		// el contexto vacío, lo que firma checkpoint.MLDSASigner—. Una que no mide 2420
+		// bytes no es una firma de esa clave mal copiada: es una línea inválida de una clave
+		// conocida. Una línea con la forma de ML-DSA-44 y OTRO key ID no entra aquí: es de
+		// una clave que la política no conoce, se ignora, y no cuenta para la regla 2.
+		if mldsaVerifier != nil && l.name == mldsaVerifier.Name() && l.hash == mldsaVerifier.KeyHash() {
+			if len(l.sig) != checkpoint.MLDSASignatureSize {
+				return Result{}, fmt.Errorf("%w: la línea de su clave trae %d bytes de firma y una ML-DSA-44 mide %d",
+					ErrMLDSASignature, len(l.sig), checkpoint.MLDSASignatureSize)
+			}
+			if !mldsaVerifier.Verify(text, l.sig) {
+				return Result{}, fmt.Errorf("%w: una línea de su clave", ErrMLDSASignature)
+			}
+			mldsaVerificadas++
 			continue
 		}
 		v, ok := witnessVerifiers[l.name]
@@ -269,8 +322,19 @@ func VerifyNote(noteBytes []byte, p Policy) (Result, error) {
 	}
 	res.ProvableTime = earliest
 
+	// La regla 3: la Ed25519 del log sigue siendo obligatoria, con ML-DSA o sin ella.
 	if !logSigned {
 		return Result{}, fmt.Errorf("%w: el checkpoint no está firmado por la clave del log", ErrOrigin)
+	}
+	switch {
+	case mldsaVerifier != nil && mldsaVerificadas == 0:
+		return Result{}, ErrMLDSAMissing
+	case mldsaVerifier != nil:
+		res.LogMLDSA = LogMLDSAVerified
+	case len(res.LogExtraSigs) > 0:
+		res.LogMLDSA = LogMLDSAPresentUnverified
+	default:
+		res.LogMLDSA = LogMLDSAAbsent
 	}
 	if len(res.Cosigners) < p.Quorum {
 		return Result{}, fmt.Errorf("%w: %d de %d", ErrQuorum, len(res.Cosigners), p.Quorum)
@@ -411,6 +475,9 @@ func (p Policy) validate() error {
 	}
 	if len(p.LogKey) != ed25519.PublicKeySize {
 		return fmt.Errorf("%w: la clave del log debe medir %d bytes", ErrPolicy, ed25519.PublicKeySize)
+	}
+	if p.LogMLDSAKey != nil && len(p.LogMLDSAKey) != checkpoint.MLDSAPublicKeySize {
+		return fmt.Errorf("%w: la clave ML-DSA-44 del log debe medir %d bytes", ErrPolicy, checkpoint.MLDSAPublicKeySize)
 	}
 	if p.Quorum < 0 {
 		return fmt.Errorf("%w: quórum negativo", ErrPolicy)

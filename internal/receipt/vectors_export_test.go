@@ -3,12 +3,15 @@ package receipt
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/nucleoledger/nucleo/internal/proof"
@@ -52,12 +55,20 @@ type vectorFile struct {
 	// entonces los de Go con ML-DSA, y Verdicts dice el de cada verificador.
 	Requires string `json:"requires,omitempty"`
 	Verdicts struct {
+		// Go es el veredicto de este verificador con la política tal cual, log_mldsa_key
+		// incluida: el que manda aquí desde el Sprint C2.
+		Go veredictoVector `json:"go"`
 		// WithoutLogMLDSAKey es el veredicto con la política sin log_mldsa_key: el de
-		// todo lector 0.7-draft, este incluido hasta el Sprint C2.
-		WithoutLogMLDSAKey struct {
-			Valid bool `json:"valid"`
-		} `json:"without_log_mldsa_key"`
+		// todo lector 0.7-draft, y el de este con esa política.
+		WithoutLogMLDSAKey veredictoVector `json:"without_log_mldsa_key"`
 	} `json:"verdicts"`
+}
+
+// veredictoVector es el veredicto de un verificador en un vector 0.8-draft.
+type veredictoVector struct {
+	Valid    bool   `json:"valid"`
+	Reason   string `json:"reason,omitempty"`
+	LogMLDSA string `json:"log_mldsa,omitempty"`
 }
 
 type vectorPolicy struct {
@@ -66,6 +77,8 @@ type vectorPolicy struct {
 	SignerKey string            `json:"signer_key"`
 	Witnesses map[string]string `json:"witnesses"`
 	Quorum    int               `json:"quorum"`
+	// LogMLDSAKey es logMLDSAKey en hexadecimal, o "" (ADR-034).
+	LogMLDSAKey string `json:"log_mldsa_key,omitempty"`
 }
 
 // LOS VECTORES GOLDEN NO LOS GENERA ESTE PAQUETE.
@@ -92,6 +105,14 @@ func TestVectoresGoldenDicenLaVerdad(t *testing.T) {
 	if err != nil || len(files) < 17 {
 		t.Fatalf("vectores: %d, %v", len(files), err)
 	}
+	presentes := 0
+	defer func() {
+		// Los dos estados sin clave tienen que salir en algún vector, o el test no prueba
+		// la distinción: hoy, valido-firma-mldsa-del-log es el "present-unverified".
+		if presentes == 0 {
+			t.Error(`ningún vector válido sin clave trae la línea ML-DSA-44: "present-unverified" sin probar`)
+		}
+	}()
 	for _, f := range files {
 		raw, err := os.ReadFile(f)
 		if err != nil {
@@ -104,14 +125,21 @@ func TestVectoresGoldenDicenLaVerdad(t *testing.T) {
 		switch v.Requires {
 		case "":
 		case "0.8-draft":
-			// Este verificador no lee log_mldsa_key hasta el Sprint C2 (policyFromVector
-			// no la copia): tiene que dar el veredicto de una política sin ella.
-			v.Valid = v.Verdicts.WithoutLogMLDSAKey.Valid
+			// Desde el Sprint C2 este verificador lee log_mldsa_key y verifica la ML-DSA-44:
+			// manda el veredicto declarado para Go. Y, con la misma política sin la clave,
+			// el de todo lector 0.7-draft (TestVectoresMLDSASinClave).
+			if v.Verdicts.Go.Valid != v.Valid {
+				t.Fatalf("%s: verdicts.go.valid %v y valid %v: el vector se contradice", v.Name, v.Verdicts.Go.Valid, v.Valid)
+			}
 		default:
 			t.Fatalf("%s: requires %q, una versión que este test no conoce", v.Name, v.Requires)
 		}
+		if v.Valid && v.Policy.LogMLDSAKey == "" && tieneLineaConFormaMLDSA(v.Receipt, v.Policy.Origin) {
+			presentes++
+		}
 		t.Run(v.Name, func(t *testing.T) {
 			assertVector(t, v)
+			assertLogMLDSA(t, v)
 			if v.Valid {
 				pol := policyFromVector(t, v.Policy)
 				r, err := Parse([]byte(v.Receipt), pol)
@@ -169,6 +197,110 @@ func assertVector(t *testing.T, v vectorFile) {
 	}
 }
 
+// assertLogMLDSA comprueba el campo de tres estados (PROTOCOL 0.8-draft §3.3) y el motivo
+// de Go. Con la clave en la política: "verified" en los válidos, y en los inválidos el
+// motivo del vector —mldsa_signature_invalid o mldsa_signature_missing—. Sin ella:
+// "present-unverified" si la nota trae una línea a nombre del log con forma de ML-DSA-44
+// y "absent" si no; nunca "verified".
+func assertLogMLDSA(t *testing.T, v vectorFile) {
+	t.Helper()
+	pol := policyFromVector(t, v.Policy)
+	r, err := Parse([]byte(v.Receipt), pol)
+	var res proof.Result
+	if err == nil {
+		res, err = r.Verify(pol)
+	}
+	if v.Requires == "0.8-draft" && !v.Valid {
+		want := map[string]error{"mldsa_signature_invalid": proof.ErrMLDSASignature,
+			"mldsa_signature_missing": proof.ErrMLDSAMissing}[v.Verdicts.Go.Reason]
+		if want == nil || !errors.Is(err, want) {
+			t.Errorf("motivo de Go %q, y el error es %v", v.Verdicts.Go.Reason, err)
+		}
+		return
+	}
+	if !v.Valid {
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Policy.LogMLDSAKey != "" {
+		if res.LogMLDSA != proof.LogMLDSAVerified || v.Verdicts.Go.LogMLDSA != proof.LogMLDSAVerified {
+			t.Errorf("logMLDSA %q con la clave en la política (el vector dice %q)", res.LogMLDSA, v.Verdicts.Go.LogMLDSA)
+		}
+		return
+	}
+	want := proof.LogMLDSAAbsent
+	if tieneLineaConFormaMLDSA(v.Receipt, v.Policy.Origin) {
+		want = proof.LogMLDSAPresentUnverified
+	}
+	if res.LogMLDSA != want {
+		t.Errorf("logMLDSA %q sin clave en la política, y tenía que ser %q", res.LogMLDSA, want)
+	}
+}
+
+// tieneLineaConFormaMLDSA dice, leyendo el recibo a mano y sin internal/proof, si trae una
+// línea de firma a nombre del origin cuyo base64 decodifica a 4 + 2420 bytes: la forma de
+// la firma ML-DSA-44 del log (PROTOCOL 0.8-draft §3.3).
+func tieneLineaConFormaMLDSA(recibo, origin string) bool {
+	for _, l := range strings.Split(recibo, "\n") {
+		b64, ok := strings.CutPrefix(l, "— "+origin+" ")
+		if !ok {
+			continue
+		}
+		if raw, err := base64.StdEncoding.DecodeString(b64); err == nil && len(raw) == 4+2420 {
+			return true
+		}
+	}
+	return false
+}
+
+// TestVectoresMLDSASinClave: cada recibo 0.8-draft, con su política SIN log_mldsa_key, da el
+// veredicto de without_log_mldsa_key —el de v0.4.0-alpha— y su logMLDSA.
+func TestVectoresMLDSASinClave(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("..", "..", "testdata", "vectors", "receipt", "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var v vectorFile
+		if err := json.Unmarshal(raw, &v); err != nil {
+			t.Fatal(err)
+		}
+		if v.Requires != "0.8-draft" {
+			continue
+		}
+		n++
+		t.Run(v.Name, func(t *testing.T) {
+			v.Policy.LogMLDSAKey = ""
+			pol := policyFromVector(t, v.Policy)
+			r, err := Parse([]byte(v.Receipt), pol)
+			var res proof.Result
+			if err == nil {
+				res, err = r.Verify(pol)
+			}
+			w := v.Verdicts.WithoutLogMLDSAKey
+			if (err == nil) != w.Valid {
+				t.Fatalf("sin log_mldsa_key: válido %v, el vector dice %v (%v)", err == nil, w.Valid, err)
+			}
+			if err == nil && w.LogMLDSA != "" && res.LogMLDSA != w.LogMLDSA {
+				t.Errorf("sin log_mldsa_key: logMLDSA %q, el vector dice %q", res.LogMLDSA, w.LogMLDSA)
+			}
+			if res.LogMLDSA == proof.LogMLDSAVerified {
+				t.Error(`"verified" sin clave en la política`)
+			}
+		})
+	}
+	if n != 6 {
+		t.Fatalf("%d recibos 0.8-draft; eran 6", n)
+	}
+}
+
 // policyFromVector reconstruye la política desde su forma exportada, que es la
 // misma que leerá el verificador de TypeScript.
 func policyFromVector(t *testing.T, v vectorPolicy) proof.Policy {
@@ -194,6 +326,11 @@ func policyFromVector(t *testing.T, v vectorPolicy) proof.Policy {
 			t.Fatal(err)
 		}
 		pol.Witnesses[name] = ed25519.PublicKey(raw)
+	}
+	if v.LogMLDSAKey != "" {
+		if pol.LogMLDSAKey, err = hex.DecodeString(v.LogMLDSAKey); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return pol
 }
