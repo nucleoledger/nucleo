@@ -310,7 +310,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
       (`FuzzPoliticaFrenteAV04`, en el job fuzz del CI)
 - [x] 0b. `erase` avisa, antes de sellar, de que regularizar es ratificar (`regularizes`)
 - [x] 0c. `scripts/autores.sh` compara sha256 de las identidades, no el texto
-- [ ] 1. El ACVP con contexto: los 14 casos ML-DSA-44 puros, grupo aparte
+- [x] 1. El ACVP con contexto: los 14 casos ML-DSA-44 puros, grupo aparte (Go y OpenSSL = NIST)
 - [ ] 2. La verificación ML-DSA-44 en `internal/proof` y `internal/receipt`; `LogMLDSA`
 - [ ] 3. La CLI: la apertura coteja `logMLDSAKey`; `sync` la imprime siempre
 - [ ] 4. `nucleo verify-receipt`

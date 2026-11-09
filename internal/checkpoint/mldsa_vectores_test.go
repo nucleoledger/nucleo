@@ -183,3 +183,59 @@ func TestMLDSAVectoresACVP(t *testing.T) {
 		}
 	}
 }
+
+// TestMLDSAVectoresACVPConContexto (Sprint 31): el grupo APARTE del ACVP, «con contexto:
+// Núcleo no lo usa» —ML-DSA-44, interfaz externa, variante pura, contexto NO vacío;
+// acvp.py—. Cada caso se verifica CON SU CONTEXTO y crypto/mldsa tiene que dar el
+// veredicto del NIST en los 14. Y, de paso, la separación de dominios: un caso válido no
+// verifica con el contexto vacío, que es el único que usa Núcleo.
+func TestMLDSAVectoresACVPConContexto(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(directorioMLDSA(), "acvp-sigver-mldsa44-con-contexto.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		Source struct {
+			Commit string `json:"commit"`
+		} `json:"source"`
+		Tests []struct {
+			TcID       int    `json:"tcId"`
+			PK         string `json:"pk"`
+			Message    string `json:"message"`
+			Context    string `json:"context"`
+			Signature  string `json:"signature"`
+			TestPassed bool   `json:"testPassed"`
+			Reason     string `json:"reason"`
+		} `json:"tests"`
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Source.Commit != "a7f283cdc87d2d6dd93c1bac59e5622c5f9f8324" || len(v.Tests) != 14 {
+		t.Fatalf("grupo con contexto inesperado: commit %q, %d casos (eran 14)", v.Source.Commit, len(v.Tests))
+	}
+	validos := 0
+	for _, c := range v.Tests {
+		if c.Context == "" {
+			t.Fatalf("tcId %d: contexto vacío en el grupo con contexto", c.TcID)
+		}
+		pk, err := mldsa.NewPublicKey(mldsa.MLDSA44(), desdeHex(t, c.PK))
+		if err != nil {
+			t.Fatal(err)
+		}
+		msg, sig := desdeHex(t, c.Message), desdeHex(t, c.Signature)
+		got := mldsa.Verify(pk, msg, sig, &mldsa.Options{Context: string(desdeHex(t, c.Context))}) == nil
+		if got != c.TestPassed {
+			t.Errorf("tcId %d (%s): el NIST dice %v y crypto/mldsa %v", c.TcID, c.Reason, c.TestPassed, got)
+		}
+		if c.TestPassed {
+			validos++
+			if mldsa.Verify(pk, msg, sig, &mldsa.Options{}) == nil {
+				t.Errorf("tcId %d: una firma con contexto verifica con el contexto vacío", c.TcID)
+			}
+		}
+	}
+	if validos == 0 {
+		t.Error("el grupo no trae ningún caso válido: no prueba nada en positivo")
+	}
+}

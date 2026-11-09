@@ -197,6 +197,15 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              (8e4a9375b883ba5a1d1d86954dc4f0358e6d17b53730ae3a71aed596ff3131c8) y que
              OpenSSL da el veredicto del NIST.
 
+             acvp-sigver-mldsa44-con-contexto.json (Sprint 31): esos otros 14, como
+             grupo APARTE, rotulado «con contexto: Núcleo no lo usa» (3 válidos, 11
+             negativos: mensaje, compromiso, z y pistas alterados), cada uno verificado
+             con su contexto. Mismo commit y mismo fichero de origen; sha256
+             2038ddc698711dbc9351bb3643acf948b05edfe27bb4665e1671a903888f26b8, fijado en
+             acvp.py, que lo extrae y lo comprueba con OpenSSL junto con el otro. Lo
+             juzga en Go TestMLDSAVectoresACVPConContexto, que además exige que un caso
+             válido NO verifique con el contexto vacío.
+
              El cruce: internal/checkpoint.TestMLDSAVectoresOpenSSL comprueba que
              crypto/mldsa deriva las mismas claves, que SignDeterministic (y
              MLDSASigner.Sign) firma BYTE A BYTE lo que firmó OpenSSL y que da cada
