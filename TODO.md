@@ -315,7 +315,8 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 3. La CLI: la apertura coteja `logMLDSAKey` (seal, sync, receipt, erase); `sync` la imprime siempre
 - [x] 4. `nucleo verify-receipt` (0 vale, 2 no, 1 uso; todos los vectores con el veredicto de Go)
 - [x] 5. Compatibilidad con una política sin `logMLDSAKey` (4677 casos contra el código de v0.4.0-alpha), y el diferencial
-- [ ] 6. CLI-JSON, GARANTIAS, ADR-034 (Implementación), PLAN y TODO
+- [x] 6. CLI-JSON, GARANTIAS (G23, G50–G54, L23; L14 igual salvo su remisión a L23),
+      ADR-034 (Implementación), PLAN y TODO; README al Sprint E
 
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
 La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
@@ -340,18 +341,22 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       `sync` (`erasure_rotation` en `--json`), `erasure-key authorize` que rechaza una clave
       retirada, `reconcile --json` con la clave y `regularized`; CLI-JSON, GARANTIAS (G47–G49,
       L21) y ARQUITECTURA
-- [ ] **Sprint C2 — Go, ADR-034**: `internal/proof` (ML-DSA con `crypto/mldsa`, `LogMLDSA`);
-      `sync` imprime `logMLDSAKey` siempre; la apertura coteja la clave; `nucleo verify-receipt`
+- [x] **Sprint C2 — Go, ADR-034** (Sprint 31): `internal/proof` (ML-DSA con `crypto/mldsa`,
+      `LogMLDSA`, el key ID contra hashlib, tres mutaciones); `sync` imprime `logMLDSAKey`
+      siempre; la apertura la coteja donde abre la identidad; `nucleo verify-receipt`; la
+      compatibilidad con v0.4.0-alpha sin la clave; CLI-JSON y GARANTIAS (G50–G54, L23)
 - [ ] **Sprint D — TypeScript, PHP y la página**: los dos miembros en el parser, `logMLDSA`
       con `"present-unverified"` (opción B); el diferencial con los miembros nuevos y la
-      divergencia declarada
+      divergencia declarada (los seis recibos 0.8-draft, que `TestDiferencialGeneraCatalogo`
+      salta hasta entonces); al terminar, G23 y L23 al día (hoy dicen «hasta el Sprint D»)
 - [ ] **Sprint E — documentación y ensayo**: GARANTIAS (L14, L23: la comprobación
       post-cuántica solo la hace el verificador de Go; L21 ya se reescribió en el C1),
       OPERACION §3 (rotar con el fragmento de `sync`: es lo que el C1 deja sin escribir),
       OPERACION: cuándo regularizar y cuándo no —regularizar es ratificar el borrado no
       autorizado; solo si la supresión estaba pedida de verdad, y qué hacer si no (es un
       incidente: ADR-032)—, con el aviso que `erase` da desde el Sprint 31,
-      CLI-JSON de lo que traiga el C2, README (rotación, regularización y ML-DSA);
+      (CLI-JSON del C2: hecho en el Sprint 31), README (rotación, regularización, ML-DSA y
+      `verify-receipt` en la lista de órdenes);
       `ensayo-actualizacion.sh` con los pasos del plan conjunto y `tercero-supresion.sh` con
       la clave retirada
 - [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`
@@ -374,18 +379,18 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       El software ya está (Sprint 15: varios logs, retirada, testigo mutuo y el kit
       del operador); lo que falta no es código: que alguien de fuera lo opere.
 - [ ] **Verificar recibos ajenos desde la CLI.** Decidido el 2026-10-18 (ADR-034, decisión 8):
-      entra en la 0.5 como `nucleo verify-receipt`, en el Sprint C de arriba. Hasta entonces, un
-      recibo se verifica con `@nucleoledger/verify`, con el SDK de PHP o con la página de
-      `web/verify/`, y la CLI solo autoverifica los que emite.
+      entra en la 0.5 como `nucleo verify-receipt`, hecho en `main` en el Sprint 31 (C2), sin
+      publicar. Hasta el release, un recibo se verifica con `@nucleoledger/verify`, con el SDK
+      de PHP o con la página de `web/verify/`.
 - [ ] **ADR-033 (ACEPTADO el 2026-10-18; implementado en Go (Sprint C1, Sprint 30: G47–G49);
       pendiente: TS, PHP y la página (Sprint D) y la documentación de operación (Sprint E)):
       rotación de erasureKey.** `retiredErasureKeys` (clave → corte) en la política, para que
       rotar no invalide las supresiones históricas (era el límite L21, reescrito en el C1), y
       la regularización con la clave nueva.
       Implementación: los sprints de la 0.5, arriba.
-- [ ] **ADR-034 (ACEPTADO el 2026-10-18; vectores listos (Sprint 29); implementación
-      pendiente: Go (Sprint C2), TS, PHP y la página (Sprint D); sin implementar):
-      verificar ML-DSA-44.**
+- [ ] **ADR-034 (ACEPTADO el 2026-10-18; vectores listos (Sprint 29); implementado en Go
+      (Sprint C2, Sprint 31: G50–G53); pendiente: TS, PHP y la página (Sprint D), README y
+      operación (Sprint E)): verificar ML-DSA-44.**
       `logMLDSAKey` en la política; Go la verifica con `crypto/mldsa`; TS, PHP y la página
       dicen `"present-unverified"` (opción B). Hoy, el límite L23. Implementación: los sprints
       de la 0.5, arriba.

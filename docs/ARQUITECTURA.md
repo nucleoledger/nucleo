@@ -304,7 +304,11 @@ sequenceDiagram
 1. Abre con la política y arma la del emisor (`cmd/nucleo/seal.go#issuerPolicy`).
 2. **Abre el vault y carga la identidad** (`cmd/nucleo/env.go#env.unlock`): emitir un recibo
    **firma**, y la clave del firmante solo existe descifrada con la passphrase. Coteja el fichero
-   de política con el ledger (`cmd/nucleo/policy.go#checkPolicyMatchesLedger`).
+   de política con el ledger (`cmd/nucleo/policy.go#checkPolicyMatchesLedger`) y su
+   `logMLDSAKey`, si la trae, con la identidad (`cmd/nucleo/policy.go#cotejaLogMLDSAKey`; lo
+   mismo hacen `seal`, `sync` y `erase`). La política del emisor lleva la clave ML-DSA-44 de la
+   identidad (`cmd/nucleo/policy.go#clavePQ`), así que la autoverificación comprueba también la
+   firma post-cuántica del log (ADR-034, decisión 8).
 3. `internal/receipt/receipt.go#Issue` arma el recibo: el último checkpoint cosignado
    (`internal/store/checkpoints.go#Store.LastCheckpoint`), el bloque, las hojas
    (`internal/store/blocks.go#Store.LeafData`) y el camino de inclusión
@@ -334,8 +338,11 @@ sequenceDiagram
   Sin política, un checkpoint guardado es «presente, NO verificado» (ADR-016).
 - `--full`: `internal/store/integrity.go#Store.VerifyFull` recomputa todas las firmas.
 
-**b) Un recibo**: la CLI no tiene un subcomando para verificar recibos ajenos; eso lo hacen los
-verificadores de la contraparte. Los tres **comprueban las mismas propiedades**, pero no con el
+**b) Un recibo**: desde el Sprint 31 la CLI verifica recibos ajenos con
+`cmd/nucleo/verify_receipt.go#cmdVerifyReceipt` —el `Receipt.Verify` de Go con la política del
+fichero, sin ledger ni vault—; los SDK y la página son los verificadores de la contraparte. Con
+`logMLDSAKey` en la política, solo el de Go comprueba la firma ML-DSA-44 del log
+(`internal/proof/proof.go#VerifyNote`, PROTOCOL 0.8-draft §3.3). Los tres **comprueban las mismas propiedades**, pero no con el
 mismo procedimiento: el orden difiere, y el de Go se detiene en el primer fallo
 (`internal/receipt/format.go#Receipt.Verify` empieza por la firma del emisor), mientras que el de
 PHP acumula los motivos de rechazo y sigue (`sdk/php/src/Verifier.php#Verifier::verify` empieza por

@@ -84,11 +84,11 @@ El backlog atómico está en `TODO.md`. En resumen:
   imprime el fragmento con el corte dentro de lo atestiguado; una supresión no autorizada se
   puede regularizar con la clave nueva y `reconcile` sale con 0 y un aviso permanente.
 - **ADR-034: verificar ML-DSA-44.** ACEPTADO el 2026-10-18; vectores listos (Sprint 29);
-  implementación pendiente: Go (Sprint C2), TS, PHP y la página (Sprint D); sin implementar.
-  `logMLDSAKey` en la política; Go la verificará con
+  implementado en Go (Sprint C2, Sprint 31: G50–G53); pendiente: TS, PHP y la página
+  (Sprint D) y README y operación (Sprint E). `logMLDSAKey` en la política; Go la verifica con
   `crypto/mldsa`, también en la orden nueva `nucleo verify-receipt` (recibos ajenos); TS, PHP
-  y la página dicen `"present-unverified"` (opción B), con la divergencia declarada en el
-  diferencial. Hoy, L23: la firma se emite y nadie la comprueba.
+  y la página dirán `"present-unverified"` (opción B), con la divergencia declarada en el
+  diferencial. Hoy, L23: solo la comprueba Go, y solo con `logMLDSAKey`.
 - Una sola subida de la política (PROTOCOL 0.8-draft) y una sola 0.5, que sale solo con los
   dos implementados. Los sprints, en orden, en `TODO.md` («La 0.5»).
 

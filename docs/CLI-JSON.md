@@ -246,6 +246,7 @@ página web:
   "origin": "nucleoledger.com/mi-empresa",
   "logKey": "9ad2…f004",
   "signerKey": "5e1c…a2b7",
+  "logMLDSAKey": "a3f0…(2624 hex)…07c1",
   "witnesses": {"witness.nucleoledger.com/w1": "2f7a…9c31"},
   "quorum": 1
 }
@@ -253,6 +254,13 @@ página web:
 
 Con `--policy-file`, es la política del fichero **entera**: también `erasureKey`,
 `retiredErasureKeys` y `logMLDSAKey` si el fichero los trae (PROTOCOL 0.8-draft §3.2).
+
+**`logMLDSAKey` va siempre** (desde v0.5; ADR-034, decisión 9): la clave pública ML-DSA-44 del
+log, 2624 caracteres hexadecimales en minúsculas, sacada de la identidad que `sync` acaba de
+abrir con el vault. Si el fichero no la traía, se completa con ella, como `signerKey`; y la
+salida para personas, que con `--policy-file` no repite la política, da la línea que hay que
+añadirle. Una política con `logMLDSAKey` solo la leen los verificadores que implementan
+PROTOCOL 0.8-draft: un SDK 0.4 la rechaza como miembro desconocido.
 
 ## Por subcomando
 
@@ -336,6 +344,41 @@ error de uso. Un reintento idempotente trae **los mismos campos** que un sellado
 | `out` | string — ruta escrita, o vacío |
 | `cosigners` | array de nombres de testigo cuya cosignature verificó |
 | `provable_time` | RFC 3339 — tiempo demostrable (ADR-002), o vacío si no hay cosignature aceptada |
+| `log_mldsa` | string (desde v0.5) — la firma ML-DSA-44 del log en la autoverificación: siempre `"verified"`, porque `receipt` la comprueba con la clave de la identidad que acaba de abrir (ADR-034, decisión 8); si no verifica, o el checkpoint no la trae, no se emite el recibo |
+
+Con `--policy-file`, `receipt` —como `seal`, `sync` y `erase`, las órdenes que abren la
+identidad— exige que su `logMLDSAKey`, si la trae, sea la clave ML-DSA-44 de la identidad; si
+no lo es, error de uso (código 1). Las órdenes que no abren la identidad no la cotejan
+(PROTOCOL 0.8-draft §3.2).
+
+### `verify-receipt`
+
+Verifica un recibo **ajeno**, offline (ADR-034, decisión 8): `nucleo verify-receipt --receipt F
+--policy-file P [--json]`. No abre ningún ledger, no pide passphrase y no usa la red: `--dir`
+no se usa. Es el sitio donde una contraparte comprueba la firma post-cuántica del log: con
+`logMLDSAKey` en la política, `logMLDSA` es `"verified"` o el recibo no vale.
+
+Sale con `0` si el recibo vale y con `2` si no —y entonces stdout sigue siendo **un solo
+objeto**, este, no el de error—. Con `1`, el objeto de error de siempre: falta `--receipt` o
+`--policy-file`, un fichero no se puede leer, la política no es válida o no trae `signerKey`.
+
+Los nombres son los del resultado de los SDK (`@nucleoledger/verify`, PHP), no los del resto
+de este documento:
+
+| campo | tipo |
+|---|---|
+| `ok`, `valid` | bool — los dos iguales: el recibo vale con esta política |
+| `reasons` | array de strings — vacío si vale; si no, **un** motivo, en una frase para quien no es criptógrafo (texto para personas: no es un conjunto cerrado) |
+| `error` | string — solo si no vale: el detalle técnico |
+| `logMLDSA` | `"verified"`, `"present-unverified"` o `"absent"` (PROTOCOL 0.8-draft §3.3); `null` si no vale. `"present-unverified"`: hay una línea a nombre del log con forma de ML-DSA-44 y la política no fija su clave. Nunca `"verified"` sin haberla verificado |
+| `declaredTime` | string — el `timestamp` del header, literal: lo puso el emisor, no prueba nada; `null` si no vale |
+| `provableTime` | RFC 3339 — el tiempo demostrable (ADR-002), o `null` sin cosignature aceptada o si no vale |
+| `blockIndex` | entero, o `null` si no vale |
+| `recipient` | string, o `null` si no vale — lo firma el emisor; no prueba la entrega (ADR-015) |
+| `signerPubKey` | hex, o `null` si no vale |
+| `cosigners`, `ignoredSignatures` | arrays —**siempre arrays**— de nombres: testigos que verificaron, y firmas de claves que la política no conoce |
+| `logAdditionalSignatures` | entero — líneas a nombre del log con forma de ML-DSA-44, verificadas o no |
+| `checkpoint` | `{origin, size, rootHash}` (`size` entero, `rootHash` hex), o `null` si no vale |
 
 ### `erase`
 
@@ -362,6 +405,7 @@ está pero el evento que había no lleva autorización válida, sella uno que s�
 | `index`, `hash` | el bloque del evento `nucleo.erasure.v1` (el nuevo, o el que ya había) |
 | `wal_purged` | bool — `false` si otro proceso leía el ledger y el WAL no se pudo vaciar: una copia del contenido puede seguir ahí; repetir la orden lo reintenta |
 | `freshness`, `attestation`, `attested`, `attested_head`, `attested_size`, `signer`, `alert`, `rollback` | como en `seal`, solo cuando se ha sellado el evento |
+| `regularizes` | array de `{index, reason}` (desde v0.5) — **solo** cuando el evento sellado regulariza supresiones **no autorizadas** del mismo contenido: el bloque de cada evento no autorizado y por qué no lo estaba (texto para personas). Sin ninguna, el campo no sale y la salida es la de antes, byte a byte. **Regularizar es ratificar** ese borrado (ADR-033, decisión 4): `erase` lo avisa **antes** de sellar —en la confirmación tecleada, o por stderr con `--assume-confirmed`, también con `--json`— con «esto REGULARIZA la supresión no autorizada del evento N (motivo); regularizar es ratificar ese borrado: hazlo solo si la supresión estaba pedida de verdad.», y lo repite en la salida para personas |
 | `erasure_alert` | ver arriba: tras una supresión, abierta con ella dentro |
 
 ### `reconcile`
