@@ -167,8 +167,9 @@ func (pf policyFlags) resolveSync(e *env) (wp *store.WitnessPolicy, f *policy.Fi
 // docDePolitica convierte el fichero leído en el documento que escribe la CLI, para
 // devolver en el "policy" de sync --json la política ENTERA con la que se abrió —todos
 // sus testigos y su quórum— y no solo el testigo con el que se habló. Si el fichero no
-// traía signerKey, se completa con la del ledger, que es lo que exige ADR-017.
-func docDePolitica(f *policy.File, signerKey ed25519.PublicKey) policyDoc {
+// traía signerKey, se completa con la del ledger, que es lo que exige ADR-017; si no
+// traía logMLDSAKey, con la de la identidad (ADR-034, decisión 9: siempre).
+func docDePolitica(f *policy.File, signerKey ed25519.PublicKey, logMLDSAKey string) policyDoc {
 	d := policyDoc{
 		Origin: f.Origin, LogKey: f.LogKey, SignerKey: f.SignerKey, ErasureKey: f.ErasureKey,
 		LogMLDSAKey: f.LogMLDSAKey, Witnesses: map[string]string{}, Quorum: f.Quorum,
@@ -181,6 +182,9 @@ func docDePolitica(f *policy.File, signerKey ed25519.PublicKey) policyDoc {
 	}
 	if d.SignerKey == "" {
 		d.SignerKey = hex.EncodeToString(signerKey)
+	}
+	if d.LogMLDSAKey == "" {
+		d.LogMLDSAKey = logMLDSAKey
 	}
 	for n, k := range f.Witnesses {
 		d.Witnesses[n] = k
@@ -235,11 +239,8 @@ func avisoDePermisosDePolitica(path string, perm os.FileMode, guarda bool) strin
 // cron. Lo imprime sync al terminar (ADR-017 c): quien acaba de sincronizar tiene
 // en pantalla lo que tiene que pegar, y la política deja de ser algo que hay que
 // saber construir.
-func policySnippet(e *env, origin string, logKey, signerKey ed25519.PublicKey, witnessName string, witnessKey ed25519.PublicKey) {
-	f := policyDoc{
-		Origin: origin, LogKey: hex.EncodeToString(logKey), SignerKey: hex.EncodeToString(signerKey),
-		Witnesses: map[string]string{witnessName: hex.EncodeToString(witnessKey)}, Quorum: 1,
-	}
+func policySnippet(e *env, origin string, logKey, signerKey ed25519.PublicKey, witnessName string, witnessKey ed25519.PublicKey, logMLDSAKey string) {
+	f := jsonPolicy(origin, logKey, signerKey, witnessName, witnessKey, logMLDSAKey)
 	raw, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return
@@ -297,11 +298,13 @@ func rutaPassphraseEjemplo() string {
 	return "/ruta/segura/pass.txt"
 }
 
-// jsonPolicy es el objeto "policy" que sync emite en --json.
-func jsonPolicy(origin string, logKey, signerKey ed25519.PublicKey, witnessName string, witnessKey ed25519.PublicKey) policyDoc {
+// jsonPolicy es el objeto "policy" que sync emite en --json, y el que imprime en texto.
+// Lleva siempre logMLDSAKey (ADR-034, decisión 9): es la política entera del log.
+func jsonPolicy(origin string, logKey, signerKey ed25519.PublicKey, witnessName string, witnessKey ed25519.PublicKey, logMLDSAKey string) policyDoc {
 	return policyDoc{
 		Origin: origin, LogKey: hex.EncodeToString(logKey), SignerKey: hex.EncodeToString(signerKey),
-		Witnesses: map[string]string{witnessName: hex.EncodeToString(witnessKey)}, Quorum: 1,
+		LogMLDSAKey: logMLDSAKey,
+		Witnesses:   map[string]string{witnessName: hex.EncodeToString(witnessKey)}, Quorum: 1,
 	}
 }
 
@@ -317,6 +320,38 @@ func checkPolicyMatchesLedger(f *policy.File, origin string, logKey, signerKey e
 	}
 	if f.SignerKey != "" && f.SignerKey != hex.EncodeToString(signerKey) {
 		return usageErr("la clave del firmante de la política no es la de este vault")
+	}
+	return nil
+}
+
+// clavePQ devuelve la clave pública ML-DSA-44 del log en hexadecimal, la que deriva
+// LogPQSeed: lo que una política fija en logMLDSAKey (ADR-034 §A). Hace falta la
+// identidad, y la identidad está en el vault: solo la tienen las órdenes que lo abren.
+func clavePQ(id *identity.Identity) (string, error) {
+	pq, err := id.PQSigner()
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(pq.PublicKey()), nil
+}
+
+// cotejaLogMLDSAKey exige que la logMLDSAKey de la política, si la trae, sea la clave
+// ML-DSA-44 de la identidad de este ledger (PROTOCOL 0.8-draft §3.2, ADR-034 §A). Lo
+// hacen las órdenes que abren la identidad —seal, sync, receipt, erase—; las demás no
+// la abren, no la cotejan y no dicen que la cotejaron (§3.2: «MUST NOT claim the
+// comparison where it did not open it»).
+func cotejaLogMLDSAKey(f *policy.File, id *identity.Identity) error {
+	if f == nil || f.LogMLDSAKey == "" {
+		return nil
+	}
+	propia, err := clavePQ(id)
+	if err != nil {
+		return err
+	}
+	if f.LogMLDSAKey != propia {
+		return usageErr("la logMLDSAKey de la política no es la clave ML-DSA-44 de este ledger (empieza por %s…, y la de\n"+
+			"  este ledger por %s…). Un verificador con esa política rechazaría todos sus recibos. La clave buena\n"+
+			"  la imprime `nucleo sync` en la política que propone", prefijoClave(f.LogMLDSAKey), prefijoClave(propia))
 	}
 	return nil
 }

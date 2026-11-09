@@ -78,10 +78,19 @@ func cmdSync(e *env, args []string) error {
 	}
 	if file != nil {
 		if err := checkPolicyMatchesLedger(file, id.Origin, id.LogPublic(), id.TenantPublic()); err != nil {
+			v.Close()
+			return err
+		}
+		if err := cotejaLogMLDSAKey(file, id); err != nil {
+			v.Close()
 			return err
 		}
 	}
 	defer v.Close()
+	pqHex, err := clavePQ(id)
+	if err != nil {
+		return err
+	}
 
 	lg, err := id.NewLog()
 	if err != nil {
@@ -237,7 +246,7 @@ func cmdSync(e *env, args []string) error {
 		// La política lista para guardar: lo que hace falta para volver a abrir
 		// este ledger con atestación verificada, y lo mismo que la contraparte
 		// necesita para verificar sus recibos (ADR-017 c).
-		"policy": politicaDeSalida(file, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub),
+		"policy": politicaDeSalida(file, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub, pqHex),
 		// El fragmento para rotar la clave de supresión, o null (ADR-033, decisión 3).
 		"erasure_rotation": rotacion,
 		"alert":            alarma.json(),
@@ -259,7 +268,9 @@ func cmdSync(e *env, args []string) error {
 		}
 		// Si ya vino de fichero, quien lo invocó ya lo tiene; si no, se le da hecho.
 		if file == nil {
-			policySnippet(e, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub)
+			policySnippet(e, id.Origin, id.LogPublic(), id.TenantPublic(), name, pub, pqHex)
+		} else if file.LogMLDSAKey == "" {
+			fragmentoLogMLDSAKey(e, pqHex)
 		}
 		if rotacion != nil {
 			rotacion.imprime(e)
@@ -271,11 +282,23 @@ func cmdSync(e *env, args []string) error {
 // politicaDeSalida es la política que sync devuelve: la del fichero con el que se abrió,
 // entera, si lo hubo; si no, la de un testigo que acaba de construirse con las banderas.
 func politicaDeSalida(file *policy.File, origin string, logKey, signerKey ed25519.PublicKey,
-	name string, pub ed25519.PublicKey) policyDoc {
+	name string, pub ed25519.PublicKey, logMLDSAKey string) policyDoc {
 	if file != nil {
-		return docDePolitica(file, signerKey)
+		return docDePolitica(file, signerKey, logMLDSAKey)
 	}
-	return jsonPolicy(origin, logKey, signerKey, name, pub)
+	return jsonPolicy(origin, logKey, signerKey, name, pub, logMLDSAKey)
+}
+
+// fragmentoLogMLDSAKey imprime, cuando sync se abrió con una política que no fija la clave
+// ML-DSA-44 del log, la línea que hay que añadirle (ADR-034, decisión 9: sync la imprime
+// siempre). Con ella, los verificadores exigen y comprueban la firma post-cuántica.
+func fragmentoLogMLDSAKey(e *env, pqHex string) {
+	e.printf("\n  Tu política no fija la clave ML-DSA-44 del log. Con ella, quien verifique un recibo\n")
+	e.printf("  exige también la firma post-cuántica del log (PROTOCOL 0.8-draft §3.3). Para fijarla,\n")
+	e.printf("  añade esta línea a la política:\n\n")
+	e.printf("    \"logMLDSAKey\": %q\n\n", pqHex)
+	e.printf("  Una política con logMLDSAKey solo la leen los verificadores que implementan\n")
+	e.printf("  PROTOCOL 0.8-draft (Núcleo 0.5 o posterior).\n")
 }
 
 // MaxEdadCosignature es el umbral del aviso de replay: cuánto puede tener la

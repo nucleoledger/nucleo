@@ -89,7 +89,7 @@ func cmdSeal(e *env, args []string) error {
 		return usageErr("seal necesita --tenant")
 	}
 
-	wp, _, err := pf.resolve(e)
+	wp, pfile, err := pf.resolve(e)
 	if err != nil {
 		return err
 	}
@@ -106,6 +106,9 @@ func cmdSeal(e *env, args []string) error {
 	defer v.Close()
 	hookPauseAt("seal:desbloqueado")
 	if err := checkChainSigner(res, id, "sella"); err != nil {
+		return err
+	}
+	if err := cotejaLogMLDSAKey(pfile, id); err != nil {
 		return err
 	}
 
@@ -371,6 +374,19 @@ func cmdReceipt(e *env, args []string) error {
 		if err := checkPolicyMatchesLedger(file, pol.Origin, pol.LogKey, pol.SignerKey); err != nil {
 			return err
 		}
+		if err := cotejaLogMLDSAKey(file, id); err != nil {
+			return err
+		}
+	}
+	// La autoverificación comprueba también la firma ML-DSA-44 del log, con la clave de la
+	// identidad que se acaba de abrir (ADR-034, decisión 8): el emisor la conoce, y un
+	// recibo cuyo checkpoint no la traiga, o la traiga mala, no sale de aquí.
+	pqHex, err := clavePQ(id)
+	if err != nil {
+		return err
+	}
+	if pol.LogMLDSAKey, err = hex.DecodeString(pqHex); err != nil {
+		return err
 	}
 
 	r, err := receipt.Issue(s, *recipient, uint64(*block), pol, id.Tenant)
@@ -411,6 +427,7 @@ func cmdReceipt(e *env, args []string) error {
 		"bytes":         len(data),
 		"cosigners":     res.Cosigners,
 		"provable_time": provable,
+		"log_mldsa":     res.LogMLDSA,
 		"receipt":       string(data),
 		"out":           *out,
 	}, func() {

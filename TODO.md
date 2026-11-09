@@ -312,7 +312,7 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 0c. `scripts/autores.sh` compara sha256 de las identidades, no el texto
 - [x] 1. El ACVP con contexto: los 14 casos ML-DSA-44 puros, grupo aparte (Go y OpenSSL = NIST)
 - [x] 2. La verificación ML-DSA-44 en `internal/proof` y `internal/receipt`; `LogMLDSA`; tres mutaciones
-- [ ] 3. La CLI: la apertura coteja `logMLDSAKey`; `sync` la imprime siempre
+- [x] 3. La CLI: la apertura coteja `logMLDSAKey` (seal, sync, receipt, erase); `sync` la imprime siempre
 - [ ] 4. `nucleo verify-receipt`
 - [ ] 5. Compatibilidad con una política sin `logMLDSAKey`, y el diferencial
 - [ ] 6. CLI-JSON, GARANTIAS, ADR-034 (Implementación), PLAN y TODO

@@ -183,6 +183,9 @@ func cmdErase(e *env, args []string) error {
 	if err := checkChainSigner(res, id, "suprime"); err != nil {
 		return err
 	}
+	if err := cotejaLogMLDSAKey(pol, id); err != nil {
+		return err
+	}
 
 	if *yes {
 		for _, r := range regulariza {
