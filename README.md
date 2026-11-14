@@ -407,4 +407,4 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Short version: issues are more useful 
 
 Copyright (C) 2026 Sergio Iván Ullaguari Alvarado — see [`AUTHORS`](AUTHORS).
 
-AGPL-3.0-or-later for the core (see [`LICENSE`](LICENSE)). Commercial licenses are available for embedding Núcleo in proprietary software.
+AGPL-3.0-or-later for the core (see [`LICENSE`](LICENSE)). As the sole copyright holder, the author can also grant licenses outside the AGPL (dual licensing); there is no standard commercial license text yet. To ask, write to the copyright holder at the address in [`AUTHORS`](AUTHORS).

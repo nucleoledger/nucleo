@@ -10,7 +10,9 @@ a contribution agreement exists to settle that, code comes only from its author.
 
 A pull request opened now will be closed without review, whatever its size — a typo
 included. That is not a judgement on the patch: it is the only way to keep the rule
-simple enough to hold.
+simple enough to hold. The one exception is the automatic dependency updates opened by
+Dependabot: they change version numbers and lockfiles, not third-party code written for
+this repository, and [`AUTHORS`](AUTHORS) already records them.
 
 **Open an issue instead.** Describe what you hit or what you would change. If it is a
 bug, that is already the most valuable contribution there is: a reproducible case

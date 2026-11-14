@@ -1,6 +1,6 @@
 # Núcleo Protocol Specification
 
-**Version: 0.8-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; wire formats stabilize at v1.0)**
+**Version: 0.8-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; wire formats stabilize at v1.0)**
 
 > **0.8-draft adds two optional policy members, and no artifact changes a byte**
 > ([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md),
@@ -586,6 +586,13 @@ openssl pkeyutl -verify -rawin -pubin -inkey erasure.pem -in digest.bin -sigfile
 ## 7. Segments (normative, pending implementation)
 
 Periods (monthly or yearly by volume) close with a witnessed checkpoint. Historical segments are archived as static tiles. Cross-segment verification uses RFC 9162 consistency proofs between closing checkpoints (Rekor-v2-style sharding).
+
+> **Amendment 2026-11-13 (Sprint 32): deferred, not normative in 0.x.** The text above is
+> left as written. Segments are **deferred**: nothing in 0.x implements them, and while the
+> protocol is 0.x this section is **not normative** — no implementation is non-conforming
+> for lacking segments, and no verifier may require them. The 0.8-draft is frozen until
+> v0.5.0-alpha is published (PLAN): no new member, event or protocol ADR enters before
+> then. Making segments normative again needs its own ADR and a version bump here.
 
 ## 8. Storage (normative)
 

@@ -91,6 +91,10 @@ El backlog atómico está en `TODO.md`. En resumen:
   diferencial. Hoy, L23: solo la comprueba Go, y solo con `logMLDSAKey`.
 - Una sola subida de la política (PROTOCOL 0.8-draft) y una sola 0.5, que sale solo con los
   dos implementados. Los sprints, en orden, en `TODO.md` («La 0.5»).
+- **La 0.8-draft queda congelada: hasta publicar v0.5.0-alpha no entra ningún miembro,
+  evento ni ADR de protocolo nuevo** (2026-11-13). Lo que se apunte para después va a
+  «Después de la 0.5» en `TODO.md`. Los segmentos (PROTOCOL §7) quedan diferidos y no
+  normativos en 0.x (enmienda del 2026-11-13).
 
 **Anotado, sin urgencia**
 - **cosign 3 en el CI de releases.** Hoy se firma con cosign 2.5.2 para publicar a la

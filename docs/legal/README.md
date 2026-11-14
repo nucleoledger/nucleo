@@ -5,7 +5,7 @@ que pediría una due diligence o que necesita el abogado para redactar la licenc
 comercial y el acuerdo de contribución. No contiene cláusulas, no interpreta ninguna
 licencia y no afirma nada jurídico. Donde algo no existe todavía, lo dice.
 
-Estado a 2026-10-02.
+Estado a 2026-11-13.
 
 ---
 
@@ -23,7 +23,7 @@ Estado a 2026-10-02.
 | pieza | dónde | estado |
 |---|---|---|
 | Licencia del proyecto | [`LICENSE`](../../LICENSE) | AGPL-3.0-or-later, texto literal |
-| Licencia comercial | — | **no existe todavía**; el README dice que hay licencias comerciales disponibles |
+| Licencia comercial | — | **no existe todavía** un texto estándar; desde el 2026-11-13 el README (§License) dice exactamente eso: el titular puede conceder licencias fuera de la AGPL (doble licencia), sin texto estándar aún, y el contacto es la dirección de [`AUTHORS`](../../AUTHORS). Hasta entonces decía que había licencias comerciales disponibles |
 | Acuerdo de contribución (CLA) | — | **no existe todavía**; mientras tanto no se aceptan pull requests ([`CONTRIBUTING.md`](../../CONTRIBUTING.md)) |
 | Licencias de terceros | [`NOTICE`](../../NOTICE) | inventario de todas las dependencias, publicadas y de desarrollo, con los textos de lo que viaja en el binario y el método para repetirlo |
 
