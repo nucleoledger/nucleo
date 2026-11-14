@@ -256,15 +256,20 @@ let polTsAcepta = 0;
 for (const c of politicas) {
   let ok = false;
   let err = "";
+  let motivo = "";
   try {
     NucleoVerify.parsePolicyText(c.texto);
     ok = true;
   } catch (e) {
     err = e && e.message;
+    motivo = (e && e.reason) || "(sin motivo)";
   }
   if (ok) polTsAcepta++;
   if (ok !== c.go_valid) {
     divergencias.push({ nombre: `política: ${c.nombre}`, go: c.go_valid, ts: ok, goErr: c.go_err ?? "", tsErr: err });
+  } else if (!ok && c.go_motivo && motivo !== c.go_motivo) {
+    // Desde el Sprint 32 se compara también el MOTIVO del rechazo (G55).
+    divergencias.push({ nombre: `política (motivo): ${c.nombre}`, go: c.go_motivo, ts: motivo, goErr: c.go_err ?? "", tsErr: err });
   }
 }
 console.log(`  catálogo de políticas: ${politicas.length} (Go acepta ${politicas.filter((c) => c.go_valid).length}, TS acepta ${polTsAcepta})`);
@@ -351,6 +356,14 @@ const exigePHP = process.env.NUCLEO_DIFERENCIAL_EXIGE_PHP === "1";
             nombre: `php política: ${politicas[i].nombre}`,
             go: esperado,
             ts: obtenido,
+            goErr: politicas[i].go_err ?? "",
+            tsErr: php.politicas[i]?.err ?? "(sin dictamen)",
+          });
+        } else if (!obtenido && politicas[i].go_motivo && (php.politicas[i]?.reason || "(sin motivo)") !== politicas[i].go_motivo) {
+          divergencias.push({
+            nombre: `php política (motivo): ${politicas[i].nombre}`,
+            go: politicas[i].go_motivo,
+            ts: php.politicas[i]?.reason || "(sin motivo)",
             goErr: politicas[i].go_err ?? "",
             tsErr: php.politicas[i]?.err ?? "(sin dictamen)",
           });

@@ -24,6 +24,8 @@ type mutacionPolitica struct {
 	Texto   string `json:"texto"`
 	GoValid bool   `json:"go_valid"`
 	GoErr   string `json:"go_err,omitempty"`
+	// GoMotivo es policy.Motivo del rechazo (Sprint 32): TS y PHP tienen que dar el mismo.
+	GoMotivo string `json:"go_motivo,omitempty"`
 }
 
 func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
@@ -37,6 +39,7 @@ func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
 		m := mutacionPolitica{Nombre: n, Texto: texto}
 		if _, err := policy.Parse([]byte(texto)); err != nil {
 			m.GoErr = err.Error()
+			m.GoMotivo = policy.Motivo(err)
 		} else {
 			m.GoValid = true
 		}
@@ -55,11 +58,10 @@ func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
 		if err := json.Unmarshal(raw, &v); err != nil {
 			t.Fatal(err)
 		}
-		if v.Requires != "" {
-			// Exige 0.8-draft (ADR-033, ADR-034): los tres lectores de hoy la rechazan
-			// entera como miembro desconocido. El catálogo la muta en el Sprint D, cuando
-			// la lean los tres.
-			continue
+		// Los 0.8-draft (ADR-033, ADR-034) entran desde el Sprint 32 (Sprint D): los leen
+		// los tres.
+		if v.Requires != "" && v.Requires != "0.8-draft" {
+			t.Fatalf("%s: requires %q, una versión que este test no conoce", v.Name, v.Requires)
 		}
 		if len(v.Text) > 4096 {
 			continue // el vector del límite de tamaño: mutarlo carácter a carácter no aporta
@@ -68,7 +70,14 @@ func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
 		// sobrevive al JSON del catálogo (se convierte en U+FFFD) y produciría
 		// divergencias que no existen.
 		rs := []rune(v.Text)
+		// Dentro de la logMLDSAKey —2624 hexadecimales— se mutan solo los 32 primeros y los
+		// 32 últimos: cada carácter de en medio es el mismo caso que sus vecinos, y mutarlos
+		// todos multiplicaría el catálogo por diez sin cubrir nada nuevo.
+		ini, fin := tramoLargoHex(rs)
 		for i := range rs {
+			if i >= ini+32 && i < fin-32 {
+				continue
+			}
 			et := fmt.Sprintf("%s: %d %q", v.Name, i, string(rs[i]))
 			add("borra "+et, string(rs[:i])+string(rs[i+1:]))
 			add("duplica "+et, string(rs[:i+1])+string(rs[i:]))
@@ -84,7 +93,7 @@ func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
 			add(fmt.Sprintf("%s: antepone %q", v.Name, extra), extra+v.Text)
 		}
 		// Estructurales sobre cada miembro de primer nivel.
-		for _, k := range []string{"origin", "logKey", "signerKey", "erasureKey", "witnesses", "quorum"} {
+		for _, k := range []string{"origin", "logKey", "signerKey", "erasureKey", "retiredErasureKeys", "logMLDSAKey", "witnesses", "quorum"} {
 			clave := `"` + k + `"`
 			if !strings.Contains(v.Text, clave) {
 				continue
@@ -98,6 +107,28 @@ func catalogoDePoliticas(t *testing.T) []mutacionPolitica {
 		}
 	}
 	return out
+}
+
+// tramoLargoHex devuelve [ini, fin) del tramo más largo de dígitos hexadecimales en
+// minúsculas de rs si mide al menos 512 runas, o [0, 0).
+func tramoLargoHex(rs []rune) (int, int) {
+	mejorIni, mejorFin, ini := 0, 0, -1
+	for i := 0; i <= len(rs); i++ {
+		hexa := i < len(rs) && (rs[i] >= '0' && rs[i] <= '9' || rs[i] >= 'a' && rs[i] <= 'f')
+		switch {
+		case hexa && ini < 0:
+			ini = i
+		case !hexa && ini >= 0:
+			if i-ini > mejorFin-mejorIni {
+				mejorIni, mejorFin = ini, i
+			}
+			ini = -1
+		}
+	}
+	if mejorFin-mejorIni < 512 {
+		return 0, 0
+	}
+	return mejorIni, mejorFin
 }
 
 // escribirCatalogoDePoliticas deja el catálogo junto al de recibos.

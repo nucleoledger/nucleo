@@ -55,13 +55,15 @@ foreach ($catalogo['casos'] as $c) {
 foreach ($catalogo['politicas'] ?? [] as $p) {
     $ok = true;
     $err = '';
+    $motivo = '';
     try {
         Policy::fromText((string) $p['texto']);
     } catch (\Throwable $e) {
         $ok = false;
         $err = $e->getMessage();
+        $motivo = $e instanceof \Nucleo\VerifyError ? $e->reason : '';
     }
-    $salida['politicas'][] = ['ok' => $ok, 'err' => $err];
+    $salida['politicas'][] = ['ok' => $ok, 'err' => $err, 'reason' => $motivo];
 }
 
 $json = json_encode($salida, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR);
