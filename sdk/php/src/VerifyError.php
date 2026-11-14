@@ -14,4 +14,17 @@ namespace Nucleo;
  */
 final class VerifyError extends \RuntimeException
 {
+    /**
+     * reason es el nombre del motivo cuando lo hay: el de la tabla de PROTOCOL §3.2 para
+     * una política —el mismo que el "reason" de testdata/vectors/policy/ y que
+     * internal/policy.Motivo en Go—, o '' si el lector no lo da. El mensaje es para
+     * personas; el motivo, para comparar.
+     */
+    public string $reason;
+
+    public function __construct(string $message = '', string $reason = '')
+    {
+        parent::__construct($message);
+        $this->reason = $reason;
+    }
 }

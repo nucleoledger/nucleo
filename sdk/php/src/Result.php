@@ -37,6 +37,17 @@ final class Result
      * que no conoces".
      */
     public int $logAdditionalSignatures = 0;
+    /**
+     * logMLDSA dice qué se sabe de la firma ML-DSA-44 del log (ADR-034 §D), solo si el
+     * recibo vale (null si no): "present-unverified" —con logMLDSAKey en la política, hay
+     * al menos una línea de esa clave y todas miden 2420 bytes; sin ella, hay una línea a
+     * nombre del log con la forma de una ML-DSA-44; en los dos casos SIN verificarla— o
+     * "absent". Nunca "verified": no hay ML-DSA en PHP. Para verificarla, `nucleo
+     * verify-receipt`.
+     */
+    public ?string $logMLDSA = null;
+    /** logMLDSANote es el motivo de "present-unverified", para enseñarlo con el estado. */
+    public ?string $logMLDSANote = null;
     /** @var string[] reasons explica, en español, por qué falla */
     public array $reasons = [];
     /** @var array{origin: string, size: string, rootHash: string}|null */
@@ -62,6 +73,7 @@ final class Result
                 ? ''
                 : $this->checkpoint['origin'] . '/' . $this->checkpoint['size'] . '/' . $this->checkpoint['rootHash'],
             'reasons' => $this->reasons,
+            'log_mldsa' => $this->logMLDSA ?? '',
         ];
     }
 }

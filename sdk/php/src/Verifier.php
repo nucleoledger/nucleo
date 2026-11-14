@@ -62,6 +62,13 @@ final class Verifier
             foreach ($pol->witnesses as $w) {
                 $witnesses[] = ['name' => $w['name'], 'key' => self::keyBytes($w['key'], 'la clave del testigo ' . $w['name'])];
             }
+            $mldsaKey = null;
+            if ($pol->logMLDSAKey !== null) {
+                $mldsaKey = Bytes::hexToBin($pol->logMLDSAKey);
+                if ($mldsaKey === null || strlen($mldsaKey) !== 1312) {
+                    throw new VerifyError('logMLDSAKey no mide 1312 bytes');
+                }
+            }
         } catch (VerifyError $e) {
             $r->reasons[] = sprintf('la política no se pudo leer: %s', $e->getMessage());
             return $r;
@@ -127,6 +134,12 @@ final class Verifier
         }
         $contados = [];
         $earliest = null;
+        // La firma ML-DSA-44 del log con la clave fijada (PROTOCOL 0.8-draft §3.3, ADR-034
+        // decisión 5, opción B): toda línea con el nombre del origin y el key ID de esa
+        // clave es de esa clave, y tiene que medir 2420 bytes o el recibo no vale; tiene
+        // que haber al menos una. La firma NO se verifica: no hay ML-DSA en PHP.
+        $mldsaId = $mldsaKey === null ? null : Receipt::mldsaKeyId($pol->origin, $mldsaKey);
+        $lineasMLDSA = 0;
         foreach ($p->note->sigs as $sig) {
             $id = $sig['name'] . "\n" . $sig['keyId'];
             if ($sig['name'] === $pol->origin && $sig['keyId'] === $logId) {
@@ -137,6 +150,19 @@ final class Verifier
                     continue;
                 }
                 $logSigned = true;
+                continue;
+            }
+            if ($mldsaId !== null && $sig['name'] === $pol->origin && $sig['keyId'] === $mldsaId) {
+                if (strlen($sig['signature']) !== Receipt::MLDSA44_SIGNATURE_SIZE) {
+                    $r->reasons[] = sprintf(
+                        'la firma post-cuántica del log (ML-DSA-44) de la clave que fija la política mide %d bytes y una ML-DSA-44 mide %d',
+                        strlen($sig['signature']),
+                        Receipt::MLDSA44_SIGNATURE_SIZE
+                    );
+                    continue;
+                }
+                $lineasMLDSA++;
+                $r->logAdditionalSignatures++;
                 continue;
             }
             if (!isset($porId[$id])) {
@@ -185,6 +211,10 @@ final class Verifier
         if (!$logSigned) {
             $r->reasons[] = 'el checkpoint no está firmado por la clave del log';
         }
+        // Una línea de OTRO key ID no cuenta: es de una clave que la política no conoce.
+        if ($mldsaId !== null && $lineasMLDSA === 0) {
+            $r->reasons[] = 'la política fija la clave ML-DSA-44 del log (logMLDSAKey) y el checkpoint no trae su firma';
+        }
         if (count($r->cosigners) < $pol->quorum) {
             $r->reasons[] = sprintf('quórum de testigos no alcanzado: %d de %d', count($r->cosigners), $pol->quorum);
         }
@@ -208,6 +238,17 @@ final class Verifier
         }
 
         $r->valid = count($r->reasons) === 0;
+        if ($r->valid) {
+            if ($mldsaId !== null) {
+                $r->logMLDSA = 'present-unverified';
+                $r->logMLDSANote = Receipt::NO_IMPLEMENTA_MLDSA;
+            } elseif ($r->logAdditionalSignatures > 0) {
+                $r->logMLDSA = 'present-unverified';
+                $r->logMLDSANote = Receipt::NO_IMPLEMENTA_MLDSA . ', y la política no fija su clave (logMLDSAKey)';
+            } else {
+                $r->logMLDSA = 'absent';
+            }
+        }
         $r->declaredTime = is_string($p->header['timestamp'] ?? null) ? $p->header['timestamp'] : null;
         $r->provableTime = $r->valid ? $provable : null;
         $r->blockIndex = $p->headerIndex;

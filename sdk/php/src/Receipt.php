@@ -36,6 +36,29 @@ final class Receipt
     public const MLDSA44_SIGNATURE_SIZE = 2420;
 
     /**
+     * MLDSA_EXT_ID es el identificador que Núcleo puso detrás del byte de extensión 0xff
+     * de c2sp.org/signed-note para la firma ML-DSA-44 del log (ADR-007, PROTOCOL
+     * 0.8-draft §3.3). Entra en su key ID.
+     */
+    public const MLDSA_EXT_ID = 'nucleoledger.com/sig/ml-dsa-44@v1';
+
+    /**
+     * NO_IMPLEMENTA_MLDSA es el motivo de "present-unverified" con la clave fijada: la
+     * línea está y mide lo que tiene que medir, y este verificador no puede decir más.
+     */
+    public const NO_IMPLEMENTA_MLDSA = 'este verificador no implementa ML-DSA-44';
+
+    /**
+     * mldsaKeyId es el key ID de la firma ML-DSA-44 del log (PROTOCOL 0.8-draft §3.3):
+     * SHA-256(origin ‖ "\n" ‖ 0xff ‖ "nucleoledger.com/sig/ml-dsa-44@v1" ‖ "\n" ‖ P)[:4],
+     * en big-endian, como Note::keyId.
+     */
+    public static function mldsaKeyId(string $origin, string $publicKey): int
+    {
+        return Note::keyId($origin, 0xFF, self::MLDSA_EXT_ID . "\n" . $publicKey);
+    }
+
+    /**
      * LEGAL_NOTICE es la advertencia legal que viaja DENTRO del texto legible.
      *
      * Byte a byte la misma que en Go y en TypeScript: renderHeader la vuelve a componer

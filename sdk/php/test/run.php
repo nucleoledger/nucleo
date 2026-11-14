@@ -71,15 +71,36 @@ function leerJSON(string $path): array
  * traducción. Que el verificador RECHACE la forma snake_case es lo correcto: un miembro
  * desconocido invalida la política (ADR-018).
  */
-function politicaDelVector(array $p): array
+function politicaDelVector(array $p, bool $conClaveMLDSA = true): array
 {
     $out = ['origin' => $p['origin'], 'logKey' => $p['log_key']];
     if (($p['signer_key'] ?? '') !== '') {
         $out['signerKey'] = $p['signer_key'];
     }
+    // La clave ML-DSA-44 del log, si el vector la fija (Sprint 32, ADR-034).
+    if ($conClaveMLDSA && ($p['log_mldsa_key'] ?? '') !== '') {
+        $out['logMLDSAKey'] = $p['log_mldsa_key'];
+    }
     $out['witnesses'] = $p['witnesses'];
     $out['quorum'] = $p['quorum'];
     return $out;
+}
+
+/**
+ * motivoMLDSA traduce las razones de un rechazo al motivo de los vectores, solo para los
+ * dos de ML-DSA. Son frases fijas del verificador: si cambian, esta suite lo nota.
+ */
+function motivoMLDSA(array $reasons): string
+{
+    foreach ($reasons as $r) {
+        if (str_starts_with($r, 'la firma post-cuántica del log (ML-DSA-44) de la clave que fija la política mide ')) {
+            return 'mldsa_signature_invalid';
+        }
+    }
+    if (in_array('la política fija la clave ML-DSA-44 del log (logMLDSAKey) y el checkpoint no trae su firma', $reasons, true)) {
+        return 'mldsa_signature_missing';
+    }
+    return '';
 }
 
 // ---------------------------------------------------------------- leaf/v2
@@ -149,40 +170,49 @@ foreach ([
 // ---------------------------------------------------------------- política
 grupo('política, formato de cable (testdata/vectors/policy)');
 $n = 0;
+$n08 = 0;
 foreach (glob($vectores . '/policy/*.json') as $f) {
     $v = leerJSON($f);
     $n++;
     $ok = true;
     $err = '';
+    $motivo = '';
     try {
         Policy::fromText($v['text']);
     } catch (VerifyError $e) {
         $ok = false;
         $err = $e->getMessage();
+        $motivo = $e->reason;
     }
-    // "requires": "0.8-draft" (ADR-033, ADR-034): una gramática que este SDK todavía no
-    // implementa. Hasta el Sprint D, los válidos se tienen que RECHAZAR como miembro
-    // desconocido, que es lo que PROTOCOL §3.2 manda a un lector 0.7-draft.
+    // "requires": "0.8-draft" (ADR-033, ADR-034): desde el Sprint 32 (Sprint D) este SDK
+    // implementa esa gramática, la de Go. El MISMO veredicto y el MISMO motivo —el
+    // "reason" del vector— para todos, 0.8-draft o no.
     $exige = $v['requires'] ?? '';
-    if ($exige === '0.8-draft') {
-        comprueba(
-            'política ' . $v['name'] . ' (exige 0.8-draft)',
-            !$ok && (!$v['valid'] || str_contains($err, 'miembro desconocido')),
-            $ok ? 'este lector debía rechazarla' : 'debía rechazarla como miembro desconocido y dice: ' . $err
-        );
-        continue;
-    }
-    if ($exige !== '') {
+    if ($exige !== '' && $exige !== '0.8-draft') {
         comprueba('política ' . $v['name'], false, 'requires ' . $exige . ': versión que este test no conoce');
         continue;
     }
+    if ($exige === '0.8-draft') {
+        $n08++;
+    }
     comprueba(
         'política ' . $v['name'],
-        $ok === $v['valid'],
-        $v['valid'] ? 'debería valer y dice: ' . $err : 'debería fallar por: ' . $v['reason']
+        $ok === $v['valid'] && ($ok || $motivo === $v['reason']),
+        $v['valid'] ? 'debería valer y dice: ' . $err : sprintf('debería fallar por %s y dice %s (%s)', $v['reason'], $motivo === '' ? '(sin motivo)' : $motivo, $err)
     );
 }
-comprueba('hay vectores de política', $n >= 60, sprintf('solo %d', $n));
+igual('hay 134 vectores de política', 134, $n);
+igual('58 de ellos de la 0.8-draft', 58, $n08);
+$dos = Policy::fromText(leerJSON($vectores . '/policy/valida-con-los-dos-miembros.json')['text']);
+$doc = json_decode(leerJSON($vectores . '/policy/valida-con-los-dos-miembros.json')['text'], true);
+igual('política 0.8-draft: logMLDSAKey leída', $doc['logMLDSAKey'], $dos->logMLDSAKey);
+$cortes = [];
+foreach ($dos->retiredErasureKeys ?? [] as $r) {
+    $cortes[$r['key']] = $r['cutoff'];
+}
+igual('política 0.8-draft: retiredErasureKeys leídas', $doc['retiredErasureKeys'], $cortes);
+$max = Policy::fromText(leerJSON($vectores . '/policy/valida-retirada-corte-maximo.json')['text']);
+igual('política 0.8-draft: el corte máximo, 2^53 − 1', [9007199254740991], array_column($max->retiredErasureKeys ?? [], 'cutoff'));
 
 // ---------------------------------------------------------------- recibos
 grupo('recibos receipt@v2 (testdata/vectors/receipt)');
@@ -190,12 +220,14 @@ $n = 0;
 foreach (glob($vectores . '/receipt/*.json') as $f) {
     $v = leerJSON($f);
     $n++;
-    // "requires": "0.8-draft" (ADR-034 §F): la política fija log_mldsa_key, que
-    // politicaDelVector no copia y este SDK no lee hasta el Sprint D. Hasta entonces, el
-    // veredicto que tiene que dar es el de una política sin ella; "valid" es el de Go.
+    // "requires": "0.8-draft" (ADR-034 §F): la política fija log_mldsa_key, y desde el
+    // Sprint 32 (Sprint D) el veredicto es el que el vector declara para "php"; "valid"
+    // es el de Go. PHP NUNCA dice "verified".
     $exige = $v['requires'] ?? '';
+    $w = ['valid' => $v['valid']];
     if ($exige === '0.8-draft') {
-        $v['valid'] = $v['verdicts']['without_log_mldsa_key']['valid'];
+        $w = $v['verdicts']['php'];
+        $v['valid'] = $w['valid'];
     } elseif ($exige !== '') {
         comprueba('recibo ' . $v['name'], false, 'requires ' . $exige . ': versión que este test no conoce');
         continue;
@@ -206,7 +238,22 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
         $r->valid === $v['valid'],
         sprintf('esperado valid=%s; razones: %s', var_export($v['valid'], true), implode(' | ', $r->reasons))
     );
+    comprueba('recibo ' . $v['name'] . ': nunca verified', $r->logMLDSA !== 'verified');
+    if (isset($w['reason'])) {
+        igual('recibo ' . $v['name'] . ': motivo', $w['reason'], motivoMLDSA($r->reasons));
+    }
+    if (isset($w['log_mldsa'])) {
+        igual('recibo ' . $v['name'] . ': logMLDSA', $w['log_mldsa'], $r->logMLDSA);
+    }
+    if ($exige === '0.8-draft') {
+        // Y sin la clave en la política, el veredicto de without_log_mldsa_key.
+        $sin = Verifier::verify($v['receipt'], politicaDelVector($v['policy'], false));
+        $ws = $v['verdicts']['without_log_mldsa_key'];
+        igual('recibo ' . $v['name'] . ' sin logMLDSAKey: valid', $ws['valid'], $sin->valid);
+        igual('recibo ' . $v['name'] . ' sin logMLDSAKey: logMLDSA', $ws['log_mldsa'] ?? null, $sin->logMLDSA);
+    }
     if (!$v['valid']) {
+        igual('recibo ' . $v['name'] . ': logMLDSA de un recibo que no vale', null, $r->logMLDSA);
         continue;
     }
     igual('recibo ' . $v['name'] . ': tiempo declarado', $v['declared_time'], $r->declaredTime ?? '');
@@ -216,7 +263,34 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     // recompusiera de otra manera, la inclusión no habría verificado.
     igual('recibo ' . $v['name'] . ': regla de hoja', 'leaf/v2', $v['leaf_rule']);
 }
-comprueba('hay vectores de recibo', $n >= 25, sprintf('solo %d', $n));
+igual('hay 26 vectores de recibo', 26, $n);
+
+// La clave ML-DSA-44 del log fijada (Sprint 32, ADR-034 decisión 5, opción B).
+grupo('la clave ML-DSA-44 del log fijada en la política');
+$fijada = leerJSON($vectores . '/receipt/valido-mldsa-fijada-verificada.json');
+// El key ID lo dio, el 2026-11-08, SHA-256 de origin ‖ "\n" ‖ 0xff ‖ el identificador ‖
+// "\n" ‖ la clave, con hashlib y con sha256sum: calculado fuera de este SDK.
+igual(
+    'key ID de la clave fijada: f2c2d51c',
+    'f2c2d51c',
+    sprintf('%08x', Receipt::mldsaKeyId($fijada['policy']['origin'], (string) Bytes::hexToBin($fijada['policy']['log_mldsa_key'])))
+);
+$r = Verifier::verify($fijada['receipt'], politicaDelVector($fijada['policy']));
+igual('con la clave: present-unverified', 'present-unverified', $r->logMLDSA);
+igual('con la clave: el motivo', 'este verificador no implementa ML-DSA-44', $r->logMLDSANote);
+$lineas = explode("\n", $fijada['receipt']);
+$sinEd = [];
+foreach ($lineas as $l) {
+    if (!(str_starts_with($l, '— ' . $fijada['policy']['origin'] . ' ') && strlen($l) < 200)) {
+        $sinEd[] = $l;
+    }
+}
+$r = Verifier::verify(implode("\n", $sinEd), politicaDelVector($fijada['policy']));
+comprueba(
+    'la Ed25519 del log sigue siendo obligatoria con la clave ML-DSA fijada',
+    count($sinEd) === count($lineas) - 1 && !$r->valid && in_array('el checkpoint no está firmado por la clave del log', $r->reasons, true),
+    implode(' | ', $r->reasons)
+);
 
 // El exploit del recibo de ADR-017, tal como se ejecutó: bloques re-firmados con una clave
 // ajena bajo el checkpoint real. Se rechaza por signerKey; y con la clave del header la
