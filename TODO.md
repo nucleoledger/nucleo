@@ -318,6 +318,20 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 6. CLI-JSON, GARANTIAS (G23, G50–G54, L23; L14 igual salvo su remisión a L23),
       ADR-034 (Implementación), PLAN y TODO; README al Sprint E
 
+## Sprint 32 — la 0.5, Sprint D: TypeScript, PHP y la página con los dos miembros 0.8-draft
+- [x] 0a. `erase` y `reconcile` coinciden en qué se regulariza (mutación: la condición 4, ≥ → >)
+- [x] 0b. `erase` coteja `logMLDSAKey` antes de sellar, con su test (G53)
+- [x] 0c. README §License, docs/legal, CONTRIBUTING (Dependabot), PLAN (la 0.8-draft
+      congelada) y PROTOCOL §7 diferido y no normativo en 0.x
+- [x] 1. Vector `invalido-mldsa-fijada-mide-2419` (generar.py y OpenSSL; nada más cambia)
+- [x] 2. TypeScript: los dos miembros con el motivo de Go; la línea ML-DSA sin verificarla
+- [x] 3. PHP: lo mismo
+- [x] 4. La página: los tres estados; «presente, NO verificada», sin ✔
+- [x] 5. El diferencial con los 0.8-draft, la escena re-firmada con ML-DSA y la divergencia
+      declarada, con la longitud comprobada por el arnés; cuatro mutaciones
+- [x] 6. GARANTIAS (G8, G23, G47, G50, G55–G57, L14, L18, L23), ADR-034, READMEs de los SDK,
+      CHANGELOG (Breaking), PLAN y TODO
+
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
 La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
 es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
@@ -345,10 +359,10 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       `LogMLDSA`, el key ID contra hashlib, tres mutaciones); `sync` imprime `logMLDSAKey`
       siempre; la apertura la coteja donde abre la identidad; `nucleo verify-receipt`; la
       compatibilidad con v0.4.0-alpha sin la clave; CLI-JSON y GARANTIAS (G50–G54, L23)
-- [ ] **Sprint D — TypeScript, PHP y la página**: los dos miembros en el parser, `logMLDSA`
-      con `"present-unverified"` (opción B); el diferencial con los miembros nuevos y la
-      divergencia declarada (los seis recibos 0.8-draft, que `TestDiferencialGeneraCatalogo`
-      salta hasta entonces); al terminar, G23 y L23 al día (hoy dicen «hasta el Sprint D»)
+- [x] **Sprint D — TypeScript, PHP y la página** (Sprint 32): los dos miembros en el parser,
+      con el motivo de Go; `logMLDSA` con `"present-unverified"` (opción B), la línea y sus
+      2420 bytes exigidos; la página con los tres estados; el diferencial con los siete
+      recibos 0.8-draft y la divergencia declarada; G23, L23, L14 y G55–G57
 - [ ] **Sprint E — documentación y ensayo**: GARANTIAS (L14, L23: la comprobación
       post-cuántica solo la hace el verificador de Go; L21 ya se reescribió en el C1),
       OPERACION §3 (rotar con el fragmento de `sync`: es lo que el C1 deja sin escribir),
@@ -360,8 +374,19 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       fuera el `delete sync.policy.logMLDSAKey` provisional de `bin/setup.js` (Sprint 31: el
       SDK 0.4 publicado rechaza la política que `sync` imprime ahora);
       `ensayo-actualizacion.sh` con los pasos del plan conjunto y `tercero-supresion.sh` con
-      la clave retirada
+      la clave retirada; OPERACION: qué hace una contraparte que sigue en el SDK 0.4 cuando
+      el binario 0.5 le da una política con `logMLDSAKey` —actualizar al SDK 0.5, o quitar
+      `logMLDSAKey` de su copia y quedarse sin la comprobación post-cuántica— (CHANGELOG,
+      Breaking); el README dice que la supresión no es la anulación (L18)
 - [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`
+
+## Después de la 0.5 (en este orden; la 0.8-draft queda congelada hasta publicar v0.5.0-alpha)
+- [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una
+      factura es un evento nuevo que deja verificable la emisión, no una supresión (L18).
+      Toca el protocolo: ADR antes que código
+- [ ] **Huella SHA-256 de la política (JCS)** en `sync` y en `verify-receipt`, para cotejarla
+      con la del contrato: operativiza L21 sin tocar el protocolo
+- [ ] **El Sealer PHP rechaza rutas relativas del binario**
 
 ## Después del release de v0.4.0-alpha
 - [x] El exploit del recibo de ADR-017 (un bloque firmado por una clave ajena, bajo el
@@ -385,16 +410,17 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       publicar. Hasta el release, un recibo se verifica con `@nucleoledger/verify`, con el SDK
       de PHP o con la página de `web/verify/`.
 - [ ] **ADR-033 (ACEPTADO el 2026-10-18; implementado en Go (Sprint C1, Sprint 30: G47–G49);
-      pendiente: TS, PHP y la página (Sprint D) y la documentación de operación (Sprint E)):
+      TS y PHP leen el miembro (Sprint D, Sprint 32: G55); pendiente: la documentación de
+      operación (Sprint E)):
       rotación de erasureKey.** `retiredErasureKeys` (clave → corte) en la política, para que
       rotar no invalide las supresiones históricas (era el límite L21, reescrito en el C1), y
       la regularización con la clave nueva.
       Implementación: los sprints de la 0.5, arriba.
 - [ ] **ADR-034 (ACEPTADO el 2026-10-18; vectores listos (Sprint 29); implementado en Go
-      (Sprint C2, Sprint 31: G50–G53); pendiente: TS, PHP y la página (Sprint D), README y
-      operación (Sprint E)): verificar ML-DSA-44.**
+      (Sprint C2, Sprint 31: G50–G53) y en TS, PHP y la página (Sprint D, Sprint 32: G55–G57);
+      pendiente: README y operación (Sprint E)): verificar ML-DSA-44.**
       `logMLDSAKey` en la política; Go la verifica con `crypto/mldsa`; TS, PHP y la página
-      dicen `"present-unverified"` (opción B). Hoy, el límite L23. Implementación: los sprints
+      dicen `"present-unverified"` (opción B). El límite L23. Implementación: los sprints
       de la 0.5, arriba.
 - [ ] Identidad de registro estable y eventos `issued`/`voided` en el perfil
       genérico: las facturas se anulan y hoy `reconcile` no lo modela (pide ADR)

@@ -77,18 +77,20 @@ El backlog atómico está en `TODO.md`. En resumen:
 
 **La 0.5: ADR-033 y ADR-034, ACEPTADOS el 2026-10-18**
 - **ADR-033: rotación de erasureKey.** ACEPTADO el 2026-10-18; implementado en Go (Sprint C1,
-  Sprint 30: G47–G49); pendiente: TS, PHP y la página (Sprint D) y la documentación de
-  operación (Sprint E). `retiredErasureKeys` (clave → corte) en la política,
+  Sprint 30: G47–G49); TS y PHP leen `retiredErasureKeys` con la gramática de Go (Sprint D,
+  Sprint 32: G55; no implementan supresión); pendiente: la documentación de operación
+  (Sprint E). `retiredErasureKeys` (clave → corte) en la política,
   para que rotar no invalide las supresiones históricas (era el límite L21, reescrito en el
   C1); `sync --policy-file`
   imprime el fragmento con el corte dentro de lo atestiguado; una supresión no autorizada se
   puede regularizar con la clave nueva y `reconcile` sale con 0 y un aviso permanente.
 - **ADR-034: verificar ML-DSA-44.** ACEPTADO el 2026-10-18; vectores listos (Sprint 29);
-  implementado en Go (Sprint C2, Sprint 31: G50–G53); pendiente: TS, PHP y la página
-  (Sprint D) y README y operación (Sprint E). `logMLDSAKey` en la política; Go la verifica con
-  `crypto/mldsa`, también en la orden nueva `nucleo verify-receipt` (recibos ajenos); TS, PHP
-  y la página dirán `"present-unverified"` (opción B), con la divergencia declarada en el
-  diferencial. Hoy, L23: solo la comprueba Go, y solo con `logMLDSAKey`.
+  implementado en Go (Sprint C2, Sprint 31: G50–G53) y en TS, PHP y la página (Sprint D,
+  Sprint 32: G55–G57); pendiente: README y operación (Sprint E). `logMLDSAKey` en la
+  política; Go la verifica con `crypto/mldsa`, también en la orden nueva `nucleo
+  verify-receipt` (recibos ajenos); TS, PHP y la página dicen `"present-unverified"`
+  (opción B): exigen la línea y su longitud, no la verifican, con la divergencia declarada
+  en el diferencial. L23: solo la comprueba Go, y solo con `logMLDSAKey`.
 - Una sola subida de la política (PROTOCOL 0.8-draft) y una sola 0.5, que sale solo con los
   dos implementados. Los sprints, en orden, en `TODO.md` («La 0.5»).
 - **La 0.8-draft queda congelada: hasta publicar v0.5.0-alpha no entra ningún miembro,

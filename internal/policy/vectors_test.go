@@ -15,7 +15,7 @@ import (
 // En Go se comprueba el veredicto Y el motivo: el "reason" del vector es el que da
 // Motivo(err). Los vectores con "requires": "0.8-draft" (ADR-033, ADR-034) pasan por la
 // misma comprobación desde el Sprint C1, porque este lector ya implementa esa gramática;
-// en TypeScript y en PHP siguen rechazándose como miembro desconocido hasta el Sprint D.
+// TypeScript y PHP, desde el Sprint 32 (Sprint D), con el mismo veredicto y motivo.
 func TestVectoresDePolitica(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("..", "..", "testdata", "vectors", "policy", "*.json"))
 	if err != nil || len(files) < 50 {

@@ -246,12 +246,35 @@ callarse: una compuerta que no distingue "coinciden" de "no se comprobó" no es 
 compuerta. Y con `NUCLEO_DIFERENCIAL_EXIGE_PHP=1` la ausencia deja de ser un aviso y
 pasa a ser un fallo — es lo que pone el CI, donde el tercer verificador no es opcional.
 
+## La firma post-cuántica del log: `logMLDSA`
+
+Desde el Sprint 32 (en `main`, sin publicar) la política admite los dos miembros de PROTOCOL
+0.8-draft, `logMLDSAKey` y `retiredErasureKeys`, con la gramática de Go: el mismo veredicto
+y el mismo motivo en todos los vectores de política (`VerifyError::$reason`). Las claves
+retiradas se leen y no se usan: este SDK no implementa supresión. El binario 0.5 imprime
+`logMLDSAKey` en la política que propone `sync`, así que con él hace falta este SDK.
+
+La firma ML-DSA-44 adicional del log (ADR-007) **no se verifica nunca** —no hay ML-DSA en
+PHP— y `Result::$logMLDSA` lo dice, solo cuando el recibo vale:
+
+- `'present-unverified'`: con `logMLDSAKey` en la política, hay al menos una línea de esa
+  clave y todas miden 2420 bytes; `logMLDSANote` es «este verificador no implementa
+  ML-DSA-44». Sin la clave, hay una línea a nombre del log con la forma de una ML-DSA-44.
+  En los dos casos, **sin verificarla**. Para verificarla, el verificador de Go:
+  `nucleo verify-receipt --receipt FICHERO --policy-file POLÍTICA`.
+- `'absent'`: la política no fija la clave y no hay ninguna línea con esa forma.
+- el recibo **no vale** (`logMLDSA` es `null`): la política fija la clave y el recibo no
+  trae su línea, o trae una que no mide 2420 bytes; `reasons` dice cuál.
+
+Una firma ML-DSA **alterada** de 2420 bytes vale aquí y no vale en `nucleo verify-receipt`:
+es la única divergencia que el diferencial admite (ADR-034, decisión 5). La línea sigue
+contando en `logAdditionalSignatures`, no como "clave desconocida", igual que en
+TypeScript.
+
 ## Lo que este SDK NO hace
 
 Abrir un ledger, el vault, SLIP-0039, `sync`, el testigo: son del emisor, y el emisor
-tiene la CLI. Y la firma ML-DSA-44 adicional del log (ADR-007) no se verifica —no hay
-ML-DSA en PHP—, pero tampoco se cuenta como "clave desconocida": aparece en
-`logAdditionalSignatures`, igual que en TypeScript.
+tiene la CLI. Ni verificar la firma ML-DSA-44 del log (arriba).
 
 ## Licencia
 

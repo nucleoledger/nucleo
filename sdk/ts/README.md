@@ -14,6 +14,21 @@ part of the platform. Nothing else is needed.
 npm install @nucleoledger/verify
 ```
 
+## Upgrading to 0.5 (unreleased: in `main` since Sprint 32)
+
+**Required if your issuer runs the Núcleo 0.5 binary.** From 0.5, `nucleo sync` always
+prints `logMLDSAKey` —the log's ML-DSA-44 public key— in the policy it proposes, and the
+0.4 SDK rejects that policy (`unknown member "logMLDSAKey"`). This version reads both
+PROTOCOL 0.8-draft members, `logMLDSAKey` and `retiredErasureKeys`, with the same grammar
+as the Go verifier: the same verdict **and the same reason** on every shared policy vector
+(`PolicyError.reason`). `retiredErasureKeys` is read and not used: this package does not
+implement erasure.
+
+With `logMLDSAKey` in the policy, a receipt must carry at least one signature line with
+the origin's name and that key's ID, and every such line must be 2420 bytes long, or the
+receipt is invalid. **The signature itself is not verified**: WebCrypto has no ML-DSA-44.
+`result.logMLDSA` says so (see below).
+
 ## Upgrading from 0.3.0-alpha.0
 
 **Required if your issuer's policy carries `erasureKey`.** Receipts are read exactly as
@@ -187,20 +202,43 @@ interface Result {
   cosigners: string[];
   ignoredSignatures: string[];
   logAdditionalSignatures: number;  // the log's own ML-DSA-44 signature (ADR-007), not verified here
+  logMLDSA: "present-unverified" | "absent" | null;  // see below; null when the receipt is invalid
+  logMLDSANote: string | null;     // why "present-unverified", to show next to it
   reasons: string[];        // in Spanish, meant to be shown to a person
   checkpoint: { origin: string; size: string; rootHash: string } | null;
 }
 ```
 
+## The post-quantum signature: `logMLDSA`
+
+Every checkpoint the log signs carries an additional ML-DSA-44 signature (ADR-007). This
+package **never verifies it** and never says it did. `logMLDSA` has three outcomes:
+
+- `"present-unverified"` — with `logMLDSAKey` in your policy: at least one line of that
+  key is there and every one is 2420 bytes long; `logMLDSANote` is
+  «este verificador no implementa ML-DSA-44». Without the key: a line in the log's name has
+  the size of an ML-DSA-44 signature. In both cases, **not verified**. To verify it, use
+  the Go verifier: `nucleo verify-receipt --receipt FILE --policy-file POLICY`, which
+  answers `"verified"` only after checking it.
+- `"absent"` — your policy does not pin the key and there is no such line.
+- the receipt is **invalid** (`logMLDSA: null`) — your policy pins the key and the receipt
+  has no line of it, or has one that is not 2420 bytes long; `reasons` says which.
+
+So a receipt whose ML-DSA-44 signature was **altered** (still 2420 bytes) is valid here and
+invalid in `nucleo verify-receipt`. That is the one documented divergence between the
+verifiers (ADR-034, decision 5).
+
 ## What gets checked
 
 0. The policy itself follows PROTOCOL.md §3.2: exact members, no duplicates or
    case variants, lower-case hex, at least one witness, `quorum` an integer literal.
+   A rejection throws a `PolicyError` whose `reason` names the rule.
 1. The receipt parses, its header is in canonical form, and the note's signature
    block follows PROTOCOL.md §3.3 line by line.
 2. The checkpoint is signed by the log key in your policy.
 3. Cosignatures verify against the witness keys in your policy — every line of a known
-   key must verify — and the quorum of distinct witnesses is met.
+   key must verify — and the quorum of distinct witnesses is met. With `logMLDSAKey`,
+   the ML-DSA-44 lines of that key are present and 2420 bytes long (not verified).
 3b. The block is signed by the `signerKey` of your policy, and the issuer's signature
    covers the whole receipt, recipient included.
 4. The RFC 9162 inclusion path leads from the record to the checkpoint root.

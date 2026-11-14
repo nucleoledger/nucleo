@@ -11,6 +11,20 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Breaking
+
+- **The 0.5 binary always prints `logMLDSAKey` in the policy `nucleo sync` proposes**
+  (ADR-034, decision 9; PROTOCOL 0.8-draft §3.2), and the published 0.4 SDK
+  (`@nucleoledger/verify` 0.4.0-alpha.0, and the PHP SDK of the 0.4 tag) **rejects that
+  policy** as an unknown member. So the order of publication is: **first the 0.5 SDK**
+  (`vsdk-0.5.0-alpha.0`), then the binary. A counterparty that stays on the 0.4 SDK has two
+  ways out: update, or delete `logMLDSAKey` from its copy of the policy and go on verifying
+  as before, without the post-quantum check. The TypeScript and PHP SDKs in `main` read both
+  0.8-draft members (`logMLDSAKey`, `retiredErasureKeys`) with the Go grammar —same verdict,
+  same reason— and, with `logMLDSAKey`, require the log's ML-DSA-44 line and its 2420-byte
+  length without verifying the signature: `logMLDSA` is `"present-unverified"`, never
+  `"verified"` (ADR-034, decision 5, option B). Only `nucleo verify-receipt` verifies it.
+
 ### Added
 
 - **`nucleo version`**: the version, commit, commit date and Go version of the binary, in one

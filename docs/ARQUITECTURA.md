@@ -342,7 +342,11 @@ sequenceDiagram
 `cmd/nucleo/verify_receipt.go#cmdVerifyReceipt` —el `Receipt.Verify` de Go con la política del
 fichero, sin ledger ni vault—; los SDK y la página son los verificadores de la contraparte. Con
 `logMLDSAKey` en la política, solo el de Go comprueba la firma ML-DSA-44 del log
-(`internal/proof/proof.go#VerifyNote`, PROTOCOL 0.8-draft §3.3). Los tres **comprueban las mismas propiedades**, pero no con el
+(`internal/proof/proof.go#VerifyNote`, PROTOCOL 0.8-draft §3.3); desde el Sprint 32, TypeScript,
+PHP y la página exigen la línea de esa clave y sus 2420 bytes sin verificarla y dicen
+`"present-unverified"` (opción B de ADR-034), y esa —Go rechaza una firma alterada de 2420 bytes,
+ellos la aceptan— es la única divergencia que admite el diferencial
+(`sdk/ts/scripts/diferencial.mjs#excepcionMLDSA`). Los tres **comprueban las mismas propiedades**, pero no con el
 mismo procedimiento: el orden difiere, y el de Go se detiene en el primer fallo
 (`internal/receipt/format.go#Receipt.Verify` empieza por la firma del emisor), mientras que el de
 PHP acumula los motivos de rechazo y sigue (`sdk/php/src/Verifier.php#Verifier::verify` empieza por
@@ -356,6 +360,7 @@ propiedad comprueba cada uno:
 | firma del emisor sobre el recibo | `internal/receipt/format.go#VerifyReceiptSignature` | dentro de `verifyReceipt` | dentro de `Verifier::verify` |
 | firma del bloque y hoja `leaf/v2` | `internal/receipt/receipt.go#Receipt.VerifyBlockSignature` | dentro de `verifyReceipt`, con `sdk/ts/src/crypto.ts#verifyEd25519` | dentro de `Verifier::verify` |
 | nota, firmas y quórum | `internal/proof/proof.go#VerifyNote` | dentro de `verifyReceipt`, con `sdk/ts/src/note.ts#parseNote` y `sdk/ts/src/cosignature.ts#parseCosignature` | dentro de `Verifier::verify`, con `sdk/php/src/Note.php#Note` y `sdk/php/src/Cosignature.php#Cosignature` |
+| línea ML-DSA-44 de la clave fijada | `internal/proof/proof.go#VerifyNote` (la verifica) | dentro de `verifyReceipt`, con `sdk/ts/src/receipt.ts#mldsaKeyId` (longitud, sin verificar) | dentro de `Verifier::verify`, con `sdk/php/src/Receipt.php#Receipt::mldsaKeyId` (longitud, sin verificar) |
 | inclusión | `internal/ledger/merkle.go#VerifyInclusion` | `sdk/ts/src/merkle.ts#verifyInclusion` | `sdk/php/src/Merkle.php#Merkle::verifyInclusion` |
 
 Que digan lo mismo lo comprueba el diferencial de tres vías (`sdk/ts/scripts/diferencial.mjs`,
