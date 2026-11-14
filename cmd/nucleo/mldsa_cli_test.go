@@ -165,3 +165,55 @@ func TestLaAperturaCotejaLogMLDSAKey(t *testing.T) {
 		}
 	})
 }
+
+// TestEraseCotejaLogMLDSAKey (Sprint 32, 0b; G53): erase abre la identidad, así que coteja
+// la logMLDSAKey de la política. Con una ajena se niega ANTES de sellar: ni bloque nuevo ni
+// copia cifrada borrada. Con la buena, la misma supresión se sella.
+func TestEraseCotejaLogMLDSAKey(t *testing.T) {
+	c := newCLI(t)
+	sp := c.initConSupresion(t)
+	c.sealFile(`{"venta":"001","cliente":"Ana"}`)
+	h0, _ := contenidoDe(t, c.dir, 0)
+	auth := c.autoriza(t, sp, h0, 0)
+
+	conClave := func(nombre, clave string) string {
+		raw, err := os.ReadFile(sp.politica)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatal(err)
+		}
+		doc["logMLDSAKey"] = clave
+		raw, err = json.Marshal(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ruta := filepath.Join(c.dir, nombre)
+		if err := os.WriteFile(ruta, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return ruta
+	}
+	mala := conClave("erase-mala.json", strings.Repeat("ab", 1312))
+	buena := conClave("erase-buena.json", clavePQDelLedger(t, c))
+
+	antes := bloques(t, c.dir)
+	_, errOut := c.runWant(t, exitUsage, "erase", "--block", "0", "--policy-file", mala,
+		"--authorization", auth, "--assume-confirmed")
+	if !strings.Contains(errOut, "la logMLDSAKey de la política no es la clave ML-DSA-44 de este ledger") {
+		t.Errorf("no dice por qué:\n%s", errOut)
+	}
+	if n := bloques(t, c.dir); n != antes {
+		t.Fatalf("erase selló con una logMLDSAKey ajena: %d bloques, había %d", n, antes)
+	}
+	if _, ct := contenidoDe(t, c.dir, 0); ct == nil {
+		t.Fatal("erase borró la copia cifrada con una logMLDSAKey ajena")
+	}
+
+	c.mustRun("erase", "--block", "0", "--policy-file", buena, "--authorization", auth, "--assume-confirmed")
+	if n := bloques(t, c.dir); n != antes+1 {
+		t.Errorf("con la clave buena no se selló: %d bloques", n)
+	}
+}
