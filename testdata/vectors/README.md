@@ -172,6 +172,19 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              lector 0.7-draft y el que comprueban los tests hasta los Sprints C y D.
              Los 19 vectores anteriores no cambiaron un byte (sha256 antes y después).
 
+             Sprint 32 (Sprint D, adición pedida por el dev): un séptimo recibo de la
+             clave fijada, generado igual —generar.py, con la firma de OpenSSL—:
+               invalido-mldsa-fijada-mide-2419  la línea lleva el nombre del origin y
+                                                el key ID de la clave fijada (f2c2d51c)
+                                                y 2419 bytes de firma: la buena sin su
+                                                último byte, que OpenSSL rechaza
+             Inválido en Go, TS y PHP con el mismo motivo, mldsa_signature_invalid:
+             TS y PHP no verifican ML-DSA, pero toda línea de la clave fijada tiene que
+             medir 2420 bytes. Con una política sin la clave la línea no tiene la forma
+             de ML-DSA-44 y se ignora: válido, "absent". Los 25 recibos anteriores y el
+             resto de testdata/vectors/ no cambiaron un byte (sha256 antes y después;
+             solo generar.py, que gana el caso).
+
 - mldsa/     vectores ML-DSA-44 (FIPS 204) de una implementación INDEPENDIENTE, OpenSSL
              3.5.9 (ADR-034, «Los vectores»; adición autorizada por el dev, Sprint 29).
              firmas.json: (clave pública, mensaje, firma, veredicto) con dos claves

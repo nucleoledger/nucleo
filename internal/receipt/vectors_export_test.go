@@ -296,8 +296,8 @@ func TestVectoresMLDSASinClave(t *testing.T) {
 			}
 		})
 	}
-	if n != 6 {
-		t.Fatalf("%d recibos 0.8-draft; eran 6", n)
+	if n != 7 {
+		t.Fatalf("%d recibos 0.8-draft; son 7 (el séptimo, invalido-mldsa-fijada-mide-2419, del Sprint 32)", n)
 	}
 }
 

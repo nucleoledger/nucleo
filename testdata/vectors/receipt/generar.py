@@ -160,8 +160,9 @@ def firma_mldsa(tipo, cuerpo):
     """(pub, firma) de una línea ML-DSA-44 del log, desde OpenSSL.
 
     "buena": la clave del log; "mala": la misma con un bit de z cambiado; "ajena": una
-    clave que la política no fija. OpenSSL confirma cada veredicto antes de que entre en
-    un vector: una "mala" que verificara no probaría nada.
+    clave que la política no fija; "corta": la buena sin su último byte, 2419 bytes
+    (Sprint 32). OpenSSL confirma cada veredicto antes de que entre en un vector: una
+    "mala" que verificara no probaría nada.
     """
     semilla = OTRA_MLDSA_SEED if tipo == "ajena" else LOG_MLDSA_SEED
     pub, firma = om.publica(semilla), om.firma(semilla, cuerpo)
@@ -169,7 +170,11 @@ def firma_mldsa(tipo, cuerpo):
         b = bytearray(firma)
         b[MLDSA_BYTE_ALTERADO] ^= 1 << MLDSA_BIT_ALTERADO
         firma = bytes(b)
-    if om.verifica(pub, cuerpo, firma) != (tipo != "mala"):
+    if tipo == "corta":
+        firma = firma[:-1]
+        if len(firma) != 2419:
+            raise SystemExit(f"la firma corta mide {len(firma)} bytes")
+    if om.verifica(pub, cuerpo, firma) != (tipo not in ("mala", "corta")):
         raise SystemExit(f"OpenSSL no da el veredicto esperado para la firma ML-DSA {tipo!r}")
     return pub, firma
 
@@ -423,12 +428,17 @@ def genera_mldsa():
     def caso(nombre, desc, lineas, go, sin_clave):
         """go: (valid, log_mldsa o motivo); sin_clave: log_mldsa con una política sin la
         clave, donde todos valen. TS y PHP (opción B, decisión 5): exigen una línea de la
-        clave de 2420 bytes y no la verifican."""
+        clave de 2420 bytes y no la verifican; una línea de la clave que no mide 2420 es
+        inválida también para ellos."""
         bloques, _, nota_bytes, provable = escena(5, mldsa=lineas)
         rec, hoja, firma = recibo(bloques, 2, DESTINATARIO, nota_bytes, rfc3339(provable), TENANT_SK)
         de_la_clave = "buena" in lineas or "mala" in lineas
-        sdk = ({"valid": True, "log_mldsa": "present-unverified"} if de_la_clave
-               else {"valid": False, "reason": "mldsa_signature_missing"})
+        if "corta" in lineas:
+            sdk = {"valid": False, "reason": "mldsa_signature_invalid"}
+        elif de_la_clave:
+            sdk = {"valid": True, "log_mldsa": "present-unverified"}
+        else:
+            sdk = {"valid": False, "reason": "mldsa_signature_missing"}
         v = {
             "name": nombre,
             "description": desc,
@@ -479,6 +489,13 @@ def genera_mldsa():
          "La línea buena de la clave fijada y otra de una clave que la política no conoce: esa se ignora y el "
          "recibo vale.",
          ("buena", "ajena"), (True, "verified"), "present-unverified")
+    caso("invalido-mldsa-fijada-mide-2419",
+         "La línea lleva el nombre del origin y el key ID de la clave fijada, y 2419 bytes de firma: la buena sin su "
+         "último byte. Toda línea de esa clave mide 2420 bytes o el recibo no vale (PROTOCOL §3.3), así que inválido "
+         "en los tres con el mismo motivo, mldsa_signature_invalid: TypeScript y PHP no verifican ML-DSA, pero sí "
+         "la longitud. Con una política sin la clave, la línea no tiene la forma de ML-DSA-44 y se ignora: válido, "
+         "\"absent\".",
+         ("corta",), (False, "mldsa_signature_invalid"), "absent")
     return out
 
 

@@ -20,7 +20,7 @@ import (
 // testdata/compat-v0.4.0-alpha.json, y lo calculó el código del tag v0.4.0-alpha
 // —internal/policy.Parse, ProofPolicy, Parse y Verify de entonces—, en un worktree del tag,
 // sobre los casos que escribe este test con NUCLEO_COMPAT_CASOS_OUT (cómo regenerarlo, en
-// la cabecera del fichero). Los casos: los 25 recibos de testdata/vectors/receipt/ —los
+// la cabecera del fichero). Los casos: los 26 recibos de testdata/vectors/receipt/ —los
 // 0.8-draft con su política sin la clave—, las mutaciones de catalogoDeMutaciones sobre
 // cada uno, y el catálogo re-firmado del diferencial. Cada caso se identifica por el
 // sha256 del recibo y de su política, así que un caso que cambie de bytes no encuentra su
