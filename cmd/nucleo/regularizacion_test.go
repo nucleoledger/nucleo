@@ -366,3 +366,84 @@ func TestRegularizarEsRatificar(t *testing.T) {
 		}
 	})
 }
+
+// regularizadasDe ejecuta reconcile --json con la política dada y devuelve, de cada
+// supresión regularizada, su índice y el del evento que la regulariza.
+func regularizadasDe(t *testing.T, c *cli, vivos, pol string) map[uint64]uint64 {
+	t.Helper()
+	out := c.mustRun("--json", "reconcile", "--source", vivos, "--policy-file", pol)
+	var r struct {
+		Regularized []struct {
+			Index         uint64 `json:"index"`
+			RegularizedBy uint64 `json:"regularized_by"`
+		} `json:"regularized"`
+	}
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Regularized == nil {
+		t.Fatalf("regularized no sale (tiene que ir siempre, vacío si no hay ninguna):\n%s", out)
+	}
+	m := map[uint64]uint64{}
+	for _, x := range r.Regularized {
+		m[x.Index] = x.RegularizedBy
+	}
+	return m
+}
+
+// TestEraseYReconcileDicenLoMismo (Sprint 32, 0a): lo que erase --json anuncia en
+// regularizes es EXACTAMENTE lo que reconcile, con la misma política, lista después en
+// regularized, y con regularized_by igual al índice del evento que selló erase. Sin
+// regularizes, regularized sale vacío. Si las dos condiciones —la de erase al avisar y la
+// 4 de reconcile al contar— se separan, erase anunciaría una ratificación que reconcile no
+// ve, o al revés.
+func TestEraseYReconcileDicenLoMismo(t *testing.T) {
+	t.Run("con regularizes", func(t *testing.T) {
+		c, args, _ := conSupresionNoAutorizada(t)
+		pol := args[4]
+		vivos := ficheroVivo(t, c.dir, 1, `{"venta":"002","cliente":"Luis"}`)
+		out := c.mustRun(append([]string{"--json"}, append(args, "--assume-confirmed")...)...)
+		var v struct {
+			Index       uint64 `json:"index"`
+			Regularizes []struct {
+				Index uint64 `json:"index"`
+			} `json:"regularizes"`
+		}
+		if err := json.Unmarshal([]byte(out), &v); err != nil {
+			t.Fatal(err)
+		}
+		if len(v.Regularizes) == 0 {
+			t.Fatalf("erase no anuncia nada que regularizar; el test no compararía nada:\n%s", out)
+		}
+		anunciadas := map[uint64]uint64{}
+		for _, r := range v.Regularizes {
+			anunciadas[r.Index] = v.Index
+		}
+		got := regularizadasDe(t, c, vivos, pol)
+		if len(got) != len(anunciadas) {
+			t.Fatalf("erase anuncia %v y reconcile lista %v", anunciadas, got)
+		}
+		for i, por := range anunciadas {
+			if got[i] != por {
+				t.Errorf("la supresión del evento %d: erase dice que la regulariza el %d, reconcile %v", i, por, got)
+			}
+		}
+	})
+
+	t.Run("sin regularizes", func(t *testing.T) {
+		c := newCLI(t)
+		sp := c.initConSupresion(t)
+		c.sealFile(`{"venta":"001","cliente":"Ana"}`)
+		c.sealFile(`{"venta":"002","cliente":"Luis"}`)
+		h0, _ := contenidoDe(t, c.dir, 0)
+		out := c.mustRun("--json", "erase", "--block", "0", "--policy-file", sp.politica,
+			"--authorization", c.autoriza(t, sp, h0, 0), "--assume-confirmed")
+		if strings.Contains(out, "regularizes") {
+			t.Fatalf("regularizes sin nada que regularizar:\n%s", out)
+		}
+		vivos := ficheroVivo(t, c.dir, 1, `{"venta":"002","cliente":"Luis"}`)
+		if got := regularizadasDe(t, c, vivos, sp.politica); len(got) != 0 {
+			t.Errorf("regularized %v sin regularizes en erase", got)
+		}
+	})
+}
