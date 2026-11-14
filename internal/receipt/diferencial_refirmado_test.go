@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/proof"
 	"github.com/nucleoledger/nucleo/internal/witness"
 )
@@ -68,16 +69,42 @@ type escenaRefirmada struct {
 	logPub  ed25519.PublicKey
 	origin  string
 	testigo string
+	// mldsa es el firmante ML-DSA-44 del log cuando la nota lleva su línea y la política
+	// fija su clave (Sprint 32, ADR-034); nil en las demás escenas.
+	mldsa *checkpoint.MLDSASigner
 }
 
-func nuevaEscenaRefirmada(t *testing.T, nombre string, testigos int) escenaRefirmada {
+// semillaMLDSADelLog es la semilla ML-DSA-44 del log de la escena con ML-DSA: la misma
+// 200..231 de los vectores (testdata/vectors/receipt/generar.py, LOG_MLDSA_SEED).
+func semillaMLDSADelLog() []byte {
+	s := make([]byte, 32)
+	for i := range s {
+		s[i] = byte(200 + i)
+	}
+	return s
+}
+
+func nuevaEscenaRefirmada(t *testing.T, nombre string, testigos int, conMLDSA bool) escenaRefirmada {
 	t.Helper()
-	sc := newScene(t, testigos)
+	var firmante *checkpoint.MLDSASigner
+	var sc *scene
+	if conMLDSA {
+		var err error
+		if firmante, err = checkpoint.NewMLDSASigner(testOrigin, semillaMLDSADelLog()); err != nil {
+			t.Fatal(err)
+		}
+		sc = newSceneConFirmas(t, testigos, 5, firmante)
+	} else {
+		sc = newScene(t, testigos)
+	}
 	r, err := sc.issue(t, "María Pérez (cédula 1712345678)", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pol := sc.policy()
+	if firmante != nil {
+		pol.LogMLDSAKey = firmante.PublicKey()
+	}
 	data, err := Format(r, pol)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +114,8 @@ func nuevaEscenaRefirmada(t *testing.T, nombre string, testigos int) escenaRefir
 		w[fmt.Sprintf("witness.example/w%d", i+1)] = key(byte(90 + i))
 	}
 	return escenaRefirmada{nombre: nombre, recibo: string(data), nota: string(r.Proof.CheckpointNote),
-		priv: sc.tenantPriv, pol: pol, wPriv: w, logPub: sc.logPub, origin: testOrigin, testigo: "witness.example/w1"}
+		priv: sc.tenantPriv, pol: pol, wPriv: w, logPub: sc.logPub, origin: testOrigin, testigo: "witness.example/w1",
+		mldsa: firmante}
 }
 
 // mutacionesDeNota devuelve las notas mutadas, por nombre. Cada una ataca una regla
@@ -218,6 +246,44 @@ func mutacionesDeNota(t *testing.T, e escenaRefirmada) [][2]string {
 			add(fmt.Sprintf("segunda cosignature del mismo testigo (%+v) detrás", desfase), nota(append(copia(), lineaOtra)))
 		}
 	}
+
+	// La línea ML-DSA-44 del log (Sprint 32, ADR-034 §D): las formas de romperla que
+	// separan a Go, que la verifica, de TypeScript y PHP, que solo exigen que esté y que
+	// mida 2420 bytes. La divergencia declarada —Go rechaza, TS y PHP aceptan con
+	// "present-unverified"— solo vale si TODAS las líneas del key ID fijado miden 2420;
+	// las de 2419 y 2421 tienen que rechazarlas los tres.
+	if e.mldsa != nil {
+		i := -1
+		for k, l := range firmas {
+			if strings.HasPrefix(l, "— "+e.origin+" ") && len(blobDe(l)) == 4+checkpoint.MLDSASignatureSize {
+				i = k
+			}
+		}
+		if i < 0 {
+			t.Fatal("la escena con ML-DSA no trae la línea ML-DSA-44 del log")
+		}
+		l := firmas[i]
+		cambia := func(n string, f func(b []byte) []byte) {
+			b := f(append([]byte{}, blobDe(l)...))
+			m := copia()
+			m[i] = conBlob(l, b)
+			add("ML-DSA: "+n, nota(m))
+		}
+		cambia("firma alterada (un bit de z)", func(b []byte) []byte { b[4+32+1000] ^= 1 << 3; return b })
+		cambia("2419 bytes", func(b []byte) []byte { return b[:len(b)-1] })
+		cambia("2421 bytes", func(b []byte) []byte { return append(b, 0) })
+		cambia("key ID cambiado", func(b []byte) []byte { b[0] ^= 1; return b })
+		q := copia()
+		add("ML-DSA: línea quitada", nota(append(q[:i:i], q[i+1:]...)))
+		d := copia()
+		add("ML-DSA: línea duplicada", nota(append(d[:i+1:i+1], append([]string{l}, d[i+1:]...)...)))
+		b := blobDe(l)
+		add("ML-DSA: la buena y otra de 2419 bytes", nota(append(copia(), conBlob(l, b[:len(b)-1]))))
+		add("ML-DSA: la buena y otra de 2421 bytes", nota(append(copia(), conBlob(l, append(append([]byte{}, b...), 0)))))
+		alterada := append([]byte{}, b...)
+		alterada[4+32+1000] ^= 1 << 3
+		add("ML-DSA: la buena y otra alterada", nota(append(copia(), conBlob(l, alterada))))
+	}
 	return out
 }
 
@@ -226,11 +292,19 @@ func catalogoRefirmado(t *testing.T) []mutacionConPolitica {
 	t.Helper()
 	var out []mutacionConPolitica
 	for _, e := range []escenaRefirmada{
-		nuevaEscenaRefirmada(t, "refirmado/1-testigo", 1),
-		nuevaEscenaRefirmada(t, "refirmado/2-testigos", 2),
+		nuevaEscenaRefirmada(t, "refirmado/1-testigo", 1, false),
+		nuevaEscenaRefirmada(t, "refirmado/2-testigos", 2, false),
+		nuevaEscenaRefirmada(t, "refirmado/1-testigo-mldsa", 1, true),
 	} {
 		politicas := map[string]proof.Policy{"escena": e.pol}
-		if len(e.pol.Witnesses) == 1 {
+		if e.mldsa != nil {
+			// La misma nota con una política que NO fija la clave: ahí los tres tienen que
+			// coincidir también en logMLDSA ("present-unverified" o "absent").
+			sin := e.pol
+			sin.LogMLDSAKey = nil
+			politicas["sin logMLDSAKey"] = sin
+		}
+		if len(e.pol.Witnesses) == 1 && e.mldsa == nil {
 			// La del ataque #1: exige un segundo testigo que nunca cosignó.
 			p2 := e.pol
 			p2.Witnesses = map[string]ed25519.PublicKey{e.testigo: e.pol.Witnesses[e.testigo],
@@ -246,6 +320,9 @@ func catalogoRefirmado(t *testing.T) []mutacionConPolitica {
 				ws[n] = hex.EncodeToString(k)
 			}
 			polJSON["witnesses"] = ws
+			if pol.LogMLDSAKey != nil {
+				polJSON["logMLDSAKey"] = hex.EncodeToString(pol.LogMLDSAKey)
+			}
 			for _, m := range mutacionesDeNota(t, e) {
 				rec := refirmar(t, e.recibo, testTenant, e.priv, m[1])
 				c := mutacion{Nombre: pn + ": " + m[0], Receipt: rec, Dictamen: dictamenDe([]byte(rec), pol)}

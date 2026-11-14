@@ -62,6 +62,9 @@ type dictamen struct {
 	Cosigners    []string `json:"cosigners"`
 	Ignored      []string `json:"ignored"`
 	Checkpoint   string   `json:"checkpoint,omitempty"`
+	// LogMLDSA es Result.LogMLDSA de un recibo válido (Sprint 32): "verified",
+	// "present-unverified" o "absent".
+	LogMLDSA string `json:"log_mldsa,omitempty"`
 }
 
 // categoriaDe traduce un error de Go al vocabulario compartido del diferencial.
@@ -71,6 +74,12 @@ func categoriaDe(err error) string {
 		return ""
 	case errors.Is(err, proof.ErrPolicy):
 		return "policy"
+	// Los dos de ML-DSA-44 (ADR-034), con el nombre del motivo de los vectores: el
+	// diferencial los necesita para la divergencia declarada.
+	case errors.Is(err, proof.ErrMLDSASignature):
+		return "mldsa_signature_invalid"
+	case errors.Is(err, proof.ErrMLDSAMissing):
+		return "mldsa_signature_missing"
 	case errors.Is(err, ErrTextMismatch):
 		return "text"
 	case errors.Is(err, ErrUnexpectedSigner):
@@ -119,6 +128,7 @@ func dictamenDe(data []byte, pol proof.Policy) dictamen {
 		d.Ignored = res.IgnoredSigs
 	}
 	d.Checkpoint = fmt.Sprintf("%s/%d/%x", res.Checkpoint.Origin, res.Checkpoint.Size, res.Checkpoint.RootHash)
+	d.LogMLDSA = res.LogMLDSA
 	return d
 }
 
@@ -172,6 +182,8 @@ type politicaVector struct {
 	SignerKey string            `json:"signer_key"`
 	Witnesses map[string]string `json:"witnesses"`
 	Quorum    int               `json:"quorum"`
+	// LogMLDSAKey es la clave ML-DSA-44 del log de los recibos 0.8-draft, o "".
+	LogMLDSAKey string `json:"log_mldsa_key"`
 }
 
 // mutacionConPolitica es una entrada del catálogo: cada caso lleva su política,
@@ -204,11 +216,11 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 		if err := json.Unmarshal(raw, &v); err != nil {
 			t.Fatal(err)
 		}
-		if v.Requires != "" {
-			// Exige 0.8-draft (ADR-034): su política fija log_mldsa_key, que ningún
-			// verificador lee todavía. Entra en el catálogo con la divergencia declarada
-			// de la decisión 5, en el Sprint D.
-			continue
+		// Los 0.8-draft (ADR-034) entran desde el Sprint 32 (Sprint D), con su logMLDSAKey:
+		// los tres verificadores la leen, y la divergencia declarada de la decisión 5 la
+		// juzga scripts/diferencial.mjs.
+		if v.Requires != "" && v.Requires != "0.8-draft" {
+			t.Fatalf("%s: requires %q, una versión que este test no conoce", v.Name, v.Requires)
 		}
 		pol := proof.Policy{Origin: v.Policy.Origin, Quorum: v.Policy.Quorum,
 			Witnesses: map[string]ed25519.PublicKey{}}
@@ -226,6 +238,12 @@ func TestDiferencialGeneraCatalogo(t *testing.T) {
 		polJSON := map[string]any{
 			"origin": v.Policy.Origin, "logKey": v.Policy.LogKey, "signerKey": v.Policy.SignerKey,
 			"witnesses": v.Policy.Witnesses, "quorum": v.Policy.Quorum,
+		}
+		if v.Policy.LogMLDSAKey != "" {
+			if pol.LogMLDSAKey, err = hex.DecodeString(v.Policy.LogMLDSAKey); err != nil {
+				t.Fatal(err)
+			}
+			polJSON["logMLDSAKey"] = v.Policy.LogMLDSAKey
 		}
 
 		casos := catalogoDeMutaciones(v.Receipt)

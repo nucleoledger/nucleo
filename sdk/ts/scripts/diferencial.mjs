@@ -20,6 +20,7 @@
 // Cómo añadir mutaciones: en catalogoDeMutaciones, en el test de Go. Este script
 // no genera nada; solo compara.
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,6 +66,8 @@ const CATEGORIAS = [
   ["la firma del emisor sobre el recibo no verifica", "signature"],
   ["el recibo no lleva firma del emisor", "signature"],
   ["signer_pubkey del header no es una clave Ed25519", "format"],
+  ["la firma post-cuántica del log (ML-DSA-44) de la clave que fija la política mide", "mldsa_signature_invalid"],
+  ["la política fija la clave ML-DSA-44 del log (logMLDSAKey) y el checkpoint no trae su firma", "mldsa_signature_missing"],
 ];
 
 function categorias(reasons) {
@@ -89,8 +92,83 @@ function dictamenTS(r) {
     cosigners: r.cosigners,
     ignored: r.ignoredSignatures,
     checkpoint: r.checkpoint ? `${r.checkpoint.origin}/${r.checkpoint.size}/${r.checkpoint.rootHash}` : "",
+    log_mldsa: r.logMLDSA ?? "",
   };
 }
+
+// ---- La divergencia declarada de ML-DSA-44 (ADR-034, decisión 5, opción B) ----------
+//
+// Es la ÚNICA permitida: Go verifica la firma ML-DSA-44 del log y rechaza con
+// ErrMLDSASignature (categoría "mldsa_signature_invalid"); TypeScript y PHP no la
+// verifican y aceptan con logMLDSA "present-unverified". Pero Go usa el MISMO error para
+// "firma mala" y para "longitud mala", y TS y PHP sí tienen que rechazar una línea de la
+// clave fijada que no mide 2420 bytes. Así que el arnés lo comprueba POR SU CUENTA, sin
+// el SDK —node:crypto y el texto del recibo—: si alguna línea del key ID fijado no mide
+// 2420 bytes, no hay excepción y los tres tienen que rechazar.
+const MLDSA_FIRMA = 2420;
+
+/** idMLDSA es el key ID de la clave fijada: SHA-256(origin‖"\n"‖0xff‖id‖"\n"‖P)[:4]. */
+function idMLDSA(origin, claveHex) {
+  return createHash("sha256")
+    .update(Buffer.from(origin + "\n", "utf8"))
+    .update(Buffer.from([0xff]))
+    .update(Buffer.from("nucleoledger.com/sig/ml-dsa-44@v1\n", "utf8"))
+    .update(Buffer.from(claveHex, "hex"))
+    .digest()
+    .subarray(0, 4);
+}
+
+/**
+ * longitudesDeLaClave devuelve lo que mide la firma de cada línea del recibo con el
+ * nombre del origin y el key ID de la clave fijada, sin el key ID. Lee las líneas
+ * «— nombre base64» tal cual; una que no decodifica no es de nadie y no cuenta.
+ */
+function longitudesDeLaClave(recibo, origin, claveHex) {
+  const id = idMLDSA(origin, claveHex);
+  const out = [];
+  for (const l of recibo.split("\n")) {
+    if (!l.startsWith("— " + origin + " ")) continue;
+    const b64 = l.slice(("— " + origin + " ").length);
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) continue;
+    const blob = Buffer.from(b64, "base64");
+    if (blob.toString("base64") !== b64 || blob.length < 4) continue;
+    if (blob.subarray(0, 4).equals(id)) out.push(blob.length - 4);
+  }
+  return out;
+}
+
+/**
+ * excepcionMLDSA dice si la divergencia entre Go y otro verificador es la declarada. Las
+ * tres condiciones, y ninguna sobra: Go rechaza por la firma ML-DSA, el otro acepta sin
+ * verificarla, y TODAS las líneas de la clave fijada miden 2420 bytes.
+ */
+function excepcionMLDSA(c, otro) {
+  const go = c.go_dictamen ?? { valid: c.go_valid };
+  if (go.valid || go.categoria !== "mldsa_signature_invalid") return false;
+  if (!otro.valid || otro.log_mldsa !== "present-unverified") return false;
+  const clave = c.policy?.logMLDSAKey;
+  if (!clave) return false;
+  const ls = longitudesDeLaClave(c.receipt, c.policy.origin, clave);
+  return ls.length > 0 && ls.every((n) => n === MLDSA_FIRMA);
+}
+
+// Autocomprobación del arnés: en todo caso del catálogo con una línea de la clave fijada
+// que NO mide 2420 bytes, la excepción tiene que negarse aunque el otro verificador
+// acepte. Un arnés que la concediera —que perdonara cualquier divergencia con motivo
+// ML-DSA de Go— taparía a un TS o un PHP que se saltan la longitud.
+const autocomprobacion = { casos: 0, concedidas: [] };
+for (const c of catalogo.casos) {
+  const clave = c.policy?.logMLDSAKey;
+  if (!clave) continue;
+  const ls = longitudesDeLaClave(c.receipt, c.policy.origin, clave);
+  if (!ls.some((n) => n !== MLDSA_FIRMA)) continue;
+  autocomprobacion.casos++;
+  const fingido = { ...c, go_dictamen: { ...(c.go_dictamen ?? {}), valid: false, categoria: "mldsa_signature_invalid" } };
+  if (excepcionMLDSA(fingido, { valid: true, log_mldsa: "present-unverified" })) {
+    autocomprobacion.concedidas.push(`${c.vector}: ${c.nombre} (líneas de ${ls.join(", ")} bytes)`);
+  }
+}
+const excepciones = { ts: 0, php: 0 };
 
 // clase agrupa las categorías que son la misma ETAPA del trabajo: leer el documento y
 // derivar su texto son dos puntos de lo mismo.
@@ -112,8 +190,14 @@ const etapas = new Map();
  * menos: dos verificadores que aceptan el mismo recibo y dan distinto tiempo demostrable
  * son dos verificadores distintos.
  */
-function compara(go, otro, etiq = "ts", etapasDe = etapas) {
-  if (go.valid !== otro.valid) return [`valid: go=${go.valid} ${etiq}=${otro.valid}`];
+function compara(go, otro, etiq = "ts", etapasDe = etapas, caso = null) {
+  if (go.valid !== otro.valid) {
+    if (caso && excepcionMLDSA(caso, otro)) {
+      excepciones[etiq]++;
+      return [];
+    }
+    return [`valid: go=${go.valid} ${etiq}=${otro.valid}`];
+  }
   if (!go.valid) {
     const suyas = [...new Set([...otro.categorias].map(clase))].sort().join(",") || "(ninguna)";
     const par = `go=${clase(go.categoria ?? "")} ${etiq}=${suyas}`;
@@ -131,6 +215,16 @@ function compara(go, otro, etiq = "ts", etapasDe = etapas) {
     const b = JSON.stringify(otro[campo] ?? []);
     if (a !== b) dif.push(`${campo}: go=${a} ${etiq}=${b}`);
   }
+  // logMLDSA: igual, salvo la parte declarada de la decisión 5 —con la clave en la
+  // política, Go dice "verified" y TS y PHP "present-unverified"—. TS y PHP nunca dicen
+  // "verified".
+  const gm = go.log_mldsa ?? "";
+  const om = otro.log_mldsa ?? "";
+  const conClave = Boolean(caso?.policy?.logMLDSAKey);
+  if (om === "verified") dif.push(`log_mldsa: ${etiq} dice "verified" y no implementa ML-DSA-44`);
+  else if (conClave ? !(gm === "verified" && om === "present-unverified") : gm !== om) {
+    dif.push(`log_mldsa: go=${JSON.stringify(gm)} ${etiq}=${JSON.stringify(om)}`);
+  }
   return dif;
 }
 
@@ -142,7 +236,7 @@ for (const c of catalogo.casos) {
     const r = await verifyReceipt(c.receipt, c.policy);
     tsValid = r.valid;
     tsErr = r.reasons.join(" | ");
-    dif = compara(c.go_dictamen ?? { valid: c.go_valid }, dictamenTS(r));
+    dif = compara(c.go_dictamen ?? { valid: c.go_valid }, dictamenTS(r), "ts", etapas, c);
   } catch (e) {
     // verifyReceipt promete no lanzar nunca. Si lanza, es un hallazgo aparte.
     lanzo++;
@@ -236,7 +330,7 @@ const exigePHP = process.env.NUCLEO_DIFERENCIAL_EXIGE_PHP === "1";
         const d = php.casos[i];
         if (d.valid) phpAcepta++;
         const dic = d.valid ? d : { valid: false, categorias: categorias(d.reasons ?? []) };
-        const dif = compara(c.go_dictamen ?? { valid: c.go_valid }, dic, "php", etapasPHP);
+        const dif = compara(c.go_dictamen ?? { valid: c.go_valid }, dic, "php", etapasPHP, c);
         if (dif.length > 0) {
           divergencias.push({
             nombre: `php ${c.vector}: ${c.nombre}`,
@@ -278,6 +372,25 @@ for (const c of catalogo.casos) {
 for (const [k, n] of porCatalogo) console.log(`  catálogo ${k}: ${n}`);
 console.log(`mutaciones: ${catalogo.casos.length}   Go acepta: ${goAcepta}   TS acepta: ${tsAcepta}`);
 console.log(`PHP: ${phpEstado}`);
+console.log(
+  `divergencia declarada de ML-DSA-44 (Go rechaza la firma; TS y PHP, present-unverified, todas las líneas de 2420 bytes): ` +
+    `TS ${excepciones.ts}, PHP ${excepciones.php}`,
+);
+console.log(
+  `autocomprobación del arnés: ${autocomprobacion.casos} casos con una línea de la clave fijada que no mide 2420 bytes; ` +
+    `excepción concedida a ${autocomprobacion.concedidas.length}`,
+);
+if (autocomprobacion.casos === 0) {
+  divergencias.push({ nombre: "arnés: el catálogo no trae ninguna línea ML-DSA de otra longitud", go: "", ts: "", goErr: "",
+    tsErr: "sin esos casos la autocomprobación no comprueba nada: ¿se quitaron las mutaciones 2419 y 2421?" });
+}
+for (const x of autocomprobacion.concedidas) {
+  divergencias.push({ nombre: "arnés: concede la excepción de ML-DSA a una línea que no mide 2420 bytes", go: "", ts: "", goErr: "", tsErr: x });
+}
+if (excepciones.ts === 0 || excepciones.php === 0 && !phpEstado.startsWith("NO SE COMPROBÓ")) {
+  divergencias.push({ nombre: "arnés: la divergencia declarada no apareció", go: "", ts: excepciones.ts, goErr: "",
+    tsErr: `PHP ${excepciones.php}: el catálogo tiene firmas ML-DSA alteradas con la clave fijada; si nadie las acepta, algo cambió` });
+}
 console.log(`divergencias de DICTAMEN (veredicto, tiempos, firmantes, firmas ignoradas, categoría de rechazo, campos autenticados): ${divergencias.length}   excepciones en TS: ${lanzo}`);
 for (const [cual, mapa] of [["TypeScript", etapas], ["PHP", etapasPHP]]) {
   if (mapa.size === 0) continue;

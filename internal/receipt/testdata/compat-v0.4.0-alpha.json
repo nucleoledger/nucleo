@@ -1,6 +1,6 @@
 {
  "tag": "v0.4.0-alpha",
- "como": "Veredictos del verificador de Go de v0.4.0-alpha (internal/policy.Parse, ProofPolicy, receipt.Parse y Verify del tag), calculados en el Sprint 31 (y en el Sprint 32, al añadirse invalido-mldsa-fijada-mide-2419: los 4677 de antes salieron iguales) sobre un `git archive v0.4.0-alpha` con un test temporal que lee los casos de NUCLEO_COMPAT_CASOS_OUT=<f> go test ./internal/receipt -run TestCompatibilidadConV040AlphaSinLogMLDSAKey y escribe, por sha256(recibo ‖ 0x00 ‖ política), {valid, provable_time}. Ninguna línea de HEAD los calcula. Para regenerarlo (solo si cambian los casos): repetir eso; el arnés está descrito en internal/receipt/compat_v04_test.go.",
+ "como": "Veredictos del verificador de Go de v0.4.0-alpha (internal/policy.Parse, ProofPolicy, receipt.Parse y Verify del tag), calculados en el Sprint 31 (y dos veces en el Sprint 32: al añadirse invalido-mldsa-fijada-mide-2419 y la escena re-firmada con ML-DSA, sin la política que fija su clave; los de antes salieron iguales) sobre un `git archive v0.4.0-alpha` con un test temporal que lee los casos de NUCLEO_COMPAT_CASOS_OUT=<f> go test ./internal/receipt -run TestCompatibilidadConV040AlphaSinLogMLDSAKey y escribe, por sha256(recibo ‖ 0x00 ‖ política), {valid, provable_time}. Ninguna línea de HEAD los calcula. Para regenerarlo (solo si cambian los casos): repetir eso; el arnés está descrito en internal/receipt/compat_v04_test.go.",
  "casos": {
   "000059ce2349df57f09eddbcd0e46c6449255b53592f71ed5dab217745b8cd7e": {
    "valid": false
@@ -93,6 +93,9 @@
    "valid": false
   },
   "0198f29b766a3d99970a2046bed6ae8c33ef88ccfb0dc5305a0df26b1d3ecdcc": {
+   "valid": false
+  },
+  "01c6a90de8bb140849776f9aa3cf4b1f4021b3ab0fb3c45aeb0ff130f0365da3": {
    "valid": false
   },
   "01cef87efe2b82eb951caa530010f6c2800cdb42a7e4315fa1ee2d33163c186e": {
@@ -238,6 +241,10 @@
   },
   "0475e3a19d4801ef04fab5e59b4962e48e45586bcf14a52c543263aae3b9e460": {
    "valid": false
+  },
+  "04841454119bd70e18544fd548d9c55e325ee774a42170e498de7b2a00da0680": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "048ebcf2ee739ed638586da59bff7a39de560a8cf8f0b47050ff8c0eac46a24c": {
    "valid": false
@@ -544,6 +551,10 @@
   "0906aa8f6f6ed7f7cb6093c89ebe8b57d6698c640c05d8af1e0e2752850aeb23": {
    "valid": false
   },
+  "090a2499aed50b98ca063e6ca56d31b46eabb70e808720de6e64444e9105a998": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "090b3c7a75161b91c8e8e69b1e46855369d0ae26ff9060dee95178089a7e8697": {
    "valid": false
   },
@@ -814,6 +825,9 @@
   "0deea8e337d02d7def4a484b5cdb27a35d9815bc08aad79454865b40667d5d99": {
    "valid": false
   },
+  "0df2b163ae27e0e7c9a93ae3b22ccb1b65e471e235ca1c595b533ca7429ffe6c": {
+   "valid": false
+  },
   "0dfbb5e84d0de153b4e7138977f4d96940dd48c1c5cb8080e2d7918a04e3e593": {
    "valid": false
   },
@@ -834,6 +848,10 @@
   },
   "0e4de7990fda8ecb89f4acc76857aaf6db97e4b429bf18fe4a648f30a30436da": {
    "valid": false
+  },
+  "0e51ebea48b331cfecd558e1b4320dc028e9ce31cd7c06f5487a9b18dbda72d0": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "0e5549c0304783616de4949fc7d7661e0b65976625377dfd59d8ce56234a54f8": {
    "valid": false
@@ -1048,6 +1066,9 @@
   "121a73ead2c6eb7dee7579f746069720e047c263fe2e8a6fd0a6b072e31ba1e7": {
    "valid": false
   },
+  "121cb824dfa9956b2d7cc7bd8eff646be56e83be621f0f65accf90e6350f5eca": {
+   "valid": false
+  },
   "1228f56414a1330a4bb8145bfe3ff1521852307dd8574e4eeb41679f318872c3": {
    "valid": false
   },
@@ -1162,6 +1183,9 @@
   "141624a518d38a63c3c11ef593501f6af3ee5897af98531e4fef298658b02fad": {
    "valid": false
   },
+  "14250ea7b15cc7130b7d24866e64896ad53a27f5c14861e3b84da1c46aa7a6ce": {
+   "valid": false
+  },
   "1426412457fe7ca468989ed907172bc573c99062c3ff27414e6aede443b87107": {
    "valid": false
   },
@@ -1262,6 +1286,9 @@
    "valid": false
   },
   "15af9d86b3c096bbb54cd9764919182efeb914927d4d499a05440bda0c12978a": {
+   "valid": false
+  },
+  "15b6912946809bd6f34064beee82a5e300832eb2c5fc33872c3c6f6a0a20a00b": {
    "valid": false
   },
   "15d93c22a00c13aeb1fb8a7777cea4168b4e6afa896ef236d1a87187283003c0": {
@@ -3177,6 +3204,9 @@
   "35632d51fc0bf291d0a5aa96e77fec6fd3ec2d5d8f60394479fcb359a96737b9": {
    "valid": false
   },
+  "3573d118b48bf21040ef3e7b0f5419234f6c0bf5ec75af6191fde9b595626ddc": {
+   "valid": false
+  },
   "357a4a9f7fc8cf51ff27d503e1fe2ada19854637e8c94b025b4266271dbdc339": {
    "valid": false
   },
@@ -3215,6 +3245,9 @@
    "valid": false
   },
   "3623ee1e4aba04da415fcabd0af48a67242489b4107bc67b6d1c5eb285cb5823": {
+   "valid": false
+  },
+  "3625c71edcc8d4f3da95db1e0c98f54c284e2a6f1be6fd25cf7807823f55eb18": {
    "valid": false
   },
   "3637d4b27009fd585b0e84cde08f565b4ea73e1aa12567d92da1f4d53a86d32c": {
@@ -3666,6 +3699,10 @@
   "3dc00406da775a73567518898b206c54ac466df4ddf3ba73fab84198fae2a314": {
    "valid": false
   },
+  "3dc4385aa2de5ab6f1bc1c8211ba80e1cdf4808f667180710044747814e9d03e": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "3dd8a83d198f778b2b3c442660a2837947d1afe29a7e7064cd017710a52f8e8a": {
    "valid": false
   },
@@ -3800,6 +3837,10 @@
   },
   "404143288df5be2b42152ac16b02b461e79cd710692cc1e24b09a46ca019b18c": {
    "valid": false
+  },
+  "404576bdf41077115458afabb9ff6c57eb7b4137ce0390dd39e8b882d90893ef": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "4062a337b236dc8c83c79fce6faf8df040f70134e070275dd88f53341c0c989e": {
    "valid": false
@@ -4662,6 +4703,9 @@
    "valid": false
   },
   "504f3e4ef85b836c2929add166c7dec6989e922e7c914f32fd6ec4b5b672480e": {
+   "valid": false
+  },
+  "5056adaac880a83abe751a3f37d56f83ffa60d8ad0e7de73768fc488ff436086": {
    "valid": false
   },
   "505f0ba15e753823a7dd61d72823799879c7504e7f00b26d5aff8e147774ecd9": {
@@ -5542,6 +5586,10 @@
   "5fc3d90b3308fa15b33db4f4b398804a9e93d01092e51dc93ddb98b5201f041e": {
    "valid": false
   },
+  "5fcb235b9ba5f2d9fc4a218a334e368921733647344a691c8814518925d4b537": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "5fdad0ad7188446d029bee0d11e6943c34e89eea1312eae2a78960d94baea1c3": {
    "valid": false
   },
@@ -5658,6 +5706,10 @@
   },
   "6222e26b8d1b7d78d566dc1f9e2835ebb6e525526efb779ba3a29051c93fc246": {
    "valid": false
+  },
+  "6230e4134ef7dad0ea530344d2cfa8cf8e6f095923c6437fc7d82c9a4f5b5992": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "6235d02555e841370d3a2fdd6f135ca8934d38f0bf4ec29fda8bc6893afa0e44": {
    "valid": false
@@ -6099,6 +6151,9 @@
   "69a979fb7966ddb66173b3633b0f3120c60d44a9a8780abc054d40ca2089a5cb": {
    "valid": false
   },
+  "69aba1ee582021a57d591f667d5ea6e9aaaa50b2dbd3b68280f8e891994951da": {
+   "valid": false
+  },
   "69b80f85b1b36cc48f1b728278570ee78c0c42e04487c27f33dd73eb96e88931": {
    "valid": false
   },
@@ -6215,6 +6270,10 @@
   },
   "6b739b080da710b9bb060b6dfd5e93f87566dc8818820ad4fcaa8eb5831ab8dd": {
    "valid": false
+  },
+  "6b84837519799c838f073911f4a85da9f656efe5b46b57c3075de61e0b87a92c": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "6b84b6f9e80b453485016d31ebf502711dc22c7d4dbe16ac8b9140adc282859a": {
    "valid": false
@@ -6751,6 +6810,9 @@
   "7461bac548525f189369d2cc759671be227ed94404f86b213b9e1c6788135b30": {
    "valid": false
   },
+  "746495510e56e5a8fa6db799d07c2002034ffe038192248a9c6cc82590301972": {
+   "valid": false
+  },
   "7469c390c421a8469f12ed6f28663c4d3b20d1c064405ad60ba6132cd62846e9": {
    "valid": false
   },
@@ -7258,6 +7320,9 @@
   "7c84c6640ceac550ab28c3fb2d4baebf56b956e7b33af53fab93f7025a79ebfa": {
    "valid": false
   },
+  "7c861061e9a816bcf8df8e31a95493bc63bee841d0c7a7ffaeff92710d883b15": {
+   "valid": false
+  },
   "7c89e09f18a171f910bd36c31b4805f13a08f812a486259f1207a884b71edfa4": {
    "valid": false
   },
@@ -7378,6 +7443,9 @@
   "7e9a6ee0e3f04b69647b5e6aeca1f23ac726d76a6cf725c39220be074d60304a": {
    "valid": false
   },
+  "7ea58306c4f58a592fa3f7b7ba3dc383e6d921a1cad491faa7a725086f142134": {
+   "valid": false
+  },
   "7eaee5a1995b4086f4371b0871646f4c16ba9ccfc28334073713906387463b3b": {
    "valid": false
   },
@@ -7388,6 +7456,9 @@
    "valid": false
   },
   "7ef181f5a3540ea9801da8812db8efbbd525103d6d575a2f3f96c2828fd6a1ed": {
+   "valid": false
+  },
+  "7ef5915d39a3c4cea634c9f3255d5fe216e53e1ecc17d53295dd344c8ebfb2b6": {
    "valid": false
   },
   "7f01196827bd4f2a4ab050ff5e923482099bca78ced7aed5b366513278786291": {
@@ -7413,6 +7484,10 @@
   },
   "7f5cfba43caa1b2dacf521dc3bd4f8813540e80753efd001db4540402ab056ec": {
    "valid": false
+  },
+  "7f6de908ace48b3d09a304ba897a0a40a44fc90a62de36f86f5578a62d21c26c": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "7f7acf992d48177ef068e96b16dad63c909a91b6a37fb0f3068395140f6d0a18": {
    "valid": false
@@ -7643,6 +7718,9 @@
   "835044b78be1143a6add00619f52dc50447c130d4ef7406cb48de7612cb0bbe8": {
    "valid": false
   },
+  "83699b92a67c8f8c252dba3a7dffdf917228183f9062acaa42dc17cda7bce389": {
+   "valid": false
+  },
   "83702a4cea07bfee459f1582f0802714126f698f2f06805a089e4118e4bdf80b": {
    "valid": false
   },
@@ -7837,6 +7915,10 @@
   "86170daff895124073a05c9064591b036234b3b752a4b28b1e9c212dce16c0e3": {
    "valid": false
   },
+  "8618c2e697695714fd2a626e2b6c441299cac87e75cf0c80a79edfa9b7bba4f2": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "861cce2eb193fdf9cd426cb67b2ee8a26b46215a75fb9063ab925b65b0f28537": {
    "valid": false
   },
@@ -7871,6 +7953,9 @@
    "valid": false
   },
   "86b7570ae12863e13fb3837ab08674ba7010c2af474245a3c7c36ad68e24c104": {
+   "valid": false
+  },
+  "86b9332a359279663e0f174db0113d4d463ea459385e0ad34fde8dd9f190ed74": {
    "valid": false
   },
   "86beed073c75f7515ce608e80519875c05e815b27d71e6bdc23602ac3a9a3878": {
@@ -7916,6 +8001,9 @@
    "valid": false
   },
   "87c8473b59bb55f3218645af2dc68d9f2e9fac6f4aa91f450347e86e91603d5b": {
+   "valid": false
+  },
+  "87c871764362fc359e0c8e5a37604c8deed5ad284b993af6ec6ec7f28459e41a": {
    "valid": false
   },
   "87ced8e4aa98acb20a10e287048eb0c41031b4988c82db589d1b511cb6af98f3": {
@@ -7973,6 +8061,9 @@
    "valid": false
   },
   "890d0517e2173f833248643a5dbff5d2444d429d81686949b41f1a4911efd861": {
+   "valid": false
+  },
+  "891815124a9ef30a408adcaa4b5a056e2effaa4a42ba0be6668793d9959df879": {
    "valid": false
   },
   "892fdfb585fe25462fb2a8c336263aad3595b9412279b9d210191896b4ff0382": {
@@ -8212,6 +8303,10 @@
   },
   "8dd3f17f1fc26ae896555889151e50c098b8447d36eba7e59f29ace1376d7823": {
    "valid": false
+  },
+  "8ddc1eadab790ab940ddd242d26e04cedd0633b9abedcbb29f2dec0fe5927dc7": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "8de1aca2c9e29e4c3754d42479fd3f335bae635fd4dd4d365775984f21ced655": {
    "valid": false
@@ -8548,6 +8643,10 @@
    "valid": true,
    "provable_time": "2026-09-06T15:00:00Z"
   },
+  "940886e79fbacf3e0a2a7bf9143932a56e06d94c211db4fa85cc81453fec033b": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "941cc3fb4730ce1c7a54d1a4bd20e57e24472f171d5295b6d38207210ce4239d": {
    "valid": false
   },
@@ -8701,10 +8800,17 @@
   "96678c51d6d9be86c1cde382f242bccb9b39829188a67a9ff458cfcd9346f4bd": {
    "valid": false
   },
+  "96714ee76482b474d1c2f9ff41eb0960d3235461d03572325f7d416283a5f370": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "967cc8c6b14cd9ccd7c832a3de33809a175fc797134173ed681de9ad51f4f21f": {
    "valid": false
   },
   "96b8dfedbf24e5df60a0d860d8011d1c85592bc6d144376044860e87116e0bf2": {
+   "valid": false
+  },
+  "96d057026af04a81f63b6f2d2875d74e7d806a988847f4425a5cc55992666614": {
    "valid": false
   },
   "96fdd09741d938ca960e37f313bb9b2d2b6b9a000adbd8033cedeede470ea00e": {
@@ -8775,6 +8881,10 @@
   },
   "9824010715424c48c83402b6842a4dfba66875d2de67a39a22b275444ebdf0b7": {
    "valid": false
+  },
+  "982487669a7e6484b9e7023b6f4902d718c1a098bdc883ccb7f907a369ed1020": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "98332b1d56f58facda716f673561414daf1050d2cdc9a040211e28e22431fe40": {
    "valid": false
@@ -9096,6 +9206,9 @@
   "9e41668897e4a56dbbc52d284ab87718cc640d2aec3e97e11220efd3bdd52474": {
    "valid": false
   },
+  "9e5580e9f6c94d12d605f1544d70e4f5c79d32d75832ac164d88ca987f2b8a22": {
+   "valid": false
+  },
   "9e595a9f6b0690bf6cce0ccbe3cac81010c3357c1f0f710fd7591da2b9dc1254": {
    "valid": false
   },
@@ -9260,6 +9373,9 @@
    "valid": false
   },
   "a12f062b53e16faededc5bc0f462aefd2a669e878b9b20b2c3fda5530ca41170": {
+   "valid": false
+  },
+  "a13a5d44498eca91641e22fd4145c2ce558a332a9ffe378e9c455cb54d0d6413": {
    "valid": false
   },
   "a142b2dd083a42a0bb2e7cd73c3d8df82cf49f2f6ba3162f1b73e48fd4fc113a": {
@@ -9775,6 +9891,9 @@
   "a8e62f1d9c240714ee1eff7195b09d8a65683aaf190f95d7432ae618f7c6b0eb": {
    "valid": false
   },
+  "a90a76e6046495515997022a477ee9f6033ae0b6d2711165463c2a28ed230e8a": {
+   "valid": false
+  },
   "a9153b4f85de0a848fdb660875ee398dd986dc8d21ee60bb918d881f521b46da": {
    "valid": false
   },
@@ -10121,6 +10240,10 @@
   "af66436d4dfa118018b0837e63482a340b5af41c1c163e3b45ddcaeb8ae1391e": {
    "valid": false
   },
+  "af74efe3966685f915c1d5ecfbdfeb82e58d285df8a42a02a56da0378c35fb25": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "af85daafb9a4ff767758828c8dcf03b685afe355ba3eceaf421917ad0148549f": {
    "valid": false
   },
@@ -10394,6 +10517,9 @@
   "b45501ff6dcd7c431bbb416f749664b459ed3cced47fe4b69ee345c29c535695": {
    "valid": false
   },
+  "b45c440de3e135ff5ed2d678e462713a800660f5479905e6279517bb17c15ec3": {
+   "valid": false
+  },
   "b4734bd910c653ad9b08d185a78154b755a03562f988bebbcfe7f9fd8ffe044a": {
    "valid": false
   },
@@ -10528,6 +10654,9 @@
    "valid": false
   },
   "b70e4b012ce1c96d3b893396b7de9877351f448cfd3dc1153405d2e45e711e68": {
+   "valid": false
+  },
+  "b72ad7bbd88bb049e04351b8824e8cb586d2d0932d5853a964fbd23d0f0a53af": {
    "valid": false
   },
   "b7637929c6ab434d7506ca8a7df855e96adee96a8d6ac4ebdd1eaf8e1b8d06a8": {
@@ -10665,6 +10794,9 @@
   "b966c2aea0bfa288193c9f9aa18819e413ee7951dbcbdc05d99892a310dd04c7": {
    "valid": false
   },
+  "b96ad501ec8eb3a51d551112ecd9224fe20cc08c672e46537732c8697f2433e7": {
+   "valid": false
+  },
   "b98c13c3a96987d94396021f11f2efcebee5d16b4982603fd593ec5bd64a9005": {
    "valid": false
   },
@@ -10793,6 +10925,9 @@
    "valid": false
   },
   "bb9c83bd04b397b1a1385848534de1bd1d34047415dd9c07841f0a106f537d78": {
+   "valid": false
+  },
+  "bba1e8ba63e40384d25d268bfa29ba1eb2c6c29168acd6eba8406257b5b49254": {
    "valid": false
   },
   "bbabbdcca38e69c715e65cc0b559acef45612fd0682477323819caa599e1f8bf": {
@@ -10966,6 +11101,9 @@
   "bf51dbf7f6e7746f50d782acd33baeae5b9be494a15cc5bfdbc98b7a8654eb6a": {
    "valid": false
   },
+  "bf624c9e04c4a27d8258670ce42db707d39601181618e8842dfa349954d191ab": {
+   "valid": false
+  },
   "bf6e41f030b1bfe859319006bef5dfd42eefda0ca95e3b8d46ae68d12402e9da": {
    "valid": false
   },
@@ -10973,6 +11111,9 @@
    "valid": false
   },
   "bf9682d0170a0691dde3be4e5e67e9e0521db74abb5894aa36f5b129d66c611e": {
+   "valid": false
+  },
+  "bf96b33ddc1823db4406adcf0fa0d63b96b0c1ce6380e31666dce72f92e332fd": {
    "valid": false
   },
   "bf9aaf61bcc7af1a5b2db50c2ee971e8d5f449bf7172ac2d383706e673b0086b": {
@@ -11542,6 +11683,9 @@
   "c8b684d2a04c40753b069fcebe50814372d78c1880db9150f1cc82355892fa82": {
    "valid": false
   },
+  "c8cdb66a57fff80bf08b6da4e76ec66e2a71a4f68f62e4945730e14c5f6e3e10": {
+   "valid": false
+  },
   "c8dd56ab69fe0bee162d85d0b225d9b51f51ebbb85b68e9322e7cf710d3fd3e2": {
    "valid": false
   },
@@ -11693,6 +11837,10 @@
   },
   "cbc9bcae28358c324940190500c008c7a56ff3237c997839af721d6298f15a12": {
    "valid": false
+  },
+  "cbcbf5f8ebe81acd32fb4772c0a5999a5d1b343524cded809fc905efe96a4c11": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
   },
   "cbe3637399ca7ca7fde7477893857ddffd7e559a8dd5dda191e483b5a6fec808": {
    "valid": false
@@ -11872,6 +12020,9 @@
    "valid": false
   },
   "ce0915dd12479a24509cac9e810d08f19d110c750ee3f6d05cb60e2d249b0236": {
+   "valid": false
+  },
+  "ce0a8d5ea3eae5190a96ab9895ec67f981643770e71aa8e89ae566e6388f1ec6": {
    "valid": false
   },
   "ce220a2ab8af53320126b5181eea586d3026ea32ff18249c268a0571b018212c": {
@@ -12416,6 +12567,9 @@
   "d7ab85608dfd5e02d875a614125f415f513a86c6ac8ab298638ac6cd8e05e5f6": {
    "valid": false
   },
+  "d7b11a5244029b0c1f6cb87ffa19ce9fa887d5b03ceebf8a27b92d237fd4ea13": {
+   "valid": false
+  },
   "d7b83be90f953b19feb6bb293326d9211c4ba53d3c0e6497d52c0123595e7594": {
    "valid": false
   },
@@ -12660,6 +12814,10 @@
   "dceddaceef63645b5519dd3536c1b9c597dc7828d9cec56645f2cf3fb0034ea1": {
    "valid": false
   },
+  "dd119acfab9746239480e8da1ae510b8779ce0ee2735ed31fcdb33e8f7b75597": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "dd1faebc09db9bb380f8f6298a9c24f93e3fd6b8b82d7b96fdada9cf69670947": {
    "valid": false
   },
@@ -12714,6 +12872,10 @@
   "ddbd868fddd4c65aaa1dc3ea23ff7300982d8fc7ee5b566319e11c9164a9bffa": {
    "valid": false
   },
+  "ddbf67e41e9eefa97c9eb02c8974f652365bc1bba4e54dc970614d87ab01f9f7": {
+   "valid": true,
+   "provable_time": "2026-09-06T15:00:00Z"
+  },
   "ddc323d78fe6154a70c58a2fef87f9daf59078fc78a6a8d42f69fb840d3d4dfc": {
    "valid": false
   },
@@ -12745,6 +12907,9 @@
    "valid": false
   },
   "de207b2245f444f5f62eecb2567cc7cee45910d4716a2b992f9504a353adb979": {
+   "valid": false
+  },
+  "de26dedd94662bee9412daef122a7f38a6a2d553a4e9b6e89ac4f0e91ea3bec6": {
    "valid": false
   },
   "de2788e2e5c7d770989abe6118506925837d7fe49762de8d5de8659021b13cfa": {
@@ -13433,6 +13598,9 @@
   "e8ecf0eb0765dfdcd7d9bdd05488fa4602762ed7e0066f5cd43c11a55fe6dd76": {
    "valid": false
   },
+  "e8eee56724be20ab0a59e92e6e5243a8c6ee87df38d99f5d9579e37d0abc07d7": {
+   "valid": false
+  },
   "e8f1888e0e1ac734f53c8bad522feb18418961f522792491019f3b2693955d9a": {
    "valid": false
   },
@@ -13467,6 +13635,9 @@
    "valid": false
   },
   "e9cc407f41da46c22f23ab5bf7dfab64fdf9e5a57fa3b157aca8790993af4c4a": {
+   "valid": false
+  },
+  "e9cfe3e7357bbdc5bf77ff15e36684f7d4d9b8dc8527593b612379a694f1c714": {
    "valid": false
   },
   "e9d26773a234a8c0463d3c4e4c242a9d95a4ae4ee35184bbf7097f26fa610a61": {
@@ -13548,6 +13719,9 @@
    "valid": false
   },
   "eab0eeaee57384575f799cf710d53da0b97677b2574da0063fe34c4247b5a574": {
+   "valid": false
+  },
+  "eab56106e2e2f95387426b610e3ba7de00b7573debaf1f5718afca706ac85002": {
    "valid": false
   },
   "eac4256006838194c97c5257063d7e8bd7c733c7ca828877b60c4c3bd3e9395b": {
@@ -13670,6 +13844,9 @@
   "ed25b2e682956f9528449b87462e29f251265f4875fb426c76dd502c8b1c440d": {
    "valid": false
   },
+  "ed28e7e249687287cf6c904200ffd458d24b0cdf1ce95829110e9bcf6c3966e0": {
+   "valid": false
+  },
   "ed3117787540381231bfedd44cbdaed5da13a9a027c6182da9cf9c20ed29837f": {
    "valid": false
   },
@@ -13764,6 +13941,9 @@
    "valid": false
   },
   "eee8f7bb189e9656d84869024c3d3f41d95d18967228590cee5dd71fb6b94f2f": {
+   "valid": false
+  },
+  "ef13abb6655cfc560e3b2ec809ea07cc0e6f65b5e1adfdb0df718a90a121e7ca": {
    "valid": false
   },
   "ef18e1eb9d341a8c0d2091499036d7029a24327787f382fcd8f349571a7613fc": {
@@ -13878,6 +14058,9 @@
    "valid": false
   },
   "f166b65d2d7d691545bfff6295e4a50a558d9cdc4a03309e072101dc32b5e2a9": {
+   "valid": false
+  },
+  "f16c2924815fb3fe8116e282dd77eba833c117cba48950208f00ad9600ae589d": {
    "valid": false
   },
   "f171373e2b93caf11a74120739b7b5ecd92be90c790a22ab76574bb35aeccfb3": {
@@ -14453,6 +14636,9 @@
    "valid": false
   },
   "fbd7bec391ccc9e72121fee40cb31cf13a382d654db5831f4bd0525258d19cd3": {
+   "valid": false
+  },
+  "fbe12d79a54a44a79dfcec4a68d78a6c23bd99cdd476e36af05fb5cf078974f9": {
    "valid": false
   },
   "fbe5ff35876fbcbfdb3d85514e7b2e03421c709bef3e10f1debf3c5ca6b93f58": {

@@ -22,7 +22,8 @@ import (
 // sobre los casos que escribe este test con NUCLEO_COMPAT_CASOS_OUT (cómo regenerarlo, en
 // la cabecera del fichero). Los casos: los 26 recibos de testdata/vectors/receipt/ —los
 // 0.8-draft con su política sin la clave—, las mutaciones de catalogoDeMutaciones sobre
-// cada uno, y el catálogo re-firmado del diferencial. Cada caso se identifica por el
+// cada uno, y el catálogo re-firmado del diferencial (sin las políticas que fijan la clave
+// ML-DSA, desde que el Sprint 32 le añadió esa escena). Cada caso se identifica por el
 // sha256 del recibo y de su política, así que un caso que cambie de bytes no encuentra su
 // veredicto y el test falla: no compara contra lo que no es.
 
@@ -76,6 +77,11 @@ func casosDeCompatibilidad(t *testing.T) []casoCompat {
 		}
 	}
 	for _, m := range catalogoRefirmado(t) {
+		// Las de la escena con ML-DSA y la política que fija su clave no son de este test:
+		// v0.4.0-alpha no leía esa política. Las de la misma escena «sin logMLDSAKey», sí.
+		if _, ok := m.Policy["logMLDSAKey"]; ok {
+			continue
+		}
 		pol, err := json.Marshal(m.Policy)
 		if err != nil {
 			t.Fatal(err)
