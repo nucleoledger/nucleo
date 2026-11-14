@@ -11,9 +11,10 @@ import { listVectors, readJSON } from "./vectors.js";
 // por la biblioteca Y por el bundle que carga la página: es el bundle el que lee lo
 // que la contraparte pega en el formulario.
 //
-// Los vectores con "requires": "0.8-draft" (ADR-033, ADR-034) son de una gramática que
-// este SDK todavía no implementa: hasta el Sprint D, los válidos se tienen que RECHAZAR
-// como miembro desconocido, que es lo que PROTOCOL §3.2 manda a un lector 0.7-draft.
+// Los vectores con "requires": "0.8-draft" (ADR-033, ADR-034) son los de
+// retiredErasureKeys y logMLDSAKey. Desde el Sprint 32 (Sprint D) este SDK implementa esa
+// gramática, la de Go: el MISMO veredicto y el MISMO motivo —el "reason" del vector, que
+// PolicyError lleva en .reason— para los 134, por la biblioteca y por el bundle.
 
 interface PolicyVector {
   name: string;
@@ -44,13 +45,16 @@ const acepta = (f: (t: string) => unknown, t: string): boolean => {
   }
 };
 
-// El mensaje con que f rechaza t, o null si lo acepta.
-const rechazo = (f: (t: string) => unknown, t: string): string | null => {
+// El motivo con que f rechaza t —el .reason del error—, o null si lo acepta. Un error sin
+// motivo devuelve "(sin motivo)": no puede coincidir con ningún vector. No se usa
+// instanceof: el bundle corre en otro contexto de vm y su clase PolicyError es otra.
+const motivo = (f: (t: string) => unknown, t: string): string | null => {
   try {
     f(t);
     return null;
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    const r = (e as { reason?: unknown }).reason;
+    return typeof r === "string" ? r : "(sin motivo)";
   }
 };
 
@@ -58,34 +62,42 @@ describe("vectores de política", () => {
   const files = listVectors("policy");
   const delBundle = bundleParse();
 
-  it("hay al menos 60 vectores, válidos e inválidos", () => {
-    expect(files.length).toBeGreaterThanOrEqual(60);
+  it("hay 134 vectores (más generar.py, que los escribe), 58 de ellos de la 0.8-draft", () => {
+    expect(files).toHaveLength(134);
+    expect(files.filter((f) => readJSON<PolicyVector>("policy", f).requires === "0.8-draft")).toHaveLength(58);
   });
 
   for (const file of files) {
     const v = readJSON<PolicyVector>("policy", file);
-    if (v.requires === "0.8-draft") {
-      it(`${v.name} (exige 0.8-draft): ${v.description}`, () => {
-        for (const [donde, f] of [["biblioteca", parsePolicyText], ["bundle de la página", delBundle]] as const) {
-          const msg = rechazo(f, v.text);
-          expect(msg, donde).not.toBeNull();
-          if (v.valid) {
-            expect(msg, donde).toContain("miembro desconocido");
-          }
-        }
-      });
-      continue;
-    }
-    it(`${v.name}: ${v.description}`, () => {
-      expect(v.requires, "versión que este test no conoce").toBeUndefined();
-      expect(acepta(parsePolicyText, v.text), "biblioteca").toBe(v.valid);
-      expect(acepta(delBundle, v.text), "bundle de la página").toBe(v.valid);
+    const etiqueta = v.requires ? `${v.name} (${v.requires})` : v.name;
+    it(`${etiqueta}: ${v.description}`, () => {
+      expect([undefined, "0.8-draft"], "versión que este test no conoce").toContain(v.requires);
+      for (const [donde, f] of [["biblioteca", parsePolicyText], ["bundle de la página", delBundle]] as const) {
+        expect(motivo(f, v.text), donde).toBe(v.valid ? null : v.reason);
+      }
       if (v.valid) {
         // Y la misma política, ya como objeto, pasa también por validatePolicy.
         expect(acepta((t) => validatePolicy(JSON.parse(t)), v.text), "validatePolicy").toBe(true);
       }
     });
   }
+});
+
+describe("los miembros de la 0.8-draft, leídos", () => {
+  it("logMLDSAKey y retiredErasureKeys llegan a la política con sus valores", () => {
+    const pq = readJSON<PolicyVector>("policy", "valida-con-los-dos-miembros.json");
+    const p = parsePolicyText(pq.text);
+    const doc = JSON.parse(pq.text) as { logMLDSAKey: string; retiredErasureKeys: Record<string, number> };
+    expect(p.logMLDSAKey).toBe(doc.logMLDSAKey);
+    expect({ ...p.retiredErasureKeys }).toEqual(doc.retiredErasureKeys);
+    expect(Object.getPrototypeOf(p.retiredErasureKeys)).toBeNull();
+  });
+
+  it("el corte máximo es 2^53 − 1, exacto en un number", () => {
+    const v = readJSON<PolicyVector>("policy", "valida-retirada-corte-maximo.json");
+    const cortes = Object.values(parsePolicyText(v.text).retiredErasureKeys ?? {});
+    expect(cortes).toEqual([Number.MAX_SAFE_INTEGER]);
+  });
 });
 
 describe("validatePolicy con objetos", () => {

@@ -27,7 +27,37 @@ export const MAGIC = "nucleo.org/receipt@v2";
 export const MAGIC_V1 = "nucleo.org/receipt@v1";
 
 /** MLDSA44_SIGNATURE_SIZE es lo que mide una firma ML-DSA-44 (FIPS 204). */
-const MLDSA44_SIGNATURE_SIZE = 2420;
+export const MLDSA44_SIGNATURE_SIZE = 2420;
+
+/** MLDSA44_PUBLIC_KEY_SIZE es lo que mide una clave pública ML-DSA-44 (pkEncode). */
+const MLDSA44_PUBLIC_KEY_SIZE = 1312;
+
+/**
+ * ALG_EXT y MLDSA_EXT_ID: el byte de extensión de c2sp.org/signed-note y el identificador
+ * que Núcleo puso detrás para la firma ML-DSA-44 del log (ADR-007, PROTOCOL 0.8-draft
+ * §3.3). Entran en su key ID.
+ */
+const ALG_EXT = 0xff;
+const MLDSA_EXT_ID = "nucleoledger.com/sig/ml-dsa-44@v1";
+
+/**
+ * NO_IMPLEMENTA_MLDSA es el motivo de "present-unverified" cuando la política fija la
+ * clave: la línea está y mide lo que tiene que medir, y este verificador no puede decir
+ * más. Lo dice con estas palabras para que nadie lo lea como una comprobación superada.
+ */
+export const NO_IMPLEMENTA_MLDSA = "este verificador no implementa ML-DSA-44";
+
+/** LogMLDSA son los estados de la firma ML-DSA-44 del log que este verificador puede dar. */
+export type LogMLDSA = "present-unverified" | "absent";
+
+/**
+ * mldsaKeyId es el key ID de la firma ML-DSA-44 del log (PROTOCOL 0.8-draft §3.3):
+ * SHA-256(origin ‖ "\n" ‖ 0xff ‖ "nucleoledger.com/sig/ml-dsa-44@v1" ‖ "\n" ‖ P)[:4],
+ * en big-endian, como keyId de note.ts.
+ */
+export async function mldsaKeyId(origin: string, publicKey: Uint8Array): Promise<number> {
+  return keyId(sha256, origin, ALG_EXT, concat(utf8(MLDSA_EXT_ID + "\n"), publicKey));
+}
 
 /** BLOCK_SIG_SIZE es lo que mide una firma Ed25519. */
 export const BLOCK_SIG_SIZE = 64;
@@ -129,6 +159,23 @@ export interface Result {
    * página las listaba así, con el nombre del propio log.
    */
   logAdditionalSignatures: number;
+  /**
+   * logMLDSA dice qué se sabe de la firma ML-DSA-44 del log (ADR-034 §D), solo si el
+   * recibo vale (null si no):
+   *   - "present-unverified": con logMLDSAKey en la política, hay al menos una línea de
+   *     esa clave y todas miden 2420 bytes; sin ella, hay una línea a nombre del log con
+   *     la forma de una ML-DSA-44. En los dos casos, SIN verificar la firma.
+   *   - "absent": la política no fija la clave y no hay ninguna línea con esa forma.
+   * Nunca "verified": este verificador no implementa ML-DSA-44. Para verificarla,
+   * `nucleo verify-receipt`.
+   */
+  logMLDSA: LogMLDSA | null;
+  /**
+   * logMLDSANote es el motivo de "present-unverified", para enseñarlo junto al estado:
+   * NO_IMPLEMENTA_MLDSA con la clave fijada; sin ella, además, que la política no la
+   * fija. null en los demás casos.
+   */
+  logMLDSANote: string | null;
   /** reasons explica, en español, por qué falla. Vacío si valid. */
   reasons: string[];
   /** checkpoint es el que respalda el recibo, si se pudo leer. */
@@ -203,6 +250,8 @@ export async function verifyReceipt(receipt: string, policy: Policy): Promise<Re
       ignoredSignatures: [],
       signerPubKey: null,
       logAdditionalSignatures: 0,
+      logMLDSA: null,
+      logMLDSANote: null,
       reasons: [`error inesperado al verificar: ${mensaje(e)}`],
       checkpoint: null,
     };
@@ -222,6 +271,8 @@ interface ClavesDePolitica {
   signerKey: Uint8Array;
   witnesses: Array<{ name: string; key: Uint8Array }>;
   quorum: number;
+  /** logMLDSAKey es la clave pública ML-DSA-44 del log, 1312 bytes, o null. */
+  logMLDSAKey: Uint8Array | null;
 }
 
 /**
@@ -244,6 +295,7 @@ function parsePolicy(p: Policy): ClavesDePolitica {
     signerKey: clave(v.signerKey, "signerKey"),
     witnesses: Object.entries(v.witnesses).map(([name, hex]) => ({ name, key: clave(hex, `la clave del testigo ${name}`) })),
     quorum: v.quorum,
+    logMLDSAKey: v.logMLDSAKey === undefined ? null : claveMLDSA(v.logMLDSAKey),
   };
 }
 
@@ -257,6 +309,15 @@ function clave(hex: string, cual: string): Uint8Array {
   }
   if (raw.length !== 32) {
     throw new Error(`${cual} mide ${raw.length} bytes y una clave Ed25519 mide 32`);
+  }
+  return raw;
+}
+
+/** claveMLDSA convierte la logMLDSAKey de la política, que el parser ya validó. */
+function claveMLDSA(hex: string): Uint8Array {
+  const raw = fromHex(hex);
+  if (raw === null || raw.length !== MLDSA44_PUBLIC_KEY_SIZE) {
+    throw new Error(`logMLDSAKey no mide ${MLDSA44_PUBLIC_KEY_SIZE} bytes`);
   }
   return raw;
 }
@@ -275,6 +336,8 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     ignoredSignatures: [],
     signerPubKey: null,
     logAdditionalSignatures: 0,
+    logMLDSA: null,
+    logMLDSANote: null,
     reasons: [...reasons, why],
     checkpoint: null,
   });
@@ -374,6 +437,12 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   // y el diferencial no lo veía porque ninguna de sus mutaciones re-firmaba.
   const contados = new Set<string>();
   let firmasAdicionalesDelLog = 0;
+  // La firma ML-DSA-44 del log con la clave fijada (PROTOCOL 0.8-draft §3.3, ADR-034
+  // decisión 5, opción B): toda línea con el nombre del origin y el key ID de esa clave
+  // es de esa clave, y tiene que medir 2420 bytes o el recibo no vale; tiene que haber
+  // al menos una. La firma NO se verifica: WebCrypto no tiene ML-DSA-44.
+  const mldsaId = claves.logMLDSAKey === null ? null : await mldsaKeyId(policy.origin, claves.logMLDSAKey);
+  let lineasMLDSA = 0;
 
   let earliest: bigint | null = null;
   for (const sig of p.note.sigs) {
@@ -385,6 +454,17 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
         continue;
       }
       logSigned = true;
+      continue;
+    }
+    if (mldsaId !== null && sig.name === policy.origin && sig.keyId === mldsaId) {
+      if (sig.signature.length !== MLDSA44_SIGNATURE_SIZE) {
+        reasons.push(
+          `la firma post-cuántica del log (ML-DSA-44) de la clave que fija la política mide ${sig.signature.length} bytes y una ML-DSA-44 mide ${MLDSA44_SIGNATURE_SIZE}`,
+        );
+        continue;
+      }
+      lineasMLDSA++;
+      firmasAdicionalesDelLog++;
       continue;
     }
     const w = witnesses.get(idDe(sig.name, sig.keyId));
@@ -420,6 +500,10 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
   }
 
   if (!logSigned) reasons.push("el checkpoint no está firmado por la clave del log");
+  // Una línea de OTRO key ID no cuenta: es de una clave que la política no conoce.
+  if (mldsaId !== null && lineasMLDSA === 0) {
+    reasons.push("la política fija la clave ML-DSA-44 del log (logMLDSAKey) y el checkpoint no trae su firma");
+  }
 
   const quorum = claves.quorum;
   if (cosigners.length < quorum) {
@@ -453,8 +537,23 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     );
   }
 
+  const valid = reasons.length === 0;
+  let logMLDSA: LogMLDSA | null = null;
+  let logMLDSANote: string | null = null;
+  if (valid) {
+    if (mldsaId !== null) {
+      logMLDSA = "present-unverified";
+      logMLDSANote = NO_IMPLEMENTA_MLDSA;
+    } else if (firmasAdicionalesDelLog > 0) {
+      logMLDSA = "present-unverified";
+      logMLDSANote = `${NO_IMPLEMENTA_MLDSA}, y la política no fija su clave (logMLDSAKey)`;
+    } else {
+      logMLDSA = "absent";
+    }
+  }
+
   return {
-    valid: reasons.length === 0,
+    valid,
     blockSignatureVerified,
     receiptSignatureVerified,
     declaredTime: p.header.timestamp,
@@ -465,6 +564,8 @@ async function verificar(receipt: string, policy: Policy): Promise<Result> {
     ignoredSignatures: ignored,
     signerPubKey: p.header.signer_pubkey ?? null,
     logAdditionalSignatures: firmasAdicionalesDelLog,
+    logMLDSA,
+    logMLDSANote,
     reasons,
     checkpoint: {
       origin: p.checkpoint.origin,

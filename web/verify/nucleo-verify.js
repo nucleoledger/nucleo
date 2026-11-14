@@ -24,8 +24,12 @@ var NucleoVerify = (() => {
     ALG_COSIGNATURE_V1: () => ALG_COSIGNATURE_V1,
     ALG_ED25519: () => ALG_ED25519,
     MAGIC: () => MAGIC2,
+    MAX_CUTOFF: () => MAX_CUTOFF,
     MAX_POLICY_BYTES: () => MAX_POLICY_BYTES,
+    MLDSA44_SIGNATURE_SIZE: () => MLDSA44_SIGNATURE_SIZE,
+    NO_IMPLEMENTA_MLDSA: () => NO_IMPLEMENTA_MLDSA,
     NO_PROVABLE_TIME: () => NO_PROVABLE_TIME,
+    PolicyError: () => PolicyError,
     SEPARATOR: () => SEPARATOR,
     ed25519Available: () => ed25519Available,
     equal: () => equal,
@@ -33,6 +37,7 @@ var NucleoVerify = (() => {
     fromHex: () => fromHex,
     keyId: () => keyId,
     leafHash: () => leafHash,
+    mldsaKeyId: () => mldsaKeyId,
     nodeHash: () => nodeHash,
     parseCheckpoint: () => parseCheckpoint,
     parseNote: () => parseNote,
@@ -513,28 +518,79 @@ time ${timestamp.toString()}
 
   // src/policy.ts
   var MAX_POLICY_BYTES = 65536;
-  var MIEMBROS = ["origin", "logKey", "signerKey", "erasureKey", "witnesses", "quorum"];
+  var MAX_CUTOFF = Number.MAX_SAFE_INTEGER;
+  var LARGO_MLDSA = 2 * 1312;
+  var MIEMBROS = ["origin", "logKey", "signerKey", "erasureKey", "retiredErasureKeys", "logMLDSAKey", "witnesses", "quorum"];
+  var PolicyError = class extends Error {
+    reason;
+    constructor(reason, message) {
+      super(message);
+      this.name = "PolicyError";
+      this.reason = reason;
+    }
+  };
+  function motivoDelLector(clase, ruta) {
+    const deCorte = ruta.length === 2 && ruta[0] === "retiredErasureKeys";
+    switch (clase) {
+      case "tama\xF1o":
+        return "size";
+      case "bom":
+        return "bom";
+      case "no-objeto":
+        return "type";
+      case "detr\xE1s":
+        return "trailing";
+      case "repetido":
+        return "duplicate_member";
+      case "surrogate":
+        return "surrogate";
+      case "n\xFAmero":
+        if (ruta[0] === "quorum") return "quorum";
+        if (deCorte) return "cutoff";
+        return "syntax";
+      case "null":
+      case "booleano":
+      case "array":
+      case "anidado":
+        if (ruta[0] === "origin") return "origin";
+        if (ruta[0] === "quorum") return "quorum";
+        if (deCorte) return "cutoff";
+        return clase === "null" ? "null" : "type";
+      default:
+        return "syntax";
+    }
+  }
+  function errLector(clase, ruta, msg) {
+    return new PolicyError(motivoDelLector(clase, ruta), msg);
+  }
+  function rechazo(reason, msg) {
+    return new PolicyError(reason, msg);
+  }
   function parsePolicyText(text) {
     if (utf8(text).length > MAX_POLICY_BYTES) {
-      throw new Error(`la pol\xEDtica mide m\xE1s de ${MAX_POLICY_BYTES} bytes`);
+      throw errLector("tama\xF1o", [], `la pol\xEDtica mide m\xE1s de ${MAX_POLICY_BYTES} bytes`);
     }
-    if (text.charCodeAt(0) === 65279) throw new Error("la pol\xEDtica empieza con BOM");
     for (let i = 0; i < text.length; i++) {
       const c = text.charCodeAt(i);
       if (c >= 55296 && c <= 56319) {
         const d = text.charCodeAt(i + 1);
-        if (!(d >= 56320 && d <= 57343)) throw new Error("la pol\xEDtica no es Unicode v\xE1lido");
+        if (!(d >= 56320 && d <= 57343)) throw errLector("utf8", [], "la pol\xEDtica no es Unicode v\xE1lido");
         i++;
       } else if (c >= 56320 && c <= 57343) {
-        throw new Error("la pol\xEDtica no es Unicode v\xE1lido");
+        throw errLector("utf8", [], "la pol\xEDtica no es Unicode v\xE1lido");
       }
     }
+    if (text.charCodeAt(0) === 65279) throw errLector("bom", [], "la pol\xEDtica empieza con BOM");
     const p = new Lector2(text);
     p.espacios();
-    if (p.s[p.i] !== "{") throw new Error("el documento tiene que ser un objeto JSON");
+    if (p.s[p.i] !== "{") {
+      const c = p.s[p.i];
+      const clase = c !== void 0 && '["-0123456789tfn'.includes(c) ? "no-objeto" : "sintaxis";
+      throw errLector(clase, [], "el documento tiene que ser un objeto JSON");
+    }
     const obj = p.objeto(1);
     p.espacios();
-    if (p.i !== p.s.length) throw new Error(`hay contenido despu\xE9s del objeto (posici\xF3n ${p.i})`);
+    if (p.i !== p.s.length) throw errLector("detr\xE1s", [], `hay contenido despu\xE9s del objeto (posici\xF3n ${p.i})`);
     return construir(obj);
   }
   var Lector2 = class {
@@ -542,8 +598,10 @@ time ${timestamp.toString()}
       this.s = s;
     }
     i = 0;
-    err(msg) {
-      return new Error(`${msg} (posici\xF3n ${this.i})`);
+    /** ruta son los nombres de los miembros que se están leyendo, desde el documento. */
+    ruta = [];
+    err(msg, clase = "sintaxis") {
+      return errLector(clase, this.ruta, `${msg} (posici\xF3n ${this.i})`);
     }
     espacios() {
       while (this.i < this.s.length) {
@@ -553,7 +611,7 @@ time ${timestamp.toString()}
       }
     }
     objeto(profundidad) {
-      if (profundidad > 2) throw this.err("objeto anidado donde la pol\xEDtica no admite ninguno");
+      if (profundidad > 2) throw this.err("objeto anidado donde la pol\xEDtica no admite ninguno", "anidado");
       this.i++;
       const out = [];
       const vistos = /* @__PURE__ */ new Set();
@@ -566,13 +624,15 @@ time ${timestamp.toString()}
         this.espacios();
         if (this.s[this.i] !== '"') throw this.err("se esperaba el nombre de un miembro");
         const nombre = this.cadena();
-        if (vistos.has(nombre)) throw this.err(`el miembro ${JSON.stringify(nombre)} est\xE1 repetido`);
+        if (vistos.has(nombre)) throw this.err(`el miembro ${JSON.stringify(nombre)} est\xE1 repetido`, "repetido");
         vistos.add(nombre);
         this.espacios();
         if (this.s[this.i] !== ":") throw this.err("se esperaba ':'");
         this.i++;
         this.espacios();
+        this.ruta.push(nombre);
         out.push({ nombre, valor: this.valor(profundidad) });
+        this.ruta.pop();
         this.espacios();
         const c = this.s[this.i];
         if (c === ",") this.i++;
@@ -589,7 +649,18 @@ time ${timestamp.toString()}
       if (c === '"') return { tipo: "s", cadena: this.cadena() };
       if (c === "{") return { tipo: "o", miembros: this.objeto(profundidad + 1) };
       if (c === "-" || c >= "0" && c <= "9") return { tipo: "n", numero: this.numero() };
-      throw this.err("valor no admitido en una pol\xEDtica (solo cadenas, n\xFAmeros y el objeto de testigos)");
+      throw this.err(
+        "valor no admitido en una pol\xEDtica (solo cadenas, n\xFAmeros y los objetos de testigos y de claves retiradas)",
+        this.claseDeValor()
+      );
+    }
+    /** claseDeValor dice qué hay en la posición actual cuando no es cadena, número ni objeto. */
+    claseDeValor() {
+      const resto = this.s.slice(this.i, this.i + 5);
+      if (resto.startsWith("null")) return "null";
+      if (resto.startsWith("true") || resto.startsWith("false")) return "booleano";
+      if (resto[0] === "[") return "array";
+      return "sintaxis";
     }
     /** cadena lee una cadena JSON; rechaza surrogates sueltos escritos con \u. */
     cadena() {
@@ -637,14 +708,14 @@ time ${timestamp.toString()}
             const u = this.hex4();
             if (u >= 55296 && u <= 56319) {
               if (this.s[this.i] !== "\\" || this.s[this.i + 1] !== "u") {
-                throw this.err("surrogate UTF-16 alto sin su pareja");
+                throw this.err("surrogate UTF-16 alto sin su pareja", "surrogate");
               }
               this.i += 2;
               const bajo = this.hex4();
-              if (bajo < 56320 || bajo > 57343) throw this.err("surrogate UTF-16 alto sin su pareja");
+              if (bajo < 56320 || bajo > 57343) throw this.err("surrogate UTF-16 alto sin su pareja", "surrogate");
               out += String.fromCharCode(u, bajo);
             } else if (u >= 56320 && u <= 57343) {
-              throw this.err("surrogate UTF-16 bajo suelto");
+              throw this.err("surrogate UTF-16 bajo suelto", "surrogate");
             } else {
               out += String.fromCharCode(u);
             }
@@ -673,64 +744,120 @@ time ${timestamp.toString()}
         return n;
       };
       if (this.s[this.i] === "-") this.i++;
-      if (this.s[this.i] === "0") this.i++;
-      else if (digitos() === 0) throw this.err("n\xFAmero mal formado");
+      if (this.s[this.i] === "0") {
+        this.i++;
+        const d = this.s[this.i];
+        if (d !== void 0 && d >= "0" && d <= "9") throw this.err("n\xFAmero con un cero a la izquierda", "n\xFAmero");
+      } else if (digitos() === 0) throw this.err("n\xFAmero mal formado", "n\xFAmero");
       if (this.s[this.i] === ".") {
         this.i++;
-        if (digitos() === 0) throw this.err("n\xFAmero mal formado");
+        if (digitos() === 0) throw this.err("n\xFAmero mal formado", "n\xFAmero");
       }
       if (this.s[this.i] === "e" || this.s[this.i] === "E") {
         this.i++;
         if (this.s[this.i] === "+" || this.s[this.i] === "-") this.i++;
-        if (digitos() === 0) throw this.err("n\xFAmero mal formado");
+        if (digitos() === 0) throw this.err("n\xFAmero mal formado", "n\xFAmero");
       }
       return this.s.slice(ini, this.i);
     }
   };
   var HEX_CLAVE = /^[0-9a-f]{64}$/;
+  var HEX_MINUSCULAS = /^[0-9a-f]*$/;
+  function motivoDeClave(v) {
+    return v.tipo === "o" ? "type" : "hex";
+  }
+  function recorta(s) {
+    return s.length <= 24 ? s : s.slice(0, 24) + "\u2026";
+  }
+  function corte(s) {
+    if (!/^(0|[1-9][0-9]*)$/.test(s) || s.length > 16) return null;
+    const c = Number(s);
+    return c <= MAX_CUTOFF ? c : null;
+  }
   function construir(obj) {
     const tiene = /* @__PURE__ */ new Set();
     let origin = "";
     let logKey = "";
     let signerKey;
     let erasureKey;
+    let logMLDSAKey;
+    let retiradas;
     const witnesses = /* @__PURE__ */ Object.create(null);
     let quorum = "";
     let nTestigos = 0;
     for (const { nombre, valor } of obj) {
       if (!MIEMBROS.includes(nombre)) {
         const variante = MIEMBROS.find((k) => k.toLowerCase() === asciiMinusculas(nombre));
-        if (variante) throw new Error(`el miembro ${JSON.stringify(nombre)} es una variante de may\xFAsculas de ${JSON.stringify(variante)}`);
-        throw new Error(`miembro desconocido ${JSON.stringify(nombre)}`);
+        if (variante) {
+          throw rechazo("case_variant", `el miembro ${JSON.stringify(nombre)} es una variante de may\xFAsculas de ${JSON.stringify(variante)}`);
+        }
+        throw rechazo("unknown_member", `miembro desconocido ${JSON.stringify(nombre)}`);
       }
       tiene.add(nombre);
       switch (nombre) {
         case "origin":
-          if (valor.tipo !== "s" || valor.cadena === "") throw new Error("origin tiene que ser una cadena no vac\xEDa");
+          if (valor.tipo !== "s" || valor.cadena === "") throw rechazo("origin", "origin tiene que ser una cadena no vac\xEDa");
           origin = valor.cadena;
           break;
         case "logKey":
         case "signerKey":
         case "erasureKey":
           if (valor.tipo !== "s" || !HEX_CLAVE.test(valor.cadena)) {
-            throw new Error(`${nombre} tiene que ser una clave de 64 caracteres hexadecimales en min\xFAsculas`);
+            throw rechazo(motivoDeClave(valor), `${nombre} tiene que ser una clave de 64 caracteres hexadecimales en min\xFAsculas`);
           }
           if (nombre === "logKey") logKey = valor.cadena;
           else if (nombre === "signerKey") signerKey = valor.cadena;
           else erasureKey = valor.cadena;
           break;
+        case "retiredErasureKeys": {
+          if (valor.tipo !== "o") throw rechazo("type", "retiredErasureKeys tiene que ser un objeto {clave: corte}");
+          if (valor.miembros.length === 0) {
+            throw rechazo("no_retired_keys", "retiredErasureKeys vac\xEDo: significar\xEDa lo mismo que no ponerlo; qu\xEDtalo");
+          }
+          const r = /* @__PURE__ */ Object.create(null);
+          for (const m of valor.miembros) {
+            if (!HEX_CLAVE.test(m.nombre)) {
+              throw rechazo("hex", `la clave retirada ${JSON.stringify(recorta(m.nombre))} tiene que ser de 64 caracteres hexadecimales en min\xFAsculas`);
+            }
+            if (m.valor.tipo !== "n") {
+              throw rechazo("cutoff", `el corte de la clave retirada ${m.nombre.slice(0, 16)}\u2026 tiene que ser un n\xFAmero entero`);
+            }
+            const c = corte(m.valor.numero);
+            if (c === null) {
+              throw rechazo(
+                "cutoff",
+                `el corte ${recorta(m.valor.numero)} de la clave retirada ${m.nombre.slice(0, 16)}\u2026 no es un entero sin signo, sin fracci\xF3n ni exponente, de como mucho 2^53 \u2212 1`
+              );
+            }
+            r[m.nombre] = c;
+          }
+          retiradas = r;
+          break;
+        }
+        case "logMLDSAKey":
+          if (valor.tipo !== "s" || valor.cadena.length !== LARGO_MLDSA || !HEX_MINUSCULAS.test(valor.cadena)) {
+            throw rechazo(
+              motivoDeClave(valor),
+              `logMLDSAKey tiene que ser la clave p\xFAblica ML-DSA-44 del log: ${LARGO_MLDSA} caracteres hexadecimales en min\xFAsculas`
+            );
+          }
+          logMLDSAKey = valor.cadena;
+          break;
         case "witnesses": {
-          if (valor.tipo !== "o") throw new Error("witnesses tiene que ser un objeto");
-          if (valor.miembros.length === 0) throw new Error("no trae ning\xFAn testigo; sin testigos no verifica nada");
+          if (valor.tipo !== "o") throw rechazo("type", "witnesses tiene que ser un objeto");
+          if (valor.miembros.length === 0) throw rechazo("no_witnesses", "no trae ning\xFAn testigo; sin testigos no verifica nada");
           const porClave = /* @__PURE__ */ new Map();
           for (const w of valor.miembros) {
-            if (w.nombre === "") throw new Error("un testigo sin nombre");
+            if (w.nombre === "") throw rechazo("witness_name", "un testigo sin nombre");
             if (w.valor.tipo !== "s" || !HEX_CLAVE.test(w.valor.cadena)) {
-              throw new Error(`la clave del testigo ${JSON.stringify(w.nombre)} tiene que ser de 64 caracteres hexadecimales en min\xFAsculas`);
+              throw rechazo(
+                motivoDeClave(w.valor),
+                `la clave del testigo ${JSON.stringify(w.nombre)} tiene que ser de 64 caracteres hexadecimales en min\xFAsculas`
+              );
             }
             const otro = porClave.get(w.valor.cadena);
             if (otro !== void 0) {
-              throw new Error(`la misma clave est\xE1 bajo dos nombres (${JSON.stringify(otro)} y ${JSON.stringify(w.nombre)})`);
+              throw rechazo("duplicate_key", `la misma clave est\xE1 bajo dos nombres (${JSON.stringify(otro)} y ${JSON.stringify(w.nombre)})`);
             }
             porClave.set(w.valor.cadena, w.nombre);
             witnesses[w.nombre] = w.valor.cadena;
@@ -739,31 +866,58 @@ time ${timestamp.toString()}
           break;
         }
         case "quorum":
-          if (valor.tipo !== "n") throw new Error("quorum tiene que ser un n\xFAmero entero");
+          if (valor.tipo !== "n") throw rechazo("quorum", "quorum tiene que ser un n\xFAmero entero");
           quorum = valor.numero;
           break;
       }
     }
     for (const req of ["origin", "logKey", "witnesses", "quorum"]) {
-      if (!tiene.has(req)) throw new Error(`falta el miembro ${JSON.stringify(req)}`);
+      if (!tiene.has(req)) throw rechazo("missing", `falta el miembro ${JSON.stringify(req)}`);
     }
-    if (!/^(0|[1-9][0-9]*)$/.test(quorum)) throw new Error(`quorum ${quorum} no es un entero sin fracci\xF3n ni exponente`);
+    if (!/^(0|[1-9][0-9]*)$/.test(quorum)) throw rechazo("quorum", `quorum ${quorum} no es un entero sin fracci\xF3n ni exponente`);
     const q = quorum.length > 9 ? Infinity : Number(quorum);
-    if (q < 1 || q > nTestigos) throw new Error(`quorum ${quorum} con ${nTestigos} testigos`);
+    if (q < 1 || q > nTestigos) throw rechazo("quorum", `quorum ${quorum} con ${nTestigos} testigos`);
     const out = { origin, logKey, witnesses, quorum: q };
     if (Object.keys(witnesses).length !== nTestigos) {
       throw new Error("el mapa de testigos perdi\xF3 alguna clave al construirse");
     }
     if (signerKey !== void 0) out.signerKey = signerKey;
+    const testigosEnOrden = Object.keys(witnesses).sort(compara);
     if (erasureKey !== void 0) {
-      if (erasureKey === logKey) throw new Error("erasureKey es la clave del log; la clave de supresi\xF3n no puede estar en el servidor");
-      if (erasureKey === signerKey) throw new Error("erasureKey es la clave del firmante; la clave de supresi\xF3n no puede estar en el servidor");
-      for (const n of Object.keys(witnesses)) {
-        if (witnesses[n] === erasureKey) throw new Error(`erasureKey es la clave del testigo ${JSON.stringify(n)}`);
+      if (erasureKey === logKey) {
+        throw rechazo("erasure_key_reused", "erasureKey es la clave del log; la clave de supresi\xF3n no puede estar en el servidor");
+      }
+      if (erasureKey === signerKey) {
+        throw rechazo("erasure_key_reused", "erasureKey es la clave del firmante; la clave de supresi\xF3n no puede estar en el servidor");
+      }
+      for (const n of testigosEnOrden) {
+        if (witnesses[n] === erasureKey) throw rechazo("erasure_key_reused", `erasureKey es la clave del testigo ${JSON.stringify(n)}`);
       }
       out.erasureKey = erasureKey;
     }
+    if (retiradas !== void 0) {
+      for (const k of Object.keys(retiradas).sort(compara)) {
+        const ini = k.slice(0, 16);
+        if (k === erasureKey) {
+          throw rechazo("erasure_key_reused", `la clave retirada ${ini}\u2026 es la erasureKey: una clave no puede estar retirada y ser la actual`);
+        }
+        if (k === logKey) {
+          throw rechazo("erasure_key_reused", `la clave retirada ${ini}\u2026 es la clave del log; una clave de supresi\xF3n no puede estar en el servidor`);
+        }
+        if (k === signerKey) {
+          throw rechazo("erasure_key_reused", `la clave retirada ${ini}\u2026 es la clave del firmante; una clave de supresi\xF3n no puede estar en el servidor`);
+        }
+        for (const n of testigosEnOrden) {
+          if (witnesses[n] === k) throw rechazo("erasure_key_reused", `la clave retirada ${ini}\u2026 es la clave del testigo ${JSON.stringify(n)}`);
+        }
+      }
+      out.retiredErasureKeys = retiradas;
+    }
+    if (logMLDSAKey !== void 0) out.logMLDSAKey = logMLDSAKey;
     return out;
+  }
+  function compara(a, b) {
+    return a < b ? -1 : a > b ? 1 : 0;
   }
   function validatePolicy(p) {
     if (typeof p !== "object" || p === null || Array.isArray(p)) throw new Error("la pol\xEDtica no es un objeto");
@@ -783,6 +937,13 @@ time ${timestamp.toString()}
   var MAGIC2 = "nucleo.org/receipt@v2";
   var MAGIC_V1 = "nucleo.org/receipt@v1";
   var MLDSA44_SIGNATURE_SIZE = 2420;
+  var MLDSA44_PUBLIC_KEY_SIZE = 1312;
+  var ALG_EXT = 255;
+  var MLDSA_EXT_ID = "nucleoledger.com/sig/ml-dsa-44@v1";
+  var NO_IMPLEMENTA_MLDSA = "este verificador no implementa ML-DSA-44";
+  async function mldsaKeyId(origin, publicKey) {
+    return keyId(sha256, origin, ALG_EXT, concat(utf8(MLDSA_EXT_ID + "\n"), publicKey));
+  }
   var BLOCK_SIG_SIZE = 64;
   var SEPARATOR = "--- prueba verificable ---";
   var NO_PROVABLE_TIME = "SIN TIEMPO DEMOSTRABLE";
@@ -810,6 +971,8 @@ time ${timestamp.toString()}
         ignoredSignatures: [],
         signerPubKey: null,
         logAdditionalSignatures: 0,
+        logMLDSA: null,
+        logMLDSANote: null,
         reasons: [`error inesperado al verificar: ${mensaje(e)}`],
         checkpoint: null
       };
@@ -829,7 +992,8 @@ time ${timestamp.toString()}
       logKey: clave(v.logKey, "logKey"),
       signerKey: clave(v.signerKey, "signerKey"),
       witnesses: Object.entries(v.witnesses).map(([name, hex]) => ({ name, key: clave(hex, `la clave del testigo ${name}`) })),
-      quorum: v.quorum
+      quorum: v.quorum,
+      logMLDSAKey: v.logMLDSAKey === void 0 ? null : claveMLDSA(v.logMLDSAKey)
     };
   }
   function clave(hex, cual) {
@@ -841,6 +1005,13 @@ time ${timestamp.toString()}
     }
     if (raw.length !== 32) {
       throw new Error(`${cual} mide ${raw.length} bytes y una clave Ed25519 mide 32`);
+    }
+    return raw;
+  }
+  function claveMLDSA(hex) {
+    const raw = fromHex(hex);
+    if (raw === null || raw.length !== MLDSA44_PUBLIC_KEY_SIZE) {
+      throw new Error(`logMLDSAKey no mide ${MLDSA44_PUBLIC_KEY_SIZE} bytes`);
     }
     return raw;
   }
@@ -858,6 +1029,8 @@ time ${timestamp.toString()}
       ignoredSignatures: [],
       signerPubKey: null,
       logAdditionalSignatures: 0,
+      logMLDSA: null,
+      logMLDSANote: null,
       reasons: [...reasons, why],
       checkpoint: null
     });
@@ -919,6 +1092,8 @@ ${id}`;
     }
     const contados = /* @__PURE__ */ new Set();
     let firmasAdicionalesDelLog = 0;
+    const mldsaId = claves.logMLDSAKey === null ? null : await mldsaKeyId(policy.origin, claves.logMLDSAKey);
+    let lineasMLDSA = 0;
     let earliest = null;
     for (const sig of p.note.sigs) {
       if (sig.name === policy.origin && sig.keyId === logId) {
@@ -927,6 +1102,17 @@ ${id}`;
           continue;
         }
         logSigned = true;
+        continue;
+      }
+      if (mldsaId !== null && sig.name === policy.origin && sig.keyId === mldsaId) {
+        if (sig.signature.length !== MLDSA44_SIGNATURE_SIZE) {
+          reasons.push(
+            `la firma post-cu\xE1ntica del log (ML-DSA-44) de la clave que fija la pol\xEDtica mide ${sig.signature.length} bytes y una ML-DSA-44 mide ${MLDSA44_SIGNATURE_SIZE}`
+          );
+          continue;
+        }
+        lineasMLDSA++;
+        firmasAdicionalesDelLog++;
         continue;
       }
       const w = witnesses.get(idDe(sig.name, sig.keyId));
@@ -957,6 +1143,9 @@ ${id}`;
       if (earliest === null || cs.timestamp < earliest) earliest = cs.timestamp;
     }
     if (!logSigned) reasons.push("el checkpoint no est\xE1 firmado por la clave del log");
+    if (mldsaId !== null && lineasMLDSA === 0) {
+      reasons.push("la pol\xEDtica fija la clave ML-DSA-44 del log (logMLDSAKey) y el checkpoint no trae su firma");
+    }
     const quorum = claves.quorum;
     if (cosigners.length < quorum) {
       reasons.push(`qu\xF3rum de testigos no alcanzado: ${cosigners.length} de ${quorum}`);
@@ -982,8 +1171,22 @@ ${id}`;
         "el texto del recibo no coincide con lo que dice la prueba: el encabezado fue alterado o el tiempo demostrable no lo respalda ning\xFAn testigo aceptado"
       );
     }
+    const valid = reasons.length === 0;
+    let logMLDSA = null;
+    let logMLDSANote = null;
+    if (valid) {
+      if (mldsaId !== null) {
+        logMLDSA = "present-unverified";
+        logMLDSANote = NO_IMPLEMENTA_MLDSA;
+      } else if (firmasAdicionalesDelLog > 0) {
+        logMLDSA = "present-unverified";
+        logMLDSANote = `${NO_IMPLEMENTA_MLDSA}, y la pol\xEDtica no fija su clave (logMLDSAKey)`;
+      } else {
+        logMLDSA = "absent";
+      }
+    }
     return {
-      valid: reasons.length === 0,
+      valid,
       blockSignatureVerified,
       receiptSignatureVerified,
       declaredTime: p.header.timestamp,
@@ -994,6 +1197,8 @@ ${id}`;
       ignoredSignatures: ignored,
       signerPubKey: p.header.signer_pubkey ?? null,
       logAdditionalSignatures: firmasAdicionalesDelLog,
+      logMLDSA,
+      logMLDSANote,
       reasons,
       checkpoint: {
         origin: p.checkpoint.origin,

@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { verifyReceipt, type Policy } from "../src/index.js";
+import { mldsaKeyId, verifyReceipt, type Policy } from "../src/index.js";
 import { ed25519Available } from "../src/crypto.js";
-import { esperado, listVectors, readJSON } from "./vectors.js";
+import { fromHex } from "../src/bytes.js";
+import { esperado, listVectors, motivoMLDSA, politicaDe, readJSON, veredictoTS, type Veredicto } from "./vectors.js";
 
 interface Vector {
   name: string;
   description: string;
   receipt: string;
   policy: { origin: string; log_key: string;
-  signer_key: string; witnesses: Record<string, string>; quorum: number };
+  signer_key: string; witnesses: Record<string, string>; quorum: number; log_mldsa_key?: string };
   // leaf_data es la hoja de leaf/v2 en hex: hash ‖ signature (PROTOCOL.md §2.1).
   leaf_data: string;
   leaf_rule: string;
@@ -21,17 +22,12 @@ interface Vector {
   // "0.8-draft" en los recibos cuya política fija log_mldsa_key (ADR-034 §F): valid es
   // entonces el de Go, y verdicts dice el de cada verificador.
   requires?: string;
-  verdicts?: { without_log_mldsa_key: { valid: boolean } };
+  verdicts?: { ts: Veredicto; php: Veredicto; go: Veredicto; without_log_mldsa_key: Veredicto };
 }
 
+// toPolicy es la política del vector, con logMLDSAKey si la trae (Sprint 32).
 function toPolicy(v: Vector): Policy {
-  return {
-    origin: v.policy.origin,
-    logKey: v.policy.log_key,
-        signerKey: v.policy.signer_key,
-    witnesses: v.policy.witnesses,
-    quorum: v.policy.quorum,
-  };
+  return politicaDe(v);
 }
 
 describe("entorno", () => {
@@ -52,16 +48,22 @@ describe("vectores de recibo generados por Go", () => {
 
     it(`${v.name}: ${v.description}`, async () => {
       const result = await verifyReceipt(v.receipt, toPolicy(v));
-      const valido = esperado(v);
+      const w = veredictoTS(v);
+      const valido = w.valid;
 
       expect(result.valid, `razones: ${result.reasons.join(" | ")}`).toBe(valido);
+      // TS NUNCA dice "verified": no implementa ML-DSA-44.
+      expect(result.logMLDSA).not.toBe("verified");
 
       if (!valido) {
         // Un rechazo sin explicación es inútil para quien lo recibe.
         expect(result.reasons.length).toBeGreaterThan(0);
         expect(result.provableTime).toBeNull();
+        expect(result.logMLDSA).toBeNull();
+        if (w.reason !== undefined) expect(motivoMLDSA(result.reasons), result.reasons.join(" | ")).toBe(w.reason);
         return;
       }
+      if (w.log_mldsa !== undefined) expect(result.logMLDSA).toBe(w.log_mldsa);
 
       // EL RECIBO GENERADO POR GO VERIFICA EN TS, BYTE A BYTE.
       expect(result.blockIndex).toBe(BigInt(v.block_index));
@@ -130,6 +132,48 @@ describe("razones de rechazo", () => {
     const broken = valid.receipt.replace("c2sp.org/tlog-proof@v1", "c2sp.org/tlog-proof@v2");
     const r = await verifyReceipt(broken, toPolicy(valid));
     expect(r.valid).toBe(false);
+  });
+});
+
+// Los siete recibos 0.8-draft (ADR-034, decisión 5, opción B): el veredicto que cada vector
+// declara para "ts", y lo que no se ve en el veredicto.
+describe("la clave ML-DSA-44 del log fijada en la política (Sprint 32)", () => {
+  const v = readJSON<Vector>("receipt", "valido-mldsa-fijada-verificada.json");
+
+  it("el key ID de la clave fijada es f2c2d51c (calculado fuera: hashlib y sha256sum)", async () => {
+    // El valor lo dio, el 2026-11-08, SHA-256 de origin ‖ "\n" ‖ 0xff ‖ el identificador ‖
+    // "\n" ‖ la clave, con hashlib y con sha256sum; los cuatro primeros bytes. Y es el que
+    // lleva la línea ML-DSA del recibo.
+    const id = await mldsaKeyId(v.policy.origin, fromHex(v.policy.log_mldsa_key!)!);
+    expect(id.toString(16).padStart(8, "0")).toBe("f2c2d51c");
+  });
+
+  it("con la clave: present-unverified, con su motivo, y nunca verified", async () => {
+    const r = await verifyReceipt(v.receipt, toPolicy(v));
+    expect(r.valid, r.reasons.join(" | ")).toBe(true);
+    expect(r.logMLDSA).toBe("present-unverified");
+    expect(r.logMLDSANote).toBe("este verificador no implementa ML-DSA-44");
+  });
+
+  it("sin la clave, el veredicto de una política sin ella (without_log_mldsa_key)", async () => {
+    for (const f of listVectors("receipt")) {
+      const x = readJSON<Vector>("receipt", f);
+      if (x.requires !== "0.8-draft") continue;
+      const r = await verifyReceipt(x.receipt, politicaDe(x, false));
+      const w = x.verdicts!.without_log_mldsa_key;
+      expect(r.valid, `${x.name}: ${r.reasons.join(" | ")}`).toBe(w.valid);
+      expect(r.logMLDSA, x.name).toBe(w.log_mldsa);
+    }
+  });
+
+  it("la Ed25519 del log sigue siendo obligatoria con la clave ML-DSA fijada", async () => {
+    const lineas = v.receipt.split("\n");
+    const i = lineas.findIndex((l) => l.startsWith(`— ${v.policy.origin} `) && l.length < 200);
+    expect(i).toBeGreaterThan(0);
+    lineas.splice(i, 1);
+    const r = await verifyReceipt(lineas.join("\n"), toPolicy(v));
+    expect(r.valid).toBe(false);
+    expect(r.reasons).toContain("el checkpoint no está firmado por la clave del log");
   });
 });
 

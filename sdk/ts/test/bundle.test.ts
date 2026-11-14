@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { esperado, listVectors, readJSON } from "./vectors.js";
+import { esperado, listVectors, politicaDe, readJSON, veredictoTS, type Veredicto } from "./vectors.js";
 import { LEGAL_NOTICE } from "../src/receipt.js";
 
 // Verificación ANTI-TEATRO.
@@ -23,12 +23,12 @@ interface Vector {
   name: string;
   receipt: string;
   policy: { origin: string; log_key: string;
-  signer_key: string; witnesses: Record<string, string>; quorum: number };
+  signer_key: string; witnesses: Record<string, string>; quorum: number; log_mldsa_key?: string };
   valid: boolean;
   provable_time?: string;
   block_index: number;
   requires?: string;
-  verdicts?: { without_log_mldsa_key: { valid: boolean } };
+  verdicts?: { ts: Veredicto; php: Veredicto; go: Veredicto; without_log_mldsa_key: Veredicto };
 }
 
 /** loadBundle evalúa el bundle en un contexto limpio, como haría el navegador. */
@@ -72,18 +72,16 @@ describe("el bundle que sirve la página web", () => {
     const v = readJSON<Vector>("receipt", file);
     it(`${v.name}: el bundle da el mismo veredicto que la biblioteca`, async () => {
       const api = loadBundle();
-      const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{ valid: boolean; provableTime: string | null; blockIndex: bigint | null }>;
-      const result = await verify(v.receipt, {
-        origin: v.policy.origin,
-        logKey: v.policy.log_key,
-        signerKey: v.policy.signer_key,
-        witnesses: v.policy.witnesses,
-        quorum: v.policy.quorum,
-      });
+      const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{
+        valid: boolean; provableTime: string | null; blockIndex: bigint | null; logMLDSA: string | null }>;
+      const result = await verify(v.receipt, politicaDe(v));
       expect(result.valid).toBe(esperado(v));
+      expect(result.logMLDSA).not.toBe("verified");
       if (esperado(v)) {
         expect(result.provableTime).toBe(v.provable_time ?? null);
         expect(result.blockIndex).toBe(BigInt(v.block_index));
+        const w = veredictoTS(v);
+        if (w.log_mldsa !== undefined) expect(result.logMLDSA).toBe(w.log_mldsa);
       }
     });
   }
