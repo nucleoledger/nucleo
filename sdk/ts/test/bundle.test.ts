@@ -257,8 +257,56 @@ describe("el dictamen de la página", () => {
       witnesses: m.policy.witnesses, quorum: m.policy.quorum,
     });
     const f = Object.fromEntries(filasDe(r));
-    expect(f["firma adicional del log"]).toContain("ML-DSA-44");
+    expect(f["firma post-cuántica del log"]).toContain("ML-DSA-44");
+    expect(f["firma post-cuántica del log"]).toContain("tu política no fija su clave (logMLDSAKey)");
     expect(f["firmas ignoradas"]).toBeUndefined();
+  });
+
+  // Sprint 32 (ADR-034 §D, opción B): los siete recibos 0.8-draft por el bundle y el
+  // dictamen de la página, con la política del vector —logMLDSAKey incluida—.
+  // "present-unverified" no puede parecer una comprobación superada.
+  const NO_VERIFICADA =
+    "⚠ firma post-cuántica presente, NO verificada: este verificador no implementa ML-DSA-44; para verificarla, `nucleo verify-receipt`";
+  const de08 = listVectors("receipt")
+    .map((f) => readJSON<Vector>("receipt", f))
+    .filter((x) => x.requires === "0.8-draft");
+
+  it("son los siete recibos 0.8-draft", () => {
+    expect(de08).toHaveLength(7);
+  });
+
+  for (const x of de08) {
+    it(`${x.name}: la página da el veredicto "ts" y nunca una ML-DSA verificada`, async () => {
+      const r = (await verify(x.receipt, politicaDe(x))) as {
+        valid: boolean; logMLDSA: string | null; logMLDSANote: string | null; reasons: string[] };
+      const w = veredictoTS(x);
+      expect(r.valid, r.reasons.join(" | ")).toBe(w.valid);
+      const filas = filasDe(r);
+      const f = Object.fromEntries(filas);
+      for (const [k, texto] of filas) {
+        expect(texto.toLowerCase(), `fila ${k}`).not.toContain("ml-dsa-44 verificada");
+      }
+      if (w.valid) {
+        expect(r.logMLDSA).toBe("present-unverified");
+        expect(f["firma post-cuántica del log"]!.startsWith(NO_VERIFICADA), f["firma post-cuántica del log"]).toBe(true);
+        expect(f["firma post-cuántica del log"]).not.toMatch(/^[✔◐]/);
+      } else {
+        expect(f["firma post-cuántica del log"]).toBeUndefined();
+        expect(r.reasons.join(" | ")).toMatch(/ML-DSA-44/);
+      }
+    });
+  }
+
+  it("ausente: un recibo sin línea ML-DSA y una política sin la clave", async () => {
+    const f = Object.fromEntries(filasDe(await verify(v.receipt, pol)));
+    expect(f["firma post-cuántica del log"]).toMatch(/^ausente: /);
+  });
+
+  it("la página explica los tres estados", () => {
+    const html = readFileSync(htmlPath, "utf8");
+    for (const t of ["Presente, NO verificada", "Ausente", "✘ Recibo NO válido", "<code>nucleo verify-receipt</code>"]) {
+      expect(html).toContain(t);
+    }
   });
 
   it("el literal de la etiqueta aparece una sola vez, y en dictamen.js", () => {

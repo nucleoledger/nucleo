@@ -28,13 +28,24 @@ window.NUCLEO_DICTAMEN = function (r) {
     ["log", r.checkpoint?.origin ?? "—"],
     ["testigos que verifican", r.cosigners.length ? r.cosigners.join(", ") : "ninguno"],
   ];
-  // La firma ML-DSA-44 del propio log (ADR-007) no es "una clave que no conoces":
-  // la página la listaba así, con el nombre del log. Se dice qué es y que aquí no se
-  // comprueba —WebCrypto no tiene ML-DSA—, sin ✔.
-  if (r.logAdditionalSignatures) {
+  // La firma post-cuántica del log: ML-DSA-44 (ADR-007, ADR-034 §D). Este navegador NO la
+  // verifica —WebCrypto no tiene ML-DSA—, y "present-unverified" no puede parecer una
+  // comprobación superada: ni ✔ ni ◐, y la frase dice dónde se verifica de verdad. Con la
+  // clave en la política (logMLDSAKey), el SDK sí exige la línea y su longitud, y un
+  // recibo sin ella no llega aquí: es un ✘ con su razón. Sin veredicto positivo no hay
+  // fila: las razones ya dicen qué falló.
+  if (ok && r.logMLDSA === "present-unverified") {
+    const sinClave = r.logMLDSANote && r.logMLDSANote !== "este verificador no implementa ML-DSA-44";
     filas.push([
-      "firma adicional del log",
-      `${r.logAdditionalSignatures} ML-DSA-44 (ADR-007) — no se comprueba en este navegador y no cuenta para el veredicto`,
+      "firma post-cuántica del log",
+      "⚠ firma post-cuántica presente, NO verificada: este verificador no implementa ML-DSA-44; " +
+        "para verificarla, `nucleo verify-receipt` (nucleo verify-receipt --receipt RECIBO --policy-file POLÍTICA)" +
+        (sinClave ? ". Además, tu política no fija su clave (logMLDSAKey): ni siquiera se exige que esté" : ""),
+    ]);
+  } else if (ok && r.logMLDSA === "absent") {
+    filas.push([
+      "firma post-cuántica del log",
+      "ausente: el checkpoint no trae firma ML-DSA-44 del log, y tu política no la exige (logMLDSAKey)",
     ]);
   }
   if (r.ignoredSignatures.length) {

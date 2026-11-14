@@ -108,6 +108,16 @@
       <code>@nucleoledger/verify</code>, el mismo código que se prueba contra los
       vectores compartidos con la implementación de Go.
     </p>
+    <p id="estados-mldsa">
+      La firma post-cuántica del log (ML-DSA-44) puede salir de tres maneras.
+      <strong>Presente, NO verificada</strong>: está, y si tu política fija su clave
+      (<code>logMLDSAKey</code>) mide lo que tiene que medir, pero esta página no implementa
+      ML-DSA-44 y no comprueba la firma; para verificarla, <code>nucleo verify-receipt</code>.
+      <strong>Ausente</strong>: el checkpoint no la trae y tu política no la exige.
+      <strong>✘ Recibo NO válido</strong>: tu política fija la clave y el recibo no trae la
+      firma, o trae una línea de esa clave que no mide 2420 bytes; la razón lo dice. Esta
+      página nunca la da por verificada.
+    </p>
     <p>
       Necesita un navegador con Ed25519 en WebCrypto (Chrome&nbsp;137+,
       Safari&nbsp;17+, Firefox&nbsp;130+) y, si la abres desde un servidor, que
