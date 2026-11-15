@@ -28,7 +28,10 @@ se indica que es `main`. PHP 8.2 con el SDK del repositorio.
 - [ ] Las **tarjetas** del vault repartidas y **fuera del servidor** (§3).
 - [ ] Si vas a suprimir contenido: la **clave de supresión** generada fuera del servidor, sus
       tarjetas en manos de quien responde de las supresiones, y su clave pública como
-      `erasureKey` en la política de quien reconcilia (§3, ADR-032).
+      `erasureKey` en la política de quien reconcilia (§3, ADR-032). Para cambiarla, rótala
+      con el fragmento de `sync` (§3, «Rotar la clave de supresión»).
+- [ ] Tus **contrapartes**, en el SDK 0.5 o con una copia de la política sin `logMLDSAKey`:
+      desde 0.5.0-alpha, la política que imprime `sync` lo trae y el SDK 0.4 la rechaza (§2).
 
 ---
 
@@ -238,6 +241,51 @@ cualquiera con acceso al fichero— y el veredicto puede no coincidir con el de 
 con política; la alarma de §5 sigue el veredicto de cada comando. La excepción es `sync`
 tras cambiar de testigo, que usa la política del testigo actual (§1).
 
+### Contrapartes en el SDK 0.4
+
+Desde 0.5.0-alpha, la política que imprime `sync` trae siempre `logMLDSAKey`, la clave
+ML-DSA-44 del log ([ADR-034](adr/ADR-034-verificar-mldsa44-del-log.md)), y, después de
+rotar la clave de supresión, `retiredErasureKeys` (§3). Son miembros de PROTOCOL 0.8-draft, y
+un verificador 0.4 rechaza lo que no conoce: el SDK de TypeScript
+`@nucleoledger/verify@0.4.0-alpha.0` y el SDK de PHP de la misma versión dicen
+
+```
+miembro desconocido "logMLDSAKey"
+```
+
+y no verifican ningún recibo con esa política. Rechazar es lo correcto: un verificador que
+aceptara un miembro sin saber qué es daría a entender que lo comprobó. La contraparte tiene
+dos salidas:
+
+1. **Actualizar al SDK 0.5** (`@nucleoledger/verify@0.5.0-alpha.0` y el SDK de PHP de la
+   misma versión). Por el orden de publicación de [RELEASING](RELEASING.md) —primero el SDK,
+   después el binario—, el SDK 0.5 está publicado antes que el binario que imprime estas
+   políticas. Lee los dos miembros, exige la línea ML-DSA-44 del log y que mida 2420 bytes,
+   y dice `logMLDSA: "present-unverified"`: no verifica la firma post-cuántica (lo hace
+   `nucleo verify-receipt`, en Go).
+2. **Quitar esos miembros de su copia** y seguir con el SDK 0.4, sabiendo que se queda sin la
+   comprobación post-cuántica: su verificador no mira la línea ML-DSA-44. `retiredErasureKeys`
+   no cambia nada al verificar recibos —los SDK no suprimen ni reconcilian—. Con Node:
+
+   ```bash
+   node -e 'const fs = require("fs"); const p = JSON.parse(fs.readFileSync("politica.json", "utf8")); delete p.logMLDSAKey; delete p.retiredErasureKeys; fs.writeFileSync("politica-sdk04.json", JSON.stringify(p, null, 2) + "\n")'
+   ```
+
+   y con PHP:
+
+   ```bash
+   php -r '$p = json_decode(file_get_contents("politica.json"), true, 512, JSON_THROW_ON_ERROR); unset($p["logMLDSAKey"], $p["retiredErasureKeys"]); file_put_contents("politica-sdk04.json", json_encode($p, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");'
+   ```
+
+   La copia recortada **no tiene el hash anclado** en el contrato (§2, «Anclar su hash»):
+   el hash se comprueba sobre la política recibida, y la copia es solo para el SDK 0.4. Es lo
+   que hace hoy el ejemplo `examples/erp-node`, que sigue en el SDK 0.4 hasta la 0.5.
+
+Comprobado el 2026-11-15 con `main`: los dos SDK 0.4, el de npm y el de PHP del tag
+`vsdk-0.4.0-alpha.0`, rechazan la política de `sync` con ese mensaje y aceptan la copia que
+dejan las dos órdenes. Que el SDK 0.4 de npm rechaza esa política lo exige además
+`scripts/ensayo-actualizacion.sh`.
+
 ---
 
 ## 3. Las llaves: la passphrase y las tarjetas
@@ -386,8 +434,128 @@ tarjetas, y no está en el servidor:
    servidor, la misma orden de `erase` con `--authorization <línea>` suprime.
 
 Perder el umbral de estas tarjetas no pierde datos: impide suprimir. Se genera otra clave y
-se cambia `erasureKey` en la política; las supresiones hechas con la vieja dejan de contar
-para quien solo tenga la política nueva.
+se **rota** (abajo): las supresiones que autorizó la vieja siguen contando, porque la
+política nueva la lleva en `retiredErasureKeys` con su corte, y para eso no hacen falta sus
+tarjetas.
+
+**Suprimir no es anular una factura.** La supresión borra el contenido y deja en la cadena
+su hash y el evento que la autorizó: es la mitad técnica de un derecho de borrado
+([GARANTIAS](GARANTIAS.md) L18). La anulación tributaria es otro acto, que tiene que dejar
+verificable la emisión, y Núcleo todavía no tiene un evento para ella (ADR-035, en TODO
+«Después de la 0.5»). No suprimas una factura para anularla.
+
+### Rotar la clave de supresión
+
+Rotar es cambiar la `erasureKey` sin que lo ya suprimido deje de contar
+([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md)): la clave vieja pasa a
+`retiredErasureKeys` con su **corte**, el índice del último evento que autorizó, y autoriza
+los eventos hasta ese índice y ninguno después. Se rota cuando la custodia cambia de manos,
+cuando se pierde el umbral de sus tarjetas o cuando se sospecha que alguien lo reunió.
+
+1. **La clave nueva**, como la primera: `nucleo erasure-key init` en un equipo que no sea
+   el servidor, y sus tarjetas repartidas.
+2. **El corte, de `sync`.** En el servidor, con la política actual —la que trae la
+   `erasureKey` vieja—:
+
+   ```bash
+   nucleo sync --policy-file politica.json --passphrase-file /etc/nucleo/passphrase
+   ```
+
+   Si el testigo atestigua, `sync` imprime el fragmento:
+
+   ```
+     Si rotas la clave de supresión, la política nueva lleva, además de la erasureKey nueva:
+       "retiredErasureKeys": {"fe593f197529db3dd1b8129db308c95b7b3af5f11ef89c52dd40108d4001278e":2}
+     El corte de la clave actual, 2, es el último evento que autorizó dentro de los 3
+     bloques que el testigo acaba de atestiguar (ADR-033).
+   ```
+
+   Con `--json`, el mismo valor va en `erasure_rotation.retiredErasureKeys`. Si la clave
+   actual no autorizó nada todavía, lo dice, y la política nueva no necesita el miembro. El
+   fragmento lleva también las claves que la política ya retiraba, con sus cortes de
+   siempre: se copia entero. Entre este `sync` y el cambio de política **no se suprime
+   nada** con la clave vieja: un evento posterior al corte no contaría; si se suprimió,
+   repite el `sync`.
+3. **La política nueva**: la misma, con la `erasureKey` nueva y el miembro
+   `"retiredErasureKeys"` del fragmento. Nada más cambia.
+4. **Comprobarla antes de repartirla**, en el servidor:
+
+   ```bash
+   nucleo status --policy-file politica-nueva.json
+   nucleo reconcile --source vivo.jsonl --policy-file politica-nueva.json
+   ```
+
+   `status` tiene que dar `firmante  : ✔ verificado contra la política` y la historia
+   atestiguada: la política sigue siendo la de este ledger. `reconcile` tiene que dar 0
+   hallazgos, y cada supresión anterior, autorizada por la clave retirada:
+
+   ```
+         autorizado por : la clave retirada fe593f197529db3dd1b8129db308c95b7b3af5f11ef89c52dd40108d4001278e, cuyo corte es el índice 2
+   ```
+
+   Si una supresión vieja sale como `SUPRESIÓN SIN AUTORIZACIÓN VÁLIDA`, el corte está mal
+   copiado: no la repartas.
+5. **Repartirla y anclar su hash** como la primera (§2), a todos los que reconcilian y a las
+   contrapartes. Quien siga con la política vieja seguirá contando lo que firme la clave
+   vieja; quien tenga la nueva, no. Las contrapartes con el SDK 0.4 necesitan el SDK 0.5
+   para leerla (§2, «Contrapartes en el SDK 0.4»).
+
+Desde entonces, las tarjetas viejas no autorizan nada con la política nueva:
+`erasure-key authorize` con ellas lo rechaza antes de firmar —«las tarjetas reconstruyen una
+clave de supresión RETIRADA en la política … no autoriza ningún evento posterior»—. Un
+tercero, con los recibos y la política nueva, elige la clave por el índice del evento
+(PROTOCOL §5.1): la `erasureKey`, o una retirada cuyo corte sea ≥ ese índice. La receta está
+ejecutada en `scripts/tercero-supresion.sh comprueba RECIBO_BLOQUE RECIBO_EVENTO POLITICA`.
+
+### Regularizar
+
+Un evento de supresión que la política no autoriza —firmado con una clave retirada después
+de su corte, o sellado sin autorización por quien tiene la passphrase del servidor— es un
+hallazgo de `reconcile`, código 2, que ningún `alert ack` cierra:
+
+```
+  ✘ SUPRESIÓN SIN AUTORIZACIÓN VÁLIDA (ADR-032)
+      bloque         : 3
+      sellado el     : 2026-11-15T23:47:08Z  (tiempo declarado)
+      motivo         : supresión no autorizada: firmado con una clave retirada después de su corte 2: la clave fe593f… autoriza los eventos hasta el índice 2, y este es el 3
+```
+
+El contenido ya no está, y nada lo devuelve. Lo que queda es decidir si ese borrado se da por
+bueno. **Regularizar es ratificar**: una supresión posterior del mismo contenido, autorizada
+con la clave actual, regulariza la que no lo estaba, y `reconcile` deja de contarla como
+hallazgo y la lista aparte, a la vista (en `--json`, en `regularized`, con
+`regularized_by`):
+
+```
+regularizadas: 1
+  ⚠ supresión no autorizada en el bloque 3, regularizada en el evento 4 (…)
+      el evento 4 lo autorizó la clave actual (erasureKey c986c7…)
+```
+
+- **Cuándo sí**: la supresión no autorizada era legítima y **se comprobó por otra vía** —la
+  solicitud de borrado existe, quien responde de las supresiones la reconoce— y solo le
+  faltaba la firma buena; por ejemplo, la hizo la custodia con las tarjetas viejas después de
+  la rotación.
+- **Cuándo no**: **no se sabe quién la hizo**. Entonces es un incidente: alguien con acceso
+  al servidor selló un evento que nadie autorizó. Primero se investiga (§5, la alarma de
+  supresión; §3, «Si te la robaron»); regularizar para que `reconcile` vuelva a salir en
+  verde es borrar la pista.
+
+Se regulariza con el flujo de siempre: `nucleo erase --block N --policy-file
+politica.json` da la orden para la custodia, ella autoriza con las tarjetas de la clave
+actual y `erase --authorization <línea>` sella el evento. **`erase` lo avisa antes de
+sellar** —en la confirmación tecleada, o por stderr con `--assume-confirmed`— y en su salida
+(`regularizes`, con `--json`):
+
+```
+⚠ esto REGULARIZA la supresión no autorizada del evento 3 (…); regularizar es ratificar ese borrado: hazlo solo si la supresión estaba pedida de verdad.
+```
+
+Comprobado el 2026-11-15 con `main` (las salidas de arriba, recortadas solo en las claves), y
+en cada compuerta y en el CI: `scripts/tercero-supresion.sh` rota la clave con el fragmento
+de `sync`, exige que la supresión vieja anterior al corte siga autorizada para el tercero,
+que una posterior al corte no lo esté ni para el tercero ni para `reconcile`, y que una
+supresión con la clave nueva la regularice.
 
 ### Por qué en hosting compartido no hay un buen sitio
 
@@ -498,7 +666,7 @@ SDK de PHP y los pasos 9 y 10 de la demo del ejemplo Node, que corre en CI.
 
 | | |
 |---|---|
-| **Ejecutado** | la unidad systemd del testigo (verificada y levantada), `sync` por HTTPS a través de Caddy, el respaldo y la restauración del testigo, la recuperación con un testigo nuevo y los recibos viejos y nuevos verificando, el anclaje del hash de la política, la pérdida de la passphrase y su sustitución con dos tarjetas (`restore --new-passphrase-file`, con una copia del ledger de antes del cambio), `proc_open`, `noexec`, `ext-sodium`, los umbrales de memoria virtual y los picos de memoria real, el `memory_limit` de PHP, y la alarma de frescura |
+| **Ejecutado** | la rotación de la clave de supresión y la regularización (§3), con `main`, y las contrapartes en el SDK 0.4 (§2); la unidad systemd del testigo (verificada y levantada), `sync` por HTTPS a través de Caddy, el respaldo y la restauración del testigo, la recuperación con un testigo nuevo y los recibos viejos y nuevos verificando, el anclaje del hash de la política, la pérdida de la passphrase y su sustitución con dos tarjetas (`restore --new-passphrase-file`, con una copia del ledger de antes del cambio), `proc_open`, `noexec`, `ext-sodium`, los umbrales de memoria virtual y los picos de memoria real, el `memory_limit` de PHP, y la alarma de frescura |
 | **No ejecutado aquí** | lo que exige root (`useradd`, `install -o`, `update-ca-certificates`, una unidad de sistema como tal), el certificado ACME de un dominio público, un límite de memoria **real** por cgroups, y la regla de permisos del `Sealer` en un PHP de Linux (lo cubre el CI) |
 
 Cuatro fallos salieron de escribir esta guía y están arreglados en el mismo sprint:
