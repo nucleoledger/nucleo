@@ -80,10 +80,12 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 |---|---|
 | `init` | creates vault and ledger, prints SLIP-0039 backup cards, requires typed confirmation |
 | `seal` | seals a record; `--profile` interprets the document and commits sensitive fields |
-| `erase` | erases a record's stored content on request (LOPDP) and seals an erasure event; the chain and issued receipts keep verifying, and `reconcile` reports it as erased, not missing. An erasure counts only with an authorization by the **erasure key** — a separate key that is not on the server, created with `erasure-key init` and pinned in the policy as `erasureKey` —; without it the record stays *missing* and the event is an integrity finding. Every erasure opens an alarm until someone runs `alert ack` ([ADR-031](docs/adr/ADR-031-supresion.md), [ADR-032](docs/adr/ADR-032-autoridad-de-supresion.md)) |
+| `erase` | erases a record's stored content on request (LOPDP) and seals an erasure event; the chain and issued receipts keep verifying, and `reconcile` reports it as erased, not missing. An erasure counts only with an authorization by the **erasure key** — a separate key that is not on the server, created with `erasure-key init` and pinned in the policy as `erasureKey` —; without it the record stays *missing* and the event is an integrity finding. Every erasure opens an alarm until someone runs `alert ack` ([ADR-031](docs/adr/ADR-031-supresion.md), [ADR-032](docs/adr/ADR-032-autoridad-de-supresion.md)). Since 0.5.0-alpha the erasure key can be **rotated** without past erasures ceasing to count: `sync` prints the `retiredErasureKeys` fragment for the new policy, the old key with its **cutoff**, the index of the last event it authorized; and an unauthorized erasure can be **regularized** —ratified— by a later authorized erasure of the same content, which `erase` announces before sealing ([ADR-033](docs/adr/ADR-033-rotacion-de-la-clave-de-supresion.md)). **Erasing is not voiding an invoice**: voiding has to keep the issuance verifiable, and Núcleo has no voiding event yet ([L18](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)) |
+| `erasure-key init` · `erasure-key authorize` | creates the erasure key and its cards, off the server; with the cards typed in, signs the authorization for one erasure. The cards of a key the policy has retired are refused before anything is signed |
 | `status` | tree size, root, and **whether the history is attested** |
 | `verify` | integrity check; `--full` recomputes every signature |
-| `receipt` | issues an offline-verifiable receipt for a recipient |
+| `receipt` | issues an offline-verifiable receipt for a recipient, and verifies it before writing it |
+| `verify-receipt` | verifies a receipt someone handed you, against your policy: exit 0 if it is valid, 2 if not. It is the Go verifier, the only one that checks the log's ML-DSA-44 signature, when the policy pins `logMLDSAKey` (since 0.5.0-alpha, [ADR-034](docs/adr/ADR-034-verificar-mldsa44-del-log.md)) |
 | `reconcile` | compares the live system against what was sealed |
 | `sync` | obtains attestation from a witness |
 | `witness serve` · `witness key` | runs a witness —one process for many logs with `--config`, [ADR-030](docs/adr/ADR-030-testigo-de-varios-logs.md); operator kit in [`deploy/witness/`](deploy/witness/)—; prints its public key |
@@ -106,7 +108,7 @@ One binary, no daemon, no external database. It runs per invocation so it works 
 
 **C2SP.** Signed checkpoints (`tlog-checkpoint`) · witness cosignatures (`tlog-cosignature@v1`) · **the full HTTP witness protocol** (`tlog-witness`: `add-checkpoint` and the monitoring endpoint, with the spec version pinned in [ADR-011](docs/adr/ADR-011-witness-http.md)) · offline-verifiable receipts (`tlog-proof`).
 
-**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob removes the content while the chain and its receipts stay valid — which is the technical half of a deletion right, not a legal opinion that one has been satisfied (see the limits) · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 (FIPS 204) emitted as an *additional* signature on the log's own checkpoint note; no shipped verifier checks it yet** ([L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)). It is carried in the `0xff` extension of `signed-note` under a Núcleo identifier ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)), and it is backward-compatible by construction — and that cuts both ways: a standard C2SP verifier ignores it, and so do Núcleo's own Go, TypeScript and PHP verifiers and the web page, which recognize the line by its size. Checking it needs the log's ML-DSA public key pinned in the policy, a protocol change not yet made. Witness cosignatures, block signatures and the issuer's signature are Ed25519 only. Today it adds no verifiable security.
+**Keys and privacy.** Argon2id → KEK → per-vault DEK · XChaCha20-Poly1305 blobs with AAD bound to the commitment · **erasable payloads**: deleting a blob removes the content while the chain and its receipts stay valid — which is the technical half of a deletion right, not a legal opinion that one has been satisfied (see the limits) · SLIP-0039 backup with round-trip verification before the cards are ever shown · **ML-DSA-44 (FIPS 204) as an *additional* signature on the log's own checkpoint note**, carried in the `0xff` extension of `signed-note` under a Núcleo identifier ([ADR-007](docs/adr/ADR-007-mldsa44-adicional.md)) and backward-compatible by construction: a standard C2SP verifier ignores it. **Since 0.5.0-alpha it is checked, by one verifier** ([ADR-034](docs/adr/ADR-034-verificar-mldsa44-del-log.md), PROTOCOL 0.8-draft): `sync` prints the log's ML-DSA-44 public key in the policy as `logMLDSAKey`, and with that key pinned the **Go verifier verifies the signature** —`nucleo verify-receipt` for a receipt someone handed you, and the self-check `receipt` runs before writing one— and rejects a receipt whose line is missing or does not verify. **The TypeScript and PHP verifiers and the web page do not verify it**: with the key pinned they require the line and its 2,420 bytes, and report `logMLDSA: "present-unverified"` — never "verified" ([L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)). Without `logMLDSAKey` no verifier checks it. Witness cosignatures, block signatures and the issuer's signature are Ed25519 only ([L14](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)), so a receipt is not post-quantum as a whole: what the check adds is that a log checkpoint forged without the log's ML-DSA-44 key is rejected by the Go verifier.
 
 **Ecuador profile.** `sri.factura.v1` with módulo-11 access-key validation, wired into `seal --profile ecuador.sri.factura`. It declares which fields are guessable and must travel as HMAC commitments rather than bare hashes.
 
@@ -120,7 +122,11 @@ end to end in CI with a restored old backup caught (`scripts/ensayo-testigo-mutu
 rehearsal, not a witness anyone outside the project operates · erasure with an **independent
 authority**: an erasure counts only with the erasure key's authorization
 ([ADR-032](docs/adr/ADR-032-autoridad-de-supresion.md)), and a third party can check one with
-two receipts, the policy, `sha256sum` and `openssl` (`scripts/tercero-supresion.sh`) · on
+two receipts, the policy, `sha256sum` and `openssl` (`scripts/tercero-supresion.sh`), also
+after the key has been rotated: the script rotates it with the fragment `sync` prints and
+checks that an erasure before the cutoff still counts, one after it does not, and a later
+erasure with the new key regularizes it ([ADR-033](docs/adr/ADR-033-rotacion-de-la-clave-de-supresion.md);
+how to do it, and when not to regularize, in [`docs/OPERACION.md`](docs/OPERACION.md) §3) · on
 Windows, the commands `nucleo` prints for you to paste are for **PowerShell**, and a test runs
 them in `powershell.exe` and `pwsh`.
 
@@ -134,7 +140,10 @@ turns a missing PHP from a warning into a failure — the recipe is in
 is there because the external audit of 2026-09-19 could only reproduce two of the three.
 All three are held to the same shared vectors and to a differential that compares the whole
 verdict — both clocks, the index, the recipient, the signer key, which witnesses counted
-— across 3.314 receipt mutations and 9.929 policy documents.
+— across 3.984 receipt mutations and 26.759 policy documents. They admit one declared
+divergence: with `logMLDSAKey` pinned, a 2,420-byte ML-DSA-44 line that does not verify is
+rejected by Go and accepted as `"present-unverified"` by TypeScript and PHP, and the harness
+checks the length on its own ([G57](docs/GARANTIAS.md)).
 
 ## Two clocks, never confused
 
@@ -183,8 +192,9 @@ the "a third between two runs" warning above, happening.
 section alone. A receipt the CLI actually issues also carries the human-readable text,
 the legal notice, the recipient, the block's and the issuer's Ed25519 signatures, and
 the checkpoint note with the log's **ML-DSA-44** signature — 2,420 bytes, some 3.2 KB in
-base64, which is most of the total (ADR-007). That signature is emitted as an additional
-one, and no shipped verifier checks it yet ([L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)). Only the proof grows with the log — logarithmically —
+base64, which is most of the total (ADR-007). That signature is an additional one; since
+0.5.0-alpha the Go verifier checks it when the policy pins `logMLDSAKey`, and the TypeScript
+and PHP verifiers only check that it is there and 2,420 bytes long ([L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)). Only the proof grows with the log — logarithmically —
 so a hundred-thousand-entry log adds about a kilobyte to the one-block figure. Still an
 email attachment or a PDF page, not a QR code.
 
@@ -254,9 +264,12 @@ This is a security product, so the process that built it is part of what you are
 > no longer writes them: `TestMain` takes a fingerprint of the directory before and after
 > and fails if anything changed. When the two implementations were first compared, they
 > agreed byte for byte on sixteen of seventeen vectors; the seventeenth exposed a field
-> Go was copying into an invalid vector. The single exception is
+> Go was copying into an invalid vector. The single exception was
 > `valido-firma-mldsa-del-log`, which carries an ML-DSA-44 signature the oracle's toolchain
-> cannot produce: it is still generated by Go, and that is said where it lives.
+> could not produce. It is no longer one: since 2026-09-18 the oracle builds that vector too
+> ([ADR-024](docs/adr/ADR-024-material-mldsa-de-los-vectores.md)), and since 2026-10-24 every
+> ML-DSA-44 signature in the receipt vectors comes from OpenSSL 3.5.9, an independent
+> implementation, which signs exactly the bytes Go used to lend.
 
 **Limits we document rather than hide:**
 
@@ -294,7 +307,8 @@ This is a security product, so the process that built it is part of what you are
   audit silenced the alarm by deleting the checkpoints until that was so.
   ([docs/CLI-JSON.md](docs/CLI-JSON.md))
 - **The policy is the single trust root, and it has to be supplied.** `origin`, `logKey`,
-  `signerKey`, `witnesses`, `quorum` — one JSON file, shared verbatim by the CLI
+  `signerKey`, `witnesses`, `quorum` —and, optional, `erasureKey`, `retiredErasureKeys` and
+  `logMLDSAKey`— one JSON file, shared verbatim by the CLI
   (`--policy-file`), the TypeScript SDK and the static page. `status` publishes the
   keys the file *declares* so you can compare them against your policy, not copy them
   from there. A policy that cannot verify anything, or that names another ledger's
@@ -388,12 +402,12 @@ The protocol and every design decision, with sources:
 - [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — normative specification
 - [`docs/adr/`](docs/adr/) — architecture decision records, including the amendments where a measurement contradicted an earlier assumption
 - [`docs/TUTORIAL-es.md`](docs/TUTORIAL-es.md) — integration guide (Spanish)
-- [`docs/OPERACION.md`](docs/OPERACION.md) — operating it without calling anyone: the witness (systemd, TLS, backup, loss), the policy, the passphrase, hosting requirements and the freshness alarm, every instruction checked (Spanish)
+- [`docs/OPERACION.md`](docs/OPERACION.md) — operating it without calling anyone: the witness (systemd, TLS, backup, loss), the policy and counterparties still on the 0.4 SDK, the passphrase, the erasure key —its rotation, and when to regularize—, hosting requirements and the freshness alarm, every instruction checked (Spanish)
 - [`examples/erp-node`](examples/erp-node) — the integration example, with its own CI job so it cannot rot ([ADR-026](docs/adr/ADR-026-ejemplo-de-integracion.md))
 - [`docs/RELEASING.md`](docs/RELEASING.md) — how releases are built, signed and verified
 - [`docs/CONCEPTO-v1.2-es.md`](docs/CONCEPTO-v1.2-es.md) — concept document (Spanish)
 
-Foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof), RFC 6962/9162, RFC 8785, RFC 9381, Ed25519 (everywhere) + ML-DSA-44 (FIPS 204, one extra log signature, emitted but not yet checked by any shipped verifier), XChaCha20-Poly1305, Argon2id, SLIP-0039.
+Foundations: [C2SP](https://c2sp.org) (tlog-checkpoint, tlog-cosignature, tlog-witness, tlog-proof), RFC 6962/9162, RFC 8785, RFC 9381, Ed25519 (everywhere) + ML-DSA-44 (FIPS 204, one extra log signature, verified by the Go verifier when the policy pins `logMLDSAKey`, since 0.5.0-alpha), XChaCha20-Poly1305, Argon2id, SLIP-0039.
 
 ## Language
 
