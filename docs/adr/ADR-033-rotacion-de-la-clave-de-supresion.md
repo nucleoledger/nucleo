@@ -4,6 +4,8 @@
 
 *Enmienda 2026-11-04 (Sprint 30b) — Implementación:* implementado en Go (Sprint C1, Sprint 30: G47–G49, commits `4ebef0d` a `3684de5`); pendiente: TS, PHP y la página (Sprint D) y la documentación de operación (Sprint E). El «sin código» del estado, de arriba, era verdad el día que se aceptó.
 
+*Enmienda 2026-11-15 (Sprint 33, E1) — Implementación, al día:* lo «pendiente» de la enmienda anterior está hecho. **TypeScript, PHP y la página solo leen `retiredErasureKeys`** —con la gramática de Go, el mismo veredicto y el mismo motivo en los vectores de política (G55)—: commits `c18cbae` (TypeScript), `bc0b13f` (PHP) y `b7cb54e` (la página), del Sprint 32. **La supresión no les toca**: no suprimen ni reconcilian, así que no eligen clave por índice ni usan el corte; lo hacen la CLI de Go y el tercero de PROTOCOL §5.1. **La documentación de operación** queda hecha en este sprint: `docs/OPERACION.md` §3, rotar la clave con el fragmento de `sync`, comprobar la política nueva antes de repartirla, y «Regularizar» (commit `bb89405`). `scripts/tercero-supresion.sh` ejecuta la rotación en cada compuerta y en el CI (commit `dcd66ab`).
+
 ## El problema
 
 ADR-032 hizo que una supresión cuente solo si la autoriza la clave de supresión cuya parte
