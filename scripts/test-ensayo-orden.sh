@@ -52,7 +52,7 @@ echo "curl $f" >>"$ORDEN_LOG"
 case "$f" in
 checksums.txt)
 	for p in linux_amd64 linux_arm64; do
-		printf '%064d  nucleo_0.3.1-alpha_%s.tar.gz\n' 0 "$p"
+		printf '%064d  nucleo_0.4.0-alpha_%s.tar.gz\n' 0 "$p"
 	done >"$f"
 	;;
 *) echo "contenido de $f" >"$f" ;;

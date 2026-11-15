@@ -99,7 +99,7 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
       primero el SDK (tag `vsdk-*`) y después el binario.
 - [ ] **Repetir el ensayo de actualización contra el HEAD final**, justo antes de
       etiquetar: `./scripts/ensayo-actualizacion.sh vX.Y.Z-anterior` (por omisión,
-      `v0.3.1-alpha`; `NUCLEO_ENSAYO_SDK` elige la versión del SDK de npm que
+      `v0.4.0-alpha` con el SDK `0.4.0-alpha.0`; `NUCLEO_ENSAYO_SDK` elige la versión del SDK de npm que
       acompañaba a esa). Necesita `cosign` (la versión de `release.yml`): sin él sale
       con 2 antes de descargar nada. Baja primero `checksums.txt` y su firma, la verifica
       con cosign, y **solo entonces** baja el binario publicado y comprueba su sha256

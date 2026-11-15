@@ -10,14 +10,22 @@
 # del HEAD y con la versión del HEAD instalada desde npm; y comprueba la supresión como un
 # tercero, con sha256sum y openssl (PROTOCOL §5.1), con scripts/tercero-supresion.sh.
 #
+# Y la firma post-cuántica (ADR-034): la política que imprime `sync --json` del HEAD trae
+# logMLDSAKey; el recibo EMITIDO POR la versión vieja, con `nucleo verify-receipt --json`
+# del HEAD, da logMLDSA "verified" con esa política y "present-unverified" con la misma
+# política sin la clave, con código 0 en los dos casos; con la firma ML-DSA del recibo
+# alterada (un bit) y la clave fijada, código 2. El SDK del HEAD lo acepta con la clave
+# fijada y dice "present-unverified" (ADR-034, opción B); el SDK viejo de npm rechaza esa
+# política, porque no conoce el miembro.
+#
 # Es el paso del ritual de RELEASING «repetir el ensayo contra el HEAD final antes de
 # etiquetar». No entra en scripts/compuerta.sh porque necesita red: descarga el release
 # de GitHub y el SDK de npm.
 #
-#   ./scripts/ensayo-actualizacion.sh                 # desde v0.3.1-alpha
-#   ./scripts/ensayo-actualizacion.sh v0.3.1-alpha
-#   NUCLEO_ENSAYO_SDK=0.3.0-alpha.0 ./scripts/ensayo-actualizacion.sh   # el SDK de npm que
-#                                                     # acompañaba a esa versión
+#   ./scripts/ensayo-actualizacion.sh                 # desde v0.4.0-alpha, con el SDK 0.4.0-alpha.0
+#   NUCLEO_ENSAYO_SDK=0.3.0-alpha.0 ./scripts/ensayo-actualizacion.sh v0.3.1-alpha
+#                                                     # desde otra versión, con el SDK de npm
+#                                                     # que la acompañaba
 #
 # Necesita: curl, sha256sum, go, node y npm, python3, openssl, xxd, `script` de
 # util-linux (simula la consola donde la custodia teclea sus tarjetas) y cosign, que
@@ -41,8 +49,8 @@
 # ejecuta nada de lo descargado.
 set -euo pipefail
 
-VERSION="${1:-v0.3.1-alpha}"
-SDK_VIEJO="${NUCLEO_ENSAYO_SDK:-0.3.0-alpha.0}"
+VERSION="${1:-v0.4.0-alpha}"
+SDK_VIEJO="${NUCLEO_ENSAYO_SDK:-0.4.0-alpha.0}"
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO=https://github.com/nucleoledger/nucleo
 
@@ -215,7 +223,8 @@ try {
   process.exit(3);
 }
 const r = await m.verifyReceipt(readFileSync(recibo, "utf8"), pol);
-console.log(r.valid ? "válido" : `inválido: ${JSON.stringify(r.reasons)}`);
+// logMLDSA: el campo de tres estados del SDK 0.5 (undefined en los anteriores).
+console.log(r.valid ? `válido (logMLDSA: ${r.logMLDSA})` : `inválido: ${JSON.stringify(r.reasons)}`);
 process.exit(r.valid ? 0 : 2);
 EOF
 
@@ -324,7 +333,14 @@ else
 fi
 exige "erase con la autorización" 0 "$NUEVO" --dir "$E" erase --block 0 \
 	--policy-file "$T/politica.json" --authorization "$AUT" "${P[@]}" --assume-confirmed
-exige "sync tras suprimir" 0 "$NUEVO" --dir "$E" sync --witness "$URL" --policy-file "$T/politica.json" "${P[@]}"
+exige "sync tras suprimir" 0 "$NUEVO" --dir "$E" --json sync --witness "$URL" --policy-file "$T/politica.json" "${P[@]}"
+# La política que imprime sync del HEAD: la misma, con logMLDSAKey (ADR-034).
+python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["policy"]))' <"$T/ult.out" >"$T/politica-mldsa.json"
+if [ "$(campo ".get('logMLDSAKey', '')" <"$T/politica-mldsa.json" | wc -c)" = 2625 ]; then
+	ok "sync --json del HEAD trae logMLDSAKey en la política (2624 cifras hex)"
+else
+	mal "sync --json del HEAD no trae logMLDSAKey en la política"
+fi
 python3 - "$T" <<'EOF' >"$T/vivo.jsonl"
 import base64, json, sys
 T = sys.argv[1]
@@ -343,6 +359,53 @@ exige "recibo del evento de supresión (bloque $EV)" 0 "$NUEVO" --dir "$E" recei
 para
 
 # ---------------------------------------------------------------------------------
+titulo "6b. La firma ML-DSA-44 del recibo emitido por $VERSION, con verify-receipt del HEAD (ADR-034)"
+# politica.json es la misma política sin logMLDSAKey: la que no fija la clave.
+# logmldsa <nombre> <código esperado> <estado esperado> <recibo> <política>
+logmldsa() {
+	exige "$1" "$2" "$NUEVO" --json verify-receipt --receipt "$4" --policy-file "$5"
+	local estado
+	estado="$(campo "['logMLDSA']" <"$T/ult.out" 2>/dev/null || echo "sin salida JSON")"
+	if [ "$estado" = "$3" ]; then
+		ok "  y logMLDSA dice $3"
+	else
+		mal "  logMLDSA dice «$estado», esperado «$3»"
+	fi
+}
+logmldsa "verify-receipt del recibo de $VERSION, con logMLDSAKey en la política" 0 verified \
+	"$T/recibo-viejo.txt" "$T/politica-mldsa.json"
+logmldsa "verify-receipt del recibo de $VERSION, con la política sin logMLDSAKey" 0 present-unverified \
+	"$T/recibo-viejo.txt" "$T/politica.json"
+# La firma ML-DSA alterada: un bit de z (el mismo byte y bit que el vector
+# invalido-mldsa-fijada-alterada) en la única línea del log que mide 4 + 2420 bytes.
+python3 - "$T/recibo-viejo.txt" "$T/recibo-viejo-mldsa-alterada.txt" <<'EOF'
+import base64, sys
+lineas, cambiadas = open(sys.argv[1], encoding="utf-8").read().split("\n"), 0
+for i, l in enumerate(lineas):
+    if l.startswith("\u2014 "):
+        nombre, b64 = l[2:].rsplit(" ", 1)
+        try:
+            raw = bytearray(base64.b64decode(b64, validate=True))
+        except ValueError:
+            continue
+        if len(raw) == 4 + 2420:
+            raw[4 + 32 + 1000] ^= 1 << 3
+            lineas[i] = f"\u2014 {nombre} {base64.b64encode(bytes(raw)).decode()}"
+            cambiadas += 1
+if cambiadas != 1:
+    raise SystemExit(f"el recibo tiene {cambiadas} líneas ML-DSA-44, y el ensayo espera una")
+open(sys.argv[2], "w", encoding="utf-8").write("\n".join(lineas))
+EOF
+exige "verify-receipt con la ML-DSA del recibo alterada y logMLDSAKey en la política" 2 \
+	"$NUEVO" --json verify-receipt --receipt "$T/recibo-viejo-mldsa-alterada.txt" --policy-file "$T/politica-mldsa.json"
+# Y por la firma ML-DSA, no por otra cosa: el motivo es el de proof.ErrMLDSASignature (motivoDeRecibo).
+MOTIVO="$(campo "['reasons'][0]" <"$T/ult.out" 2>/dev/null || echo "sin salida JSON")"
+case "$MOTIVO" in
+"la firma post-cuántica del log no es la de la clave que fija tu política"*) ok "  y el motivo es la firma post-cuántica: «$MOTIVO»" ;;
+*) mal "  el motivo no es la firma post-cuántica: «$MOTIVO»" ;;
+esac
+
+# ---------------------------------------------------------------------------------
 titulo "7. Los recibos, con los SDK publicados y con el del HEAD"
 for r in recibo-viejo recibo-nuevo recibo-tras recibo-evento; do
 	exige "$r con @nucleoledger/verify@$SDK_VIEJO (npm) y la política de $VERSION" 0 \
@@ -354,8 +417,15 @@ for r in recibo-viejo recibo-nuevo recibo-tras recibo-evento; do
 			node "$T/verifica.mjs" "$SDK_REGISTRO" "$T/$r.txt" "$T/politica.json"
 	fi
 done
-exige "@nucleoledger/verify@$SDK_VIEJO rechaza la política con erasureKey (lo que dicen las notas)" 3 \
-	node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/recibo-nuevo.txt" "$T/politica.json"
+exige "recibo-viejo con $SDK_HEAD_VER (HEAD) y la política con logMLDSAKey" 0 \
+	node "$T/verifica.mjs" "$SDK_HEAD" "$T/recibo-viejo.txt" "$T/politica-mldsa.json"
+if grep -q "logMLDSA: present-unverified" "$T/ult.out"; then
+	ok "  y dice present-unverified: no implementa ML-DSA-44 (ADR-034, opción B)"
+else
+	mal "  el SDK del HEAD no dice present-unverified: $(cat "$T/ult.out")"
+fi
+exige "@nucleoledger/verify@$SDK_VIEJO rechaza la política con logMLDSAKey (miembro desconocido, ADR-034)" 3 \
+	node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/recibo-viejo.txt" "$T/politica-mldsa.json"
 
 # ---------------------------------------------------------------------------------
 titulo "8. Un tercero comprueba la supresión con sha256sum y openssl (PROTOCOL §5.1)"
