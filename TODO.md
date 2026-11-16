@@ -332,6 +332,22 @@ lista de 70 casillas marcadas no es memoria del proyecto, es ruido.
 - [x] 6. GARANTIAS (G8, G23, G47, G50, G55–G57, L14, L18, L23), ADR-034, READMEs de los SDK,
       CHANGELOG (Breaking), PLAN y TODO
 
+## Sprint 33 — la 0.5, E1: documentación de operación, ensayos y el SDK listo para publicar
+- [x] 1. Ensayos: `tercero-supresion.sh` rota la clave con el fragmento de `sync` (el
+      tercero elige la clave por el índice; anterior al corte, autorizada; posterior, no;
+      la clave nueva la regulariza) y `ensayo-actualizacion.sh` desde v0.4.0-alpha
+      (`logMLDSAKey` en `sync --json`; el recibo de v0.4.0-alpha, `"verified"` con la clave
+      y `"present-unverified"` sin ella; código 2 con la ML-DSA alterada); once mutaciones.
+      El ensayo de actualización sigue fuera de la compuerta: necesita red
+- [x] 2. OPERACION: §3 rotar y comprobar la política nueva; «Regularizar»; §2 «Contrapartes
+      en el SDK 0.4»; suprimir no es anular
+- [x] 3. README: la ML-DSA-44 desde 0.5.0-alpha, `verify-receipt`, `erasure-key`, rotar,
+      regularizar, supresión ≠ anulación, las cifras del diferencial; ADR-034 sin «Pendiente»
+- [x] 4. ADR-033: enmienda fechada de la implementación
+- [x] 5. SDK 0.5.0-alpha.0 (package.json y lockfile), CHANGELOG «Added» con la API nueva,
+      `npm pack --dry-run` (sin publicar)
+- [x] 6. GARANTIAS (G58, G59; G23, G45, L14, L23 como el README), PLAN y TODO
+
 ## La 0.5: implementación de ADR-033 y ADR-034 (sprints futuros, en este orden)
 La 0.5 se publica solo con los dos implementados (decisión 10). El plan conjunto de los dos ADR
 es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
@@ -363,21 +379,16 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       con el motivo de Go; `logMLDSA` con `"present-unverified"` (opción B), la línea y sus
       2420 bytes exigidos; la página con los tres estados; el diferencial con los siete
       recibos 0.8-draft y la divergencia declarada; G23, L23, L14 y G55–G57
-- [ ] **Sprint E — documentación y ensayo**: GARANTIAS (L14, L23: la comprobación
-      post-cuántica solo la hace el verificador de Go; L21 ya se reescribió en el C1),
-      OPERACION §3 (rotar con el fragmento de `sync`: es lo que el C1 deja sin escribir),
-      OPERACION: cuándo regularizar y cuándo no —regularizar es ratificar el borrado no
-      autorizado; solo si la supresión estaba pedida de verdad, y qué hacer si no (es un
-      incidente: ADR-032)—, con el aviso que `erase` da desde el Sprint 31,
-      (CLI-JSON del C2: hecho en el Sprint 31), README (rotación, regularización, ML-DSA y
-      `verify-receipt` en la lista de órdenes); el ejemplo `examples/erp-node` al SDK 0.5 y
-      fuera el `delete sync.policy.logMLDSAKey` provisional de `bin/setup.js` (Sprint 31: el
-      SDK 0.4 publicado rechaza la política que `sync` imprime ahora);
-      `ensayo-actualizacion.sh` con los pasos del plan conjunto y `tercero-supresion.sh` con
-      la clave retirada; OPERACION: qué hace una contraparte que sigue en el SDK 0.4 cuando
-      el binario 0.5 le da una política con `logMLDSAKey` —actualizar al SDK 0.5, o quitar
-      `logMLDSAKey` de su copia y quedarse sin la comprobación post-cuántica— (CHANGELOG,
-      Breaking); el README dice que la supresión no es la anulación (L18)
+- [x] **Sprint E1 — documentación y ensayos** (Sprint 33): GARANTIAS (L14, L23, G58, G59);
+      OPERACION §3 (rotar con el fragmento de `sync`), «Regularizar» y las contrapartes en el
+      SDK 0.4; README (rotación, regularización, ML-DSA, `verify-receipt`, supresión ≠
+      anulación); `tercero-supresion.sh` con la clave retirada y `ensayo-actualizacion.sh`
+      desde v0.4.0-alpha; el SDK a 0.5.0-alpha.0, sin publicar
+- [ ] **Sprint E2 — el ejemplo, la versión y el tag**: `examples/erp-node` al SDK 0.5 (fijado
+      por hash, como hoy) y fuera el `delete sync.policy.logMLDSAKey` provisional de
+      `bin/setup.js`; la versión del binario, la cabecera del README («Status»), el estado de
+      TODO y la entrada del CHANGELOG; `ensayo-actualizacion.sh` en verde contra el HEAD
+      final (exige el SDK 0.5 en npm); el tag
 - [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`
 
 ## Después de la 0.5 (en este orden; la 0.8-draft queda congelada hasta publicar v0.5.0-alpha)
@@ -410,15 +421,16 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       publicar. Hasta el release, un recibo se verifica con `@nucleoledger/verify`, con el SDK
       de PHP o con la página de `web/verify/`.
 - [ ] **ADR-033 (ACEPTADO el 2026-10-18; implementado en Go (Sprint C1, Sprint 30: G47–G49);
-      TS y PHP leen el miembro (Sprint D, Sprint 32: G55); pendiente: la documentación de
-      operación (Sprint E)):
+      TS y PHP leen el miembro (Sprint D, Sprint 32: G55); la documentación de operación y
+      el ensayo, en el Sprint 33 (E1: G58); pendiente: publicar (E2)):
       rotación de erasureKey.** `retiredErasureKeys` (clave → corte) en la política, para que
       rotar no invalide las supresiones históricas (era el límite L21, reescrito en el C1), y
       la regularización con la clave nueva.
       Implementación: los sprints de la 0.5, arriba.
 - [ ] **ADR-034 (ACEPTADO el 2026-10-18; vectores listos (Sprint 29); implementado en Go
       (Sprint C2, Sprint 31: G50–G53) y en TS, PHP y la página (Sprint D, Sprint 32: G55–G57);
-      pendiente: README y operación (Sprint E)): verificar ML-DSA-44.**
+      README, operación y ensayo en el Sprint 33 (E1: G59); pendiente: publicar (E2)):
+      verificar ML-DSA-44.**
       `logMLDSAKey` en la política; Go la verifica con `crypto/mldsa`; TS, PHP y la página
       dicen `"present-unverified"` (opción B). El límite L23. Implementación: los sprints
       de la 0.5, arriba.
