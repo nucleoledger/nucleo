@@ -248,7 +248,7 @@ pasa a ser un fallo — es lo que pone el CI, donde el tercer verificador no es 
 
 ## La firma post-cuántica del log: `logMLDSA`
 
-Desde el Sprint 32 (en `main`, sin publicar) la política admite los dos miembros de PROTOCOL
+Desde 0.5.0-alpha.0 la política admite los dos miembros de PROTOCOL
 0.8-draft, `logMLDSAKey` y `retiredErasureKeys`, con la gramática de Go: el mismo veredicto
 y el mismo motivo en todos los vectores de política (`VerifyError::$reason`). Las claves
 retiradas se leen y no se usan: este SDK no implementa supresión. El binario 0.5 imprime

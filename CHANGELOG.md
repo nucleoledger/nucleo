@@ -34,6 +34,28 @@ codes, and any golden test vector in `testdata/vectors/`.
   variable to land in, and the linker ignores an `-X` it cannot find. A plain `go build`
   takes them from Go's build information (`vcs.revision`, `vcs.time`, `vcs.modified`), or
   says `(devel)`.
+- **The SDKs, 0.5.0-alpha.0** (`@nucleoledger/verify` and the PHP SDK; not published yet —
+  the SDK goes out first, then the binary). New API, the same in both:
+  - **the two PROTOCOL 0.8-draft policy members**, read with the Go grammar and kept on the
+    policy: `retiredErasureKeys` (TypeScript: `Record<string, number>`, cutoffs exact up to
+    `MAX_CUTOFF` = 2^53 − 1; PHP: `Policy::$retiredErasureKeys`, a list of
+    `{key, cutoff}` in document order) — read, never used: neither SDK implements erasure —
+    and `logMLDSAKey` (`Policy::$logMLDSAKey` in PHP);
+  - **the reason a policy is rejected**, the same code the Go verifier gives on every shared
+    policy vector: `PolicyError.reason` (TypeScript, a new exported class) and
+    `VerifyError::$reason` (PHP);
+  - **`logMLDSA`** on the result —`"present-unverified"`, `"absent"`, or `null` when the
+    receipt is not valid; never `"verified"`, because neither SDK implements ML-DSA-44— and
+    **`logMLDSANote`**, the reason for `"present-unverified"` when the policy pins the key:
+    `NO_IMPLEMENTA_MLDSA` (TypeScript export; `Receipt::NO_IMPLEMENTA_MLDSA` in PHP),
+    «este verificador no implementa ML-DSA-44». PHP's `Result::toArray()` carries
+    `logMLDSA` as `log_mldsa`;
+  - **`mldsaKeyId(origin, publicKey)`** (TypeScript; `Receipt::mldsaKeyId` in PHP): the key ID
+    of the log's ML-DSA-44 line, `SHA-256(origin ‖ "\n" ‖ 0xff ‖
+    "nucleoledger.com/sig/ml-dsa-44@v1" ‖ "\n" ‖ key)[:4]`.
+
+  With `logMLDSAKey` pinned, a receipt is invalid without a line of that key, or with one that
+  is not 2420 bytes long (see Breaking).
 
 ## [0.4.0-alpha] — 2026-10-17
 

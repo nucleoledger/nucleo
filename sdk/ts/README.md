@@ -14,7 +14,7 @@ part of the platform. Nothing else is needed.
 npm install @nucleoledger/verify
 ```
 
-## Upgrading to 0.5 (unreleased: in `main` since Sprint 32)
+## Upgrading from 0.4.0-alpha.0 to 0.5.0-alpha.0
 
 **Required if your issuer runs the Núcleo 0.5 binary.** From 0.5, `nucleo sync` always
 prints `logMLDSAKey` —the log's ML-DSA-44 public key— in the policy it proposes, and the
