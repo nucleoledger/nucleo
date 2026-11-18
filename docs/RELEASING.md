@@ -532,9 +532,9 @@ Eso da un binario que funciona igual, pero no los mismos bytes que el publicado:
 compilaciones de release llevan `-trimpath`, `-ldflags "-s -w"` y tres `-X` —la versión, el
 commit y su fecha—. **Hasta v0.4.0-alpha esas tres `-X` no tenían efecto**: el binario no
 tenía variables con esos nombres, y el enlazador ignora en silencio una `-X` que no
-encuentra. Desde la versión siguiente sí lo tienen —`nucleo version` imprime lo que se le
+encuentra. Desde v0.5.0-alpha sí lo tienen —`nucleo version` imprime lo que se le
 pasó—, y para obtener los mismos bytes hay que pasar los mismos valores, que es lo que hace
-la orden de abajo. Con eso, **sí salen los mismos bytes**, y está comprobado con los cinco
+la orden de abajo. Con eso, **sí salen los mismos bytes**, y está comprobado con los seis
 releases publicados, bajando el binario linux/amd64 de la página del release y
 recompilándolo desde su tag con la orden de abajo, tal cual:
 
@@ -545,6 +545,7 @@ recompilándolo desde su tag con la orden de abajo, tal cual:
 | `v0.3.0-alpha` | go1.27.1 | `b417cb4` | 2026-10-02, sobre el binario del release aún en borrador, desde un clon limpio |
 | `v0.3.1-alpha` | go1.27.2 | `5237867` | 2026-10-10, ídem; el primero compilado con un Go distinto del instalado aquí, y reproducido con `GOTOOLCHAIN=go1.27.2` |
 | `v0.4.0-alpha` | go1.27.2 | `978156f` | 2026-10-17, ídem, con `GOTOOLCHAIN=go1.27.2`; el primero cuyo Go fija la directiva `toolchain` de `go.mod` del tag |
+| `v0.5.0-alpha` | go1.27.2 | `cdc36c4` | 2026-11-17, ídem, con `GOTOOLCHAIN=go1.27.2` y `-X main.date=2026-11-18T03:01:41Z`; el primero cuyas tres `-X` tienen efecto: el recompilado imprime el mismo `nucleo version` que el publicado (`nucleo 0.5.0-alpha · commit cdc36c4 · 2026-11-18T03:01:41Z · go1.27.2`) |
 
 Y el sha256 del binario linux/amd64, el mismo publicado y recompilado, **entero**: un
 hash abreviado a mano ya se copió mal una vez en esta tabla.
@@ -555,14 +556,16 @@ hash abreviado a mano ya se copió mal una vez en esta tabla.
 189090c88c0bbea8d7f3e17957c7ac8508f9b648325d128d2634e2477dab6212  v0.3.0-alpha
 ebfeb36b7dc471d76c5c815800b9c24b1aad78ee7a0312059c2e59a1201f0d24  v0.3.1-alpha
 9a52a4e73475cf4a23fe0beec82b9dfcece573e26567ea8c7280989d1a82a779  v0.4.0-alpha
+37a7c5b6556a148587bfc149024880dcba140dd5e6cc70b9fa805b8527b441e2  v0.5.0-alpha
 ```
 
-En los cinco, además, el certificado de la firma lleva la identidad exacta del tag
+En los seis, además, el certificado de la firma lleva la identidad exacta del tag
 —`…/release.yml@refs/tags/v0.1.0-alpha`, `…@refs/tags/v0.2.0-alpha`,
-`…@refs/tags/v0.3.0-alpha`, `…@refs/tags/v0.3.1-alpha` y `…@refs/tags/v0.4.0-alpha`—, y los
-de los cuatro últimos declaran en su extensión de Sigstore (OID 1.3.6.1.4.1.57264.1.3) el
+`…@refs/tags/v0.3.0-alpha`, `…@refs/tags/v0.3.1-alpha`, `…@refs/tags/v0.4.0-alpha` y
+`…@refs/tags/v0.5.0-alpha`—, y los de los cinco últimos declaran en su extensión de Sigstore (OID 1.3.6.1.4.1.57264.1.3) el
 commit del tag —`6442b03`, `b417cb4f4f4847571ec86337056002143847c3e8`,
-`523786724d54a730b70405bbfef483b3ed5fe058` y `978156fd39fa8accb7e5aa00e64b0ce83163c8bb`—, el mismo que dice el binario en
+`523786724d54a730b70405bbfef483b3ed5fe058`, `978156fd39fa8accb7e5aa00e64b0ce83163c8bb` y
+`cdc36c4292a27a524d4706d7d875a2cbcef02cb5`—, el mismo que dice el binario en
 `vcs.revision`. El tag `v0.3.0-alpha` es además el primero **firmado con SSH**: GitHub lo
 da por válido (`verification.verified: true`, firmante `security@nucleoledger.com`).
 
@@ -576,7 +579,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
   -ldflags "-s -w -X main.version=0.2.0-alpha -X main.commit=$C -X main.date=$D" \
   -o nucleo ./cmd/nucleo
 sha256sum nucleo ruta/al/nucleo-descargado     # tienen que coincidir
-./nucleo version     # desde la versión siguiente a v0.4.0-alpha: la versión, $C y $D
+./nucleo version     # desde v0.5.0-alpha: la versión, $C y $D
 ```
 
 Con las `-X` con efecto, la receta sigue siendo reproducible: comprobado el 2026-10-17 en el
