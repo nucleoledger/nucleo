@@ -739,6 +739,7 @@ Y se apunta aquí, con su evidencia:
 | versión | tag | commit del tag | dist-tags | `npm audit signatures` | fecha |
 |---|---|---|---|---|---|
 | `0.4.0-alpha.0` | `vsdk-0.4.0-alpha.0` | `ec21632` | `latest` y `alpha` | «1 package has a verified registry signature» y «1 package has a verified attestation» | 2026-10-15 |
+| `0.5.0-alpha.0` | `vsdk-0.5.0-alpha.0` | `a4ca446` | `latest` y `alpha` | «1 package has a verified registry signature» y «1 package has a verified attestation»; el tarball trae `LICENSE`, `README.md`, `package.json` y `dist/`, nada más; **reconstruido byte a byte**: `git archive vsdk-0.5.0-alpha.0` extraído en el sistema de ficheros de Linux, `npm ci && npm pack` (Node 22, el de `.nvmrc`) da el sha1 del registro, `767ac56e948f509aefee944ef1244ad784a99327`, y `diff -r` contra su tarball sale vacío | 2026-11-17 (registro: 2026-11-18T02:46Z) |
 
 ### Si el workflow falla
 
