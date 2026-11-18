@@ -1,15 +1,15 @@
 # TODO.md — Backlog atómico
 
-Estado: **`v0.5.0-alpha` preparada, sin etiquetar** (Sprint 34): CHANGELOG, notas en
-`docs/releases/v0.5.0-alpha.md` (con la línea PENDIENTE de la verificación) y la actualización
-desde v0.4.0-alpha ensayada; el tag, el release y su verificación los hace el dev (abajo,
-«Cierre de v0.5.0-alpha»). `@nucleoledger/verify@0.5.0-alpha.0` **publicado** en npm con
-procedencia el 2026-11-17 (tag `vsdk-0.5.0-alpha.0`, commit `a4ca446`; `latest` y `alpha`;
-reconstruido byte a byte, la tabla de RELEASING).
-El último release publicado es **`v0.4.0-alpha`** (tag firmado con SSH, commit `978156f`),
+Estado: **`v0.5.0-alpha`** etiquetada (tag firmado con SSH, commit `cdc36c4`; Sprint 35):
+el release lo creó el CI el 2026-11-17 (run 44233203322), y ese día se verificó desde un
+directorio limpio —cosign con las dos recetas, sha256, procedencia SLSA— y se recompiló byte
+a byte desde el tag (sha256 `37a7c5b6…`, la tabla de RELEASING); las notas, con esa
+evidencia, en `docs/releases/v0.5.0-alpha.md`. `@nucleoledger/verify@0.5.0-alpha.0`
+**publicado** en npm con procedencia el 2026-11-17 (tag `vsdk-0.5.0-alpha.0`, commit
+`a4ca446`; `latest` y `alpha`; reconstruido byte a byte).
+El release anterior es **`v0.4.0-alpha`** (tag firmado con SSH, commit `978156f`),
 **publicado** como pre-release el 2026-10-17 (19:16:30 UTC), verificado ese día desde un
-directorio limpio —cosign con las dos recetas, sha256, procedencia SLSA— y recompilado byte
-a byte desde el tag (la tabla de RELEASING). El anterior, `v0.3.1-alpha`.
+directorio limpio y recompilado byte a byte desde el tag. El anterior, `v0.3.1-alpha`.
 Lo detallado de cada versión vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
@@ -388,7 +388,7 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       SDK 0.4; README (rotación, regularización, ML-DSA, `verify-receipt`, supresión ≠
       anulación); `tercero-supresion.sh` con la clave retirada y `ensayo-actualizacion.sh`
       desde v0.4.0-alpha; el SDK a 0.5.0-alpha.0, sin publicar
-- [ ] **Sprint E2 — el ejemplo, la versión y el tag** (Sprint 34):
+- [x] **Sprint E2 — el ejemplo, la versión y el tag** (Sprint 34):
   - [x] 1. La evidencia del SDK 0.5.0-alpha.0 publicado en RELEASING, reconstruido byte a byte
   - [x] 2. `examples/erp-node` al SDK 0.5.0-alpha.0, fijado por versión exacta y por hash; la
         política de `sync` se guarda entera y el demo enseña `logMLDSA` `"present-unverified"`
@@ -398,16 +398,26 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
   - [x] 4. La cabecera del README («Status»), el estado de TODO, la entrada del CHANGELOG
         0.5.0-alpha, SECURITY «Out of scope» como L23, y las notas del release con su PENDIENTE
 - [x] **Publicación del SDK** (el dev): `vsdk-0.5.0-alpha.0`, `latest` y `alpha` (RELEASING)
-- [ ] **Publicación del binario** (el dev): el tag `v0.5.0-alpha`
+- [x] **Publicación del binario** (el dev): el tag `v0.5.0-alpha` (commit `cdc36c4`)
 
 ## Cierre de v0.5.0-alpha (lo hace el dev)
-- [ ] Etiquetar `v0.5.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
-- [ ] Verificar el release desde un directorio limpio (las dos recetas de cosign, sha256, la
+- [x] Etiquetar `v0.5.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
+      (run 44233203322, en verde, 10m10s)
+- [x] Verificar el release desde un directorio limpio (las dos recetas de cosign, sha256, la
       procedencia SLSA), recompilar el binario linux/amd64 desde el tag, y completar la línea
-      PENDIENTE de `docs/releases/v0.5.0-alpha.md` y la tabla de RELEASING
+      PENDIENTE de `docs/releases/v0.5.0-alpha.md` y la tabla de RELEASING (Sprint 35,
+      2026-11-17)
 - [ ] Aplicar las notas (`gh release edit v0.5.0-alpha --notes-file
-      docs/releases/v0.5.0-alpha.md`) y publicar el borrador
-- [ ] Tras publicar: L23 y G8 de GARANTIAS dejan de decir «hasta que se publique» / «sin publicar»
+      docs/releases/v0.5.0-alpha.md`) y publicar el borrador: tras el push del Sprint 35,
+      porque las notas son las de ese commit
+- [x] L23 y G8 de GARANTIAS sin «hasta que se publique» / «sin publicar» (Sprint 35)
+
+## Mantenimiento
+- [ ] **Acciones con Node 24 en `release.yml`**: el run 44233203322 avisa de que
+      `goreleaser/goreleaser-action@v6` y `actions/attest-build-provenance` (con su
+      `actions/attest`) apuntan a Node 20, que GitHub fuerza ya a Node 24. Subirlas a versiones
+      que declaren Node 24, fijadas por hash como las demás. Toca `.github/`: con instrucción del
+      dev, y con una prueba en seco del release antes del próximo tag
 
 ## Después de la 0.5 (en este orden; la 0.8-draft queda congelada hasta publicar v0.5.0-alpha)
 - [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una

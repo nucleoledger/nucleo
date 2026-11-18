@@ -32,14 +32,18 @@ Tag `v0.4.0-alpha` (commit `978156f`) firmado con SSH; el release, verificado de
 directorio limpio y recompilado byte a byte desde el tag con go1.27.2 (sha256
 `9a52a4e73475cf4a23fe0beec82b9dfcece573e26567ea8c7280989d1a82a779`); sus notas, aplicadas.
 
-**`v0.5.0-alpha` preparada, sin etiquetar** (Sprint 34, 17 de noviembre de 2026): la rotación
+**`v0.5.0-alpha`** (Sprints 28 a 35; tag del 17 de noviembre de 2026): la rotación
 de la clave de supresión y la regularización (ADR-033), y la firma ML-DSA-44 del log
 verificada por el verificador de Go con `logMLDSAKey` en la política, con la orden nueva
 `nucleo verify-receipt` (ADR-034). PROTOCOL 0.8-draft. `@nucleoledger/verify@0.5.0-alpha.0`
 **ya publicado** el 2026-11-17 desde el tag `vsdk-0.5.0-alpha.0` (commit `a4ca446`),
 reconstruido byte a byte; el ejemplo Node, con él. La actualización desde v0.4.0-alpha,
-ensayada con el binario publicado. Notas en `docs/releases/v0.5.0-alpha.md`. Falta que el dev
-etiquete `v0.5.0-alpha`, publique y que se verifique el release.
+ensayada con el binario publicado. Notas en `docs/releases/v0.5.0-alpha.md`. Tag
+`v0.5.0-alpha` (commit `cdc36c4`) firmado con SSH; el release, verificado desde un directorio
+limpio y recompilado byte a byte desde el tag con go1.27.2 (sha256
+`37a7c5b6556a148587bfc149024880dcba140dd5e6cc70b9fa805b8527b441e2`), y el primero cuyo
+`nucleo version` dice la versión, el commit y la fecha. Lo siguiente es **ADR-035**, los
+eventos `issued`/`voided` (`TODO.md`, «Después de la 0.5»).
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: seis rondas
 adversariales (la revisión del 2026-09-10, las tres auditorías del 2026-09-12 y las revisiones
@@ -90,7 +94,7 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **ADR-033: rotación de erasureKey.** ACEPTADO el 2026-10-18; implementado en Go (Sprint C1,
   Sprint 30: G47–G49); TS y PHP leen `retiredErasureKeys` con la gramática de Go (Sprint D,
   Sprint 32: G55; no implementan supresión); la documentación de operación y la rotación
-  ensayada con el binario, en el Sprint 33 (E1: OPERACION §3, G58); el ejemplo y la preparación del tag, en el Sprint 34 (E2); pendiente: el tag. `retiredErasureKeys` (clave → corte) en la política,
+  ensayada con el binario, en el Sprint 33 (E1: OPERACION §3, G58); el ejemplo y la preparación del tag, en el Sprint 34 (E2); en el tag `v0.5.0-alpha` (Sprint 35). `retiredErasureKeys` (clave → corte) en la política,
   para que rotar no invalide las supresiones históricas (era el límite L21, reescrito en el
   C1); `sync --policy-file`
   imprime el fragmento con el corte dentro de lo atestiguado; una supresión no autorizada se
@@ -98,7 +102,7 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **ADR-034: verificar ML-DSA-44.** ACEPTADO el 2026-10-18; vectores listos (Sprint 29);
   implementado en Go (Sprint C2, Sprint 31: G50–G53) y en TS, PHP y la página (Sprint D,
   Sprint 32: G55–G57); README, operación y el ensayo desde v0.4.0-alpha, en el Sprint 33
-  (E1: G59); el SDK 0.5.0-alpha.0, publicado el 2026-11-17; pendiente: el tag. `logMLDSAKey` en la
+  (E1: G59); el SDK 0.5.0-alpha.0, publicado el 2026-11-17, y el binario, en el tag `v0.5.0-alpha` (Sprint 35). `logMLDSAKey` en la
   política; Go la verifica con `crypto/mldsa`, también en la orden nueva `nucleo
   verify-receipt` (recibos ajenos); TS, PHP y la página dicen `"present-unverified"`
   (opción B): exigen la línea y su longitud, no la verifican, con la divergencia declarada
@@ -107,8 +111,9 @@ El backlog atómico está en `TODO.md`. En resumen:
   dos implementados. Los sprints, en orden, en `TODO.md` («La 0.5»). **E1 hecho** (Sprint 33:
   documentación, ensayos y el SDK 0.5.0-alpha.0 listo); **E2 hecho** (Sprint 34: el SDK
   0.5.0-alpha.0 publicado y reconstruido byte a byte, el ejemplo con él y la política entera,
-  el ensayo en verde, CHANGELOG, notas y estado a v0.5.0-alpha); queda el tag `v0.5.0-alpha`,
-  que hace el dev.
+  el ensayo en verde, CHANGELOG, notas y estado a v0.5.0-alpha); **cierre hecho** (Sprint 35:
+  el tag `v0.5.0-alpha`, verificado y recompilado byte a byte; las notas, con la evidencia).
+  Lo siguiente: **ADR-035**, los eventos `issued`/`voided`.
 - **La 0.8-draft queda congelada: hasta publicar v0.5.0-alpha no entra ningún miembro,
   evento ni ADR de protocolo nuevo** (2026-11-13). Lo que se apunte para después va a
   «Después de la 0.5» en `TODO.md`. Los segmentos (PROTOCOL §7) quedan diferidos y no
