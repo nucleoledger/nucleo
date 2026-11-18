@@ -389,7 +389,8 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
   - [x] 2. `examples/erp-node` al SDK 0.5.0-alpha.0, fijado por versión exacta y por hash; la
         política de `sync` se guarda entera y el demo enseña `logMLDSA` `"present-unverified"`
         con su motivo
-  - [ ] 3. `ensayo-actualizacion.sh` en verde contra el HEAD final
+  - [x] 3. `ensayo-actualizacion.sh` en verde contra el HEAD final (58b49e6, desde v0.4.0-alpha
+        con cosign; `test-ensayo-orden.sh` también)
   - [ ] 4. La cabecera del README («Status»), el estado de TODO y la entrada del CHANGELOG
 - [x] **Publicación del SDK** (el dev): `vsdk-0.5.0-alpha.0`, `latest` y `alpha` (RELEASING)
 - [ ] **Publicación del binario** (el dev): el tag `v0.5.0-alpha`
