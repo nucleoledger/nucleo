@@ -1,11 +1,15 @@
 # TODO.md — Backlog atómico
 
-Estado: el último release es **`v0.4.0-alpha`** (tag firmado con SSH, commit `978156f`),
+Estado: **`v0.5.0-alpha` preparada, sin etiquetar** (Sprint 34): CHANGELOG, notas en
+`docs/releases/v0.5.0-alpha.md` (con la línea PENDIENTE de la verificación) y la actualización
+desde v0.4.0-alpha ensayada; el tag, el release y su verificación los hace el dev (abajo,
+«Cierre de v0.5.0-alpha»). `@nucleoledger/verify@0.5.0-alpha.0` **publicado** en npm con
+procedencia el 2026-11-17 (tag `vsdk-0.5.0-alpha.0`, commit `a4ca446`; `latest` y `alpha`;
+reconstruido byte a byte, la tabla de RELEASING).
+El último release publicado es **`v0.4.0-alpha`** (tag firmado con SSH, commit `978156f`),
 **publicado** como pre-release el 2026-10-17 (19:16:30 UTC), verificado ese día desde un
 directorio limpio —cosign con las dos recetas, sha256, procedencia SLSA— y recompilado byte
 a byte desde el tag (la tabla de RELEASING). El anterior, `v0.3.1-alpha`.
-`@nucleoledger/verify@0.4.0-alpha.0` **publicado** en npm con procedencia el 2026-10-15
-(tag `vsdk-0.4.0-alpha.0`, commit `ec21632`; `latest` y `alpha`).
 Lo detallado de cada versión vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
@@ -391,9 +395,19 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
         con su motivo
   - [x] 3. `ensayo-actualizacion.sh` en verde contra el HEAD final (58b49e6, desde v0.4.0-alpha
         con cosign; `test-ensayo-orden.sh` también)
-  - [ ] 4. La cabecera del README («Status»), el estado de TODO y la entrada del CHANGELOG
+  - [x] 4. La cabecera del README («Status»), el estado de TODO, la entrada del CHANGELOG
+        0.5.0-alpha, SECURITY «Out of scope» como L23, y las notas del release con su PENDIENTE
 - [x] **Publicación del SDK** (el dev): `vsdk-0.5.0-alpha.0`, `latest` y `alpha` (RELEASING)
 - [ ] **Publicación del binario** (el dev): el tag `v0.5.0-alpha`
+
+## Cierre de v0.5.0-alpha (lo hace el dev)
+- [ ] Etiquetar `v0.5.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
+- [ ] Verificar el release desde un directorio limpio (las dos recetas de cosign, sha256, la
+      procedencia SLSA), recompilar el binario linux/amd64 desde el tag, y completar la línea
+      PENDIENTE de `docs/releases/v0.5.0-alpha.md` y la tabla de RELEASING
+- [ ] Aplicar las notas (`gh release edit v0.5.0-alpha --notes-file
+      docs/releases/v0.5.0-alpha.md`) y publicar el borrador
+- [ ] Tras publicar: L23 y G8 de GARANTIAS dejan de decir «hasta que se publique» / «sin publicar»
 
 ## Después de la 0.5 (en este orden; la 0.8-draft queda congelada hasta publicar v0.5.0-alpha)
 - [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una

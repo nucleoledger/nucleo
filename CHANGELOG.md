@@ -11,22 +11,118 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+## [0.5.0-alpha] — 2026-11-17
+
+### What this version is
+
+The two things v0.4.0-alpha left written as limits get code. **The erasure key can be
+rotated** without the erasures it already authorized ceasing to count, and an unauthorized
+erasure can be **regularized** —ratified— by a later authorized one
+([ADR-033](docs/adr/ADR-033-rotacion-de-la-clave-de-supresion.md)). And **the log's ML-DSA-44
+signature is checked, by one verifier**: `sync` prints the log's ML-DSA-44 public key in the
+policy as `logMLDSAKey`, and with it pinned the Go verifier —the new `nucleo verify-receipt`,
+and the self-check of `nucleo receipt`— verifies the signature and rejects a receipt without it
+([ADR-034](docs/adr/ADR-034-verificar-mldsa44-del-log.md)). The TypeScript and PHP SDKs and the
+web page **do not verify it**: with the key pinned they require the line and its 2420 bytes and
+say `"present-unverified"`, never `"verified"` (option B of ADR-034; [L23](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)).
+Sprints 25 to 34. [PROTOCOL](docs/PROTOCOL.md) moves to **0.8-draft**: the policy members
+`retiredErasureKeys` and `logMLDSAKey` (§3.2), the ML-DSA-44 rule (§3.3), retired keys and
+regularization in the erasure authorization (§5.1); §7 (segments) is declared deferred and not
+normative in 0.x, with no normative change elsewhere.
+
+**No external review round has covered this work yet**: the fourteen rounds counted in the
+README end with v0.4.0-alpha.
+
+### Upgrading from 0.4.0-alpha
+
+**Nothing to migrate in the ledger, the vault or the witness memory. The policy is the step
+that needs care** (see Breaking). Rehearsed with the published v0.4.0-alpha binary (sha256
+`9a52a4e7…`, its `checksums.txt` verified with cosign before downloading it) and the final
+code of this version, with [`scripts/ensayo-actualizacion.sh`](scripts/ensayo-actualizacion.sh):
+a ledger, a witness memory and a policy made with v0.4.0-alpha open with this version
+—`status` gives `verified`, `verify --full` passes, sealing and `sync` against the same witness
+memory continue—, an erasure of a block sealed by v0.4.0-alpha is authorized and reconciled,
+and `sync --json` now carries `logMLDSAKey`. A receipt **issued by v0.4.0-alpha** gives
+`logMLDSA: "verified"` with `nucleo verify-receipt` and that key pinned, and
+`"present-unverified"` without it (exit 0 both times); with its ML-DSA-44 signature altered and
+the key pinned, exit 2, and the reason names the post-quantum signature. The old receipt, a new
+one, one issued after the erasure and the erasure event's own receipt verify with the published
+`@nucleoledger/verify@0.4.0-alpha.0` and the old policy, and with 0.5.0-alpha.0 —the HEAD's
+build and the package from the registry— and the new one; 0.4.0-alpha.0 rejects the policy with
+`logMLDSAKey` (exit 3), as stated below. A third party checked the erasure with `sha256sum` and
+`openssl` ([`scripts/tercero-supresion.sh`](scripts/tercero-supresion.sh), which now also
+rotates the erasure key and regularizes).
+
+What you may notice:
+
+- **`sync` always prints `logMLDSAKey`** in the policy it proposes, and with `--policy-file`
+  whose policy lacks it, the human output gives the line to add. See Breaking for the 0.4 SDK.
+- **The commands that open the identity —`seal`, `sync`, `receipt`, `erase`— reject a policy
+  whose `logMLDSAKey` is not the log's** (usage error, exit 1, before sealing or talking to the
+  witness). `status`, `verify` and `reconcile` do not open the identity and do not check it.
+- **`--json` gains fields**, all additive: `erasure_rotation` in `sync`; `regularized`, and
+  `authorized_by`, `erasure_key` and `cutoff` in each `erased` entry, in `reconcile`;
+  `regularizes` in `erase` (only when there is one); `log_mldsa` in `receipt`. The PHP SDK and
+  the example's contract ignore unknown fields, as `docs/CLI-JSON.md` requires.
+- **`reconcile` may now exit 0 where it exited 2**: an unauthorized erasure followed by a later
+  authorized erasure of the same content (whose `through` covers every earlier copy) is
+  **regularized** —it is reported, in every reconciliation, as «⚠ supresión no autorizada en el
+  bloque E, regularizada en el evento R», and it is no longer a finding (ADR-033, decision 4,
+  and its amendment of §C: this changes a verdict even without `retiredErasureKeys`).
+- **`erase` warns before sealing** when the event it is about to seal regularizes something:
+  «esto REGULARIZA la supresión no autorizada del evento N (…); regularizar es ratificar ese
+  borrado» —in the typed confirmation, or on stderr with `--assume-confirmed`—.
+- **`erasure-key authorize` refuses a retired key**: if the cards rebuild a key listed in the
+  policy's `retiredErasureKeys`, it does not sign, and says which cards to use instead.
+- **Do not go back to v0.4.0-alpha with a policy that has `logMLDSAKey` or
+  `retiredErasureKeys`**: its strict policy reader rejects both members as unknown.
+
 ### Breaking
 
 - **The 0.5 binary always prints `logMLDSAKey` in the policy `nucleo sync` proposes**
-  (ADR-034, decision 9; PROTOCOL 0.8-draft §3.2), and the published 0.4 SDK
+  (ADR-034, decision 9; PROTOCOL 0.8-draft §3.2), and the 0.4 SDK
   (`@nucleoledger/verify` 0.4.0-alpha.0, and the PHP SDK of the 0.4 tag) **rejects that
-  policy** as an unknown member. So the order of publication is: **first the 0.5 SDK**
-  (`vsdk-0.5.0-alpha.0`), then the binary. A counterparty that stays on the 0.4 SDK has two
-  ways out: update, or delete `logMLDSAKey` from its copy of the policy and go on verifying
-  as before, without the post-quantum check. The TypeScript and PHP SDKs in `main` read both
-  0.8-draft members (`logMLDSAKey`, `retiredErasureKeys`) with the Go grammar —same verdict,
-  same reason— and, with `logMLDSAKey`, require the log's ML-DSA-44 line and its 2420-byte
-  length without verifying the signature: `logMLDSA` is `"present-unverified"`, never
-  `"verified"` (ADR-034, decision 5, option B). Only `nucleo verify-receipt` verifies it.
+  policy** as an unknown member. That is why the 0.5 SDK went out first: it is published
+  (below). A counterparty that stays on the 0.4 SDK has two ways out: update, or delete
+  `logMLDSAKey` from its copy of the policy and go on verifying as before, without the
+  post-quantum check ([`docs/OPERACION.md`](docs/OPERACION.md) §2, «Contrapartes en el SDK
+  0.4», has the command). The TypeScript and PHP SDKs 0.5.0-alpha.0 read both 0.8-draft members
+  (`logMLDSAKey`, `retiredErasureKeys`) with the Go grammar —same verdict, same reason— and,
+  with `logMLDSAKey`, require the log's ML-DSA-44 line and its 2420-byte length without
+  verifying the signature: `logMLDSA` is `"present-unverified"`, never `"verified"` (ADR-034,
+  decision 5, option B). Only `nucleo verify-receipt` verifies it.
 
 ### Added
 
+- **Rotating the erasure key** ([ADR-033](docs/adr/ADR-033-rotacion-de-la-clave-de-supresion.md);
+  PROTOCOL 0.8-draft §3.2, §5.1). The policy may carry `retiredErasureKeys`: each retired key
+  with its **cutoff**, the index of the last erasure event it authorized. An erasure counts if
+  its authorization verifies with the current `erasureKey`, or with a retired key whose cutoff
+  is ≥ the event's index; one signed with a retired key after its cutoff is an unauthorized
+  erasure, and the reason says so. `nucleo sync --policy-file F`, with `erasureKey` and a
+  verified attestation, prints the fragment the new policy needs —the current key with its
+  cutoff, computed within the checkpoint that `sync` just attested, plus the keys `F` already
+  retired— and `erasure_rotation` in `--json`. `reconcile` warns on stderr about a cutoff that
+  leaves a window (cutoff > the last index). `docs/OPERACION.md` §3 walks through it with real
+  outputs.
+- **Regularization** (ADR-033, decision 4; PROTOCOL 0.8-draft §5.1): an unauthorized erasure is
+  regularized by the first later authorized erasure of the same content whose `through` covers
+  every earlier copy. `reconcile` reports it in `regularized` (always an array), with the event
+  that regularizes it and the key that authorized it; `erase` announces it before sealing and
+  lists it in `regularizes`. Regularizing is ratifying: `docs/OPERACION.md`, «Regularizar», says
+  when to do it and when not.
+- **`nucleo verify-receipt --receipt F --policy-file P [--json]`**: verifies a receipt someone
+  handed you, offline, without opening a ledger or asking for a passphrase. Exit 0 if valid, 2
+  if not —and then stdout is still one object, the result—, 1 for a usage error. Its `--json`
+  uses the SDKs' result names (`valid`, `reasons`, `logMLDSA`, …; `docs/CLI-JSON.md`).
+- **The Go verifier checks the log's ML-DSA-44 signature** when the policy pins `logMLDSAKey`
+  ([ADR-034](docs/adr/ADR-034-verificar-mldsa44-del-log.md); PROTOCOL 0.8-draft §3.3): a receipt
+  without a line of that key, or with one that does not verify, is invalid, and the reason says
+  it is the post-quantum signature. `logMLDSA` is `"verified"`, `"present-unverified"` (a line of
+  ML-DSA-44 size under the log's name, and the policy does not pin the key) or `"absent"`. The
+  self-check of `nucleo receipt` verifies it with the identity's key before writing the receipt
+  (`log_mldsa`, always `"verified"`). The key is derived from the identity in the commands that
+  open it; it is not stored in clear.
 - **`nucleo version`**: the version, commit, commit date and Go version of the binary, in one
   line, or with `--json` as `{"ok", "version", "commit", "date", "go", "modified"}`
   (docs/CLI-JSON.md). Release builds get the three values from the `-X` flags that
@@ -34,8 +130,12 @@ codes, and any golden test vector in `testdata/vectors/`.
   variable to land in, and the linker ignores an `-X` it cannot find. A plain `go build`
   takes them from Go's build information (`vcs.revision`, `vcs.time`, `vcs.modified`), or
   says `(devel)`.
-- **The SDKs, 0.5.0-alpha.0** (`@nucleoledger/verify` and the PHP SDK; not published yet —
-  the SDK goes out first, then the binary). New API, the same in both:
+- **The SDKs, 0.5.0-alpha.0** (`@nucleoledger/verify` and the PHP SDK). **`@nucleoledger/verify`
+  0.5.0-alpha.0 is already published**: from its own tag `vsdk-0.5.0-alpha.0` on `a4ca446`, on
+  2026-11-17 (registry time 2026-11-18T02:46Z), with `latest` and `alpha` on it, `npm audit
+  signatures` reporting a verified registry signature and a verified attestation, and the
+  tarball rebuilt from the tag byte for byte (sha1 `767ac56e…`; docs/RELEASING.md). New API,
+  the same in both:
   - **the two PROTOCOL 0.8-draft policy members**, read with the Go grammar and kept on the
     policy: `retiredErasureKeys` (TypeScript: `Record<string, number>`, cutoffs exact up to
     `MAX_CUTOFF` = 2^53 − 1; PHP: `Policy::$retiredErasureKeys`, a list of
@@ -56,6 +156,25 @@ codes, and any golden test vector in `testdata/vectors/`.
 
   With `logMLDSAKey` pinned, a receipt is invalid without a line of that key, or with one that
   is not 2420 bytes long (see Breaking).
+- **The web page shows the three states** of the log's post-quantum signature: present and
+  **not** verified —«este verificador no implementa ML-DSA-44; para verificarla, `nucleo
+  verify-receipt`», with no ✔—, absent, or the rejection among the reasons.
+- **The differential compares the seven 0.8-draft receipts** across Go, TypeScript and PHP, with
+  one declared divergence: an altered 2420-byte ML-DSA-44 signature with the key pinned is
+  rejected by Go and accepted, as `"present-unverified"`, by TypeScript, PHP and the page
+  (GARANTIAS G57). The ML-DSA vectors and receipts are checked against OpenSSL 3.5.9 and the
+  ACVP in CI and in `scripts/compuerta.sh` (`scripts/instala-openssl.sh` builds it, with its
+  sha256 and PGP signature checked).
+
+### Changed
+
+- **The Node example** pins the published `@nucleoledger/verify@0.5.0-alpha.0` (exact version
+  and lockfile integrity) and saves the policy `sync` returns **whole**, with `logMLDSAKey`;
+  its demo shows `logMLDSA: "present-unverified"` with its reason. During the 0.5 cycle it had
+  to delete that member, because the published SDK was still 0.4.
+- **`scripts/ensayo-actualizacion.sh`** rehearses from v0.4.0-alpha with the 0.4.0-alpha.0 SDK
+  by default, and checks the ML-DSA-44 signature of the old binary's receipt; it is still not
+  in the gate, because it needs the network.
 
 ## [0.4.0-alpha] — 2026-10-17
 
@@ -1284,7 +1403,8 @@ First tagged version. The success criterion of the project
 - Witness cosignatures are Ed25519, not ML-DSA-44, which `tlog-witness` states as
   a SHOULD.
 
-[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.4.0-alpha...HEAD
+[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.5.0-alpha...HEAD
+[0.5.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.4.0-alpha...v0.5.0-alpha
 [0.4.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.3.1-alpha...v0.4.0-alpha
 [0.3.1-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.3.0-alpha...v0.3.1-alpha
 [0.3.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.2.0-alpha...v0.3.0-alpha

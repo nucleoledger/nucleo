@@ -8,7 +8,7 @@ Núcleo is **not** a blockchain, not a new database, and not a cloud service. It
 
 ## Status
 
-**v0.4.0-alpha.** Alpha software: **no professional security audit has been performed,
+**v0.5.0-alpha.** Alpha software: **no professional security audit has been performed,
 and nobody runs it in production.** Every review listed below was an adversarial review by
 AI models — fourteen rounds, counted under [Security & audits](#security--audits) — not by a
 security firm.
@@ -40,7 +40,8 @@ What this alpha has behind it, each item checked rather than claimed:
   ([how, and the table](docs/RELEASING.md#compilar-desde-el-código)).
 
 What is still missing: that audit, any production use, a witness operated by someone other
-than the issuer, and the other half of the success
+than the issuer, an adversarial round on the 0.5 work —the erasure-key rotation, regularization
+and the ML-DSA-44 check; the fourteen rounds end with v0.4.0-alpha—, and the other half of the success
 criterion below — a developer from outside the project, timed. The mechanical path, from
 a clean clone to a verified receipt, measures about half a minute; the comprehension part
 cannot be clocked by whoever wrote the example.
