@@ -160,11 +160,17 @@ try {
   const v = await verifyReceipt(recibo.texto, politica);
   dice(`  veredicto: valid=${v.valid}  bloque=${v.blockIndex}  testigos=[${v.cosigners.join(", ")}]`);
   dice(`  firma del bloque: ${v.blockSignatureVerified}   firma del recibo: ${v.receiptSignatureVerified}`);
+  dice(`  firma ML-DSA-44 del log: ${v.logMLDSA ?? "(la política no fija logMLDSAKey)"}${v.logMLDSANote ? ` — ${v.logMLDSANote}` : ""}`);
   comprueba(v.valid === true, `el recibo no verificó: ${v.reasons.join(" | ")}`);
   comprueba(v.blockIndex === BigInt(f2.nucleo.bloque), "el recibo apunta a otro bloque");
   comprueba(v.provableTime !== null, "el recibo verificó pero sin tiempo demostrable");
   comprueba(v.blockSignatureVerified === true && v.receiptSignatureVerified === true, "faltó una de las dos firmas");
   comprueba(v.cosigners.length >= 1, "ningún testigo cosignó lo que respalda el recibo");
+  // La política se guardó entera, con logMLDSAKey: el SDK de TS no implementa ML-DSA y lo
+  // dice en vez de callarlo (ADR-034 §D). Quien quiera la firma verificada, con el binario:
+  // nucleo verify-receipt --receipt RECIBO --policy-file politica.json (logMLDSA "verified").
+  comprueba(v.logMLDSA === "present-unverified" && v.logMLDSANote !== null,
+    `con logMLDSAKey en la política, el SDK debía decir "present-unverified" con su motivo, y dice ${v.logMLDSA}`);
 
   // ————— 5. un byte cambiado —————
 
@@ -366,7 +372,7 @@ if (process.platform !== "linux" || !existsSync("/usr/bin/script")) {
 }
 
 // Una sola política: la misma, ya con erasureKey, sigue verificando el recibo del cliente
-// con el @nucleoledger/verify de npm (0.4.0-alpha.0 la acepta).
+// con el @nucleoledger/verify de npm (0.5.0-alpha.0 la acepta).
 const conClave = await verifyReceipt(reciboDelCliente?.texto ?? "", parsePolicyText(readFileSync(cfg.FICHERO_POLITICA, "utf8")));
 comprueba(conClave.valid === true, `con la política con erasureKey, el recibo no verificó: ${conClave.reasons.join(" | ")}`);
 dice("  y con esa misma política, ya con erasureKey, el recibo del cliente del paso 4 sigue verificando");

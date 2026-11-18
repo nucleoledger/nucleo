@@ -384,12 +384,15 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       SDK 0.4; README (rotación, regularización, ML-DSA, `verify-receipt`, supresión ≠
       anulación); `tercero-supresion.sh` con la clave retirada y `ensayo-actualizacion.sh`
       desde v0.4.0-alpha; el SDK a 0.5.0-alpha.0, sin publicar
-- [ ] **Sprint E2 — el ejemplo, la versión y el tag**: `examples/erp-node` al SDK 0.5 (fijado
-      por hash, como hoy) y fuera el `delete sync.policy.logMLDSAKey` provisional de
-      `bin/setup.js`; la versión del binario, la cabecera del README («Status»), el estado de
-      TODO y la entrada del CHANGELOG; `ensayo-actualizacion.sh` en verde contra el HEAD
-      final (exige el SDK 0.5 en npm); el tag
-- [ ] **Publicación** (el dev): primero el SDK `vsdk-0.5.0-alpha.0`, después `v0.5.0-alpha`
+- [ ] **Sprint E2 — el ejemplo, la versión y el tag** (Sprint 34):
+  - [x] 1. La evidencia del SDK 0.5.0-alpha.0 publicado en RELEASING, reconstruido byte a byte
+  - [x] 2. `examples/erp-node` al SDK 0.5.0-alpha.0, fijado por versión exacta y por hash; la
+        política de `sync` se guarda entera y el demo enseña `logMLDSA` `"present-unverified"`
+        con su motivo
+  - [ ] 3. `ensayo-actualizacion.sh` en verde contra el HEAD final
+  - [ ] 4. La cabecera del README («Status»), el estado de TODO y la entrada del CHANGELOG
+- [x] **Publicación del SDK** (el dev): `vsdk-0.5.0-alpha.0`, `latest` y `alpha` (RELEASING)
+- [ ] **Publicación del binario** (el dev): el tag `v0.5.0-alpha`
 
 ## Después de la 0.5 (en este orden; la 0.8-draft queda congelada hasta publicar v0.5.0-alpha)
 - [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una
