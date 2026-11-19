@@ -1,7 +1,8 @@
 # TODO.md — Backlog atómico
 
-Estado: **`v0.5.0-alpha`** etiquetada (tag firmado con SSH, commit `cdc36c4`; Sprint 35):
-el release lo creó el CI el 2026-11-17 (run 44233203322), y ese día se verificó desde un
+Estado: **`v0.5.0-alpha`** **publicado** como pre-release el 2026-11-19 (02:18:30 UTC)
+(tag firmado con SSH, commit `cdc36c4`; Sprints 35 y 35b): el release lo creó el CI el
+2026-11-17 (run 44233203322), y ese día se verificó desde un
 directorio limpio —cosign con las dos recetas, sha256, procedencia SLSA— y se recompiló byte
 a byte desde el tag (sha256 `37a7c5b6…`, la tabla de RELEASING); las notas, con esa
 evidencia, en `docs/releases/v0.5.0-alpha.md`. `@nucleoledger/verify@0.5.0-alpha.0`
@@ -407,9 +408,9 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       procedencia SLSA), recompilar el binario linux/amd64 desde el tag, y completar la línea
       PENDIENTE de `docs/releases/v0.5.0-alpha.md` y la tabla de RELEASING (Sprint 35,
       2026-11-17)
-- [ ] Aplicar las notas (`gh release edit v0.5.0-alpha --notes-file
-      docs/releases/v0.5.0-alpha.md`) y publicar el borrador: tras el push del Sprint 35,
-      porque las notas son las de ese commit
+- [x] Aplicar las notas (`gh release edit v0.5.0-alpha --notes-file
+      docs/releases/v0.5.0-alpha.md`) y publicar el borrador — publicado como pre-release el
+      2026-11-19 (02:18:30 UTC), con las notas de main (Sprint 35b)
 - [x] L23 y G8 de GARANTIAS sin «hasta que se publique» / «sin publicar» (Sprint 35)
 
 ## Mantenimiento
@@ -419,7 +420,7 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       que declaren Node 24, fijadas por hash como las demás. Toca `.github/`: con instrucción del
       dev, y con una prueba en seco del release antes del próximo tag
 
-## Después de la 0.5 (en este orden; la 0.8-draft queda congelada hasta publicar v0.5.0-alpha)
+## Después de la 0.5 (en este orden; la congelación de la 0.8-draft terminó al publicar v0.5.0-alpha, y el próximo cambio de protocolo entra solo por ADR-035)
 - [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una
       factura es un evento nuevo que deja verificable la emisión, no una supresión (L18).
       Toca el protocolo: ADR antes que código

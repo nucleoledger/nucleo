@@ -32,7 +32,7 @@ Tag `v0.4.0-alpha` (commit `978156f`) firmado con SSH; el release, verificado de
 directorio limpio y recompilado byte a byte desde el tag con go1.27.2 (sha256
 `9a52a4e73475cf4a23fe0beec82b9dfcece573e26567ea8c7280989d1a82a779`); sus notas, aplicadas.
 
-**`v0.5.0-alpha`** (Sprints 28 a 35; tag del 17 de noviembre de 2026): la rotación
+**`v0.5.0-alpha` publicada** (Sprints 28 a 35b; tag del 17 de noviembre de 2026): la rotación
 de la clave de supresión y la regularización (ADR-033), y la firma ML-DSA-44 del log
 verificada por el verificador de Go con `logMLDSAKey` en la política, con la orden nueva
 `nucleo verify-receipt` (ADR-034). PROTOCOL 0.8-draft. `@nucleoledger/verify@0.5.0-alpha.0`
@@ -42,8 +42,9 @@ ensayada con el binario publicado. Notas en `docs/releases/v0.5.0-alpha.md`. Tag
 `v0.5.0-alpha` (commit `cdc36c4`) firmado con SSH; el release, verificado desde un directorio
 limpio y recompilado byte a byte desde el tag con go1.27.2 (sha256
 `37a7c5b6556a148587bfc149024880dcba140dd5e6cc70b9fa805b8527b441e2`), y el primero cuyo
-`nucleo version` dice la versión, el commit y la fecha. Lo siguiente es **ADR-035**, los
-eventos `issued`/`voided` (`TODO.md`, «Después de la 0.5»).
+`nucleo version` dice la versión, el commit y la fecha; sus notas, aplicadas, y **publicada**
+como pre-release el 2026-11-19 (02:18:30 UTC). Lo siguiente es **ADR-035**, los eventos
+`issued`/`voided` (`TODO.md`, «Después de la 0.5»).
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: seis rondas
 adversariales (la revisión del 2026-09-10, las tres auditorías del 2026-09-12 y las revisiones
@@ -114,9 +115,10 @@ El backlog atómico está en `TODO.md`. En resumen:
   el ensayo en verde, CHANGELOG, notas y estado a v0.5.0-alpha); **cierre hecho** (Sprint 35:
   el tag `v0.5.0-alpha`, verificado y recompilado byte a byte; las notas, con la evidencia).
   Lo siguiente: **ADR-035**, los eventos `issued`/`voided`.
-- **La 0.8-draft queda congelada: hasta publicar v0.5.0-alpha no entra ningún miembro,
-  evento ni ADR de protocolo nuevo** (2026-11-13). Lo que se apunte para después va a
-  «Después de la 0.5» en `TODO.md`. Los segmentos (PROTOCOL §7) quedan diferidos y no
+- **La congelación de la 0.8-draft terminó con la publicación de v0.5.0-alpha** (2026-11-19;
+  regía desde el 2026-11-13). **El próximo cambio de protocolo entra solo por ADR-035**: la
+  anulación del SRI con eventos `issued`/`voided`. Lo demás apuntado sigue en «Después de la
+  0.5» en `TODO.md`. Los segmentos (PROTOCOL §7) quedan diferidos y no
   normativos en 0.x (enmienda del 2026-11-13).
 
 **Anotado, sin urgencia**
