@@ -424,6 +424,13 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
 - [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una
       factura es un evento nuevo que deja verificable la emisión, no una supresión (L18).
       Toca el protocolo: ADR antes que código
+  - [x] Sprint 36: la investigación de la norma (`docs/investigacion/sri-anulacion-2026-11.md`),
+        ADR-035 **PROPUESTA** (`nucleo.void.v1`, firmado por el tenant, sin disculpar
+        hallazgos), PROTOCOL §5.2 propuesto (0.9-draft, no normativo), L24 propuesto y el plan
+        de vectores
+  - [ ] **Siguiente: la aceptación del dev**, con las «Preguntas para el dev» de la ADR
+        respondidas y lo SIN CONFIRMAR validado con un contador. Después, por orden: los
+        vectores (fuera del código), `internal/reconcile` y la CLI `nucleo void`
 - [ ] **Huella SHA-256 de la política (JCS)** en `sync` y en `verify-receipt`, para cotejarla
       con la del contrato: operativiza L21 sin tocar el protocolo
 - [ ] **El Sealer PHP rechaza rutas relativas del binario**

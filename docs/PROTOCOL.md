@@ -2,6 +2,9 @@
 
 **Version: 0.8-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; wire formats stabilize at v1.0)**
 
+> **Proposed, not in force: §5.2, the void event (0.9-draft, [ADR-035](adr/ADR-035-anulacion-de-facturas.md),
+> PROPOSED 2026-11-22).** Nothing in it is normative until the ADR is accepted.
+
 > **0.8-draft adds two optional policy members, and no artifact changes a byte**
 > ([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md),
 > [ADR-034](adr/ADR-034-verificar-mldsa44-del-log.md)). What it accepts beyond 0.7-draft:
@@ -563,6 +566,75 @@ printf 'nucleo.org/erasure-authorization@v1\norigin %s\nerased_payload_hash %s\n
   | openssl pkey -pubin -inform DER -out erasure.pem
 printf %s "$SIG" | xxd -r -p > sig.bin
 openssl pkeyutl -verify -rawin -pubin -inkey erasure.pem -in digest.bin -sigfile sig.bin
+```
+
+### 5.2 Void event (PROPOSED, 0.9-draft — not normative, not implemented)
+
+> **PROPOSED.** This section is the draft of [ADR-035](adr/ADR-035-anulacion-de-facturas.md),
+> which is in state PROPOSED. It is **not normative** and **no implementation follows it**: the
+> protocol in force is 0.8-draft, and an implementation MUST NOT seal `nucleo.void.v1` events
+> until the ADR is accepted and this section loses this note. Until then, a `nucleo.void.v1` block
+> is an unknown `nucleo.*` block like any other.
+
+Voiding a record —an issued invoice that the tax authority later marks as annulled— leaves the
+record intact and verifiable and seals a **void event** after it. A void event is the issuer's
+**declaration** that the record was voided; it does not prove the state of any external
+authority, and it excuses no reconciliation finding.
+
+- It is an ordinary block (§1). Its `type` is `nucleo.void.v1`, under the reserved `nucleo.`
+  prefix (§5.1): an implementation MUST NOT let an integrator seal it as a record. Its `tenant`
+  is the tenant of the voided block. It is signed by the tenant key, like any block: no other
+  authority is required, because a void excuses nothing (below).
+- Its payload is the JCS (RFC 8785) serialization of exactly two members, both strings:
+  `{"voided_index":"<i>","voided_payload_hash":"<h>"}`, where `<i>` is the index of the voided
+  block in decimal, matching `0|[1-9][0-9]*` and at most 2^53 − 1, and `<h>` is its
+  `payload_hash` as 64 lower-case hex characters. Nothing else: no reason, no requester, no
+  external identifier —an invoice's access key is guessable and MUST NOT appear, in clear or
+  hashed—. Test vector, computed outside the implementation with Python and `sha256sum`: for
+  `<i>` = `3` and `<h>` = `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
+  the payload is 109 bytes and its `payload_hash` is
+  `33e90e55d607b81ef2ed49ce302023676d443c424a8bc77506dd3b5c8ae72143`.
+- It carries **no random field**, as the second exception to §5: its only content is an index
+  and a hash already public in the chain, and determinism is what lets a verifier rebuild it.
+  The payload is not stored.
+- Its `payload_cid` is exactly `nucleo-void@v1:<i>`, with the same `<i>`, so that the event's
+  receipt names what it voids.
+
+**When a void event is valid.** A block `V` of type `nucleo.void.v1` is valid if and only if:
+(R1) its `payload_cid` has the form above; (R2) `<i>` < `V.index`; (R3) the block `B` with index
+`<i>` exists and `V.payload_hash` is the SHA-256 of the payload for `<i>` and `B.payload_hash`;
+(R4) `B.type` does not start with `nucleo.`; (R5) `B.tenant` = `V.tenant`; and (R6) no valid void
+event before `V` names `B`. A block counts as **voided** if and only if a valid void event names
+it; the first one is reported.
+
+**What a reconciliation does with it.**
+
+- It MUST report every voided block, in every reconciliation, with the index and declared time
+  of the event that voided it.
+- A valid void event MUST NOT change the outcome: the voided block is reconciled like any other
+  —verified if the live system holds it unchanged, altered if the live system changed it, and
+  **missing if the live system no longer holds it**, unless it counts as erased (§5.1).
+- A void event that fails R1–R5 MUST be reported as an integrity finding (invalid void), and one
+  that fails only R6 as an integrity finding (repeated void).
+- Void events are Núcleo's own blocks, not records of the live system: they are never missing.
+- There is no event that undoes a void. A void event that names a `nucleo.*` block —another
+  void, or an erasure— is invalid by R4. Voiding a block whose content was erased is valid: R3
+  uses only the header, which erasure does not touch.
+- A reconciliation that meets a block whose `type` is under `nucleo.` and that it does not
+  implement MUST report it as an integrity finding (unknown Núcleo event). It MUST NOT ignore it.
+
+**What a void does not do.** It does not invalidate the voided block's receipt, which keeps
+verifying. And a receipt does not show that its record was not voided: that takes the ledger or
+the receipt of the void event.
+
+**A third party, without Núcleo.** With the receipt of the void event and the receipt of the
+voided block, verify both receipts. Then check four things: the event's `payload_cid` is
+`nucleo-void@v1:<the block's index>`; that index is below the event's index; the tenants are
+equal; and the event's `payload_hash` is the SHA-256 of
+`{"voided_index":"<index>","voided_payload_hash":"<the block's payload_hash>"}`:
+
+```
+printf '{"voided_index":"%s","voided_payload_hash":"%s"}' "$I" "$H" | sha256sum
 ```
 
 ## 6. Keys (normative, pending implementation)

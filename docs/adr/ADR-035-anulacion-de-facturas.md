@@ -61,6 +61,10 @@ No es un tipo de perfil como `ecuador.sri.factura.anulacion.v1`.
 - **La regla de validez es estructural**, no fiscal (decisión 5): referencia, orden, tenant.
   Encaja en PROTOCOL igual que la supresión.
 
+**No hay evento `issued`.** El TODO hablaba de «eventos `issued`/`voided`», pero la emisión ya
+está sellada: es el propio bloque de la factura, con su `payload_hash` y su tiempo. Un evento
+`issued` repetiría ese bloque sin añadir nada. Lo único nuevo es `nucleo.void.v1`.
+
 *Alternativa descartada: un tipo de perfil*, `ecuador.sri.factura.anulacion.v1`, sellado con
 `seal --profile`. Tiene tres problemas:
 - un tipo de perfil lo puede sellar el integrador con cualquier contenido, así que la
