@@ -380,6 +380,76 @@ ADR-032 exige autorizar.
 - La 0.8-draft ya no está congelada (terminó al publicar v0.5.0-alpha). Este es el único cambio
   de protocolo en curso.
 
+## Los vectores que la fijarían (plan; no se generan hasta aceptar)
+
+Irán a `testdata/vectors/void/`, con permiso del dev, porque es `testdata/vectors`. Como manda
+la regla anti-circularidad, **todo valor se calcula fuera del código bajo prueba**: un script de
+Python con `json`, `hashlib` y `cryptography`, más `sha256sum` como segunda opinión. Los
+veredictos se escriben a mano desde §5.2, como en `erasure/rotacion.json`.
+
+**1. `payload.json`: el contenido del evento.** Cada caso lleva `<i>`, `<h>`, los bytes del
+payload en JCS, su longitud y su SHA-256:
+
+- el de la decisión 3 (`<i>` = `3`, 109 bytes, `33e90e55…`), ya comprobado con Python y con
+  `sha256sum`;
+- `<i>` = `0`;
+- `<i>` = 2^53 − 1 (`9007199254740991`);
+- un `<h>` cualquiera.
+
+Y los que **no** son payloads válidos, cada uno con el motivo por el que se rechaza:
+- `<i>` como número JSON;
+- `<i>` con cero a la izquierda (`03`);
+- `<i>` = 2^53;
+- `<h>` en mayúsculas;
+- un miembro de más;
+- los miembros en otro orden (el JCS los ordena: otro orden son otros bytes y otro hash).
+
+**2. `cid.json`: el `payload_cid`.**
+- Válidos: `nucleo-void@v1:0`, `nucleo-void@v1:3`, `nucleo-void@v1:9007199254740991`.
+- Inválidos, con el motivo de R1:
+  - `nucleo-void@v1:03`;
+  - `nucleo-void@v1:-1`;
+  - `nucleo-void@v1:9007199254740992`;
+  - `nucleo-void@v1:` (sin índice);
+  - `nucleo-void@v2:3`;
+  - un espacio de más;
+  - `none://`.
+
+**3. `reconcile.json`: los escenarios.** Cada escenario es una cadena descrita bloque a bloque
+(tipo, tenant, `payload_hash` y `payload_cid`), firmada con las semillas de
+`testdata/vectors/erasure/`, más el sistema vivo (qué índices tiene y si han cambiado). El
+resultado esperado, escrito a mano, es `voided`, `erased`, `findings` con estado y motivo, y el
+código de salida.
+
+| escenario | esperado |
+|---|---|
+| anulación válida, la factura sigue en el sistema vivo | `voided` = [la factura]; `verificado`; código 0 |
+| anulación válida, el ERP borró la factura | `voided` y **`faltante`**; código 2 (decisión 6) |
+| anulación válida, el ERP cambió la factura (`estado: "anulada"`) | `voided` y **`discrepancia`**; código 2 |
+| R1: `payload_cid` mal formado (cada caso de `cid.json`) | «anulación inválida», el motivo de R1; código 2 |
+| R2: `<i>` = el índice del propio evento, y `<i>` mayor | «anulación inválida», no es anterior; código 2 |
+| R3: `<i>` apunta a un bloque que no existe | «anulación inválida», no corresponde; código 2 |
+| R3: `<i>` existe, pero el payload es el de otro bloque (el hash de la factura 2 con `<i>` = 3) | «anulación inválida», no corresponde al contenido del bloque 3; código 2 |
+| R4: se anula un `nucleo.erasure.v1` | «anulación inválida», no se anula un evento de Núcleo; código 2 |
+| R4: se anula un `nucleo.void.v1` (des-anular) | ídem; la primera anulación sigue valiendo |
+| R5: el tenant del evento no es el de la factura | «anulación inválida», otro tenant; código 2 |
+| R6: dos anulaciones válidas de la misma factura | `voided` con la primera; «anulación repetida» con la segunda y el índice de la primera; código 2 |
+| R6 tras una inválida: una anulación inválida y después una válida | la válida en `voided`; la inválida, hallazgo; código 2 |
+| anular contenido ya suprimido (supresión autorizada, después anulación) | `erased` y `voided`; código 0 |
+| el orden contrario (anulación, después supresión autorizada) | ídem; código 0 |
+| el mismo contenido sellado dos veces y anulada solo la segunda copia | `voided` = [la segunda]; la primera, sin anular |
+| un bloque `nucleo.algo.v1` que el binario no conoce | «evento de Núcleo desconocido»; código 2 (decisión 9) |
+| el evento de anulación no está en el sistema vivo | no es `faltante` (es de Núcleo) |
+
+**4. El tercero.** Un `scripts/tercero-anulacion.sh` que hace la comprobación de §5.2 con dos
+recibos, `printf` y `sha256sum`, sin Núcleo y sin red, como `tercero-supresion.sh`.
+
+**5. La compatibilidad (el ensayo).** Un ledger con una anulación, reconciliado por el binario
+publicado de v0.5.0-alpha. El veredicto esperado, escrito a mano, es el evento como `faltante` y
+código 2: falla cerrado (decisión 9). Y los recibos de la factura y de la anulación,
+verificados con `@nucleoledger/verify@0.5.0-alpha.0` y el SDK de PHP de v0.5.0-alpha:
+`valid: true`, sin cambios.
+
 ## Preguntas para el dev
 
 Lo que depende de cómo opera un ERP real, y que esta ADR no puede decidir sola:
