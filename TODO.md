@@ -433,10 +433,18 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
         PROTOCOL 0.9-draft, §5.2 normativo y pendiente de implementación; L24 aceptado, sin
         tests todavía; los vectores en `testdata/vectors/void/`, calculados fuera del código.
         Lo SIN CONFIRMAR no cambia el diseño y queda como seguimiento con un contador
-  - [ ] **Siguiente: Sprint 38, la implementación**, en este orden: `internal/reconcile`
-        (R1–R6, `voided`, «evento de Núcleo desconocido»), `nucleo void`, CLI-JSON y
-        GARANTIAS con sus tests, OPERACION con el flujo del ERP, `tercero-anulacion.sh` y el
-        ensayo de compatibilidad contra el binario de v0.5.0-alpha
+  - [x] Sprint 38: la implementación, sin publicar. `internal/void` (payload, `payload_cid`
+        estricto con `FuzzCidAnulacion` en el job de fuzz, R1–R6); `internal/reconcile`
+        (`voided` siempre array, «anulación inválida», «anulación repetida», «evento de Núcleo
+        desconocido»; los 23 escenarios de `testdata/vectors/void/reconcile.json` en verde);
+        `nucleo void --block N | --payload F`; el recibo `valido-anulacion` (Go, TS, PHP, la
+        página y v0.4.0-alpha lo aceptan; 0 divergencias en el diferencial); CLI-JSON con
+        `valido-void`; GARANTIAS G60–G65 y L24 con sus tests; ARQUITECTURA; OPERACION §6;
+        README; CHANGELOG `[Unreleased]`; `tercero-anulacion.sh` (compuerta y CI) y
+        `ensayo-anulacion-compat.sh` (ritual de RELEASING, en verde contra v0.5.0-alpha). Ocho
+        mutaciones, todas detectadas
+  - [ ] ADR-035 sigue diciendo «pendiente de implementación (Sprint 38)» en su estado: es
+        `docs/adr/`, y se cambia con instrucción del dev
   - [ ] Después: el `Sealer` de PHP envuelve `void` (decisión 7 del dev, segunda entrega)
 - [ ] **Huella SHA-256 de la política (JCS)** en `sync` y en `verify-receipt`, para cotejarla
       con la del contrato: operativiza L21 sin tocar el protocolo

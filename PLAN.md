@@ -123,7 +123,12 @@ El backlog atómico está en `TODO.md`. En resumen:
 - **ADR-035 ACEPTADA** (Sprint 37, 2026-11-23), sin código: PROTOCOL pasa a **0.9-draft** con
   §5.2 normativo y pendiente de implementación, L24 aceptado y los vectores en
   `testdata/vectors/void/`. `voided` es siempre array; `nucleo void --block N` es el camino
-  principal. **Siguiente: Sprint 38, la implementación** (`TODO.md`, ADR-035).
+  principal.
+- **ADR-035 implementada** (Sprint 38), en `main` y sin publicar: `nucleo void`, `voided` y las
+  reglas R1–R6 en `reconcile`, el recibo de una anulación verificando sin cambios en los tres
+  SDK y en v0.4.0-alpha, el tercero sin Núcleo y el ensayo contra el binario de v0.5.0-alpha.
+  Siguiente, cuando el dev lo decida: el `Sealer` de PHP envuelve `void` y la versión que lo
+  publique (CHANGELOG `[Unreleased]`).
 - **La congelación de la 0.8-draft terminó con la publicación de v0.5.0-alpha** (2026-11-19;
   regía desde el 2026-11-13). **El próximo cambio de protocolo entra solo por ADR-035**: la
   anulación del SRI con eventos `issued`/`voided`. Lo demás apuntado sigue en «Después de la
