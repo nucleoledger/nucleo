@@ -11,6 +11,40 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Added
+
+- **`nucleo void --block N | --payload F`: voiding an issued record** —an invoice the SRI marked
+  «ANULADO»— ([ADR-035](docs/adr/ADR-035-anulacion-de-facturas.md), PROTOCOL **0.9-draft**
+  §5.2). It seals a `nucleo.void.v1` event whose payload is the JCS of
+  `{"voided_index":"<i>","voided_payload_hash":"<h>"}` and whose `payload_cid` is
+  `nucleo-void@v1:<i>`; the voided block is not touched and its receipt keeps verifying. The
+  passphrase is enough: a void excuses no finding. `--block` is the main path (the ERP already
+  keeps the index, because `reconcile --source` requires it); `--payload` looks the block up by
+  the SHA-256 of the file and refuses when none or several blocks sealed it. A second void of the
+  same record answers `already_voided: true` and seals nothing. **Voiding is not erasing**, and
+  it is the issuer's declaration, not the SRI's state ([L24](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)).
+- **`reconcile` applies the void rules R1–R6**: voided blocks under `voided` —always an array,
+  also empty—, which does not change the exit code; a voided invoice the live system deleted is
+  still `"faltante"`. New finding states: `"anulación inválida"` (R1–R5) and `"anulación
+  repetida"` (R6), with `rule`, `reason` and, for a repeated void, `first_void`; and
+  `"evento de Núcleo desconocido"` for any block under the reserved `nucleo.` prefix this
+  version does not implement. No `nucleo.*` block is reported as `"faltante"`.
+- `internal/void`, with the payload, the strict `payload_cid` parser and the rules, and the
+  fuzzer `FuzzCidAnulacion`. Vectors in `testdata/vectors/void/` (computed outside the code),
+  `testdata/vectors/receipt/valido-anulacion.json` (a void event's receipt, which Go, TypeScript,
+  PHP, the web page and the v0.4.0-alpha Go verifier all accept unchanged) and
+  `testdata/vectors/cli-json/valido-void.json`.
+- `docs/OPERACION.md` §6, «Anular una factura»: the ERP flow.
+
+### Breaking
+
+- **A ledger with a void event is not reconciled correctly by a binary ≤ 0.5.0-alpha**: it does
+  not know `nucleo.void.v1` and reports the event as `"faltante"`, exit code 2. It fails closed,
+  under the wrong name; after voiding with this version, reconcile with this version.
+- `reconcile --json` gains the `voided` field and three finding states; the SDKs tolerate new
+  fields, as the contract requires. Receipts, policies and every other wire format are
+  unchanged.
+
 ## [0.5.0-alpha] — 2026-11-17
 
 ### What this version is

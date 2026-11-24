@@ -80,6 +80,7 @@ flowchart TD
   reconcile[reconcile]
   store[store]
   vault[vault]
+  void[void]
   witness[witness]
   ecuador[profiles/ecuador]
   cli --> checkpoint
@@ -94,6 +95,7 @@ flowchart TD
   cli --> reconcile
   cli --> store
   cli --> vault
+  cli --> void
   cli --> witness
   cli --> ecuador
   erasure --> jcs
@@ -117,10 +119,14 @@ flowchart TD
   reconcile --> erasure
   reconcile --> ledger
   reconcile --> store
+  reconcile --> void
   store --> checkpoint
   store --> ledger
   store --> proof
   vault --> commit
+  void --> erasure
+  void --> jcs
+  void --> ledger
   witness --> checkpoint
   witness --> estricto
   witness --> ledger
@@ -152,6 +158,7 @@ ADR-010) y `golang.org/x/term` (cmd/nucleo).
 | `internal/proof/` | el paquete `tlog-proof` y la verificación de la nota con quórum de testigos | `internal/proof/proof.go#VerifyNote` |
 | `internal/receipt/` | el recibo: emitirlo, formatearlo, firmarlo y verificarlo | `internal/receipt/receipt.go#Issue`, `internal/receipt/format.go#Receipt.Verify` |
 | `internal/reconcile/` | cotejar el sistema vivo contra lo sellado | `internal/reconcile/reconcile.go#Reconcile` |
+| `internal/void/` | el evento de anulación `nucleo.void.v1`: su payload, su `payload_cid` y las reglas R1–R6 que deciden si una anulación vale (ADR-035, PROTOCOL 0.9-draft §5.2); las usan `reconcile` y `nucleo void` | `internal/void/void.go#Payload`, `internal/void/void.go#ParseCID`, `internal/void/reglas.go#Evaluate` |
 | `internal/policy/` | leer la política (formato de cable, ADR-018) | `internal/policy/policy.go#Parse` |
 | `internal/estricto/` | el lector JSON estricto que comparten la política y la configuración del testigo | `internal/estricto/estricto.go#Leer` |
 | `profiles/ecuador/` | el perfil de factura del SRI (y el acta de SAS, sin conectar a la CLI) | `profiles/ecuador/tipos.go#ParseFactura` |
@@ -410,6 +417,26 @@ autorizado, del mismo contenido y que cubra su última copia anterior lo **regul
 una política sin `erasureKey` ni `retiredErasureKeys`, no hay clave y ningún evento está
 autorizado. Los eventos no se cuentan como faltantes. La misma regla la usa `sync` para el
 corte del fragmento de rotación (`internal/reconcile/reconcile.go#AuthorizedEvents`).
+
+Las anulaciones (ADR-035, PROTOCOL 0.9-draft §5.2) las juzga `internal/void/reglas.go#Evaluate`,
+con R1–R6 en orden: las válidas salen en `voided`, siempre como array, y no cambian nada más
+—el bloque anulado se coteja como cualquier otro—; las demás son hallazgos, `"anulación
+inválida"` o `"anulación repetida"`, con su `rule`. Un bloque con un tipo bajo `nucleo.` que no
+es ni supresión ni anulación es `"evento de Núcleo desconocido"`
+(`internal/reconcile/reconcile.go#desconocido`), y ningún bloque `nucleo.*` es faltante.
+
+### 2.6b La anulación (ADR-035)
+
+`cmd/nucleo/void.go#cmdVoid` toma el bloque por `--block N` —el camino principal: el ERP ya
+guarda el índice— o lo busca por el SHA-256 de `--payload` (`cmd/nucleo/void.go#bloqueDelContenido`,
+que falla si no hay ninguno o si hay varios). Antes de abrir el vault rechaza lo que
+`reconcile` daría por inválido: un bloque `nucleo.*` (R4) o un `--tenant` que no casa (R5). Si
+ya hay una anulación válida, contesta `already_voided` sin sellar: las candidatas son los
+bloques con el `payload_hash` que llevaría la anulación (`internal/void/void.go#EventPayloadHash`),
+y con ellas y el bloque basta para aplicar `internal/void/reglas.go#Evaluate`. Después abre el
+vault con la passphrase —sin tarjetas ni clave de supresión—, comprueba el firmante y sella el
+evento en una transacción, a nombre del tenant del bloque y con `payload_cid`
+`nucleo-void@v1:<i>`. El contenido no se guarda: se reconstruye.
 
 ### 2.6a La supresión, en dos equipos (ADR-031, ADR-032)
 

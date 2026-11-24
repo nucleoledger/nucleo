@@ -1,0 +1,15 @@
+{
+  "name": "valido-void",
+  "description": "anular la factura del bloque 2: evento nucleo.void.v1 sellado, already_voided false",
+  "command": [
+    "--json",
+    "void",
+    "--block",
+    "2",
+    "--policy-file",
+    "\u003cDIR\u003e/politica.json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"alert\": {\n    \"new\": false,\n    \"persisted\": true,\n    \"state\": \"none\"\n  },\n  \"already_voided\": false,\n  \"attestation\": \"verified\",\n  \"attested\": true,\n  \"attested_head\": false,\n  \"attested_size\": 3,\n  \"erasure_alert\": {\n    \"open\": [\n      {\n        \"blocks\": [\n          0,\n          1\n        ],\n        \"erased_at\": \"2026-09-07T10:00:00Z\",\n        \"erased_payload_hash\": \"b60423d5a606ef5b84634f18f6e3110dc9ccac3c5b484ded6e86cffe77e0c45c\",\n        \"hash\": \"4d4f05366dcc2e79ba054eabc589bb15c5bb22f2a22176731cfcf76541733b35\",\n        \"index\": 4\n      }\n    ],\n    \"persisted\": true,\n    \"state\": \"open\"\n  },\n  \"freshness\": {\n    \"age_hours\": 0,\n    \"attested_at\": \"2026-09-07T10:00:00Z\",\n    \"attested_ever\": true,\n    \"attested_size\": 3,\n    \"policy\": true,\n    \"source\": \"attestation\",\n    \"stale\": false,\n    \"threshold_hours\": 72,\n    \"verified\": true,\n    \"witness\": \"witness.example/w1\"\n  },\n  \"hash\": \"cc20e08e2cd19ca604b60fb21b1b0a1949d465f9031c2b17995ecf40248d396f\",\n  \"index\": 5,\n  \"ok\": true,\n  \"signer\": {\n    \"pubkey\": \"1452087a636d691592b449857ba76372320731039b297092be0f1bbb76848ada\",\n    \"state\": \"verified\",\n    \"verified\": true\n  },\n  \"voided_index\": 2,\n  \"voided_payload_hash\": \"27ffeba887f777cf8861cd71455cb5c1c43fb60dc3c591a05f2d25c8ad754ec8\"\n}\n",
+  "valid": true
+}

@@ -1,6 +1,6 @@
 # Núcleo Protocol Specification
 
-**Version: 0.9-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; void event registered in §5.2 on 2026-11-23, pending implementation; wire formats stabilize at v1.0)**
+**Version: 0.9-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; void event registered in §5.2 on 2026-11-23 and implemented in `main` the same day, not yet in a release; wire formats stabilize at v1.0)**
 
 > **0.9-draft registers one event, and no artifact changes a byte**
 > ([ADR-035](adr/ADR-035-anulacion-de-facturas.md), accepted 2026-11-23). What it adds: the void
@@ -9,9 +9,10 @@
 > does not implement is an integrity finding, never ignored. What does not change: no block,
 > leaf, root, checkpoint, receipt or policy changes a byte, and there is no new policy member,
 > so every policy and receipt valid under 0.8-draft is valid under 0.9-draft and means the same;
-> the receipt of a void event is the receipt of an ordinary block. **Pending implementation**:
-> no published binary implements §5.2 yet. A 0.8-draft reconciliation reports a void event as a
-> missing record —it fails closed, under the wrong name.
+> the receipt of a void event is the receipt of an ordinary block. Implemented in `main`
+> (`internal/void`, `nucleo void`), not yet in a release: v0.5.0-alpha and earlier follow
+> 0.8-draft, and their reconciliation reports a void event as a missing record —it fails
+> closed, under the wrong name.
 
 > **0.8-draft adds two optional policy members, and no artifact changes a byte**
 > ([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md),
@@ -577,10 +578,10 @@ printf %s "$SIG" | xxd -r -p > sig.bin
 openssl pkeyutl -verify -rawin -pubin -inkey erasure.pem -in digest.bin -sigfile sig.bin
 ```
 
-### 5.2 Void event (normative, 0.9-draft; pending implementation)
+### 5.2 Void event (normative, 0.9-draft)
 
-> **Pending implementation.** [ADR-035](adr/ADR-035-anulacion-de-facturas.md) was accepted on
-> 2026-11-23 and this section is normative, but no published binary implements it yet: v0.5.0-alpha
+> [ADR-035](adr/ADR-035-anulacion-de-facturas.md), accepted on 2026-11-23. Implemented in `main`
+> (`internal/void`, `internal/reconcile`, `nucleo void`); no release carries it yet. v0.5.0-alpha
 > and earlier follow 0.8-draft, and their reconciliation reports a `nucleo.void.v1` block as a
 > missing record. The vectors are in `testdata/vectors/void/`.
 

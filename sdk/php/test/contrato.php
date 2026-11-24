@@ -114,6 +114,20 @@ function pruebasDeContrato(string $vectores): void
             }
             continue;
         }
+        if (str_starts_with($nombre, 'valido-void')) {
+            // La anulación (ADR-035): el SDK no la envuelve todavía (segunda entrega), pero
+            // su salida es contrato y se lee como cualquier otra.
+            try {
+                $j = Contract::toArray(Contract::decode($stdout));
+                comprueba('acepta ' . $nombre, true);
+                igual($nombre . ': already_voided', false, $j['already_voided'] ?? null);
+                igual($nombre . ': voided_index es un entero', true, is_int($j['voided_index'] ?? null));
+                igual($nombre . ': index posterior al anulado', true, ($j['index'] ?? -1) > ($j['voided_index'] ?? PHP_INT_MAX));
+            } catch (\Throwable $e) {
+                comprueba('acepta ' . $nombre, false, get_class($e) . ': ' . $e->getMessage());
+            }
+            continue;
+        }
         if (str_starts_with($nombre, 'valido-error')) {
             try {
                 $e = Contract::error(Contract::decode($stdout));

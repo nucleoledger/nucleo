@@ -182,7 +182,12 @@ func TestVectoresCLIJSON(t *testing.T) {
 	añade("valido-status-con-supresion", "status con una supresión sin reconocer: erasure_alert.state open",
 		exitOK, "--json", "status")
 
-	// 7. Y el objeto de error, que también es contrato (CLI-JSON.md §Convenciones).
+	// 7. Una anulación (ADR-035): la factura del bloque 2, con la política. Va después de
+	// todo lo anterior para no cambiar ningún vector que ya existía.
+	añade("valido-void", "anular la factura del bloque 2: evento nucleo.void.v1 sellado, already_voided false",
+		exitOK, "--json", "void", "--block", "2", "--policy-file", polPath)
+
+	// 8. Y el objeto de error, que también es contrato (CLI-JSON.md §Convenciones).
 	//
 	// El error se provoca con una bandera que la CLI valida por su cuenta y NO con un
 	// fichero que no existe: el mensaje de "no existe" lo escribe el sistema operativo

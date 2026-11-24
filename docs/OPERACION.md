@@ -30,6 +30,8 @@ se indica que es `main`. PHP 8.2 con el SDK del repositorio.
       tarjetas en manos de quien responde de las supresiones, y su clave pública como
       `erasureKey` en la política de quien reconcilia (§3, ADR-032). Para cambiarla, rótala
       con el fragmento de `sync` (§3, «Rotar la clave de supresión»).
+- [ ] Si anulas facturas: el ERP sella la anulación **solo** con el «ANULADO» del SRI, conserva
+      el XML autorizado sin tocarlo y guarda el índice de Núcleo de cada factura (§6).
 - [ ] Tus **contrapartes**, en el SDK 0.5 o con una copia de la política sin `logMLDSAKey`:
       desde 0.5.0-alpha, la política que imprime `sync` lo trae y el SDK 0.4 la rechaza (§2).
 
@@ -441,8 +443,8 @@ tarjetas.
 **Suprimir no es anular una factura.** La supresión borra el contenido y deja en la cadena
 su hash y el evento que la autorizó: es la mitad técnica de un derecho de borrado
 ([GARANTIAS](GARANTIAS.md) L18). La anulación tributaria es otro acto, que tiene que dejar
-verificable la emisión, y Núcleo todavía no tiene un evento para ella (ADR-035, en TODO
-«Después de la 0.5»). No suprimas una factura para anularla.
+verificable la emisión, y tiene su propia orden, `nucleo void` (§6, ADR-035). No suprimas una
+factura para anularla.
 
 ### Rotar la clave de supresión
 
@@ -659,6 +661,58 @@ sale con 3 también mientras haya supresiones sin reconocer.
 Todo lo de esta sección está cubierto por tests: `cmd/nucleo/alarma_test.go` (sin leer stderr
 en ningún momento), `cmd/nucleo/ataque_supresion_test.go` para las supresiones, la suite del
 SDK de PHP y los pasos 9 y 10 de la demo del ejemplo Node, que corre en CI.
+
+---
+
+## 6. Anular una factura
+
+Una factura anulada en el SRI no se borra: el SRI la marca «ANULADO» y tú la conservas siete
+años (RCV art. 50). En Núcleo pasa lo mismo: `nucleo void` sella un evento `nucleo.void.v1` que
+dice «el emisor declara anulada la emisión del bloque N», y la emisión se queda intacta, con su
+recibo verificando (ADR-035). El flujo del ERP:
+
+1. **Pide la anulación al SRI** (SRI en línea o Facturador SRI) y **consulta el estado** con
+   `consultarEstadoAutorizacionComprobante`.
+2. **Sella la anulación solo cuando el SRI devuelve «ANULADO»**, nunca en «PENDIENTE DE ANULAR».
+   Una factura se anula al instante; una retención, una nota de crédito o una nota de débito
+   esperan a que el receptor acepte, y si no acepta en cinco días hábiles la solicitud caduca.
+   Una anulación sellada no se deshace: no hay evento que la revierta.
+3. **Con el índice que guardaste al sellar la factura**, que es el camino principal:
+
+   ```bash
+   nucleo void --block 7 --passphrase-file /etc/nucleo/passphrase --policy-file politica.json
+   ```
+
+   Ese índice ya lo tienes: `seal --json` lo devuelve en `index`, y `reconcile --source` lo
+   exige en cada línea del sistema vivo. Si solo conservas el XML, `--payload factura.xml`
+   busca el bloque por el SHA-256 del fichero; si ese contenido se selló más de una vez, la orden
+   lo dice y pide `--block`. Repetir la orden es seguro: la segunda vez contesta
+   `already_voided: true` y no sella nada.
+4. **No borres ni cambies la factura anulada en tu base.** El XML autorizado queda inmutable, y
+   el estado del SRI va en otra columna. `reconcile` recibe el XML, como siempre, y la factura
+   sale **verificada y además anulada** (`voided`). Si la borras, `reconcile` la da por
+   `"faltante"` y sale con 2; si escribes «anulada» dentro del registro sellado, por
+   `"discrepancia"`. Es a propósito: Núcleo no distingue una factura anulada y borrada de una que
+   alguien hizo desaparecer, y la anulación no disculpa nada. Consérvala los siete años.
+5. **Ejecuta `nucleo sync`**, como después de cualquier sellado, para que un testigo vea el
+   evento.
+
+Lo que **no** hace la anulación de Núcleo:
+
+- **No es el estado del SRI**: es tu declaración ([GARANTIAS](GARANTIAS.md) L24). La sella la
+  passphrase sola, y Núcleo no habla con el SRI. Quien tenga que saber si una factura está
+  anulada lo consulta en el SRI.
+- **No hace cumplir los plazos ni las prohibiciones del SRI**: el día 7 del mes siguiente, las
+  facturas «consumidor final» (que desde 2026 no se anulan) o la aceptación del receptor. Son
+  del ERP.
+- **No lleva motivo** (el SRI no lo pide): si lo necesitas, guárdalo en el ERP.
+- **No es la nota de crédito.** Una factura que se corrige con nota de crédito no está anulada:
+  la nota de crédito se sella como cualquier XML, y no se marca `voided`.
+- **Un recibo de la factura no dice si se anuló**: para eso hace falta el ledger o el recibo de
+  la anulación. Un tercero lo comprueba con los dos recibos, sin Núcleo (PROTOCOL §5.2).
+
+**No reconcilies con un binario 0.5 o anterior un ledger con anulaciones**: no conoce el evento
+y lo da por `"faltante"`, con código 2. Falla cerrado, pero con un nombre equivocado.
 
 ---
 
