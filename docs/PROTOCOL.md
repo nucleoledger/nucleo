@@ -1,9 +1,17 @@
 # Núcleo Protocol Specification
 
-**Version: 0.8-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; wire formats stabilize at v1.0)**
+**Version: 0.9-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; void event registered in §5.2 on 2026-11-23, pending implementation; wire formats stabilize at v1.0)**
 
-> **Proposed, not in force: §5.2, the void event (0.9-draft, [ADR-035](adr/ADR-035-anulacion-de-facturas.md),
-> PROPOSED 2026-11-22).** Nothing in it is normative until the ADR is accepted.
+> **0.9-draft registers one event, and no artifact changes a byte**
+> ([ADR-035](adr/ADR-035-anulacion-de-facturas.md), accepted 2026-11-23). What it adds: the void
+> event `nucleo.void.v1` and its validity rules (§5.2), the second exception to the random field
+> of §5, and one reconciliation rule for every reader: a block under `nucleo.` that the reader
+> does not implement is an integrity finding, never ignored. What does not change: no block,
+> leaf, root, checkpoint, receipt or policy changes a byte, and there is no new policy member,
+> so every policy and receipt valid under 0.8-draft is valid under 0.9-draft and means the same;
+> the receipt of a void event is the receipt of an ordinary block. **Pending implementation**:
+> no published binary implements §5.2 yet. A 0.8-draft reconciliation reports a void event as a
+> missing record —it fails closed, under the wrong name.
 
 > **0.8-draft adds two optional policy members, and no artifact changes a byte**
 > ([ADR-033](adr/ADR-033-rotacion-de-la-clave-de-supresion.md),
@@ -414,8 +422,9 @@ cover this case: if the entire document is guessable, its committed fields are g
 along with it, so per-field protection never raises the bar above the entropy of the whole
 document. This is a property of the document, which the protocol does not control, so:
 payloads that Núcleo itself constructs (profiles) MUST include a random field of at least
-16 bytes —with exactly one exception, the erasure event of §5.1, whose only content is a hash
-already public in the chain and which MUST be deterministic to be found—, and payloads supplied by an integrator SHOULD carry equivalent entropy when the
+16 bytes —with exactly two exceptions, the erasure event of §5.1 and the void event of §5.2 (0.9-draft),
+whose only content is already public in the chain and which MUST be deterministic to be found
+or rebuilt—, and payloads supplied by an integrator SHOULD carry equivalent entropy when the
 document space is enumerable. A verifier is unaffected: it holds the document and compares
 bytes. Núcleo MUST NOT add entropy to a payload it is given — hashing anything other than
 the exact bytes received would mean sealing a document the integrator never handed over
@@ -568,13 +577,12 @@ printf %s "$SIG" | xxd -r -p > sig.bin
 openssl pkeyutl -verify -rawin -pubin -inkey erasure.pem -in digest.bin -sigfile sig.bin
 ```
 
-### 5.2 Void event (PROPOSED, 0.9-draft — not normative, not implemented)
+### 5.2 Void event (normative, 0.9-draft; pending implementation)
 
-> **PROPOSED.** This section is the draft of [ADR-035](adr/ADR-035-anulacion-de-facturas.md),
-> which is in state PROPOSED. It is **not normative** and **no implementation follows it**: the
-> protocol in force is 0.8-draft, and an implementation MUST NOT seal `nucleo.void.v1` events
-> until the ADR is accepted and this section loses this note. Until then, a `nucleo.void.v1` block
-> is an unknown `nucleo.*` block like any other.
+> **Pending implementation.** [ADR-035](adr/ADR-035-anulacion-de-facturas.md) was accepted on
+> 2026-11-23 and this section is normative, but no published binary implements it yet: v0.5.0-alpha
+> and earlier follow 0.8-draft, and their reconciliation reports a `nucleo.void.v1` block as a
+> missing record. The vectors are in `testdata/vectors/void/`.
 
 Voiding a record —an issued invoice that the tax authority later marks as annulled— leaves the
 record intact and verifiable and seals a **void event** after it. A void event is the issuer's
@@ -590,7 +598,8 @@ authority, and it excuses no reconciliation finding.
   block in decimal, matching `0|[1-9][0-9]*` and at most 2^53 − 1, and `<h>` is its
   `payload_hash` as 64 lower-case hex characters. Nothing else: no reason, no requester, no
   external identifier —an invoice's access key is guessable and MUST NOT appear, in clear or
-  hashed—. Test vector, computed outside the implementation with Python and `sha256sum`: for
+  hashed—. Test vector, computed outside the implementation with Python and `sha256sum`
+  (`testdata/vectors/void/payload.json`): for
   `<i>` = `3` and `<h>` = `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
   the payload is 109 bytes and its `payload_hash` is
   `33e90e55d607b81ef2ed49ce302023676d443c424a8bc77506dd3b5c8ae72143`.

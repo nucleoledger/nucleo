@@ -119,8 +119,11 @@ El backlog atómico está en `TODO.md`. En resumen:
   `nucleo.void.v1` —la emisión es el propio bloque de la factura, sin evento `issued`—, firmado
   por el tenant porque no disculpa ningún hallazgo, con la lista `voided` en `reconcile` y el
   límite L24 propuesto; PROTOCOL §5.2 escrito como propuesto (0.9-draft, no normativo). La
-  norma, en `docs/investigacion/sri-anulacion-2026-11.md`. **Siguiente: la aceptación del dev**,
-  con las preguntas de la ADR respondidas y lo SIN CONFIRMAR validado con un contador.
+  norma, en `docs/investigacion/sri-anulacion-2026-11.md`.
+- **ADR-035 ACEPTADA** (Sprint 37, 2026-11-23), sin código: PROTOCOL pasa a **0.9-draft** con
+  §5.2 normativo y pendiente de implementación, L24 aceptado y los vectores en
+  `testdata/vectors/void/`. `voided` es siempre array; `nucleo void --block N` es el camino
+  principal. **Siguiente: Sprint 38, la implementación** (`TODO.md`, ADR-035).
 - **La congelación de la 0.8-draft terminó con la publicación de v0.5.0-alpha** (2026-11-19;
   regía desde el 2026-11-13). **El próximo cambio de protocolo entra solo por ADR-035**: la
   anulación del SRI con eventos `issued`/`voided`. Lo demás apuntado sigue en «Después de la

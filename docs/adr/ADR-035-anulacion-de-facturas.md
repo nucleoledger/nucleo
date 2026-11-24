@@ -1,7 +1,8 @@
 # ADR-035-anulacion-de-facturas
 
-**Estado:** PROPUESTA el 2026-11-22 (Sprint 36), sin código y pendiente de aceptación del dev ·
-**Fecha:** 2026-11-22 · **Fuentes:**
+**Estado:** ACEPTADA el 2026-11-23 (Sprint 37), con los vectores y sin código: pendiente de
+implementación (Sprint 38). Propuesta el 2026-11-22 (Sprint 36); las decisiones del dev, en
+«Aceptación», al final · **Fecha:** 2026-11-22 · **Fuentes:**
 - la investigación de la norma, [`docs/investigacion/sri-anulacion-2026-11.md`](../investigacion/sri-anulacion-2026-11.md)
   (NAC-DGERCGC25-00000014 y -00000017, Ficha técnica offline v2.34);
 - `docs/GARANTIAS.md` L18 y el TODO «Después de la 0.5»;
@@ -96,8 +97,10 @@ Si algún día hiciera falta cruzar por clave de acceso dentro del ledger, iría
 del perfil** (HMAC con la subclave del tenant, ADR-003), en `vault_meta`, como los demás campos
 sensibles, y nunca en el evento. Esta ADR no lo propone.
 
-**Cómo encuentra el ERP el índice**, si solo guarda la clave de acceso: ver la decisión 8, que
-propone `--payload` (el ERP tiene el XML).
+**Cómo encuentra el ERP el índice: ya lo tiene** (Aceptación, decisión 2 del dev). `reconcile
+--source` exige que cada línea del sistema vivo sea `{"index":N,"payload_b64":"…"}`, así que un
+ERP que reconcilia ya guarda el índice de Núcleo de cada factura. `nucleo void --block N` es el
+camino principal (decisión 8), y **Núcleo no lleva ningún índice de clave de acceso a bloque**.
 
 *Alternativa descartada: solo el `payload_hash`*, como la supresión. Con el mismo contenido
 sellado dos veces, no se sabría cuál de las copias se anula. La supresión no tiene este problema
@@ -238,8 +241,8 @@ Cómo se aplican a los casos dudosos:
 - **«El destino es una factura»: no es una regla del protocolo.** Núcleo no puede decidir desde
   el tipo si un registro es una factura: un integrador sella con `--type sri.factura.v1`, otro
   con `--profile ecuador.sri.factura` (tipo `ecuador.sri.factura.v1`), y otro con un tipo
-  propio. El protocolo exige solo R4 (no un evento de Núcleo). Si la CLI restringe a ciertos
-  tipos, es una guarda al sellar, no un hallazgo (pregunta para el dev).
+  propio. El protocolo exige solo R4 (no un evento de Núcleo). **La CLI tampoco restringe
+  tipos** (Aceptación, decisión 6 del dev): se anula cualquier tipo que no sea `nucleo.*`.
 
 *Alternativa descartada: que la segunda anulación sea inocua y se ignore.* Una cadena con dos
 anulaciones de lo mismo no la produce la CLI. Ignorarla sería aceptar en silencio un bloque
@@ -265,8 +268,12 @@ anulaciones de lo mismo no la produce la CLI. Ignorarla sería aceptar en silenc
 - **Los propios eventos `nucleo.void.v1` no son `faltante`**: los sella Núcleo, no el sistema
   vivo, igual que los de supresión.
 - **`--json` crece, sin cambiar nada de lo que ya hay**: `voided` y los dos estados nuevos.
-  Ojo: un campo nuevo en la salida `--json` toca los vectores de `testdata/vectors/cli-json`,
-  así que, sin permiso del dev para cambiarlos, `voided` sale solo cuando tiene algo.
+  **`voided` es siempre array, también vacío**, como `erased` y `regularized` (ajuste A1 de la
+  aceptación): un integrador que lee `r.voided.length` no tiene que comprobar antes si el campo
+  viene. *Corregido al aceptar*: la propuesta decía que `voided` saliera solo cuando tuviera algo,
+  para no tocar `testdata/vectors/cli-json`. El dev autorizó tocarlos, y además ninguno de esos
+  vectores es de `reconcile` (son de `seal`, `erase`, `status` y errores), así que el campo no
+  cambia ninguno.
 
 *Alternativa descartada: que una anulación disculpe un `faltante`.* Es exactamente la puerta
 que ADR-032 cerró para la supresión. Con la firma del tenant bastando (decisión 4), quien
@@ -303,11 +310,11 @@ nucleo void --block N                [--policy-file P] [--json]
 nucleo void --payload factura.xml    [--policy-file P] [--json]
 ```
 
-- **`--block N`** anula el bloque N.
-- **`--payload F`** lo busca por el SHA-256 de los bytes del fichero, que es el XML que el ERP
-  ya tiene. Así el ERP no necesita guardar el índice. Si el contenido está sellado más de una
-  vez, la orden falla y pide `--block` con los índices candidatos: elegir por el integrador
-  sería adivinar.
+- **`--block N`** anula el bloque N. **Es el camino principal** (Aceptación, decisión 2 del dev):
+  el ERP ya guarda el índice de cada factura, porque `reconcile --source` lo exige.
+- **`--payload F`** es una **comodidad**: busca el bloque por el SHA-256 de los bytes del
+  fichero, el XML que el ERP ya tiene. Si el contenido está sellado más de una vez, la orden
+  falla y pide `--block` con los índices candidatos: elegir por el integrador sería adivinar.
 - **Rechaza, sin sellar nada:**
   - un bloque `nucleo.*`, con código de uso 1;
   - un índice que no existe;
@@ -324,8 +331,9 @@ documento que traiga el integrador: lo construye Núcleo. Y un tipo `nucleo.*` n
 recibos, y el recibo de una anulación es el de un bloque cualquiera: verifica sin cambios. La
 comprobación de un tercero (los dos recibos y un `sha256sum`) va en PROTOCOL §5.2, como la de
 la supresión. Si un integrador la necesita en un SDK, son diez líneas y se añaden entonces.
-**El `Sealer` de PHP sí podría envolver `void`**: a diferencia de `erase`, anular es una
-operación del ERP, no la decisión de una persona con tarjetas. Es una pregunta para el dev.
+**El `Sealer` de PHP envolverá `void`, en una segunda entrega** (Aceptación, decisión 7 del dev),
+después de Go y de `reconcile`: a diferencia de `erase`, anular es una operación del ERP, no la
+decisión de una persona con tarjetas.
 
 ### 9. Versión de protocolo y compatibilidad: 0.9-draft, y fallar cerrado
 
@@ -365,10 +373,11 @@ ADR-032 exige autorizar.
 
 ## Consecuencias
 
-- PROTOCOL 0.9-draft, §5.2, **propuesto** en este sprint: el texto normativo queda escrito y
-  marcado como no implementado. Lo normativo empieza cuando el dev acepte esta ADR.
-- GARANTIAS: el límite L24, **propuesto**. L18 deja de decir «pendiente, TODO» cuando se
-  implemente.
+- PROTOCOL 0.9-draft, §5.2: propuesto en el Sprint 36 y **normativo desde la aceptación**
+  (2026-11-23), con la nota «pendiente de implementación»: ningún binario publicado la implementa
+  todavía.
+- GARANTIAS: el límite L24, **aceptado**, sin tests hasta la implementación. L18 deja de decir
+  «pendiente, TODO» cuando se implemente.
 - Código, cuando se acepte, en este orden:
   1. los vectores, calculados fuera (abajo);
   2. `internal/void` (o junto a `internal/erasure`) y `internal/reconcile`;
@@ -380,9 +389,12 @@ ADR-032 exige autorizar.
 - La 0.8-draft ya no está congelada (terminó al publicar v0.5.0-alpha). Este es el único cambio
   de protocolo en curso.
 
-## Los vectores que la fijarían (plan; no se generan hasta aceptar)
+## Los vectores
 
-Irán a `testdata/vectors/void/`, con permiso del dev, porque es `testdata/vectors`. Como manda
+**Generados en el Sprint 37** (2026-11-23), en `testdata/vectors/void/`, con permiso del dev:
+`payload.json`, `cid.json` y `reconcile.json`, calculados por `void/generar.py`. Lo que sigue es
+el plan tal como se escribió al proponer; las diferencias con lo generado, en
+`testdata/vectors/README.md`. Como manda
 la regla anti-circularidad, **todo valor se calcula fuera del código bajo prueba**: un script de
 Python con `json`, `hashlib` y `cryptography`, más `sha256sum` como segunda opinión. Los
 veredictos se escriben a mano desde §5.2, como en `erasure/rotacion.json`.
@@ -452,7 +464,8 @@ verificados con `@nucleoledger/verify@0.5.0-alpha.0` y el SDK de PHP de v0.5.0-a
 
 ## Preguntas para el dev
 
-Lo que depende de cómo opera un ERP real, y que esta ADR no puede decidir sola:
+*Contestadas por el dev el 2026-11-23: ver «Aceptación».* Lo que depende de cómo opera un ERP
+real, y que esta ADR no podía decidir sola:
 
 1. **¿Cuándo sella el ERP la anulación?** La propuesta es: cuando el SRI devuelve «ANULADO». Para
    una factura es inmediato. Para la retención, la nota de crédito y la nota de débito, eso es
@@ -480,3 +493,37 @@ Lo que depende de cómo opera un ERP real, y que esta ADR no puede decidir sola:
    - que no exista una constancia firmada de la anulación;
    - que no haya reformas de 2026 sobre la anulación;
    - el formato de `numDocModificado`.
+
+## Aceptación
+
+**Aceptada por el dev el 2026-11-23** (Sprint 37), con dos ajustes y las respuestas a las nueve
+preguntas. Lo que cambia en el texto de arriba lo marca «Aceptación».
+
+**Ajustes.**
+- **A1. `voided` en `reconcile --json` es siempre array, también vacío**, como `erased`
+  (decisión 6). Un contrato coherente vale más que no tocar un vector.
+- **A2. `--block N` es el camino principal** (decisiones 2 y 8): `reconcile --source` ya exige
+  `{"index":N,"payload_b64":"…"}` por registro, así que el ERP ya guarda el índice. `--payload`
+  es una comodidad, y Núcleo no lleva índice de clave de acceso a bloque.
+
+**Las decisiones del dev, una por pregunta.**
+1. Se sella solo cuando el SRI devuelve «ANULADO», nunca en «PENDIENTE DE ANULAR»; el ERP consulta
+   el estado (`consultarEstadoAutorizacionComprobante`).
+2. No hay índice clave de acceso → bloque en Núcleo (A2). `nucleo void --block N` es el camino
+   principal; `--payload` es una comodidad.
+3. El ERP no borra ni modifica la factura anulada: el XML autorizado queda inmutable, el estado del
+   SRI va aparte, y `reconcile` recibe el XML. OPERACION lo dirá.
+4. Sin motivo en el evento; lo guarda el ERP.
+5. Sin `evidence_index` en la v1.
+6. La CLI no restringe tipos: se anula cualquier tipo que no sea `nucleo.*`.
+7. El `Sealer` de PHP envolverá `void` en una segunda entrega.
+8. La nota de crédito queda fuera de la v1.
+9. Los puntos SIN CONFIRMAR no cambian el diseño: una constancia firmada sería el
+   `evidence_index` de una v2; una reforma de 2026 tocaría plazos, que son del ERP; y
+   `numDocModificado` es de la nota de crédito, que queda fuera. Quedan como seguimiento con un
+   contador.
+
+**Lo que queda para la implementación** (Sprint 38, en este orden): `internal/reconcile` (R1–R6,
+`voided` y «evento de Núcleo desconocido»); `nucleo void`; CLI-JSON y GARANTIAS con sus tests;
+OPERACION con el flujo del ERP; `scripts/tercero-anulacion.sh`; y el ensayo de compatibilidad
+contra el binario de v0.5.0-alpha.

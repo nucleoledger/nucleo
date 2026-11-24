@@ -428,9 +428,16 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
         ADR-035 **PROPUESTA** (`nucleo.void.v1`, firmado por el tenant, sin disculpar
         hallazgos), PROTOCOL §5.2 propuesto (0.9-draft, no normativo), L24 propuesto y el plan
         de vectores
-  - [ ] **Siguiente: la aceptación del dev**, con las «Preguntas para el dev» de la ADR
-        respondidas y lo SIN CONFIRMAR validado con un contador. Después, por orden: los
-        vectores (fuera del código), `internal/reconcile` y la CLI `nucleo void`
+  - [x] Sprint 37: ADR-035 **ACEPTADA** (2026-11-23) con los ajustes A1 (`voided` siempre
+        array) y A2 (`--block` es el camino principal) y las nueve preguntas contestadas;
+        PROTOCOL 0.9-draft, §5.2 normativo y pendiente de implementación; L24 aceptado, sin
+        tests todavía; los vectores en `testdata/vectors/void/`, calculados fuera del código.
+        Lo SIN CONFIRMAR no cambia el diseño y queda como seguimiento con un contador
+  - [ ] **Siguiente: Sprint 38, la implementación**, en este orden: `internal/reconcile`
+        (R1–R6, `voided`, «evento de Núcleo desconocido»), `nucleo void`, CLI-JSON y
+        GARANTIAS con sus tests, OPERACION con el flujo del ERP, `tercero-anulacion.sh` y el
+        ensayo de compatibilidad contra el binario de v0.5.0-alpha
+  - [ ] Después: el `Sealer` de PHP envuelve `void` (decisión 7 del dev, segunda entrega)
 - [ ] **Huella SHA-256 de la política (JCS)** en `sync` y en `verify-receipt`, para cotejarla
       con la del contrato: operativiza L21 sin tocar el protocolo
 - [ ] **El Sealer PHP rechaza rutas relativas del binario**
