@@ -41,6 +41,7 @@ nucleo/
 │                           # lint.sh (el del CI), ensayo-testigo-mutuo.sh, valida-kit-testigo.sh,
 │                           # ensayo-actualizacion.sh (antes de etiquetar; necesita red)
 │                           # tercero-supresion.sh (G45: «comprueba», sin Núcleo ni red; completo, con módulos en caché)
+│                           # tercero-anulacion.sh (G64: lo mismo para una anulación, ADR-035)
 │                           # test-ensayo-orden.sh (H8: el orden de las descargas del ensayo, sin red)
 │                           # instala-openssl.sh (OpenSSL 3.5.9 para los vectores ML-DSA, con sha256 y PGP)
 │                           # autores.sh (las identidades de git log = las cuatro de AUTHORS; compuerta, no CI)

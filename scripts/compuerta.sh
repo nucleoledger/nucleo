@@ -258,6 +258,7 @@ paso "criterio de éxito (demo-criterio-exito.sh)" ./scripts/demo-criterio-exito
 paso "testigo mutuo (ensayo-testigo-mutuo.sh)" ./scripts/ensayo-testigo-mutuo.sh
 paso "kit del testigo (valida-kit-testigo.sh)" ./scripts/valida-kit-testigo.sh
 paso "el tercero comprueba una supresión (tercero-supresion.sh)" ./scripts/tercero-supresion.sh
+paso "el tercero comprueba una anulación (tercero-anulacion.sh)" ./scripts/tercero-anulacion.sh
 paso "el orden del ensayo, sin red (test-ensayo-orden.sh)" ./scripts/test-ensayo-orden.sh
 paso "ejemplo erp-node" ejemplo
 paso "Mermaid de ARQUITECTURA" mermaid

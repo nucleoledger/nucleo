@@ -35,6 +35,8 @@ codes, and any golden test vector in `testdata/vectors/`.
   PHP, the web page and the v0.4.0-alpha Go verifier all accept unchanged) and
   `testdata/vectors/cli-json/valido-void.json`.
 - `docs/OPERACION.md` §6, «Anular una factura»: the ERP flow.
+- `scripts/tercero-anulacion.sh`: a third party checks a void with the two receipts, `printf` and
+  `sha256sum`, without Núcleo and without network (PROTOCOL §5.2); in the gate and in CI.
 
 ### Breaking
 
