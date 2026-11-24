@@ -168,6 +168,9 @@ func printReport(e *env, rep *reconcile.Report, sinClave bool) {
 	if len(rep.Regularized) > 0 {
 		e.printf("regularizadas: %d\n", len(rep.Regularized))
 	}
+	if len(rep.Voided) > 0 {
+		e.printf("anulados   : %d\n", len(rep.Voided))
+	}
 	if rep.FullVerify != nil {
 		if rep.FullVerify.OK {
 			e.printf("ledger     : ✔ verificación exhaustiva superada\n")
@@ -192,6 +195,16 @@ func printReport(e *env, rep *reconcile.Report, sinClave bool) {
 			r.Index, r.RegularizedBy, r.Reason)
 		e.printf("      sellado el     : %s  (tiempo declarado)\n", r.SealedAt)
 		e.printf("      el evento %d lo autorizó %s\n", r.RegularizedBy, r.Describe())
+	}
+	// Una anulación válida (ADR-035) no es un hallazgo ni disculpa ninguno: el bloque se
+	// cotejó como cualquier otro. Se dice en cada reconciliación, porque no caduca.
+	for _, v := range rep.Voided {
+		e.printf("\n")
+		e.printf("  · bloque ANULADO por el emisor (ADR-035): no es un hallazgo ni disculpa ninguno\n")
+		e.printf("      bloque         : %d\n", v.Index)
+		e.printf("      hash sellado   : %s\n", v.SealedHash)
+		e.printf("      anulado en     : el bloque %d, el %s  (tiempo declarado)\n", v.VoidedBy, v.VoidedAt)
+		e.printf("      es la declaración del emisor, no el estado del SRI (L24)\n")
 	}
 	sinAutoridad := false
 	if len(rep.Findings) == 0 {
@@ -224,6 +237,22 @@ func printReport(e *env, rep *reconcile.Report, sinClave bool) {
 			e.printf("      sellado el     : %s  (tiempo declarado)\n", f.SealedAt)
 			e.printf("      motivo         : %s\n", f.Reason)
 			sinAutoridad = sinClave
+		case reconcile.StatusInvalidVoid:
+			e.printf("  ✘ ANULACIÓN INVÁLIDA (ADR-035, %s)\n", f.Rule)
+			e.printf("      bloque         : %d\n", f.Index)
+			e.printf("      sellado el     : %s  (tiempo declarado)\n", f.SealedAt)
+			e.printf("      motivo         : %s\n", f.Reason)
+		case reconcile.StatusRepeatedVoid:
+			e.printf("  ✘ ANULACIÓN REPETIDA (ADR-035, R6)\n")
+			e.printf("      bloque         : %d\n", f.Index)
+			e.printf("      sellado el     : %s  (tiempo declarado)\n", f.SealedAt)
+			e.printf("      motivo         : %s\n", f.Reason)
+		case reconcile.StatusUnknownEvent:
+			e.printf("  ✘ EVENTO DE NÚCLEO DESCONOCIDO: esta versión no implementa el tipo %s\n", f.Type)
+			e.printf("      bloque         : %d\n", f.Index)
+			e.printf("      sellado el     : %s  (tiempo declarado)\n", f.SealedAt)
+			e.printf("      lo selló una versión de Núcleo más nueva, o alguien con la clave del tenant;\n")
+			e.printf("      reconcilia con la versión que lo selló antes de darlo por bueno (ADR-035)\n")
 		}
 	}
 	if sinAutoridad {

@@ -28,6 +28,7 @@ import (
 	"github.com/nucleoledger/nucleo/internal/erasure"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/store"
+	"github.com/nucleoledger/nucleo/internal/void"
 )
 
 // Record es un registro tal como lo devuelve HOY el sistema vivo.
@@ -39,6 +40,19 @@ type Record struct {
 	// Extra marca un registro que el sistema vivo tiene y el ledger no selló.
 	// Solo tiene sentido si la fuente sabe reconocerlos; si no, se deja en false.
 	Extra bool
+
+	// hashActual, si no está vacío, sustituye al SHA-256 de Payload. Solo lo usan los
+	// tests de este paquete con los vectores de testdata/vectors/void/, que describen el
+	// sistema vivo por hashes y no por contenidos.
+	hashActual string
+}
+
+func (r Record) hash() string {
+	if r.hashActual != "" {
+		return r.hashActual
+	}
+	sum := sha256.Sum256(r.Payload)
+	return hex.EncodeToString(sum[:])
 }
 
 // Source entrega los registros vivos, uno a uno.
@@ -64,6 +78,17 @@ const (
 	// hallazgo de integridad: quien tiene la clave del tenant —la del servidor— puede
 	// sellar un evento, y sin autorización no dice nada.
 	StatusUnauthorizedErasure Status = "supresión no autorizada"
+	// StatusInvalidVoid indica un evento de anulación que incumple una de las reglas R1–R5
+	// (ADR-035, PROTOCOL 0.9-draft §5.2). La CLI nunca sella uno así: si está en la cadena,
+	// alguien la esquivó.
+	StatusInvalidVoid Status = "anulación inválida"
+	// StatusRepeatedVoid indica una segunda anulación válida de una emisión ya anulada
+	// (R6). Cuenta la primera.
+	StatusRepeatedVoid Status = "anulación repetida"
+	// StatusUnknownEvent indica un bloque con un tipo bajo el prefijo reservado nucleo. que
+	// esta versión no implementa (ADR-035, decisión 9). No se ignora: un evento del núcleo
+	// que no se entiende puede cambiar el veredicto, y fallar cerrado no apuesta a que no.
+	StatusUnknownEvent Status = "evento de Núcleo desconocido"
 )
 
 // Finding describe un registro que no cuadra.
@@ -85,9 +110,15 @@ type Finding struct {
 	// Tenant y Type ayudan a localizar el registro en el sistema vivo.
 	Tenant string `json:"tenant,omitempty"`
 	Type   string `json:"type,omitempty"`
-	// Reason dice por qué un evento de supresión no está autorizado. Solo va en ese
-	// estado.
+	// Reason dice por qué un evento de supresión no está autorizado, o por qué una
+	// anulación no vale. Solo va en esos estados.
 	Reason string `json:"reason,omitempty"`
+	// Rule es la regla de PROTOCOL §5.2 que incumple una anulación, "R1" … "R6": la
+	// primera que falla, en ese orden. Solo va en los estados de anulación.
+	Rule string `json:"rule,omitempty"`
+	// FirstVoid es, en una anulación repetida, el índice de la primera anulación válida
+	// de la misma emisión. Es un puntero para que el 0 no se confunda con «no va».
+	FirstVoid *uint64 `json:"first_void,omitempty"`
 }
 
 // Autoria dice qué clave de la política autorizó un evento de supresión (ADR-033 §C).
@@ -153,6 +184,22 @@ type Regularized struct {
 	Autoria
 }
 
+// Voided es un bloque anulado por un evento de anulación válido (ADR-035). No es un
+// hallazgo ni lo disculpa: el bloque se reconcilia como cualquier otro, y además sale aquí,
+// en cada reconciliación, porque la anulación no caduca.
+type Voided struct {
+	// Index es el bloque anulado.
+	Index uint64 `json:"index"`
+	// SealedHash es su payload_hash.
+	SealedHash string `json:"sealed_hash"`
+	// SealedAt es su tiempo declarado.
+	SealedAt string `json:"sealed_at"`
+	// VoidedBy es el bloque del evento de anulación: el primero válido.
+	VoidedBy uint64 `json:"voided_by"`
+	// VoidedAt es el tiempo declarado del evento.
+	VoidedAt string `json:"voided_at"`
+}
+
 // Report es el resultado de un recorrido completo.
 type Report struct {
 	// TreeSize es el número de bloques del ledger en el momento del cotejo.
@@ -170,6 +217,10 @@ type Report struct {
 	// Regularized son los eventos de supresión no autorizados que uno posterior, autorizado,
 	// regularizó. Van siempre, vacíos si no hay ninguno, como Findings y Erased.
 	Regularized []Regularized `json:"regularized"`
+	// Voided son los bloques anulados (ADR-035). Va siempre, vacío si no hay ninguno, como
+	// Erased (ajuste A1 de la aceptación): un integrador lee voided.length sin comprobar
+	// antes si el campo vino.
+	Voided []Voided `json:"voided"`
 	// FullVerify recoge el resultado de VerifyFull si se pidió.
 	FullVerify *FullVerifyResult `json:"full_verify,omitempty"`
 }
@@ -247,19 +298,48 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 	// contrato de docs/CLI-JSON.md promete un array. Un consumidor estricto
 	// (ADR-025) que lo lea como array se rompería justo en el caso bueno —el cotejo
 	// que cuadra— si esto fuera nil.
-	rep := &Report{TreeSize: uint64(n), Findings: []Finding{}, Erased: []Erased{}, Regularized: []Regularized{}}
+	rep := &Report{TreeSize: uint64(n), Findings: []Finding{}, Erased: []Erased{}, Regularized: []Regularized{}, Voided: []Voided{}}
 
 	// Los eventos de supresión, y cuáles están autorizados. Se leen del ledger firmado
 	// y de la política, y de nada más: la reconciliación no abre el vault, y un
 	// marcador fuera de la cadena lo podría poner cualquiera que escriba el fichero.
 	autorizados, noAutorizados, regularizados := clasificaEventos(blocks, opts.Erasure)
 	rep.Regularized = append(rep.Regularized, regularizados...)
+
+	// Las anulaciones (PROTOCOL 0.9-draft §5.2): las válidas, en voided; las demás, hallazgos.
+	// Una anulación válida no toca nada más: el bloque anulado se coteja como cualquiera.
+	anulaciones := void.Evaluate(blocks)
+	for _, a := range anulaciones.Valid {
+		rep.Voided = append(rep.Voided, Voided{
+			Index:      a.Target.Header.Index,
+			SealedHash: a.Target.Header.PayloadHash,
+			SealedAt:   a.Target.Header.Timestamp,
+			VoidedBy:   a.Event.Header.Index,
+			VoidedAt:   a.Event.Header.Timestamp,
+		})
+	}
+	slices.SortFunc(rep.Voided, func(a, b Voided) int { return cmp.Compare(a.Index, b.Index) })
+	var nucleo []Finding
+	for _, a := range anulaciones.Invalid {
+		f := hallazgoDe(a.Event, StatusInvalidVoid)
+		f.Rule, f.Reason = a.Rule, a.Reason
+		if a.Rule == "R6" {
+			f.Status = StatusRepeatedVoid
+			p := a.FirstVoid
+			f.FirstVoid = &p
+		}
+		nucleo = append(nucleo, f)
+	}
+	for _, b := range blocks {
+		if desconocido(b.Header.Type) {
+			nucleo = append(nucleo, hallazgoDe(b, StatusUnknownEvent))
+		}
+	}
 	seen := make(map[uint64]bool, len(blocks))
 
 	err = src(func(rec Record) error {
 		rep.Checked++
-		sum := sha256.Sum256(rec.Payload)
-		current := hex.EncodeToString(sum[:])
+		current := rec.hash()
 
 		if rec.Extra {
 			rep.Findings = append(rep.Findings, Finding{
@@ -303,8 +383,10 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 		if seen[b.Header.Index] {
 			continue
 		}
-		// Los eventos de supresión los sella Núcleo, no el sistema vivo: no le faltan.
-		if b.Header.Type == erasure.Type {
+		// Los bloques nucleo.* los sella Núcleo, no el sistema vivo: no le faltan. Los de
+		// supresión y anulación ya se juzgaron arriba, y un tipo reservado que esta versión
+		// no conoce es su propio hallazgo, no un faltante con nombre equivocado.
+		if erasure.Reserved(b.Header.Type) {
 			continue
 		}
 		if a := eventoQueSuprime(autorizados, b); a != nil {
@@ -328,6 +410,7 @@ func Reconcile(l Ledger, src Source, opts Options) (*Report, error) {
 		})
 	}
 	rep.Findings = append(rep.Findings, noAutorizados...)
+	rep.Findings = append(rep.Findings, nucleo...)
 	sortFindings(rep.Findings)
 
 	if opts.IncludeFullVerify {
@@ -470,6 +553,24 @@ func eventoQueSuprime(autorizados map[string][]autorizacion, b *ledger.Block) *a
 		}
 	}
 	return nil
+}
+
+// hallazgoDe es el hallazgo de integridad sobre un bloque de la cadena.
+func hallazgoDe(b *ledger.Block, st Status) Finding {
+	return Finding{
+		Status:     st,
+		Index:      b.Header.Index,
+		SealedHash: b.Header.PayloadHash,
+		SealedAt:   b.Header.Timestamp,
+		Tenant:     b.Header.Tenant,
+		Type:       b.Header.Type,
+	}
+}
+
+// desconocido dice si un tipo está bajo el prefijo reservado y esta versión no lo
+// implementa: ni supresión ni anulación (ADR-035, decisión 9).
+func desconocido(typ string) bool {
+	return erasure.Reserved(typ) && typ != erasure.Type && typ != void.Type
 }
 
 // sortFindings ordena por índice y, a igual índice, por estado, para que dos

@@ -100,7 +100,7 @@ func TestCompatibilidadConPolitica07(t *testing.T) {
 		}
 	}
 	tipos(m, map[string]string{"tree_size": "número", "checked": "número", "verified": "número",
-		"findings": "array", "erased": "array"}, "regularized")
+		"findings": "array", "erased": "array"}, "regularized", "voided") // voided: ADR-035, 0.9-draft
 	for _, e := range m["erased"].([]any) {
 		tipos(e.(map[string]any), map[string]string{"index": "número", "sealed_hash": "cadena", "sealed_at": "cadena",
 			"erased_by": "número", "erased_at": "cadena"}, "authorized_by", "erasure_key", "cutoff")
@@ -111,5 +111,8 @@ func TestCompatibilidadConPolitica07(t *testing.T) {
 	}
 	if _, ok := m["regularized"].([]any); !ok {
 		t.Errorf("regularized no es un array: %#v", m["regularized"])
+	}
+	if v, ok := m["voided"].([]any); !ok || len(v) != 0 {
+		t.Errorf("voided no es un array vacío: %#v", m["voided"])
 	}
 }
