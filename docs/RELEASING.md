@@ -114,6 +114,14 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
       comprobación. `NUCLEO_ENSAYO_SIN_FIRMA=1` lo deja seguir sin cosign, y entonces
       termina en «ENSAYO EN VERDE — SIN FIRMA VERIFICADA»: **eso no vale para este
       paso**. Lo que diga va al apartado de actualización del CHANGELOG.
+- [ ] **Desde la versión que lleva la anulación (ADR-035): el ensayo de compatibilidad**,
+      `./scripts/ensayo-anulacion-compat.sh` (red, `cosign` y PHP con ext-sodium en
+      `NUCLEO_PHP` o `php`). Crea con el HEAD un ledger con una anulación y comprueba que el
+      binario publicado de v0.5.0-alpha —verificado con cosign antes de ejecutarlo, en el
+      orden de arriba— da el evento por `"faltante"` con código 2, que el HEAD lo da en
+      `voided` con código 0, y que los recibos de la factura y de la anulación valen con
+      `@nucleoledger/verify@0.5.0-alpha.0` de npm y con el SDK de PHP del tag. Es lo que el
+      CHANGELOG dice en «Breaking». Tampoco está en la compuerta, porque necesita red.
 - [ ] `CHANGELOG.md` con la sección de la versión, escrita a mano.
 - [ ] **La documentación vigente, contra lo que el código hace.** Releer `SECURITY.md`
       contra `docs/GARANTIAS.md`: ninguna viñeta de «Out of scope» contradice una garantía,

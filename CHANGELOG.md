@@ -43,6 +43,9 @@ codes, and any golden test vector in `testdata/vectors/`.
 - **A ledger with a void event is not reconciled correctly by a binary ≤ 0.5.0-alpha**: it does
   not know `nucleo.void.v1` and reports the event as `"faltante"`, exit code 2. It fails closed,
   under the wrong name; after voiding with this version, reconcile with this version.
+  Rehearsed with the published v0.5.0-alpha binary (`checksums.txt` verified with cosign first)
+  by `scripts/ensayo-anulacion-compat.sh`; the receipts of the invoice and of the void stay
+  `valid: true` for `@nucleoledger/verify@0.5.0-alpha.0` and the v0.5.0-alpha PHP SDK.
 - `reconcile --json` gains the `voided` field and three finding states; the SDKs tolerate new
   fields, as the contract requires. Receipts, policies and every other wire format are
   unchanged.
