@@ -12,6 +12,7 @@ SUBCOMANDOS
   init        crea el vault y el ledger, y entrega las tarjetas de respaldo
   seal        sella un registro en el ledger
   erase       suprime el contenido de un registro; la cadena no cambia (ADR-031)
+  void        anula una emisión: sella su anulación y la deja intacta (ADR-035)
   erasure-key erasure-key init — crea la clave de supresión · erasure-key authorize —
               autoriza una supresión (ADR-032); fuera del servidor
   status      muestra el estado del ledger y si está atestiguado
@@ -109,6 +110,19 @@ SUPRIMIR UN REGISTRO
   Cada supresión abre una alarma que viaja en el JSON de cada comando hasta
   que alguien la reconoce con «nucleo alert ack». Las copias de seguridad
   anteriores aún contienen el contenido. Ver ADR-031 y ADR-032.
+
+ANULAR UNA FACTURA
+  Anular no es suprimir. Cuando el SRI devuelve «ANULADO» para una factura, el
+  ERP sella la anulación con el índice que guardó al sellarla:
+
+    nucleo void --block 7
+
+  (o --payload factura.xml, que busca el bloque por el SHA-256 del fichero).
+  Se sella un evento —tipo nucleo.void.v1— con el índice y el hash de la
+  emisión; la emisión no se toca, y su recibo sigue verificando. reconcile la
+  enseña como anulada en cada reconciliación y la sigue cotejando: si el ERP la
+  borra, sigue faltando. Basta la passphrase. Es la declaración del emisor, no
+  el estado del SRI, y no tiene vuelta atrás. Ver ADR-035.
 
 LÍMITES DE LECTURA
   documento a sellar         64 MiB   (--max-payload para subirlo)

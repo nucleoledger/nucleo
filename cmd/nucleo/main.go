@@ -121,6 +121,8 @@ var commands = map[string]func(*env, []string) error{
 	"verify": cmdVerify,
 	"seal":   cmdSeal,
 	"erase":  cmdErase,
+	// void sella la anulación de una emisión, que se queda intacta (ADR-035).
+	"void": cmdVoid,
 	// erasure-key no abre ningún ledger: se ejecuta en el equipo de quien custodia la
 	// clave de supresión (ADR-032).
 	"erasure-key": cmdErasureKey,
