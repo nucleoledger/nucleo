@@ -320,6 +320,7 @@ jobs:
           internal/receipt FuzzParseReceipt
           internal/receipt FuzzTextoLegible
           internal/policy FuzzPoliticaFrenteAV04
+          internal/void FuzzCidAnulacion
           LIST
       # Un hallazgo del fuzzer deja un fichero nuevo en testdata/fuzz. En CI eso
       # se perdería al terminar el job, así que se sube como artefacto: sin él,

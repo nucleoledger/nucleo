@@ -28,6 +28,7 @@ nucleo/
 │   ├── logsync/            # sincronización con testigo y detección de rollback
 │   ├── proof/ receipt/     # tlog-proof y recibos verificables offline
 │   ├── reconcile/          # comparar el sistema vivo contra lo sellado
+│   ├── void/               # el evento de anulación nucleo.void.v1 y sus reglas R1–R6 (ADR-035)
 │   ├── commit/             # compromisos HMAC-SHA-256 con subclave por tenant
 │   └── integration/        # tests de extremo a extremo entre paquetes
 ├── examples/erp-node/      # ERP de ejemplo en Node: integración de extremo a extremo
