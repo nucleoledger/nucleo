@@ -185,6 +185,16 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              resto de testdata/vectors/ no cambiaron un byte (sha256 antes y después;
              solo generar.py, que gana el caso).
 
+             Sprint 38 (ADR-035, adición autorizada por el dev): valido-anulacion, el
+             recibo del bloque 3, un evento nucleo.void.v1 que anula la factura del bloque
+             1 —payload_cid nucleo-void@v1:1; el payload, JCS de dos cadenas, construido a
+             mano en generar.py desde PROTOCOL 0.9-draft §5.2—. Es el recibo de un bloque
+             cualquiera: verifica en Go, TS, PHP y la página sin cambiar ningún SDK, y por
+             eso no lleva "requires". El verificador de Go de v0.4.0-alpha también lo da
+             por válido (internal/receipt/testdata/compat-v0.4.0-alpha.json). Los 26
+             recibos anteriores y el resto de testdata/vectors/ no cambiaron un byte
+             (sha256 antes y después; solo generar.py, que gana el caso).
+
 - mldsa/     vectores ML-DSA-44 (FIPS 204) de una implementación INDEPENDIENTE, OpenSSL
              3.5.9 (ADR-034, «Los vectores»; adición autorizada por el dev, Sprint 29).
              firmas.json: (clave pública, mensaje, firma, veredicto) con dos claves

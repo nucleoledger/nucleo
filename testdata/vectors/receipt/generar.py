@@ -412,8 +412,39 @@ def genera():
                       rec, hoja, firma, politica([(W1, W1_SK)], 1), False,
                       bloques[2][0]["timestamp"], None, 2, "unexpected_signer"))
 
+    out.append(genera_anulacion())
     out.extend(genera_mldsa())
     return out
+
+
+# --- El recibo de una anulación (ADR-035, PROTOCOL 0.9-draft §5.2) ----------------------
+
+TIPO_ANULACION = "nucleo.void.v1"
+
+
+def genera_anulacion():
+    """valido-anulacion (Sprint 38, adición autorizada por el dev): el recibo del bloque 3,
+    un evento nucleo.void.v1 que anula la factura del bloque 1. Su payload se construye aquí
+    a mano desde §5.2 —JCS de dos cadenas— y su payload_cid es nucleo-void@v1:1. Es el
+    recibo de un bloque cualquiera: los tres verificadores y la página lo aceptan sin
+    cambios, y por eso NO lleva "requires" (un lector 0.8-draft lo verifica igual)."""
+    bloques = cadena(3, TENANT_SK)
+    h1 = bloques[1][0]["payload_hash"]
+    contenido = jcs({"voided_index": "1", "voided_payload_hash": h1})
+    assert contenido == ('{"voided_index":"1","voided_payload_hash":"%s"}' % h1).encode()
+    hd = header(3, bloques[2][2].hex(), contenido, rfc3339(BASE + 3 * 60), publica(TENANT_SK))
+    hd["type"] = TIPO_ANULACION
+    hd["payload_cid"] = "nucleo-void@v1:1"
+    canon = jcs(hd)
+    digest = sha256(canon)
+    bloques.append((hd, canon, digest, TENANT_SK.sign(digest)))
+    hojas = [d + f for (_, _, d, f) in bloques]
+    prov = BASE + 30 * 60
+    nota_bytes = nota(ORIGIN, 4, raiz(hojas), LOG_SK, [(W1, W1_SK, prov)])
+    rec, hoja, firma = recibo(bloques, 3, DESTINATARIO, nota_bytes, rfc3339(prov), TENANT_SK)
+    return vector("valido-anulacion",
+                  "El recibo de un evento de anulación nucleo.void.v1 (ADR-035, PROTOCOL 0.9-draft §5.2) que anula la factura del bloque 1: payload_cid nucleo-void@v1:1 y payload_hash el de {\"voided_index\":\"1\",\"voided_payload_hash\":\"<hash del bloque 1>\"}. Es un bloque cualquiera: debe verificar en los tres verificadores y en la página, sin cambios.",
+                  rec, hoja, firma, politica([(W1, W1_SK)], 1), True, hd["timestamp"], rfc3339(prov), 3)
 
 
 # --- La política que fija la clave ML-DSA del log (ADR-034, PROTOCOL 0.8-draft §3.3) ----

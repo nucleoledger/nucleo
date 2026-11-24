@@ -263,7 +263,7 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     // recompusiera de otra manera, la inclusión no habría verificado.
     igual('recibo ' . $v['name'] . ': regla de hoja', 'leaf/v2', $v['leaf_rule']);
 }
-igual('hay 26 vectores de recibo', 26, $n);
+igual('hay 27 vectores de recibo (el 27.º, valido-anulacion: ADR-035)', 27, $n);
 
 // La clave ML-DSA-44 del log fijada (Sprint 32, ADR-034 decisión 5, opción B).
 grupo('la clave ML-DSA-44 del log fijada en la política');

@@ -1,0 +1,21 @@
+{
+  "name": "valido-anulacion",
+  "description": "El recibo de un evento de anulación nucleo.void.v1 (ADR-035, PROTOCOL 0.9-draft §5.2) que anula la factura del bloque 1: payload_cid nucleo-void@v1:1 y payload_hash el de {\"voided_index\":\"1\",\"voided_payload_hash\":\"<hash del bloque 1>\"}. Es un bloque cualquiera: debe verificar en los tres verificadores y en la página, sin cambios.",
+  "receipt": "nucleo.org/receipt@v2\ndestinatario      : María Pérez (cédula 1712345678)  (firmado por el emisor)\nemisor (tenant)   : 1790012345001\ntipo de registro  : nucleo.void.v1\nhash del contenido: 8c6fae791085b4dd953d09a01509920375063ac2c93f7f8ada05f2147ea49169\nbloque            : 3\n\nTIEMPO DECLARADO  : 2026-09-06T14:33:00Z  (declarado por el sistema emisor)\nTIEMPO DEMOSTRABLE: 2026-09-06T15:00:00Z  (atestiguado por testigos)\n\nADVERTENCIA LEGAL\nEste recibo es evidencia técnica de integridad y tiempo. No constituye por sí\nmismo un acto público, una certificación notarial ni un pronunciamiento de\nautoridad. Su valor probatorio lo determina un perito o un juez.\n\n--- prueba verificable ---\n{\"index\":3,\"payload_cid\":\"nucleo-void@v1:1\",\"payload_hash\":\"8c6fae791085b4dd953d09a01509920375063ac2c93f7f8ada05f2147ea49169\",\"prev_hash\":\"44654876cbbfe18a7108bdbc0191f169ee91a61cb4a253d027c5461274ea243a\",\"signer_pubkey\":\"79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664\",\"tenant\":\"1790012345001\",\"timestamp\":\"2026-09-06T14:33:00Z\",\"type\":\"nucleo.void.v1\"}\ncf+3/ai0K+p/23RHMs16W/xoW3JGNvhgH9z4/+NtHKbNL9dRnO/lFwC2GaS00UJcU92yS9/c5B4MYIIBOvbiDA==\n— 1790012345001 6rmqHP7q49amvTNJu9ZnIB65h1mtUDu1AeoVZCVAU/P+9KYBMCvzJhISK/IP1SG/tLuQ9r7bBiY1czAgk2a+Dg==\nc2sp.org/tlog-proof@v1\n3\nBADWZK3v8qNFGNzbNvoaOtlYzDDI/IpY4dgfp+tpKOY=\nZOFPb2xsb4v/V4NmHyv72/Dyg+3mG66cSqiUgWMgDzs=\n\nnucleoledger.com/recibos\n4\nYd8VCQPg4EKGCkptJBhbfqkTMMLJ7FzBXz5VxccQjz0=\n\n— nucleoledger.com/recibos O0zkABUtFaWE3sNTmXAN9DfFpln2zZZ8eJSZHOEF9Fap2YvnqoUFJPRzWSekPTac7Hmr6cQC3cgaZrSnuA2Sl8pIVwQ=\n— witness.example/w1 D3og2AAAAABqnX/wghv46AKl9VsqdWN6EMmAVnBcNJ+jEa+BjQ6jJdL7BvpgKTUXn2xxYZTNAjZDbP2wsWMW6PDZfRDrnEuFy0aPAQ==\n",
+  "policy": {
+    "origin": "nucleoledger.com/recibos",
+    "log_key": "5e423033044f56a13a686799487bcbfa63dd1e39204cec27dd39a26daa615628",
+    "signer_key": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664",
+    "witnesses": {
+      "witness.example/w1": "1e985ffbe45a77ee58253c6b392ae9272442cee842cec49dbf88fbb0fffd16a8"
+    },
+    "quorum": 1
+  },
+  "leaf_data": "157c8508c98369ac24d9ad3d119db390fc62b9d3295852c5186480d8b6bffe6971ffb7fda8b42bea7fdb744732cd7a5bfc685b724636f8601fdcf8ffe36d1ca6cd2fd7519cefe51700b619a4b4d1425c53ddb24bdfdce41e0c6082013af6e20c",
+  "leaf_rule": "leaf/v2",
+  "block_signature": "71ffb7fda8b42bea7fdb744732cd7a5bfc685b724636f8601fdcf8ffe36d1ca6cd2fd7519cefe51700b619a4b4d1425c53ddb24bdfdce41e0c6082013af6e20c",
+  "valid": true,
+  "declared_time": "2026-09-06T14:33:00Z",
+  "provable_time": "2026-09-06T15:00:00Z",
+  "block_index": 3
+}

@@ -39,8 +39,8 @@ describe("entorno", () => {
 describe("vectores de recibo generados por Go", () => {
   const files = listVectors("receipt");
 
-  it("hay veintiséis vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo, la firma ML-DSA del log, el timestamp con fracción, el testigo __proto__, el bloque de clave ajena (ADR-017) y los siete de la clave ML-DSA fijada (ADR-034, exigen 0.8-draft; el séptimo, la línea de 2419 bytes, del Sprint 32)", () => {
-    expect(files).toHaveLength(26);
+  it("hay veintisiete vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo, la firma ML-DSA del log, el timestamp con fracción, el testigo __proto__, el bloque de clave ajena (ADR-017) y los siete de la clave ML-DSA fijada (ADR-034, exigen 0.8-draft; el séptimo, la línea de 2419 bytes, del Sprint 32) y el recibo de una anulación nucleo.void.v1 (ADR-035, Sprint 38), que verifica sin cambios", () => {
+    expect(files).toHaveLength(27);
   });
 
   for (const file of files) {
