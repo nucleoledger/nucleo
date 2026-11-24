@@ -1,0 +1,2287 @@
+{
+ "description": "Escenarios de reconciliación con eventos de anulación (PROTOCOL 0.9-draft §5.2, ADR-035 decisiones 5 y 6). Cada uno es una cadena completa desde el génesis, con sus bloques enteros firmados por la clave del tenant, y el sistema vivo: los índices que conserva igual (present), los que conserva cambiados (changed); los demás registros no los tiene. Los veredictos están escritos a mano; findings es un conjunto, sin orden. voided y erased van siempre, también vacíos (ajuste A1).",
+ "requires": "0.9-draft",
+ "origin": "nucleoledger.com/mi-empresa",
+ "keys": {
+  "tenant": {
+   "seed": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+   "public_key": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d",
+   "role": "firma los bloques (signerKey)"
+  },
+  "erasure": {
+   "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+   "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+   "role": "autoriza las supresiones (erasureKey)"
+  }
+ },
+ "policy": {
+  "erasureKey": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8"
+ },
+ "statuses": {
+  "invalid": "anulación inválida",
+  "repeated": "anulación repetida",
+  "unknown": "evento de Núcleo desconocido"
+ },
+ "reasons": {
+  "R1": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>",
+  "R2": "la anulación apunta a un bloque que no es anterior a ella",
+  "R3": "la anulación no corresponde al contenido del bloque %s",
+  "R4": "no se anula un evento de Núcleo",
+  "R5": "la anulación es de otro tenant que la emisión"
+ },
+ "scenarios": [
+  {
+   "name": "valida-factura-presente",
+   "description": "Anulación válida de la factura 3, que el sistema vivo conserva igual: verificada y anulada. El evento (bloque 4) no está en el sistema vivo y no es faltante: es de Núcleo.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "3c97d52d8263562175143399fa751fe8270683741f2b88011d77873fbe2c8146",
+     "signature": "024e998046724a884c96d91ea8e5e2e5dcc25124fbb975e3ec4979fe65f939c353af4e123cbed5776df0e075c466b4bfe110684708b946efd7881b982da6bd09"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 3,
+      "sealed_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "sealed_at": "2026-11-23T10:03:00Z",
+      "voided_by": 4,
+      "voided_at": "2026-11-23T10:04:00Z"
+     }
+    ],
+    "erased": [],
+    "findings": [],
+    "exit_code": 0
+   }
+  },
+  {
+   "name": "valida-factura-borrada",
+   "description": "Anulación válida, pero el ERP borró la factura: sigue siendo faltante (ADR-035, decisión 6).",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "3c97d52d8263562175143399fa751fe8270683741f2b88011d77873fbe2c8146",
+     "signature": "024e998046724a884c96d91ea8e5e2e5dcc25124fbb975e3ec4979fe65f939c353af4e123cbed5776df0e075c466b4bfe110684708b946efd7881b982da6bd09"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 3,
+      "sealed_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "sealed_at": "2026-11-23T10:03:00Z",
+      "voided_by": 4,
+      "voided_at": "2026-11-23T10:04:00Z"
+     }
+    ],
+    "erased": [],
+    "findings": [
+     {
+      "status": "faltante",
+      "index": 3
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "valida-factura-cambiada",
+   "description": "Anulación válida, pero el ERP cambió la factura (un estado «anulada» dentro del registro sellado): discrepancia.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "3c97d52d8263562175143399fa751fe8270683741f2b88011d77873fbe2c8146",
+     "signature": "024e998046724a884c96d91ea8e5e2e5dcc25124fbb975e3ec4979fe65f939c353af4e123cbed5776df0e075c466b4bfe110684708b946efd7881b982da6bd09"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2
+    ],
+    "changed": [
+     3
+    ]
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 3,
+      "sealed_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "sealed_at": "2026-11-23T10:03:00Z",
+      "voided_by": 4,
+      "voided_at": "2026-11-23T10:04:00Z"
+     }
+    ],
+    "erased": [],
+    "findings": [
+     {
+      "status": "discrepancia",
+      "index": 3
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r1-cid-1",
+   "description": "R1: el payload_cid es 'nucleo-void@v1:03' (cero a la izquierda); el payload es el bueno para el bloque 3.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:03",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "86bb841d52c12e7bdab4d73a5449979d0bd39c5f31fc76dc36affa9e13094c97",
+     "signature": "647361691d911a2522a89f28dbd2b2026b32a1a3239e1d880ba708c9499186faf6711037ef2c3f9e0f5f2dafbfb309a0af72a28b60ef60a80bbd49889e322e06"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R1",
+      "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r1-cid-2",
+   "description": "R1: el payload_cid es 'nucleo-void@v1:-1' (con signo); el payload es el bueno para el bloque 3.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:-1",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "19807b6dd89a5dadced943214fcdb823bb9f440ab650e5a659268693ee6dc25e",
+     "signature": "338dca71eb465559426c3d31bafec364c919adf40564c1497bafbe7bec7a6fd890e5152fef4852d7197a350043d989954e7a518b50ba4932708a453b15228003"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R1",
+      "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r1-cid-3",
+   "description": "R1: el payload_cid es 'nucleo-void@v1:9007199254740992' (pasa de 2^53 − 1); el payload es el bueno para el bloque 3.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:9007199254740992",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "ec88d99c6011a63d17e0f2a84fe53342b5edaa1ebc54b56194aadd73bb32874c",
+     "signature": "ce8698f978fd4454d9a125f5c3e79b3b721e6038e028d2bce4982dc0baa4ae80e23c436fb1502a955dd5b2860836bbcc111c7199bef55952081c578553fa8304"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R1",
+      "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r1-cid-4",
+   "description": "R1: el payload_cid es 'nucleo-void@v1:' (sin índice); el payload es el bueno para el bloque 3.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "d987e31423e52e9441abb0f9a7981858e43a3e1538a24cd18be1d98dcf536e81",
+     "signature": "1764d86ceb13d5b816a18ffe882a474a460f13e40541797855c6d7841710a551228102632137b7eca09f01ae629a8e355cb7bb541256c97513c7f4b199cdfa0e"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R1",
+      "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r1-cid-5",
+   "description": "R1: el payload_cid es 'nucleo-void@v2:3' (otra versión); el payload es el bueno para el bloque 3.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v2:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "f4d3c27ba6aebf4f865c427ba7d19dccb61557557467e36b0b4f746693145da4",
+     "signature": "bc6757eb97a2a1863e462544b0cab5203b6f0de0b22e3e3e4eb55087b05393725391d53c396c89e8ff0b2d6c846288241dcbd5967c50cbe2c646c3eebe85800a"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R1",
+      "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r1-cid-6",
+   "description": "R1: el payload_cid es 'nucleo-void@v1:3 ' (un espacio de más al final); el payload es el bueno para el bloque 3.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3 ",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "562d57b676e5a3708d382d8b379829d068e8d7d92a40788ff8fb19f1dbf93e80",
+     "signature": "5d00666b2a6e89e9b46cd9f6cc332a27275105ff96e1ad295415a8a63ec834ef7768a559043ac6e6ec754f57535229a7c0f7d1a8b4b89bb89c298290f4d5820f"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R1",
+      "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r1-cid-7",
+   "description": "R1: el payload_cid es 'none://' (el payload_cid de un bloque sin blob); el payload es el bueno para el bloque 3.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "none://",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "3b04358ba581a444d4777f20e940039b356812cd32888910a5a854e8885414a8",
+     "signature": "b3ecb7ad6870191f7e91cfa5f85c347ddf43abcc332e7ce22729e48df43568d89316d979967d4cf13b07c984390163407a65831ac97621674767518fead7de01"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R1",
+      "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r2-su-propio-indice",
+   "description": "R2: el evento 4 apunta al índice 4, el suyo.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "c4c55a7fd665106f17f852bff4ff5dc9cf498b1e9889afe10bfbdbb0ee99d8cd",
+      "payload_cid": "nucleo-void@v1:4",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "377f8f5c8012b3321ae7c90943bc3f31b5099ba42a9071785bf9860b0295c77e",
+     "signature": "a699fe3c33252ec2a1df2701acddc30fc581fe9e65bb5755735f642672ae027b52cfb361a6fc4162d4472185b3e27404a2a728f1cfc06785cf32ab587c963c0e"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R2",
+      "reason": "la anulación apunta a un bloque que no es anterior a ella"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r2-indice-posterior",
+   "description": "R2: el evento 4 apunta al índice 7, posterior.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "e743bc4ed7f6537a78066b8417abea3c6a4c7b0b06b0ddd3c8099d37d1d85c91",
+      "payload_cid": "nucleo-void@v1:7",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "e5045b6b4d646a76fa60f974262c1cc09ceb21c63c5a7df51d8709457c6285e0",
+     "signature": "76a9a49b86987102ef998ce72dda4534cabe60758cde171e89838a61459ec6762c33331e96436437c7fa58d82edbf8f66567c5ec14b173aa4e9b687cfef51c09"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R2",
+      "reason": "la anulación apunta a un bloque que no es anterior a ella"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r3-contenido-de-otro-bloque",
+   "description": "R3: el payload_cid apunta al 3, pero el payload lleva el payload_hash de la factura 2.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "1dc3ee8887d6a7790e6260b40054d9aa6ba43f6df66a84add61c131a1bf55209",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "729d4b524c17019751b586a056b53a2ca3618a311ed4bed7591b5e8f3ac44635",
+     "signature": "280acc1bf2c38101dbed583c69a1136d22dd2c56bb2c4888d722e8a04346354dcceeae5e799b7c9085732737ccca7d48fe4e945b95c7b0400f75523c0004d602"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R3",
+      "reason": "la anulación no corresponde al contenido del bloque 3"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r3-indice-del-payload-distinto",
+   "description": "R3: el payload_cid apunta al 3 y el payload lleva el hash del 3, pero su voided_index dice 2.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "72fb6e511dcae3d267607d0858dc421fb2263174908730ec31dc155c1229e6ef",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b01f91431f506124e0cc0ef2455d324d72610f1ea3431474ebe1469b9e3b1677",
+     "signature": "05aec2217f9bcf6e9af2dbd30e7d8f73f06a99c1783c1b2e9bf6cd351263ba8821b9d002fe2ff57328162a7af071e4bc81f92ef71e3314c891e0a02dfdfe3b08"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R3",
+      "reason": "la anulación no corresponde al contenido del bloque 3"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r4-anula-una-supresion",
+   "description": "R4: se anula el evento de supresión 2 (autorizado, que suprime el registro 1).",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.erasure.v1",
+      "payload_hash": "c93e75512052ed69f7c8ed3d7e225f9d4f6bb80dd9e065e60096789c931b0371",
+      "payload_cid": "nucleo-erasure-auth@v1:1:2233770ba1e9fe27a5fc140a5778c56b8756b67cae43e357031b351001ed6173ff933acfe41dab78c373ad2efa897b7905e6f90f2d96293edef04f1cd9bce302",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "851391f8f70a13ea58c5912ae3140837f4cff355dfede3c0bc84187fb26ff1c5",
+     "signature": "4844240b376128b7ffa04a99e2cce1ecf6d582bc78e0e788c8525104d3d1d83204479a19e817c1314091ddb7e3e3001deda7f338e4201b8ddf9209bf20578402"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "851391f8f70a13ea58c5912ae3140837f4cff355dfede3c0bc84187fb26ff1c5",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "2afaaa9bfe29db2c680b30f1b6b640bbe04c907659be19685f2a88678700ecbc",
+      "payload_cid": "nucleo-void@v1:2",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "e0f522b33b3815690309721f2ba73894a302a554c90dc45fe53b4496aaae4a89",
+     "signature": "0f9b1e91d593858252664e6e49c9430988990bbcc1e17986731a2b715c5d206fbcdedc6a398cad93f5720ee6aa649b4aea78745692bd05a3ac567dac89562f07"
+    }
+   ],
+   "live": {
+    "present": [
+     0
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [
+     {
+      "index": 1,
+      "erased_by": 2
+     }
+    ],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 3,
+      "rule": "R4",
+      "reason": "no se anula un evento de Núcleo"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r4-des-anular",
+   "description": "R4: el evento 5 anula la anulación 4. No existe des-anular: la primera sigue valiendo.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "3c97d52d8263562175143399fa751fe8270683741f2b88011d77873fbe2c8146",
+     "signature": "024e998046724a884c96d91ea8e5e2e5dcc25124fbb975e3ec4979fe65f939c353af4e123cbed5776df0e075c466b4bfe110684708b946efd7881b982da6bd09"
+    },
+    {
+     "header": {
+      "index": 5,
+      "prev_hash": "3c97d52d8263562175143399fa751fe8270683741f2b88011d77873fbe2c8146",
+      "timestamp": "2026-11-23T10:05:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "f7e5ae84f52aaf71d7c4209e4029104a15b2e373905571631d336b656a819949",
+      "payload_cid": "nucleo-void@v1:4",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "a0118efb31b7fe3884f05842139f446972cb2ce32d1a75843fdee0e829332960",
+     "signature": "71a8f720730829bd99390113c285f6d559c70684d2163ccccfc57f0ab432ee41b89c9d8f6182e7f185986bba09a6a30558f243720b58a00dfe79d05f02baf90f"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 3,
+      "sealed_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "sealed_at": "2026-11-23T10:03:00Z",
+      "voided_by": 4,
+      "voided_at": "2026-11-23T10:04:00Z"
+     }
+    ],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 5,
+      "rule": "R4",
+      "reason": "no se anula un evento de Núcleo"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r5-otro-tenant",
+   "description": "R5: el evento es de otro tenant que la factura.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0988888888001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "4b30ca04c21afe918f61d132c5acf9d1a0e7b420df9fdeb1740847e91bf99053",
+     "signature": "f4ada34ff608dc9acf6da25d46d34c6e1f804bdeeb41c87f198647ec606ec0cf5d5b4736169dd08f6b34120a4697024a2aa1acc3b674a96e90085a9b29bc1504"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R5",
+      "reason": "la anulación es de otro tenant que la emisión"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r6-repetida",
+   "description": "R6: dos anulaciones válidas de la factura 3. Cuenta la primera; la segunda es hallazgo, con el índice de la primera.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "3c97d52d8263562175143399fa751fe8270683741f2b88011d77873fbe2c8146",
+     "signature": "024e998046724a884c96d91ea8e5e2e5dcc25124fbb975e3ec4979fe65f939c353af4e123cbed5776df0e075c466b4bfe110684708b946efd7881b982da6bd09"
+    },
+    {
+     "header": {
+      "index": 5,
+      "prev_hash": "3c97d52d8263562175143399fa751fe8270683741f2b88011d77873fbe2c8146",
+      "timestamp": "2026-11-23T10:05:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "413e72b2a5a502c366d51a28c81d117741db7429a18afe5ac84e8e4ec7430ae5",
+     "signature": "9580ca1159d5b861c55e33a054b1adeca7655deb0a35407ab039dc32a1a343336f746a5864ab7284288d738fba068c931b734cc56e8ba0ef140c2f42cf74070e"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 3,
+      "sealed_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "sealed_at": "2026-11-23T10:03:00Z",
+      "voided_by": 4,
+      "voided_at": "2026-11-23T10:04:00Z"
+     }
+    ],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación repetida",
+      "index": 5,
+      "rule": "R6",
+      "first_void": 4
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "r6-tras-una-invalida",
+   "description": "Una anulación inválida (R3) y después una válida de la misma factura: la válida cuenta, porque R6 solo mira anulaciones válidas anteriores.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "payload_cid": "blob://9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+     "signature": "b69eef70a995da74afd89ce8bbfd008a11352dbe111502c51fdec403366df10c8eb1d7462fa349c996ebf29770edf487d03778f92b9d34e2b08badc27df22c0c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "727df9a650d9b68e9d50b597aea15f050a1925a212c0f9e9f1981ba3e05d6da8",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "payload_cid": "blob://6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+     "signature": "82a83e54f026ff8318b5b3adffb9146a634e601e277e81a19729153d954fb7224febc083bcb46a07da8cabb3101dd4c2664a4bbc6cf23c87d5e3390fed47af0c"
+    },
+    {
+     "header": {
+      "index": 4,
+      "prev_hash": "b45c5d5b7a7cb90bde83ee24e7f2208daa08c0fe03c6d422588a4f8a08b90437",
+      "timestamp": "2026-11-23T10:04:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "1dc3ee8887d6a7790e6260b40054d9aa6ba43f6df66a84add61c131a1bf55209",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "729d4b524c17019751b586a056b53a2ca3618a311ed4bed7591b5e8f3ac44635",
+     "signature": "280acc1bf2c38101dbed583c69a1136d22dd2c56bb2c4888d722e8a04346354dcceeae5e799b7c9085732737ccca7d48fe4e945b95c7b0400f75523c0004d602"
+    },
+    {
+     "header": {
+      "index": 5,
+      "prev_hash": "729d4b524c17019751b586a056b53a2ca3618a311ed4bed7591b5e8f3ac44635",
+      "timestamp": "2026-11-23T10:05:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "289bc4f116bf9ec28c3c7216717257ec714bb27c4c8ae3a21dee5b26be1c2b85",
+      "payload_cid": "nucleo-void@v1:3",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "0685824cff07173244178ee253471ace51d33ebfae6c5f8f1d1b789d0a02ce5b",
+     "signature": "d56eb19ae99972e15cfb330c96255511d245d122741f21adc670f90febb6307254a2a8166c3b400710dfbfb6faef9169d42566a02382dcf2088d9f738e76ba0b"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 3,
+      "sealed_hash": "6842ffae5ad193f6e2fb7b3a7a9fa0ac5e6c918798499b727b20d115b2953ff3",
+      "sealed_at": "2026-11-23T10:03:00Z",
+      "voided_by": 5,
+      "voided_at": "2026-11-23T10:05:00Z"
+     }
+    ],
+    "erased": [],
+    "findings": [
+     {
+      "status": "anulación inválida",
+      "index": 4,
+      "rule": "R3",
+      "reason": "la anulación no corresponde al contenido del bloque 3"
+     }
+    ],
+    "exit_code": 2
+   }
+  },
+  {
+   "name": "suprimida-y-despues-anulada",
+   "description": "Se suprime (con autorización) el registro 1 y después se anula: suprimido y anulado.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.erasure.v1",
+      "payload_hash": "c93e75512052ed69f7c8ed3d7e225f9d4f6bb80dd9e065e60096789c931b0371",
+      "payload_cid": "nucleo-erasure-auth@v1:1:2233770ba1e9fe27a5fc140a5778c56b8756b67cae43e357031b351001ed6173ff933acfe41dab78c373ad2efa897b7905e6f90f2d96293edef04f1cd9bce302",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "851391f8f70a13ea58c5912ae3140837f4cff355dfede3c0bc84187fb26ff1c5",
+     "signature": "4844240b376128b7ffa04a99e2cce1ecf6d582bc78e0e788c8525104d3d1d83204479a19e817c1314091ddb7e3e3001deda7f338e4201b8ddf9209bf20578402"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "851391f8f70a13ea58c5912ae3140837f4cff355dfede3c0bc84187fb26ff1c5",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "2e763823356bc02ebea411ac38864e474f063919a8283d3615d0b0179a0efc78",
+      "payload_cid": "nucleo-void@v1:1",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "45f24d9ae6df6f419898020191a1d6c29511db1a17f34e16d822ea5cfef81702",
+     "signature": "f9d273ea97e470c089e47c32ba647ffddd6003ce480031bfb28373f09087d831c8243154c9caa7513e06ae8bbe56778ed5dbbdebf694bb853bd41b248c2c450f"
+    }
+   ],
+   "live": {
+    "present": [
+     0
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 1,
+      "sealed_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "sealed_at": "2026-11-23T10:01:00Z",
+      "voided_by": 3,
+      "voided_at": "2026-11-23T10:03:00Z"
+     }
+    ],
+    "erased": [
+     {
+      "index": 1,
+      "erased_by": 2
+     }
+    ],
+    "findings": [],
+    "exit_code": 0
+   }
+  },
+  {
+   "name": "anulada-y-despues-suprimida",
+   "description": "El orden contrario: se anula el registro 1 y después se suprime.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "2e763823356bc02ebea411ac38864e474f063919a8283d3615d0b0179a0efc78",
+      "payload_cid": "nucleo-void@v1:1",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "493167cfcdfd2867af823bf538ba8c3023c2cfde6ef97d215dca11f35b4a6eff",
+     "signature": "adc098f34bc8cd636049a4189d26564cb414e4417393dc78f33f81506a0fdce56a29c1f3d3aa71a691c4d3648ced764255359a19f20c6b316373a1673441270c"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "493167cfcdfd2867af823bf538ba8c3023c2cfde6ef97d215dca11f35b4a6eff",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.erasure.v1",
+      "payload_hash": "c93e75512052ed69f7c8ed3d7e225f9d4f6bb80dd9e065e60096789c931b0371",
+      "payload_cid": "nucleo-erasure-auth@v1:1:2233770ba1e9fe27a5fc140a5778c56b8756b67cae43e357031b351001ed6173ff933acfe41dab78c373ad2efa897b7905e6f90f2d96293edef04f1cd9bce302",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "f6fcf4dab322380ea5d091613f58e7f5f149b2276098046e316953649db6b5b9",
+     "signature": "c0ca801ad17745492b413f4e00d57e8ccab93eef3fbc34f4ad89961c8ca8bb801868cbd7b9e5dc8feaa141ad1992d493be537a44d13e1cec89730efaf45ef90c"
+    }
+   ],
+   "live": {
+    "present": [
+     0
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 1,
+      "sealed_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "sealed_at": "2026-11-23T10:01:00Z",
+      "voided_by": 2,
+      "voided_at": "2026-11-23T10:02:00Z"
+     }
+    ],
+    "erased": [
+     {
+      "index": 1,
+      "erased_by": 3
+     }
+    ],
+    "findings": [],
+    "exit_code": 0
+   }
+  },
+  {
+   "name": "mismo-contenido-dos-veces",
+   "description": "El mismo contenido sellado en 0 y en 2, y anulada solo la copia 2: la 0 no está anulada.",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "059d42a4d296ea8f922f1adcf533e1c9dc8c3cb44ae2e475bbed18552df708f4",
+      "payload_cid": "blob://059d42a4d296ea8f922f1adcf533e1c9dc8c3cb44ae2e475bbed18552df708f4",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "b65d9e5320435ecfcc4697aeee0b3bcc72afa8b897cf8fd68b939f2e571ce276",
+     "signature": "ba07b0843aea21f109f2cb2b3421eb753731615dcd1327cf052f45b66b22ae666d27f65981ef7a562fbf75b5f721093c0068796413891737c264b5dbf2b1570c"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "b65d9e5320435ecfcc4697aeee0b3bcc72afa8b897cf8fd68b939f2e571ce276",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "1d6ff8bacdfa860cc2730d496226faabbe904732f06f3ec2c0016d2c44f07567",
+      "payload_cid": "blob://1d6ff8bacdfa860cc2730d496226faabbe904732f06f3ec2c0016d2c44f07567",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "7527c1988818e043fd3ce8adb4ebf50875bb5d37b284327d712d592eac176476",
+     "signature": "98badd07ee0055cf3fd2dbab2d5b85296c594ad4d6a4869b7912a6d77652724ce0bfead78eea07e8b9fcefd6d4f3c21137b0f36026db735ed4af48ee39be330e"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "7527c1988818e043fd3ce8adb4ebf50875bb5d37b284327d712d592eac176476",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "059d42a4d296ea8f922f1adcf533e1c9dc8c3cb44ae2e475bbed18552df708f4",
+      "payload_cid": "blob://059d42a4d296ea8f922f1adcf533e1c9dc8c3cb44ae2e475bbed18552df708f4",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "ba097f3f0dc3730aa065a2d7e5cf36af03c54863842441c0271ab419878554e2",
+     "signature": "2b3c383d50ccbfa9361dc2c5b08704f53f84764e5de17d5b2758c0bda4039b09be6cf136a12d2dd8a734fc5fd88f8c261e9df0a5564239819ddfcac05d2cc308"
+    },
+    {
+     "header": {
+      "index": 3,
+      "prev_hash": "ba097f3f0dc3730aa065a2d7e5cf36af03c54863842441c0271ab419878554e2",
+      "timestamp": "2026-11-23T10:03:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.void.v1",
+      "payload_hash": "0b141f50a380732a44956edffa154dd689975d2450a623e6519f107b77e32a15",
+      "payload_cid": "nucleo-void@v1:2",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "7af6c2ccc9cf68e8802747dbda9ba1a34b8bd930688c603cb9cae9add06d875f",
+     "signature": "5988b1e94f5f91cbf2f9304d6a8750515c39ac26298d79135c604d0c89fb17206782a2d23113f5a35fb4c5ebf28763df4bbbbedbaa4d08ee9a3069f97ce3a905"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1,
+     2
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [
+     {
+      "index": 2,
+      "sealed_hash": "059d42a4d296ea8f922f1adcf533e1c9dc8c3cb44ae2e475bbed18552df708f4",
+      "sealed_at": "2026-11-23T10:02:00Z",
+      "voided_by": 3,
+      "voided_at": "2026-11-23T10:03:00Z"
+     }
+    ],
+    "erased": [],
+    "findings": [],
+    "exit_code": 0
+   }
+  },
+  {
+   "name": "evento-de-nucleo-desconocido",
+   "description": "Un bloque nucleo.algo.v1, que el lector no implementa: hallazgo, ni ignorado ni faltante (ADR-035, decisión 9).",
+   "blocks": [
+    {
+     "header": {
+      "index": 0,
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": "2026-11-23T10:00:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "payload_cid": "blob://eea0ce142a570c8d7df3131c5e5c9c8a7cb8bcd05147f8ebf0c4a756039c302c",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+     "signature": "d23aee79d69c142e1d752fce2878a73b1b3f508c4985ecb04dac07a740f6315fbcd1081d6cbff64c56f7f5c7b0c7dd74493e5eb64c3fbacdbfdcc032bda5b908"
+    },
+    {
+     "header": {
+      "index": 1,
+      "prev_hash": "deb55ccf43fc08b0e2dc0b17eddce28bc457c5e4d51da0b0c24e4d13a76db6fa",
+      "timestamp": "2026-11-23T10:01:00Z",
+      "tenant": "0999999999001",
+      "type": "sri.factura.v1",
+      "payload_hash": "50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "payload_cid": "blob://50fc293c4d569eac40a4d86e208b6fa230aea8b7a7f68fdf14f4ff90556c3014",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+     "signature": "1d09716e645f733c2b384abbe3ef4bcc6203507d621fee0162efab0e9392371dc91ce3278b2919225bc0311bf8c4b5d11b404f2cd283456e87c00f910eca6907"
+    },
+    {
+     "header": {
+      "index": 2,
+      "prev_hash": "36818c5a90258de2aad44c8a5b8e9dea9ba88f23edb126ffe9aa8ad9c41ea0c4",
+      "timestamp": "2026-11-23T10:02:00Z",
+      "tenant": "0999999999001",
+      "type": "nucleo.algo.v1",
+      "payload_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "payload_cid": "none://",
+      "signer_pubkey": "2543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d"
+     },
+     "hash": "48a6006ad4fbf568c6744d56b39041f5205d8f8cdf297061acfbcc7775241bac",
+     "signature": "36189504b33069d2b5ccf70cb4fb2c97a49892b528f3e195b82808b1ce904da66ab2edd1b99bcf994e4bc49c6cd256d30618f0fb3179e351fbeb5f3a09c00709"
+    }
+   ],
+   "live": {
+    "present": [
+     0,
+     1
+    ],
+    "changed": []
+   },
+   "expected": {
+    "voided": [],
+    "erased": [],
+    "findings": [
+     {
+      "status": "evento de Núcleo desconocido",
+      "index": 2
+     }
+    ],
+    "exit_code": 2
+   }
+  }
+ ]
+}

@@ -1,0 +1,55 @@
+{
+ "description": "El payload_cid del evento de anulación (PROTOCOL 0.9-draft §5.2, R1): exactamente nucleo-void@v1:<i>, con <i> en 0|[1-9][0-9]* y como mucho 2^53 − 1.",
+ "requires": "0.9-draft",
+ "valid": [
+  {
+   "payload_cid": "nucleo-void@v1:0",
+   "voided_index": "0"
+  },
+  {
+   "payload_cid": "nucleo-void@v1:3",
+   "voided_index": "3"
+  },
+  {
+   "payload_cid": "nucleo-void@v1:9007199254740991",
+   "voided_index": "9007199254740991"
+  }
+ ],
+ "invalid": [
+  {
+   "payload_cid": "nucleo-void@v1:03",
+   "description": "cero a la izquierda",
+   "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+  },
+  {
+   "payload_cid": "nucleo-void@v1:-1",
+   "description": "con signo",
+   "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+  },
+  {
+   "payload_cid": "nucleo-void@v1:9007199254740992",
+   "description": "pasa de 2^53 − 1",
+   "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+  },
+  {
+   "payload_cid": "nucleo-void@v1:",
+   "description": "sin índice",
+   "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+  },
+  {
+   "payload_cid": "nucleo-void@v2:3",
+   "description": "otra versión",
+   "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+  },
+  {
+   "payload_cid": "nucleo-void@v1:3 ",
+   "description": "un espacio de más al final",
+   "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+  },
+  {
+   "payload_cid": "none://",
+   "description": "el payload_cid de un bloque sin blob",
+   "reason": "el payload_cid de la anulación no tiene la forma nucleo-void@v1:<índice>"
+  }
+ ]
+}

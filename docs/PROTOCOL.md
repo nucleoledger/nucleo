@@ -632,6 +632,10 @@ it; the first one is reported.
 - A reconciliation that meets a block whose `type` is under `nucleo.` and that it does not
   implement MUST report it as an integrity finding (unknown Núcleo event). It MUST NOT ignore it.
 
+The reconciliation scenarios, with the verdicts written by hand, are
+`testdata/vectors/void/reconcile.json`; the payload and `payload_cid` cases, `payload.json` and
+`cid.json`.
+
 **What a void does not do.** It does not invalidate the voided block's receipt, which keeps
 verifying. And a receipt does not show that its record was not voided: that takes the ledger or
 the receipt of the void event.

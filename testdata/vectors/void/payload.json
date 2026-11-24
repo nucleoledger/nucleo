@@ -1,0 +1,80 @@
+{
+ "description": "El payload del evento de anulación (PROTOCOL 0.9-draft §5.2, ADR-035 decisión 3): JCS de exactamente dos cadenas. Los válidos, con sus bytes, su longitud y su SHA-256 (Python y sha256sum). Los inválidos, con el SHA-256 de esos bytes: un evento cuyo payload_hash es uno de ellos no corresponde al contenido del bloque (R3).",
+ "requires": "0.9-draft",
+ "valid": [
+  {
+   "name": "decision-3",
+   "description": "El vector de ADR-035, decisión 3, y de PROTOCOL §5.2.",
+   "voided_index": "3",
+   "voided_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "payload": "{\"voided_index\":\"3\",\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}",
+   "payload_length": 109,
+   "payload_sha256": "33e90e55d607b81ef2ed49ce302023676d443c424a8bc77506dd3b5c8ae72143"
+  },
+  {
+   "name": "indice-0",
+   "description": "El bloque 0 es un bloque como los demás.",
+   "voided_index": "0",
+   "voided_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "payload": "{\"voided_index\":\"0\",\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}",
+   "payload_length": 109,
+   "payload_sha256": "045d238d5930dc1d242808293b20684679f7eb3d9c8d0084b578d1fd8a1f1033"
+  },
+  {
+   "name": "indice-maximo",
+   "description": "2^53 − 1, el índice máximo de PROTOCOL §1.",
+   "voided_index": "9007199254740991",
+   "voided_payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "payload": "{\"voided_index\":\"9007199254740991\",\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}",
+   "payload_length": 124,
+   "payload_sha256": "12635ae6be68d53caf7e2f566e1d0c48f2e4338282f2eca084f3c6c27bb99f6d"
+  },
+  {
+   "name": "otro-hash",
+   "description": "Otro payload_hash cualquiera.",
+   "voided_index": "3",
+   "voided_payload_hash": "9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b",
+   "payload": "{\"voided_index\":\"3\",\"voided_payload_hash\":\"9b873fd02f93ced6aa2b0f53cf0d15d244ce64b304f5f6b4d1fa1f85d5c4137b\"}",
+   "payload_length": 109,
+   "payload_sha256": "1dc3ee8887d6a7790e6260b40054d9aa6ba43f6df66a84add61c131a1bf55209"
+  }
+ ],
+ "invalid": [
+  {
+   "name": "indice-numero",
+   "payload": "{\"voided_index\":3,\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}",
+   "payload_sha256": "3399e7ee39d6bff7a66dfc22a7952bf5a55efbb826a671893767abec6109c16d",
+   "reason": "voided_index es un número JSON: §5.2 lo exige cadena"
+  },
+  {
+   "name": "indice-cero-a-la-izquierda",
+   "payload": "{\"voided_index\":\"03\",\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}",
+   "payload_sha256": "e78da1e4e6cddecf208297e5c1ee3f0d55996a432993d3abcc03de6569bc5430",
+   "reason": "voided_index no tiene la forma 0|[1-9][0-9]*"
+  },
+  {
+   "name": "indice-2-53",
+   "payload": "{\"voided_index\":\"9007199254740992\",\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}",
+   "payload_sha256": "936ea2fb87072aa1347a3d64e69aace5267a32a3ee1d86a2705c37048eb3931a",
+   "reason": "voided_index pasa de 2^53 − 1"
+  },
+  {
+   "name": "hash-mayusculas",
+   "payload": "{\"voided_index\":\"3\",\"voided_payload_hash\":\"E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855\"}",
+   "payload_sha256": "5584b3c5c5af8928c574be3697c349ad61d209afd71751284f541cdd731912f9",
+   "reason": "voided_payload_hash no está en hexadecimal en minúscula"
+  },
+  {
+   "name": "miembro-de-mas",
+   "payload": "{\"reason\":\"error\",\"voided_index\":\"3\",\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}",
+   "payload_sha256": "cab615d38024dc80046fa46bb442d8c1341002467684161709e28bc871d776bf",
+   "reason": "un miembro de más: el payload tiene exactamente dos"
+  },
+  {
+   "name": "otro-orden",
+   "payload": "{\"voided_payload_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"voided_index\":\"3\"}",
+   "payload_sha256": "a8bcd810da506e819b01d50fda652832fe6251f428a9cd7988a9ebf722bfe4e0",
+   "reason": "los miembros en otro orden no son la serialización JCS: otros bytes y otro hash"
+  }
+ ]
+}

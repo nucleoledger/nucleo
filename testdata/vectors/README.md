@@ -256,3 +256,50 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              generador; las 25 firmas se comprobaron además con OpenSSL 3.0.2
              (pkeyutl -verify -rawin), cada una con la clave que dice y ninguna con las
              otras dos. autorizacion.json y casos.json no cambiaron un byte.
+
+- void/      vectores del EVENTO DE ANULACIÓN (PROTOCOL 0.9-draft §5.2, ADR-035; adición
+             autorizada por el dev, Sprint 37, 2026-11-23). Llevan "requires": "0.9-draft" y
+             ningún código los lee todavía: la implementación es el Sprint 38.
+
+             payload.json   el payload, JCS de dos cadenas: 4 válidos (el de la decisión 3,
+                            <i> = 3, 109 bytes, 33e90e55…; <i> = 0; <i> = 2^53 − 1; otro
+                            <h>) con bytes, longitud y SHA-256, y 6 que no lo son (índice
+                            como número, con cero a la izquierda, 2^53, hash en mayúsculas,
+                            un miembro de más, otro orden), con su motivo y el SHA-256 de
+                            sus bytes.
+             cid.json       el payload_cid (R1): 3 válidos y 7 inválidos.
+             reconcile.json 23 escenarios: cadenas completas desde el génesis, cada bloque
+                            entero (header, hash y firma), y el sistema vivo; el veredicto
+                            esperado es voided, erased, findings (estado, índice, regla y
+                            motivo) y el código de salida.
+
+             Los calcula void/generar.py, sin una línea de Núcleo: el payload y los headers
+             con json y hashlib desde §5.2 y §1, las firmas con cryptography (el tenant con
+             la semilla C de erasure/, 404142…5f; las autorizaciones de supresión con la A,
+             000102…1f). Los SHA-256 de los payloads válidos se contrastan con sha256sum, y
+             el generador se niega a escribir si el de la decisión 3 no es el que publicó la
+             ADR. Los veredictos están escritos a mano en el generador, escenario por
+             escenario; él solo rellena de la cadena el sealed_hash y los tiempos de voided.
+             Comprobado además, sin entrar en el repositorio: las 112 firmas de bloque y las 3
+             autorizaciones verifican con OpenSSL 3.5.9 (pkeyutl -verify -rawin) con su clave
+             y no con la otra, y las 23 cadenas pasan ledger.VerifyChain.
+
+                 python3 testdata/vectors/void/generar.py --check
+
+             Diferencias con el plan de ADR-035:
+             - «R3: <i> apunta a un bloque que no existe» no está: en una cadena completa
+               todo índice menor que el del evento existe, así que R2 ya lo cubre. A cambio,
+               R3 tiene dos casos: el hash de otro bloque, y un voided_index en el payload
+               distinto del del payload_cid.
+             - «el evento de anulación no está en el sistema vivo» no es un escenario
+               aparte: ninguno lo tiene, y en ninguno es faltante (valida-factura-presente
+               lo dice).
+             - Cuando fallan varias reglas, se informa la primera en el orden R1…R6; cada
+               escenario inválido rompe una sola.
+
+             sha256 de los ficheros tal como están:
+               8c8494a962f45cac5e4fd0c39af004fb0312fc12bfed56d6703c69a65249cc3e  cid.json
+               e7234be1f481b387bfb01d304bd5feff141c40997f4f4dc9403b34cf595179d2  payload.json
+               4c74bd42b8e2f783baf7fd156f0e6f945b290c97d603bdb9d52d3ee0f3a33a5d  reconcile.json
+             Ningún otro fichero de testdata/vectors/ cambió un byte (sha256 antes y después),
+             salvo este README; cli-json/ tampoco: ninguno de sus vectores es de reconcile.

@@ -250,6 +250,7 @@ paso "OpenSSL de los vectores ML-DSA" openssl_listo
 paso "vectores ML-DSA-44 (mldsa/generar.py --check)" python3 testdata/vectors/mldsa/generar.py --check
 paso "subconjunto del ACVP (mldsa/acvp.py --check)" python3 testdata/vectors/mldsa/acvp.py --check
 paso "vectores de recibo (generar.py --check)" python3 testdata/vectors/receipt/generar.py --check
+paso "vectores de anulación (void/generar.py --check)" python3 testdata/vectors/void/generar.py --check
 paso "PHP con ext-sodium" php_listo
 paso "suite de PHP, con el binario" suite_php
 paso "diferencial de los TRES verificadores" diferencial
