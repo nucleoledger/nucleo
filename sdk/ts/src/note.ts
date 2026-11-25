@@ -8,7 +8,7 @@
 // El texto se separa de las firmas por la ÚLTIMA línea en blanco, porque el
 // texto puede contener líneas vacías.
 
-import { fromBase64, toBase64, utf8 } from "./bytes.js";
+import { base64Canonical, utf8 } from "./bytes.js";
 
 /** Sig es una línea de firma sin interpretar. */
 export interface Sig {
@@ -65,11 +65,8 @@ function nombreValido(name: string): boolean {
  * relleno distintos de cero: dos textos para los mismos bytes.
  */
 function base64Canonico(s: string): Uint8Array {
-  if (s === "" || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) {
-    throw new Error("base64 no estándar");
-  }
-  const b = fromBase64(s);
-  if (toBase64(b) !== s) throw new Error("base64 no canónico");
+  const b = base64Canonical(s);
+  if (b === null) throw new Error("base64 no canónico");
   return b;
 }
 

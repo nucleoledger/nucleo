@@ -74,11 +74,22 @@ var NucleoVerify = (() => {
     for (const x of b) out += x.toString(16).padStart(2, "0");
     return out;
   }
-  function fromBase64(s) {
-    const bin = atob(s);
+  function base64Canonical(s) {
+    if (s === "" || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) return null;
+    let bin;
+    try {
+      bin = atob(s);
+    } catch {
+      return null;
+    }
     const out = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
+    return toBase64(out) === s ? out : null;
+  }
+  function fromBase64(s) {
+    const b = base64Canonical(s);
+    if (b === null) throw new Error("base64 no can\xF3nico");
+    return b;
   }
   function toBase64(b) {
     let bin = "";
@@ -119,12 +130,12 @@ var NucleoVerify = (() => {
     if (!/^(0|[1-9][0-9]*)$/.test(sizeLine)) {
       throw new Error(`tama\xF1o no can\xF3nico: ${JSON.stringify(sizeLine)}`);
     }
-    const rootHash = fromBase64(rootLine);
+    const rootHash = base64Canonical(rootLine);
+    if (rootHash === null) {
+      throw new Error("la ra\xEDz no est\xE1 en base64 can\xF3nico");
+    }
     if (rootHash.length !== 32) {
       throw new Error(`la ra\xEDz mide ${rootHash.length} bytes, se esperaban 32`);
-    }
-    if (toBase64(rootHash) !== rootLine) {
-      throw new Error("la ra\xEDz no est\xE1 en base64 can\xF3nico");
     }
     return { origin, size: BigInt(sizeLine), rootHash };
   }
@@ -430,11 +441,8 @@ time ${timestamp.toString()}
     return true;
   }
   function base64Canonico(s) {
-    if (s === "" || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) {
-      throw new Error("base64 no est\xE1ndar");
-    }
-    const b = fromBase64(s);
-    if (toBase64(b) !== s) throw new Error("base64 no can\xF3nico");
+    const b = base64Canonical(s);
+    if (b === null) throw new Error("base64 no can\xF3nico");
     return b;
   }
   function parseNote(msg) {
@@ -503,8 +511,8 @@ time ${timestamp.toString()}
     for (; i < lines.length; i++) {
       const l = lines[i];
       if (l === "") break;
-      const node = fromBase64(l);
-      if (toBase64(node) !== l) throw new Error(`nodo de la prueba en base64 no can\xF3nico: ${JSON.stringify(l)}`);
+      const node = base64Canonical(l);
+      if (node === null) throw new Error(`nodo de la prueba en base64 no can\xF3nico: ${JSON.stringify(l)}`);
       if (node.length !== 32) {
         throw new Error(`nodo de ${node.length} bytes, se esperaban 32`);
       }
@@ -1232,8 +1240,8 @@ ${id}`;
     const nl2 = rest.indexOf("\n");
     if (nl2 < 0) throw new Error("falta la firma del bloque");
     const blockSigLine = rest.slice(0, nl2);
-    const blockSig = fromBase64(blockSigLine);
-    if (toBase64(blockSig) !== blockSigLine) {
+    const blockSig = base64Canonical(blockSigLine);
+    if (blockSig === null) {
       throw new Error("la firma del bloque no est\xE1 en base64 can\xF3nico");
     }
     if (blockSig.length !== BLOCK_SIG_SIZE) {
@@ -1256,8 +1264,8 @@ ${id}`;
           `la firma del emisor dice ser de ${JSON.stringify(name)} y el header declara ${JSON.stringify(header.tenant)}`
         );
       }
-      receiptSig = fromBase64(line.slice(sp + 1));
-      if (toBase64(receiptSig) !== line.slice(sp + 1)) {
+      receiptSig = base64Canonical(line.slice(sp + 1));
+      if (receiptSig === null) {
         throw new Error("la firma del emisor no est\xE1 en base64 can\xF3nico");
       }
       if (receiptSig.length !== BLOCK_SIG_SIZE) {

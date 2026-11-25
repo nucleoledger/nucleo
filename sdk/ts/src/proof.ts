@@ -1,6 +1,6 @@
 // Recibos de c2sp.org/tlog-proof: índice, camino de inclusión y checkpoint.
 
-import { fromBase64, toBase64 } from "./bytes.js";
+import { base64Canonical } from "./bytes.js";
 
 /** MAGIC es la primera línea de un tlog-proof. */
 export const MAGIC = "c2sp.org/tlog-proof@v1";
@@ -30,9 +30,9 @@ export function parseProof(data: string): TlogProof {
   for (; i < lines.length; i++) {
     const l = lines[i]!;
     if (l === "") break;
-    const node = fromBase64(l);
+    const node = base64Canonical(l);
     // Cada nodo, en base64 canónico y solo así (ver receipt.ts sobre el \r).
-    if (toBase64(node) !== l) throw new Error(`nodo de la prueba en base64 no canónico: ${JSON.stringify(l)}`);
+    if (node === null) throw new Error(`nodo de la prueba en base64 no canónico: ${JSON.stringify(l)}`);
     if (node.length !== 32) {
       throw new Error(`nodo de ${node.length} bytes, se esperaban 32`);
     }

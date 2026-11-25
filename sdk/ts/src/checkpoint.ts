@@ -1,6 +1,6 @@
 // Checkpoints de c2sp.org/tlog-checkpoint: origin, tamaño del árbol y raíz.
 
-import { fromBase64, toBase64 } from "./bytes.js";
+import { base64Canonical } from "./bytes.js";
 
 /** Checkpoint es el cuerpo de la nota. */
 export interface Checkpoint {
@@ -29,12 +29,12 @@ export function parseCheckpoint(text: string): Checkpoint {
   if (!/^(0|[1-9][0-9]*)$/.test(sizeLine)) {
     throw new Error(`tamaño no canónico: ${JSON.stringify(sizeLine)}`);
   }
-  const rootHash = fromBase64(rootLine);
+  const rootHash = base64Canonical(rootLine);
+  if (rootHash === null) {
+    throw new Error("la raíz no está en base64 canónico");
+  }
   if (rootHash.length !== 32) {
     throw new Error(`la raíz mide ${rootHash.length} bytes, se esperaban 32`);
-  }
-  if (toBase64(rootHash) !== rootLine) {
-    throw new Error("la raíz no está en base64 canónico");
   }
   return { origin, size: BigInt(sizeLine), rootHash };
 }

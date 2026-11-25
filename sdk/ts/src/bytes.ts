@@ -29,12 +29,40 @@ export function toHex(b: Uint8Array): string {
   return out;
 }
 
-/** Decodifica base64 estándar (RFC 4648 §4). */
-export function fromBase64(s: string): Uint8Array {
-  const bin = atob(s);
+/**
+ * base64Canonical decodifica base64 estándar (RFC 4648 §4) y exige que el texto sea
+ * EXACTAMENTE la codificación de lo que decodifica: solo el alfabeto estándar, longitud
+ * múltiplo de 4, relleno bien puesto y bits de relleno a cero. Devuelve null si no.
+ *
+ * atob no sirve solo: se salta todo espacio en blanco ASCII (\t \n \f \r y el espacio)
+ * y acepta relleno ausente y bits a uno. Aquí no llega nada de eso: la expresión regular
+ * va antes, y la re-codificación después cierra lo que quede. Es la regla de
+ * checkpoint.DecodeBase64Canonical en Go y de Bytes::base64Canonical en PHP (Sprint 38b).
+ */
+export function base64Canonical(s: string): Uint8Array | null {
+  if (s === "" || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) return null;
+  let bin: string;
+  try {
+    bin = atob(s);
+  } catch {
+    return null;
+  }
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+  return toBase64(out) === s ? out : null;
+}
+
+/**
+ * Decodifica base64 estándar CANÓNICO (ver base64Canonical) y lanza si no lo es.
+ *
+ * Hasta el Sprint 38b era atob a secas y aceptaba espacios en blanco dentro; ningún
+ * punto del verificador dependía de eso —todos re-codificaban y comparaban—, pero la
+ * función es pública y la regla tiene que ser la misma para quien la use.
+ */
+export function fromBase64(s: string): Uint8Array {
+  const b = base64Canonical(s);
+  if (b === null) throw new Error("base64 no canónico");
+  return b;
 }
 
 /** Codifica bytes en base64 estándar. */
