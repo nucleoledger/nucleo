@@ -50,6 +50,39 @@ codes, and any golden test vector in `testdata/vectors/`.
   fields, as the contract requires. Receipts, policies and every other wire format are
   unchanged.
 
+### Fixed
+
+- **Canonical base64, one rule in the three verifiers** (fuzzer finding, CI run #104). Go's
+  `base64.StdEncoding.Strict()` skips `\r` and `\n` (documented) and `atob` skips all ASCII
+  whitespace; `FuzzParseProof` found that Go's tlog-proof parser, on its own, accepted a proof
+  node with a `\r` inside and re-serialized it differently. Now every base64 a verifier reads
+  —proof nodes, block signature, issuer signature, checkpoint root, every signature line of the
+  note (checked before `note.Open`) and the witness's `add-checkpoint` nodes— goes through one
+  decoder: standard alphabet, length a multiple of 4, padding in place, zero padding bits, no
+  whitespace of any kind, and re-encoding equal to the input. `checkpoint.DecodeBase64Canonical`
+  in Go, `base64Canonical` in TypeScript and the page (instead of bare `atob`),
+  `Bytes::base64Canonical` in PHP (unchanged: it already did this). PROTOCOL 0.9-draft §3.1
+  spells the rule out; it is a clarification, not a format change.
+  **Impact on v0.5.0-alpha and earlier: no verdict changes, no malleable receipt, no divergence.**
+  A complete receipt with whitespace or non-zero padding bits inside its base64 was already
+  rejected by Go, TypeScript and PHP: Go compares the received receipt with its
+  re-serialization and x/mod's note parser refuses control characters; TypeScript and PHP
+  re-encode each field and compare. Checked by running the 20 new vectors and the 690 new
+  differential mutations through the verifiers as they were before the fix (none accepted,
+  0 divergences), and the v0.4.0-alpha Go verifier through all of them (none accepted). What
+  changes is the reason given for the rejection, now the same in the three: TypeScript leaked
+  `atob`'s «The string to be decoded is not correctly encoded.» for a `\n`, and Go said x/mod's
+  `malformed note` where TypeScript and PHP say «la nota contiene caracteres de control» or
+  «base64 no canónico».
+- `fromBase64` in `@nucleoledger/verify` is now strict: it throws «base64 no canónico» on input
+  that is not canonical base64, instead of accepting what `atob` accepts.
+- Vectors: `testdata/vectors/receipt/invalido-b64-*` (20, computed outside the code by
+  `generar.py`): a `\r`, a `\n`, a space or a tab in the middle of a proof node, the block
+  signature, the issuer signature and the log's signature line of the note, and those four
+  lines with non-zero padding bits; invalid in Go, TypeScript, PHP and the page with the same
+  `reason`. The differential inserts `\r`, `\n`, space, tab and `\f` in the middle of every
+  base64 line of every receipt.
+
 ## [0.5.0-alpha] — 2026-11-17
 
 ### What this version is

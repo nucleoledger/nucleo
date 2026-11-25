@@ -1,6 +1,6 @@
 # Núcleo Protocol Specification
 
-**Version: 0.9-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; void event registered in §5.2 on 2026-11-23 and implemented in `main` the same day, not yet in a release; wire formats stabilize at v1.0)**
+**Version: 0.9-draft (decisions frozen 2026-08-31; leaf rule changed 2026-09-10; policy and signature-block rules made normative 2026-09-12; time resolution fixed at one second 2026-09-13; payload entropy made normative 2026-09-18; implementation-status amendments to §3, §6 and §9 on 2026-10-10, no normative change; erasure event registered in §5.1 on 2026-10-10; erasure authority added to §3.2 and §5.1 on 2026-10-11; retired erasure keys, regularization and the log's ML-DSA-44 key added to §3.2, §3.3 and §5.1 on 2026-10-23; §7 segments declared deferred and not normative in 0.x on 2026-11-13, no normative change elsewhere; void event registered in §5.2 on 2026-11-23 and implemented in `main` the same day, not yet in a release; canonical base64 without whitespace clarified in §3.1 on 2026-11-24, no format change; wire formats stabilize at v1.0)**
 
 > **0.9-draft registers one event, and no artifact changes a byte**
 > ([ADR-035](adr/ADR-035-anulacion-de-facturas.md), accepted 2026-11-23). What it adds: the void
@@ -224,6 +224,27 @@ Machine section of `receipt@v2`, one item per line, in this order:
 The block signature is on the wire because `leaf/v2` needs it: without it the holder
 cannot recompute `leaf_data` and therefore cannot verify inclusion at all. It MUST be
 base64 (RFC 4648 §4) of exactly 64 raw bytes, canonically encoded.
+
+#### Base64 on the wire (clarification, 2026-11-24)
+
+Every base64 field a receipt carries —the block signature, the issuer signature, each
+node of the inclusion path, the checkpoint root and every signature line of the
+checkpoint note (§3.3, rule 4)— is **canonical**: RFC 4648 §4 standard alphabet, length a
+multiple of 4, padding present and only at the end, padding bits zero, and **no
+whitespace of any kind inside it** —no CR, LF, space, tab or form feed—. Equivalently: a
+verifier MUST decode a field only if re-encoding the decoded bytes gives back exactly the
+received text, and MUST reject the receipt otherwise.
+
+This is not a new rule. "Canonically encoded" already excluded all of it, and every
+receipt Núcleo ever emitted complies. It is spelled out because common decoders do not
+enforce it by default: Go's `base64.StdEncoding.Strict()` skips CR and LF (documented),
+and `atob` skips all ASCII whitespace. A decoder that skips bytes makes two different
+files decode to the same receipt, and the point of a receipt is that it has one
+representation to archive and compare. The fuzzer found it in Go's tlog-proof parser on its
+own; complete receipts were already rejected by all three verifiers, because each of them
+also re-encodes the field or compares the whole received receipt with its re-serialization,
+and a note forbids control characters (§3.3). Vectors:
+`testdata/vectors/receipt/invalido-b64-*`.
 
 A verifier of `receipt@v2` MUST:
 
