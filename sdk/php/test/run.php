@@ -288,8 +288,8 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     // recompusiera de otra manera, la inclusión no habría verificado.
     igual('recibo ' . $v['name'] . ': regla de hoja', 'leaf/v2', $v['leaf_rule']);
 }
-igual('de ellos, 16 invalido-b64-*', 16, $nb64);
-igual('hay 43 vectores de recibo (el 27.º, valido-anulacion: ADR-035; del 28.º al 43.º, los invalido-b64-* del Sprint 38b)', 43, $n);
+igual('de ellos, 20 invalido-b64-*', 20, $nb64);
+igual('hay 47 vectores de recibo (el 27.º, valido-anulacion: ADR-035; del 28.º al 47.º, los invalido-b64-* del Sprint 38b)', 47, $n);
 
 // La clave ML-DSA-44 del log fijada (Sprint 32, ADR-034 decisión 5, opción B).
 grupo('la clave ML-DSA-44 del log fijada en la política');

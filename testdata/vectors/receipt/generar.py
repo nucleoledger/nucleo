@@ -454,6 +454,11 @@ def genera_anulacion():
 # saltaban: (nombre del vector, carácter).
 ESPACIOS = (("cr", "\r"), ("lf", "\n"), ("espacio", " "), ("tab", "\t"))
 NOMBRE_ESPACIO = {"cr": "retorno de carro", "lf": "salto de línea", "espacio": "espacio", "tab": "tabulador"}
+ALFABETO = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+# "relleno" no es un carácter: es el último carácter de datos con sus bits de relleno a
+# uno. Decodifica a los MISMOS bytes con un decodificador no estricto, y por eso es la
+# maleabilidad pura; la única defensa es re-codificar y comparar (o un Strict()).
+RELLENO = "relleno"
 
 
 def mitad(b64):
@@ -465,10 +470,21 @@ def mitad(b64):
 
 
 def inserta(linea, prefijo, ch):
-    """La línea con ch metido en la mitad de su base64, que es lo que sigue a prefijo."""
+    """La línea con ch metido en la mitad de su base64, que es lo que sigue a prefijo; con
+    ch == RELLENO, la misma línea con los bits de relleno de su último carácter a uno."""
     assert linea.startswith(prefijo), (linea, prefijo)
     b64 = linea[len(prefijo):]
-    base64.b64decode(b64, validate=True)  # la línea de partida es base64 de verdad
+    datos = base64.b64decode(b64, validate=True)  # la línea de partida es base64 de verdad
+    if ch == RELLENO:
+        pad = len(b64) - len(b64.rstrip("="))
+        assert pad in (1, 2), "sin relleno no hay bits de relleno"
+        i = len(b64) - pad - 1
+        mascara = 0x3 if pad == 1 else 0xF  # 2 o 4 bits de relleno
+        nuevo = ALFABETO[(ALFABETO.index(b64[i]) & ~mascara) | 1]
+        mutado = b64[:i] + nuevo + b64[i + 1:]
+        assert mutado != b64 and base64.b64decode(mutado) == datos
+        assert base64.b64encode(datos).decode() != mutado
+        return prefijo + mutado
     m = mitad(b64)
     return prefijo + b64[:m] + ch + b64[m:]
 
@@ -476,7 +492,8 @@ def inserta(linea, prefijo, ch):
 def genera_base64():
     """Recibos inválidos con un \r, un \n, un espacio o un tabulador en mitad de: un nodo
     de la prueba, la firma del bloque, la firma del emisor y la línea de firma del log en la
-    nota del checkpoint. Es la escena de valido-1-cosignature, y el emisor RE-FIRMA el recibo
+    nota del checkpoint; y, en esas mismas cuatro líneas, los bits de relleno de su último
+    carácter a uno (-relleno). Es la escena de valido-1-cosignature, y el emisor RE-FIRMA el recibo
     mutado (salvo cuando lo mutado es su propia firma): lo único malo es la codificación.
 
     "reason" es el motivo en los tres verificadores:
@@ -528,18 +545,24 @@ def genera_base64():
          lambda ch: arma(nodos, firma_b64, nota_bytes.replace(linea_log, inserta(linea_log, log_prefijo, ch), 1))),
     )
     for lugar, que, muta in lugares:
-        for nombre_ch, ch in ESPACIOS:
+        for nombre_ch, ch in ESPACIOS + ((RELLENO, RELLENO),):
             rec = muta(ch)
-            assert rec != intacto and len(rec) == len(intacto) + 1
+            assert rec != intacto and len(rec) == len(intacto) + (0 if ch == RELLENO else 1)
             if lugar == "nota" and ch in "\r\t":
                 motivo = "note_control_character"
             elif lugar == "firma-recibo" and ch == " ":
                 motivo = "receipt_signer_name"
             else:
                 motivo = "noncanonical_base64"
+            if ch == RELLENO:
+                cambio = (f"El recibo de valido-1-cosignature con los bits de relleno del último carácter "
+                          f"del base64 de {que} a uno: decodifica a los mismos bytes")
+            else:
+                cambio = (f"El recibo de valido-1-cosignature con un {NOMBRE_ESPACIO[nombre_ch]} ({ch!r}) "
+                          f"en mitad del base64 de {que}")
             out.append(vector(
                 f"invalido-b64-{lugar}-{nombre_ch}",
-                f"El recibo de valido-1-cosignature con un {NOMBRE_ESPACIO[nombre_ch]} ({ch!r}) en mitad del base64 de {que}"
+                cambio
                 + ("" if lugar == "firma-recibo" else "; el emisor re-firmó el recibo")
                 + ". El base64 de un recibo es canónico y no admite espacios en blanco (PROTOCOL 0.9-draft §3.1): "
                 "debe rechazarse en Go, TypeScript, PHP y la página, por el mismo motivo.",

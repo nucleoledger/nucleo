@@ -11,15 +11,16 @@ import (
 	"github.com/nucleoledger/nucleo/internal/checkpoint"
 )
 
-// TestVectoresBase64ConElMotivo (Sprint 38b): los dieciséis invalido-b64-* —un \r, un \n,
+// TestVectoresBase64ConElMotivo (Sprint 38b): los veinte invalido-b64-* —un \r, un \n,
 // un espacio o un tabulador en mitad del base64 de un nodo, de la firma del bloque, de la
-// firma del emisor o de la línea de firma del log— se rechazan, y POR EL MOTIVO que
-// declara el vector, el mismo que exigen las suites de TypeScript, PHP y la página.
+// firma del emisor o de la línea de firma del log, o sus bits de relleno a uno— se
+// rechazan, y POR EL MOTIVO que declara el vector, el mismo que exigen las suites de
+// TypeScript, PHP y la página.
 // TestVectoresGoldenDicenLaVerdad ya exige el rechazo; esto exige el porqué.
 func TestVectoresBase64ConElMotivo(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("..", "..", "testdata", "vectors", "receipt", "invalido-b64-*.json"))
-	if err != nil || len(files) != 16 {
-		t.Fatalf("vectores invalido-b64-*: %d, want 16 (%v)", len(files), err)
+	if err != nil || len(files) != 20 {
+		t.Fatalf("vectores invalido-b64-*: %d, want 20 (%v)", len(files), err)
 	}
 	for _, f := range files {
 		raw, err := os.ReadFile(f)
