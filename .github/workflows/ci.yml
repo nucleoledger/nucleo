@@ -188,7 +188,8 @@ jobs:
   #     lo único que el corpus no puede hacer.
   #
   # 15 segundos por fuzzer y no 30: ocho fuzzers × 15 s más el arranque dan unos
-  # 2m30s (nueve desde el Sprint 31, con el diferencial de la política: unos 2m45s), que es justo lo que ya tarda el job más lento (test en macOS). Así el
+  # 2m30s (diez desde el Sprint 38: el diferencial de la política, del Sprint 31, y el
+  # cid de la anulación; unos 3m), que es justo lo que ya tarda el job más lento (test en macOS). Así el
   # tiempo total de CI no sube, porque este job no pasa a ser el camino crítico.
   # Con 30 s sí lo sería, y el precio —cuatro minutos de espera en cada push— no
   # lo compensa un fuzzing que de todas formas es demasiado corto para encontrar
