@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"golang.org/x/mod/sumdb/note"
+
+	"github.com/nucleoledger/nucleo/internal/checkpoint"
 )
 
 // maxResponseBody acota lo que el cliente acepta de un testigo. Un testigo es
@@ -87,6 +88,9 @@ func (c *Client) verifyCosigned(msg []byte) error {
 // avaló un tercero esto por última vez" sin volver a pedir la clave del testigo
 // en cada invocación de la CLI.
 func (c *Client) CosignatureTime(msg []byte) (time.Time, error) {
+	if err := checkpoint.CheckSigLines(msg); err != nil {
+		return time.Time{}, fmt.Errorf("%w: %w", ErrNoCosignature, err)
+	}
 	n, err := note.Open(msg, note.VerifierList(c.verifier))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("%w: %w", ErrNoCosignature, err)
@@ -95,7 +99,7 @@ func (c *Client) CosignatureTime(msg []byte) (time.Time, error) {
 		if sig.Name != c.verifier.Name() || sig.Hash != c.verifier.KeyHash() {
 			continue
 		}
-		raw, err := base64.StdEncoding.Strict().DecodeString(sig.Base64)
+		raw, err := checkpoint.DecodeBase64Canonical(sig.Base64)
 		if err != nil {
 			return time.Time{}, fmt.Errorf("%w: blob de firma ilegible: %w", ErrNoCosignature, err)
 		}

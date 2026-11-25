@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/nucleoledger/nucleo/internal/checkpoint"
 )
 
 // Formato de cable de c2sp.org/tlog-witness. La versión exacta del spec que se
@@ -128,16 +130,17 @@ func UnmarshalAddCheckpoint(body []byte) (AddCheckpointRequest, error) {
 		// Nada de esto es quisquilloso. Este cuerpo llega por HTTP de cualquiera
 		// que alcance el puerto, y que una petición tenga una sola representación
 		// en bytes es lo que permite compararla, registrarla y razonar sobre ella.
-		node, err := base64.StdEncoding.Strict().DecodeString(string(l))
+		//
+		// La 1 y la 3 las hace ahora checkpoint.DecodeBase64Canonical, la misma
+		// función que leen el recibo y la prueba: proof.Parse tenía la 1 y la 2
+		// pero no la 3, y el fuzzer la encontró allí también (Sprint 38b).
+		node, err := checkpoint.DecodeBase64Canonical(string(l))
 		if err != nil {
 			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba en base64 inválido: %w", ErrMalformedRequest, err)
 		}
 		if len(node) != ProofNodeSize {
 			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba de %d bytes, se esperaban %d",
 				ErrMalformedRequest, len(node), ProofNodeSize)
-		}
-		if base64.StdEncoding.EncodeToString(node) != string(l) {
-			return AddCheckpointRequest{}, fmt.Errorf("%w: nodo de prueba con una codificación base64 no canónica", ErrMalformedRequest)
 		}
 		proof = append(proof, node)
 	}

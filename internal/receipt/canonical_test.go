@@ -4,6 +4,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/nucleoledger/nucleo/internal/checkpoint"
+	"github.com/nucleoledger/nucleo/internal/proof"
 )
 
 // La auditoría adversarial del 12-sep-2026 metió un \r al final de cinco líneas
@@ -96,11 +99,13 @@ func TestParseRechazaLaParteDeMaquinaNoCanonica(t *testing.T) {
 			}
 			// El rechazo tiene que ser de FORMATO, no de firma: la firma del emisor
 			// verificaría sobre el re-render, que es justo el hueco. Se exige que se
-			// cierre en la comparación de bytes y que el mensaje lo diga.
-			if !errors.Is(err, ErrFormat) {
+			// cierre en la comparación de bytes y que el mensaje lo diga. Desde el
+			// Sprint 38b lo cierra antes el decodificador canónico (el base64 de la
+			// línea ya no es canónico), y el error es el de checkpoint.ErrBase64.
+			if !errors.Is(err, ErrFormat) && !errors.Is(err, proof.ErrFormat) {
 				t.Errorf("err = %v, want ErrFormat (forma no canónica)", err)
 			}
-			if !strings.Contains(err.Error(), "forma canónica") {
+			if !strings.Contains(err.Error(), "forma canónica") && !errors.Is(err, checkpoint.ErrBase64) {
 				t.Errorf("el mensaje no dice que la forma no es canónica: %v", err)
 			}
 		})

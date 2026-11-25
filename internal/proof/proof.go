@@ -182,7 +182,7 @@ func Parse(data []byte) (Receipt, error) {
 		if line == "" {
 			break
 		}
-		node, err := base64.StdEncoding.Strict().DecodeString(line)
+		node, err := checkpoint.DecodeBase64Canonical(line)
 		if err != nil {
 			return Receipt{}, fmt.Errorf("%w: nodo %q: %w", ErrFormat, line, err)
 		}
@@ -350,7 +350,7 @@ const mldsaSignatureSize = 2420
 // esFirmaMLDSA dice si el blob de una firma tiene el tamaño de una ML-DSA-44, sin los
 // 4 bytes del key ID.
 func esFirmaMLDSA(b64 string) bool {
-	raw, err := base64.StdEncoding.Strict().DecodeString(b64)
+	raw, err := checkpoint.DecodeBase64Canonical(b64)
 	return err == nil && len(raw) == 4+mldsaSignatureSize
 }
 
@@ -388,9 +388,10 @@ func signatureLines(msg []byte) ([]byte, []sigLine, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("%w: línea de firma sin nombre y firma", ErrFormat)
 		}
-		// Strict: base64 CANÓNICO (regla 4). x/mod usa el decodificador no estricto, y
-		// dos textos para los mismos bytes son dos recibos para una sola firma.
-		blob, err := base64.StdEncoding.Strict().DecodeString(b64)
+		// Base64 CANÓNICO (regla 4). x/mod usa el decodificador no estricto, y dos
+		// textos para los mismos bytes son dos recibos para una sola firma. Strict() a
+		// secas tampoco bastaba: ignora \r y \n (Sprint 38b).
+		blob, err := checkpoint.DecodeBase64Canonical(b64)
 		if err != nil || len(blob) < 5 {
 			return nil, nil, fmt.Errorf("%w: firma de %q ilegible", ErrFormat, name)
 		}

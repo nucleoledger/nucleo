@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("c2sp.org/tlog-proof@v1\n0\n00000000000000000000000000000\r00000000000000=\n\n\n")

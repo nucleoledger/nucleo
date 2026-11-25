@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nucleoledger/nucleo/internal/checkpoint"
 	"github.com/nucleoledger/nucleo/internal/ledger"
 	"github.com/nucleoledger/nucleo/internal/proof"
 )
@@ -252,7 +253,8 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 	// Strict() y la longitud exacta, por lo mismo que en el resto del proyecto: que
 	// un recibo tenga UNA sola representación en bytes es lo que permite archivarlo
 	// y compararlo años después. Lo aprendimos con el fuzzer del testigo.
-	blockSig, err := base64.StdEncoding.Strict().DecodeString(string(rest[:nl2]))
+	// Strict() a secas no bastaba: ignora \r y \n dentro de la línea (Sprint 38b).
+	blockSig, err := checkpoint.DecodeBase64Canonical(string(rest[:nl2]))
 	if err != nil {
 		return nil, fmt.Errorf("%w: la firma del bloque no es base64 válido: %w", ErrFormat, err)
 	}
@@ -281,7 +283,7 @@ func Parse(data []byte, p proof.Policy) (*Receipt, error) {
 			return nil, fmt.Errorf("%w: la firma del emisor dice ser de %q y el header declara %q",
 				ErrFormat, name, h.Tenant)
 		}
-		receiptSig, err = base64.StdEncoding.Strict().DecodeString(line[sp+1:])
+		receiptSig, err = checkpoint.DecodeBase64Canonical(line[sp+1:])
 		if err != nil {
 			return nil, fmt.Errorf("%w: la firma del emisor no es base64 válido: %w", ErrFormat, err)
 		}

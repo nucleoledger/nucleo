@@ -112,15 +112,12 @@ func Parse(text string) (Checkpoint, error) {
 		return Checkpoint{}, fmt.Errorf("%w: tamaño %q: %w", ErrFormat, sizeText, err)
 	}
 
-	root, err := base64.StdEncoding.Strict().DecodeString(lines[2])
+	root, err := DecodeBase64Canonical(lines[2])
 	if err != nil {
 		return Checkpoint{}, fmt.Errorf("%w: raíz %q: %w", ErrFormat, lines[2], err)
 	}
 	if len(root) != RootSize {
 		return Checkpoint{}, fmt.Errorf("%w: %d", ErrRootSize, len(root))
-	}
-	if base64.StdEncoding.EncodeToString(root) != lines[2] {
-		return Checkpoint{}, fmt.Errorf("%w: raíz en base64 no canónico", ErrFormat)
 	}
 
 	return Checkpoint{Origin: origin, Size: size, RootHash: root}, nil
@@ -163,6 +160,9 @@ func Sign(c Checkpoint, signers ...note.Signer) ([]byte, error) {
 // UnverifiedSigs. Pero si NINGUNA firma verifica, note.Open falla; por eso la
 // política de un recibo debe incluir siempre la clave del log.
 func Verify(msg []byte, verifiers ...note.Verifier) (Checkpoint, *note.Note, error) {
+	if err := CheckSigLines(msg); err != nil {
+		return Checkpoint{}, nil, err
+	}
 	n, err := note.Open(msg, note.VerifierList(verifiers...))
 	if err != nil {
 		return Checkpoint{}, nil, fmt.Errorf("checkpoint: apertura de la nota: %w", err)
@@ -263,7 +263,7 @@ func IsCosigned(msg []byte) bool {
 			continue
 		}
 		j := strings.LastIndex(line, " ")
-		blob, err := base64.StdEncoding.DecodeString(line[j+1:])
+		blob, err := DecodeBase64Canonical(line[j+1:])
 		if err != nil {
 			continue
 		}
