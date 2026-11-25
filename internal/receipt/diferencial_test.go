@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -161,6 +162,25 @@ func catalogoDeMutaciones(base string) []mutacion {
 		cr[i] += "\r"
 		add("CR al final de "+et, strings.Join(cr, "\n"))
 	}
+	// Espacio en blanco en el CENTRO de cada línea base64 (Sprint 38b, el hallazgo del
+	// fuzzer en el ci #104): la firma del bloque, la del emisor, los nodos, la raíz del
+	// checkpoint y cada línea de firma de la nota. Al final de la línea ya estaba arriba;
+	// en medio es donde el decodificador de Go (\r, \n) y atob (todos) se los saltaban.
+	for i, l := range lineas {
+		pre, b64 := segmentoBase64(l)
+		if b64 == "" {
+			continue
+		}
+		m := len(b64) / 2
+		if m%4 == 0 {
+			m++ // la primera mitad nunca es por sí sola un base64 bien formado
+		}
+		for _, ws := range []string{"\r", "\n", " ", "\t", "\f"} {
+			mut := append([]string{}, lineas...)
+			mut[i] = pre + b64[:m] + ws + b64[m:]
+			add(fmt.Sprintf("%q en medio del base64 de la linea %d %.24q", ws, i, l), strings.Join(mut, "\n"))
+		}
+	}
 	acc := ""
 	for i, l := range lineas[:len(lineas)-1] {
 		acc += l + "\n"
@@ -174,6 +194,26 @@ func catalogoDeMutaciones(base string) []mutacion {
 		add(fmt.Sprintf("byte %d xor 0x20", p), string(b))
 	}
 	return out
+}
+
+// pareceBase64 reconoce una línea de base64 estándar con relleno, sin decodificarla: el
+// catálogo no usa el decodificador que prueba. Ocho caracteres como mínimo, para que
+// ninguna línea corta del texto (un índice, un tamaño) pase por base64.
+var pareceBase64 = regexp.MustCompile(`^[A-Za-z0-9+/]{6,}[A-Za-z0-9+/=]{2}$`)
+
+// segmentoBase64 parte una línea del recibo en lo que va antes del base64 y el base64:
+// la línea entera (firma del bloque, nodos, raíz) o lo que sigue al último espacio de una
+// línea de firma «— <nombre> <base64>» (la del emisor y las de la nota). "" si no hay.
+func segmentoBase64(l string) (string, string) {
+	pre, b64 := "", l
+	if strings.HasPrefix(l, "— ") {
+		sp := strings.LastIndex(l, " ")
+		pre, b64 = l[:sp+1], l[sp+1:]
+	}
+	if len(b64)%4 != 0 || !pareceBase64.MatchString(b64) || strings.Contains(strings.TrimRight(b64, "="), "=") {
+		return "", ""
+	}
+	return pre, b64
 }
 
 type politicaVector struct {
