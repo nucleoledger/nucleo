@@ -443,9 +443,17 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
         README; CHANGELOG `[Unreleased]`; `tercero-anulacion.sh` (compuerta y CI) y
         `ensayo-anulacion-compat.sh` (ritual de RELEASING, en verde contra v0.5.0-alpha). Ocho
         mutaciones, todas detectadas
-  - [ ] ADR-035 sigue diciendo «pendiente de implementación (Sprint 38)» en su estado: es
-        `docs/adr/`, y se cambia con instrucción del dev
+  - [x] El estado de ADR-035 dice «implementada en `main` (Sprint 38), sin publicar» (Sprint
+        38b, con instrucción del dev)
   - [ ] Después: el `Sealer` de PHP envuelve `void` (decisión 7 del dev, segunda entrega)
+- [x] **Sprint 38b: base64 canónico en los tres verificadores** (hallazgo de `FuzzParseProof`,
+      ci #104). Una sola regla —alfabeto, longitud %4, relleno, bits a cero, ningún espacio en
+      blanco, re-codificación igual—: `checkpoint.DecodeBase64Canonical` (y `CheckSigLines`
+      antes de `note.Open`) en Go, `base64Canonical` en TS y la página, `Bytes::base64Canonical`
+      en PHP. Veinte vectores `invalido-b64-*` con el mismo motivo en los tres; el diferencial
+      con un espacio en blanco en medio de cada línea base64 (0 divergencias); G66; PROTOCOL
+      §3.1 lo aclara. Ningún recibo completo era maleable en v0.5.0-alpha: comprobado con los
+      verificadores de antes del arreglo y con el de Go de v0.4.0-alpha
 - [ ] **Huella SHA-256 de la política (JCS)** en `sync` y en `verify-receipt`, para cotejarla
       con la del contrato: operativiza L21 sin tocar el protocolo
 - [ ] **El Sealer PHP rechaza rutas relativas del binario**

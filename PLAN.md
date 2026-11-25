@@ -129,6 +129,9 @@ El backlog atómico está en `TODO.md`. En resumen:
   SDK y en v0.4.0-alpha, el tercero sin Núcleo y el ensayo contra el binario de v0.5.0-alpha.
   Siguiente, cuando el dev lo decida: el `Sealer` de PHP envuelve `void` y la versión que lo
   publique (CHANGELOG `[Unreleased]`).
+- **Base64 canónico en los tres verificadores** (Sprint 38b), por un hallazgo del fuzzer en
+  `proof.Parse`: una sola regla en Go, TS y PHP, veinte vectores y el diferencial; PROTOCOL
+  §3.1 lo aclara sin cambiar el formato. Ningún veredicto de un recibo completo cambia.
 - **La congelación de la 0.8-draft terminó con la publicación de v0.5.0-alpha** (2026-11-19;
   regía desde el 2026-11-13). **El próximo cambio de protocolo entra solo por ADR-035**: la
   anulación del SRI con eventos `issued`/`voided`. Lo demás apuntado sigue en «Después de la
