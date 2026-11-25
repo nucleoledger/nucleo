@@ -6,6 +6,69 @@ Núcleo is **not** a blockchain, not a new database, and not a cloud service. It
 
 > *To anyone who tampers with a record, one question remains unanswerable: explain why the seal does not match.*
 
+## How it works
+
+Núcleo sits **beside** the system you already have. It does not replace your database: it seals what your application writes, gets a third party to cosign the history, and hands out receipts that anyone can verify without trusting you.
+
+```mermaid
+flowchart LR
+  subgraph S["Your server · the issuer"]
+    ERP["ERP / billing app<br/>with its own database"]
+    N["Núcleo<br/>signed, chained ledger<br/>+ encrypted vault"]
+    ERP -- "① seal each record<br/>as it happens" --> N
+    N -. "④ reconcile:<br/>live data vs sealed" .-> ERP
+  end
+  subgraph T["Independent third party"]
+    W["Witness<br/>remembers every tree head it cosigned"]
+  end
+  subgraph C["Counterparties · customer, auditor, regulator"]
+    R["Receipt + policy"]
+    V["Any verifier, offline:<br/>browser page · TS SDK<br/>PHP SDK · nucleo verify-receipt"]
+    R --> V
+  end
+  N -- "② sync: tree head" --> W
+  W -- "cosignature<br/>= provable time" --> N
+  N -- "③ receipt for one record" --> R
+  P["Policy · JSON<br/>which key signs · which witnesses · quorum"] -. "over a channel the issuer<br/>does not control" .-> R
+```
+
+### One invoice, end to end
+
+A bakery issues an invoice for $25.30. The commands and flags are the real ones; the data — the invoice, block 42, the times — is illustrative, and the arrows summarize each command's effect rather than quoting its output.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant ERP as Bakery ERP
+  participant SRI as SRI
+  participant N as Núcleo (same server)
+  participant W as Witness (third party)
+  participant C as Customer
+  ERP->>SRI: invoice 001-001-000000123 · $25.30
+  SRI-->>ERP: AUTORIZADO
+  ERP->>N: nucleo seal --profile ecuador.sri.factura --xml factura.xml
+  N-->>ERP: block 42 · chained to 41 · signed · declared time 10:03
+  ERP->>N: nucleo sync --witness https://w1.example (cron)
+  N->>W: tree head: 43 blocks, root R
+  W-->>N: cosignature at 10:05
+  Note over W: will never cosign another root for size 43
+  ERP->>N: nucleo receipt --block 42 --recipient customer
+  N-->>C: factura-42.receipt (block + inclusion proof + cosigned head)
+  C->>C: verify offline with the issuer's policy → valid, existed by 10:05
+```
+
+### What happens if…
+
+| someone… | what catches it |
+|---|---|
+| edits the total in the database ($25.30 → $2.53) | `reconcile` reports block 42 as `discrepancia`, exit 2 |
+| deletes the invoice row | `reconcile` reports block 42 as `faltante`, exit 2 |
+| rewrites Núcleo's history too, with the server and the passphrase in hand | the witness refuses a second root for a size it already cosigned; receipts already handed out keep proving the original |
+| destroys the server | receipts already handed out still verify, offline |
+| voids the invoice at the SRI, legitimately | `nucleo void --block 42`: listed under `voided` in every `reconcile`; nothing is deleted and the receipt still verifies; exit 0 |
+
+What this does **not** cover is listed, with numbers, in [GARANTIAS](docs/GARANTIAS.md): a witness the issuer controls, or one that colludes with it, can cosign anything (L2); whoever controls the keys, the ledger and every witness, with no receipts in anyone else's hands, can rewrite without a trace (L3); and the policy has to reach the counterparty over an authenticated channel other than the ledger ([PROTOCOL §3.2](docs/PROTOCOL.md)). The code-level architecture, module by module, is in [ARQUITECTURA](docs/ARQUITECTURA.md).
+
 ## Status
 
 **v0.5.0-alpha.** Alpha software: **no professional security audit has been performed,

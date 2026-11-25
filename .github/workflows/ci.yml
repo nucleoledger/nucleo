@@ -296,7 +296,7 @@ jobs:
           cache-dependency-path: tools/mermaid/package-lock.json
       - name: Install
         run: npm ci
-      - name: Validar los bloques de docs/ARQUITECTURA.md
+      - name: Validar los bloques de docs/ARQUITECTURA.md y del README
         run: npm run valida
 
   fuzz:

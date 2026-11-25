@@ -1,11 +1,11 @@
 {
   "name": "nucleo-tools-mermaid",
   "private": true,
-  "description": "Validador de los bloques Mermaid de docs/ARQUITECTURA.md. Herramienta de desarrollo: no es parte del producto.",
+  "description": "Validador de los bloques Mermaid de docs/ARQUITECTURA.md y del README. Herramienta de desarrollo: no es parte del producto.",
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "valida": "node valida.mjs --autoprueba && node valida.mjs ../../docs/ARQUITECTURA.md"
+    "valida": "node valida.mjs --autoprueba && node valida.mjs ../../docs/ARQUITECTURA.md ../../README.md"
   },
   "devDependencies": {
     "jsdom": "25.0.1",
