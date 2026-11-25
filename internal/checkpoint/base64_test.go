@@ -3,6 +3,7 @@ package checkpoint
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -53,10 +54,19 @@ func TestCheckSigLines(t *testing.T) {
 	if err := CheckSigLines([]byte(buena)); err != nil {
 		t.Fatalf("una nota limpia: %v", err)
 	}
+	// Un \r o un \t: caracteres de control, como dicen TS y PHP (y x/mod después).
 	for _, mala := range []string{
 		"cuerpo\n\n— log Zm9v\rYmFy\n",
-		"cuerpo\n\n— log Zm9vYmFy\n— testigo Zm9v YmFy\n",
 		"cuerpo\n\n— log Zm9v\tYmFy\n",
+		"cuer\rpo\n\n— log Zm9vYmFy\n",
+	} {
+		if err := CheckSigLines([]byte(mala)); !errors.Is(err, ErrFormat) || !strings.Contains(err.Error(), "caracteres de control") {
+			t.Errorf("%q: err %v, want caracteres de control", mala, err)
+		}
+	}
+	for _, mala := range []string{
+		"cuerpo\n\n— log Zm9vYmFy\n— testigo Zm9v YmFy\n",
+		"cuerpo\n\n— log Zm9vY\nmFy\n", // un \n que deja delante «Zm9vY»: no canónico
 		"cuerpo\n\n— log Zh==\n",
 	} {
 		if err := CheckSigLines([]byte(mala)); !errors.Is(err, ErrBase64) || !errors.Is(err, ErrFormat) {

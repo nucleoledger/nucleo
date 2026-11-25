@@ -54,7 +54,16 @@ func DecodeBase64Canonical(s string) ([]byte, error) {
 // estricto, que acepta relleno con bits a uno y saltos de línea dentro. Solo mira lo que
 // sigue al nombre (signed-note: «— <nombre> <base64>», nombre sin espacios); el resto de
 // la estructura lo sigue validando x/mod.
+//
+// Antes mira la regla de la nota entera que x/mod aplica primero —ningún carácter de
+// control salvo \n—, para que un \r o un \t en una línea de firma se rechace por lo
+// mismo que en los verificadores de TypeScript y PHP, que la miran primero también.
 func CheckSigLines(msg []byte) error {
+	for _, c := range msg {
+		if c < 0x20 && c != '\n' {
+			return fmt.Errorf("%w: la nota contiene caracteres de control (%q)", ErrFormat, c)
+		}
+	}
 	i := strings.LastIndex(string(msg), "\n\n")
 	if i < 0 {
 		return nil // sin bloque de firmas: note.Open dará su error
