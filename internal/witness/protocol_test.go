@@ -99,6 +99,11 @@ func TestUnmarshalRejectsMalformed(t *testing.T) {
 		{"tamaño vacío", "old \n\norigin\n1\nroot\n\n— x y\n"},
 		{"nodo de prueba no base64", "old 5\n@@@@\n\norigin\n1\nroot\n\n— x y\n"},
 		{"checkpoint vacío", "old 5\n\n"},
+		// Un \r en medio de un nodo por lo demás válido —el nodo que encontró
+		// FuzzParseProof en el ci #104—: decodifica a 32 bytes con Strict(), y solo la
+		// regla canónica lo para (Sprint 38b; antes, la tercera comprobación de
+		// UnmarshalAddCheckpoint, sin test que la sostuviera).
+		{"\\r en medio de un nodo", "old 5\n00000000000000000000000000000\r00000000000000=\n\norigin\n1\nroot\n\n— x y\n"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
