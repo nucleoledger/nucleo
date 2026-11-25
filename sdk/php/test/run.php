@@ -103,6 +103,25 @@ function motivoMLDSA(array $reasons): string
     return '';
 }
 
+/**
+ * motivoBase64 traduce las razones de un rechazo al motivo de los vectores invalido-b64-*
+ * (Sprint 38b). Son frases fijas del verificador, las mismas en TypeScript.
+ */
+function motivoBase64(array $reasons): string
+{
+    $r = implode(' | ', $reasons);
+    if (str_contains($r, 'la nota contiene caracteres de control')) {
+        return 'note_control_character';
+    }
+    if (str_contains($r, 'la firma del emisor dice ser de')) {
+        return 'receipt_signer_name';
+    }
+    if (str_contains($r, 'base64 canónico') || str_contains($r, 'base64 no canónico')) {
+        return 'noncanonical_base64';
+    }
+    return '';
+}
+
 // ---------------------------------------------------------------- leaf/v2
 grupo('hoja leaf/v2 (testdata/vectors/leaf/v2.json)');
 $leaf = leerJSON($vectores . '/leaf/v2.json');
@@ -217,6 +236,7 @@ igual('política 0.8-draft: el corte máximo, 2^53 − 1', [9007199254740991], a
 // ---------------------------------------------------------------- recibos
 grupo('recibos receipt@v2 (testdata/vectors/receipt)');
 $n = 0;
+$nb64 = 0;
 foreach (glob($vectores . '/receipt/*.json') as $f) {
     $v = leerJSON($f);
     $n++;
@@ -245,6 +265,11 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     if (isset($w['log_mldsa'])) {
         igual('recibo ' . $v['name'] . ': logMLDSA', $w['log_mldsa'], $r->logMLDSA);
     }
+    // Los de base64 (Sprint 38b), con el motivo del vector: el mismo en Go, TS y la página.
+    if (str_starts_with($v['name'], 'invalido-b64-')) {
+        $nb64++;
+        igual('recibo ' . $v['name'] . ': motivo', $v['reason'], motivoBase64($r->reasons));
+    }
     if ($exige === '0.8-draft') {
         // Y sin la clave en la política, el veredicto de without_log_mldsa_key.
         $sin = Verifier::verify($v['receipt'], politicaDelVector($v['policy'], false));
@@ -263,7 +288,8 @@ foreach (glob($vectores . '/receipt/*.json') as $f) {
     // recompusiera de otra manera, la inclusión no habría verificado.
     igual('recibo ' . $v['name'] . ': regla de hoja', 'leaf/v2', $v['leaf_rule']);
 }
-igual('hay 27 vectores de recibo (el 27.º, valido-anulacion: ADR-035)', 27, $n);
+igual('de ellos, 16 invalido-b64-*', 16, $nb64);
+igual('hay 43 vectores de recibo (el 27.º, valido-anulacion: ADR-035; del 28.º al 43.º, los invalido-b64-* del Sprint 38b)', 43, $n);
 
 // La clave ML-DSA-44 del log fijada (Sprint 32, ADR-034 decisión 5, opción B).
 grupo('la clave ML-DSA-44 del log fijada en la política');

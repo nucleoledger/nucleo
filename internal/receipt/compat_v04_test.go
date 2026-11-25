@@ -20,7 +20,7 @@ import (
 // testdata/compat-v0.4.0-alpha.json, y lo calculó el código del tag v0.4.0-alpha
 // —internal/policy.Parse, ProofPolicy, Parse y Verify de entonces—, en un worktree del tag,
 // sobre los casos que escribe este test con NUCLEO_COMPAT_CASOS_OUT (cómo regenerarlo, en
-// la cabecera del fichero). Los casos: los 27 recibos de testdata/vectors/receipt/ —los
+// la cabecera del fichero). Los casos: los 43 recibos de testdata/vectors/receipt/ —los
 // 0.8-draft con su política sin la clave—, las mutaciones de catalogoDeMutaciones sobre
 // cada uno, y el catálogo re-firmado del diferencial (sin las políticas que fijan la clave
 // ML-DSA, desde que el Sprint 32 le añadió esa escena). Cada caso se identifica por el

@@ -53,6 +53,19 @@ export function veredictoTS(v: VectorDeRecibo): Veredicto {
   throw new Error(`${v.name}: requires ${v.requires}, una versión que este test no conoce`);
 }
 
+/**
+ * motivoBase64 traduce las razones de un rechazo al motivo de los vectores invalido-b64-*
+ * (Sprint 38b). Son frases fijas del verificador, las mismas en PHP: si cambian, la suite
+ * lo nota.
+ */
+export function motivoBase64(reasons: string[]): string {
+  const r = reasons.join(" | ");
+  if (r.includes("la nota contiene caracteres de control")) return "note_control_character";
+  if (r.includes("la firma del emisor dice ser de")) return "receipt_signer_name";
+  if (r.includes("base64 canónico") || r.includes("base64 no canónico")) return "noncanonical_base64";
+  return "";
+}
+
 /** esperado es solo el "valid" de veredictoTS. */
 export function esperado(v: VectorDeRecibo): boolean {
   return veredictoTS(v).valid;

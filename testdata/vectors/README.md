@@ -195,6 +195,21 @@ MUST reproduce these byte-for-byte. Changing anything here requires an ADR.
              recibos anteriores y el resto de testdata/vectors/ no cambiaron un byte
              (sha256 antes y después; solo generar.py, que gana el caso).
 
+             Sprint 38b (adición autorizada por el dev): los dieciséis invalido-b64-*.
+             La escena de valido-1-cosignature con un \r, un \n, un espacio o un
+             tabulador en mitad del base64 de: el primer nodo de la prueba (nodo-*), la
+             firma del bloque (firma-bloque-*), la firma del emisor (firma-recibo-*) y la
+             línea de firma del log en la nota (nota-*). El emisor re-firma el recibo
+             mutado, salvo cuando lo mutado es su propia firma: lo único malo es la
+             codificación. Inválidos en Go, TS, PHP y la página con el mismo "reason":
+             noncanonical_base64; note_control_character para el \r y el \t de la nota
+             (signed-note no admite caracteres de control, y es lo primero que miran
+             los tres); receipt_signer_name para el espacio en la firma del emisor (la
+             línea se corta por su último espacio y el nombre deja de ser el tenant).
+             v0.4.0-alpha los rechaza todos también (compat-v0.4.0-alpha.json). Los 27
+             recibos anteriores y el resto de testdata/vectors/ no cambiaron un byte
+             (sha256 antes y después; solo generar.py, que gana los casos).
+
 - mldsa/     vectores ML-DSA-44 (FIPS 204) de una implementación INDEPENDIENTE, OpenSSL
              3.5.9 (ADR-034, «Los vectores»; adición autorizada por el dev, Sprint 29).
              firmas.json: (clave pública, mensaje, firma, veredicto) con dos claves

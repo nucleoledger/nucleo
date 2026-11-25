@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mldsaKeyId, verifyReceipt, type Policy } from "../src/index.js";
 import { ed25519Available } from "../src/crypto.js";
 import { fromHex } from "../src/bytes.js";
-import { esperado, listVectors, motivoMLDSA, politicaDe, readJSON, veredictoTS, type Veredicto } from "./vectors.js";
+import { esperado, listVectors, motivoBase64, motivoMLDSA, politicaDe, readJSON, veredictoTS, type Veredicto } from "./vectors.js";
 
 interface Vector {
   name: string;
@@ -39,8 +39,9 @@ describe("entorno", () => {
 describe("vectores de recibo generados por Go", () => {
   const files = listVectors("receipt");
 
-  it("hay veintisiete vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo, la firma ML-DSA del log, el timestamp con fracción, el testigo __proto__, el bloque de clave ajena (ADR-017) y los siete de la clave ML-DSA fijada (ADR-034, exigen 0.8-draft; el séptimo, la línea de 2419 bytes, del Sprint 32) y el recibo de una anulación nucleo.void.v1 (ADR-035, Sprint 38), que verifica sin cambios", () => {
-    expect(files).toHaveLength(27);
+  it("hay cuarenta y tres vectores: los tres originales, nueve de tamaño (1; y 2, 4, 8, 9 × índices 0 y último), el destinatario que imita una firma, la cosignature duplicada, las dos cosignatures del mismo testigo, la firma ML-DSA del log, el timestamp con fracción, el testigo __proto__, el bloque de clave ajena (ADR-017) y los siete de la clave ML-DSA fijada (ADR-034, exigen 0.8-draft; el séptimo, la línea de 2419 bytes, del Sprint 32) el recibo de una anulación nucleo.void.v1 (ADR-035, Sprint 38), que verifica sin cambios, y los dieciséis invalido-b64-* (Sprint 38b: un \\r, un \\n, un espacio o un tabulador en mitad de un nodo, de la firma del bloque, de la firma del emisor y de la línea de firma del log)", () => {
+    expect(files).toHaveLength(43);
+    expect(files.filter((f) => f.startsWith("invalido-b64-"))).toHaveLength(16);
   });
 
   for (const file of files) {
@@ -61,6 +62,8 @@ describe("vectores de recibo generados por Go", () => {
         expect(result.provableTime).toBeNull();
         expect(result.logMLDSA).toBeNull();
         if (w.reason !== undefined) expect(motivoMLDSA(result.reasons), result.reasons.join(" | ")).toBe(w.reason);
+        // Los de base64 (Sprint 38b), con el motivo del vector: el mismo en Go, PHP y la página.
+        if (v.name.startsWith("invalido-b64-")) expect(motivoBase64(result.reasons), result.reasons.join(" | ")).toBe(v.reason);
         return;
       }
       if (w.log_mldsa !== undefined) expect(result.logMLDSA).toBe(w.log_mldsa);

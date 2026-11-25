@@ -414,6 +414,7 @@ def genera():
 
     out.append(genera_anulacion())
     out.extend(genera_mldsa())
+    out.extend(genera_base64())
     return out
 
 
@@ -445,6 +446,105 @@ def genera_anulacion():
     return vector("valido-anulacion",
                   "El recibo de un evento de anulación nucleo.void.v1 (ADR-035, PROTOCOL 0.9-draft §5.2) que anula la factura del bloque 1: payload_cid nucleo-void@v1:1 y payload_hash el de {\"voided_index\":\"1\",\"voided_payload_hash\":\"<hash del bloque 1>\"}. Es un bloque cualquiera: debe verificar en los tres verificadores y en la página, sin cambios.",
                   rec, hoja, firma, politica([(W1, W1_SK)], 1), True, hd["timestamp"], rfc3339(prov), 3)
+
+
+# --- Base64 canónico, sin espacios en blanco (Sprint 38b, PROTOCOL 0.9-draft §3.1) ------
+
+# Los cuatro espacios en blanco que el decodificador de Go (\r, \n) o atob (todos) se
+# saltaban: (nombre del vector, carácter).
+ESPACIOS = (("cr", "\r"), ("lf", "\n"), ("espacio", " "), ("tab", "\t"))
+NOMBRE_ESPACIO = {"cr": "retorno de carro", "lf": "salto de línea", "espacio": "espacio", "tab": "tabulador"}
+
+
+def mitad(b64):
+    """El punto donde se inserta el carácter: la mitad, corrida uno si cae en un múltiplo
+    de 4. Así la primera mitad nunca es por sí sola un base64 bien formado, y un \n que
+    parte la línea en dos no deja delante una línea que se pueda leer."""
+    m = len(b64) // 2
+    return m + 1 if m % 4 == 0 else m
+
+
+def inserta(linea, prefijo, ch):
+    """La línea con ch metido en la mitad de su base64, que es lo que sigue a prefijo."""
+    assert linea.startswith(prefijo), (linea, prefijo)
+    b64 = linea[len(prefijo):]
+    base64.b64decode(b64, validate=True)  # la línea de partida es base64 de verdad
+    m = mitad(b64)
+    return prefijo + b64[:m] + ch + b64[m:]
+
+
+def genera_base64():
+    """Recibos inválidos con un \r, un \n, un espacio o un tabulador en mitad de: un nodo
+    de la prueba, la firma del bloque, la firma del emisor y la línea de firma del log en la
+    nota del checkpoint. Es la escena de valido-1-cosignature, y el emisor RE-FIRMA el recibo
+    mutado (salvo cuando lo mutado es su propia firma): lo único malo es la codificación.
+
+    "reason" es el motivo en los tres verificadores:
+      noncanonical_base64    el base64 de esa línea no es la codificación canónica de sus
+                             bytes (PROTOCOL 0.9-draft §3.1);
+      note_control_character un \r o un \t dentro de la nota: signed-note no admite
+                             caracteres de control, y es lo primero que miran los tres;
+      receipt_signer_name    un espacio dentro de la firma del emisor: la línea se corta
+                             por su ÚLTIMO espacio (PROTOCOL §3.1), así que el espacio
+                             pasa a separar nombre y firma y el nombre deja de ser el
+                             tenant del header. Sigue siendo inválido, por ese motivo."""
+    out = []
+    bloques, hojas, nota_bytes, prov = escena(5)
+    idx = 2
+    h, canon, digest, firma = bloques[idx]
+    size = int(nota_bytes.split("\n")[1])
+    path = camino(hojas[:size], idx)
+    pol = politica([(W1, W1_SK)], 1)
+    hoja = hojas[idx]
+    log_prefijo = "— " + ORIGIN + " "
+    linea_log = [l for l in nota_bytes.split("\n") if l.startswith(log_prefijo)][0]
+    assert linea_log.count(" ") == 2
+
+    def arma(nodos, firma_b64, nota_txt, muta_firma_recibo=None):
+        prueba = "c2sp.org/tlog-proof@v1\n" + str(idx) + "\n" + "".join(n + "\n" for n in nodos) + "\n" + nota_txt
+        cabeza = texto_legible(h, DESTINATARIO, rfc3339(prov))
+        sin_firma = cabeza + SEPARADOR + "\n" + canon.decode() + "\n" + firma_b64 + "\n" + prueba
+        linea = "— " + TENANT + " " + base64.b64encode(TENANT_SK.sign(sha256(sin_firma.encode()))).decode()
+        if muta_firma_recibo is not None:
+            linea = inserta(linea, "— " + TENANT + " ", muta_firma_recibo)
+        corte = sin_firma.index(prueba)
+        return sin_firma[:corte] + linea + "\n" + prueba
+
+    nodos = [base64.b64encode(n).decode() for n in path]
+    firma_b64 = base64.b64encode(firma).decode()
+    # La escena sin mutar es valido-1-cosignature, byte a byte: lo mutado parte de un
+    # recibo que verifica.
+    intacto = arma(nodos, firma_b64, nota_bytes)
+    assert intacto == recibo(bloques, idx, DESTINATARIO, nota_bytes, rfc3339(prov), TENANT_SK)[0]
+
+    lugares = (
+        ("nodo", "el primer nodo de la prueba de inclusión",
+         lambda ch: arma([inserta(nodos[0], "", ch)] + nodos[1:], firma_b64, nota_bytes)),
+        ("firma-bloque", "la línea de la firma del bloque",
+         lambda ch: arma(nodos, inserta(firma_b64, "", ch), nota_bytes)),
+        ("firma-recibo", "la firma del emisor sobre el recibo",
+         lambda ch: arma(nodos, firma_b64, nota_bytes, muta_firma_recibo=ch)),
+        ("nota", "la línea de firma del log en la nota del checkpoint",
+         lambda ch: arma(nodos, firma_b64, nota_bytes.replace(linea_log, inserta(linea_log, log_prefijo, ch), 1))),
+    )
+    for lugar, que, muta in lugares:
+        for nombre_ch, ch in ESPACIOS:
+            rec = muta(ch)
+            assert rec != intacto and len(rec) == len(intacto) + 1
+            if lugar == "nota" and ch in "\r\t":
+                motivo = "note_control_character"
+            elif lugar == "firma-recibo" and ch == " ":
+                motivo = "receipt_signer_name"
+            else:
+                motivo = "noncanonical_base64"
+            out.append(vector(
+                f"invalido-b64-{lugar}-{nombre_ch}",
+                f"El recibo de valido-1-cosignature con un {NOMBRE_ESPACIO[nombre_ch]} ({ch!r}) en mitad del base64 de {que}"
+                + ("" if lugar == "firma-recibo" else "; el emisor re-firmó el recibo")
+                + ". El base64 de un recibo es canónico y no admite espacios en blanco (PROTOCOL 0.9-draft §3.1): "
+                "debe rechazarse en Go, TypeScript, PHP y la página, por el mismo motivo.",
+                rec, hoja, firma, pol, False, h["timestamp"], None, idx, motivo))
+    return out
 
 
 # --- La política que fija la clave ML-DSA del log (ADR-034, PROTOCOL 0.8-draft §3.3) ----

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { esperado, listVectors, politicaDe, readJSON, veredictoTS, type Veredicto } from "./vectors.js";
+import { esperado, listVectors, motivoBase64, politicaDe, readJSON, veredictoTS, type Veredicto } from "./vectors.js";
 import { LEGAL_NOTICE } from "../src/receipt.js";
 
 // Verificación ANTI-TEATRO.
@@ -25,6 +25,7 @@ interface Vector {
   policy: { origin: string; log_key: string;
   signer_key: string; witnesses: Record<string, string>; quorum: number; log_mldsa_key?: string };
   valid: boolean;
+  reason?: string;
   provable_time?: string;
   block_index: number;
   requires?: string;
@@ -73,9 +74,12 @@ describe("el bundle que sirve la página web", () => {
     it(`${v.name}: el bundle da el mismo veredicto que la biblioteca`, async () => {
       const api = loadBundle();
       const verify = api["verifyReceipt"] as (r: string, p: unknown) => Promise<{
-        valid: boolean; provableTime: string | null; blockIndex: bigint | null; logMLDSA: string | null }>;
+        valid: boolean; provableTime: string | null; blockIndex: bigint | null; logMLDSA: string | null;
+        reasons: string[] }>;
       const result = await verify(v.receipt, politicaDe(v));
       expect(result.valid).toBe(esperado(v));
+      // Los de base64 (Sprint 38b): la página los rechaza por el mismo motivo que Go y PHP.
+      if (v.name.startsWith("invalido-b64-")) expect(motivoBase64(result.reasons), result.reasons.join(" | ")).toBe(v.reason);
       expect(result.logMLDSA).not.toBe("verified");
       if (esperado(v)) {
         expect(result.provableTime).toBe(v.provable_time ?? null);
