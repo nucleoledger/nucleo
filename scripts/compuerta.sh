@@ -260,6 +260,7 @@ paso "kit del testigo (valida-kit-testigo.sh)" ./scripts/valida-kit-testigo.sh
 paso "el tercero comprueba una supresión (tercero-supresion.sh)" ./scripts/tercero-supresion.sh
 paso "el tercero comprueba una anulación (tercero-anulacion.sh)" ./scripts/tercero-anulacion.sh
 paso "el orden del ensayo, sin red (test-ensayo-orden.sh)" ./scripts/test-ensayo-orden.sh
+paso "release.yml y release-snapshot.yml construyen con lo mismo" ./scripts/workflows-coinciden.sh
 paso "ejemplo erp-node" ejemplo
 paso "Mermaid de ARQUITECTURA" mermaid
 paso "sin testigos huérfanos" sin_testigos_huerfanos

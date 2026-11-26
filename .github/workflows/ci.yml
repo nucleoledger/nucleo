@@ -502,6 +502,8 @@ jobs:
   # run: (inyección), una caché en un workflow que publica, credenciales persistidas.
   # Los dos en versión EXACTA y con el binario comprobado antes de ejecutarlo; los dos
   # fallan ante cualquier hallazgo. Lo que se acepta va en .github/zizmor.yml, con su
+  # motivo. Y scripts/workflows-coinciden.sh: release.yml y release-snapshot.yml con la
+  # misma goreleaser-action@SHA y la misma goreleaser exacta.
   workflows:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -546,6 +548,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           "$RUNNER_TEMP/zizmor" --config .github/zizmor.yml .github/workflows/
+      - name: release.yml y release-snapshot.yml, la misma acción y la misma goreleaser
+        run: ./scripts/workflows-coinciden.sh
 
   # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
   # La configuración y el porqué de cada exclusión están en .golangci.yml.

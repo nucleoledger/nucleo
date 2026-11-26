@@ -1,0 +1,95 @@
+name: release-snapshot
+
+# El release, en seco (Sprint 43). release.yml solo corre con un tag, y lo que no se
+# ejecuta no se prueba: una goreleaser nueva, un cambio en .goreleaser.yaml o en go.mod
+# podían esperar al día del tag para fallar. Esto construye lo mismo que release.yml
+# —la misma imagen, la misma goreleaser-action@SHA y la misma goreleaser exacta, que
+# scripts/workflows-coinciden.sh obliga a mantener iguales— sin firmar ni publicar
+# nada, y comprueba lo que un release tiene que llevar.
+#
+# Lo que NO prueba: la firma (cosign-installer y cosign, --skip=sign) ni la procedencia
+# (attest-build-provenance), que necesitan el token OIDC de un tag. Esas solo se
+# ejecutan en el próximo release de verdad.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .goreleaser.yaml
+      - .github/workflows/release.yml
+      - .github/workflows/release-snapshot.yml
+      - go.mod
+      - go.sum
+  schedule:
+    # Una vez por semana, aunque nada cambie aquí: la imagen del runner y lo que se
+    # descarga sí cambian.
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    # goreleaser corre antes los tests con -race, con y sin testhooks (los hooks de
+    # .goreleaser.yaml): unos 10 min en el runner.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Como en release.yml: el historial y los tags, para la versión y el commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          # La misma que release.yml (scripts/workflows-coinciden.sh).
+          version: 'v2.20.3'
+          args: release --snapshot --clean --skip=sign
+
+      - name: Lo que un release tiene que llevar
+        run: |
+          set -euo pipefail
+          cd dist
+          ls
+          # Seis archivos —linux, darwin y windows, amd64 y arm64— y checksums.txt.
+          n=$(find . -maxdepth 1 \( -name 'nucleo_*.tar.gz' -o -name 'nucleo_*.zip' \) | wc -l)
+          echo "archivos: $n"
+          [ "$n" = 6 ]
+          [ -f checksums.txt ]
+          sha256sum -c checksums.txt
+          # NOTICE, AUTHORS y LICENSE dentro del de linux/amd64.
+          ts=(nucleo_*_linux_amd64.tar.gz); t=${ts[0]}
+          # La lista una vez: con pipefail, `tar | grep -q` falla cuando grep cierra la
+          # tubería al encontrar la línea y tar muere por SIGPIPE.
+          lista=$(tar -tzf "$t")
+          for f in NOTICE AUTHORS LICENSE nucleo; do
+            grep -qx "$f" <<<"$lista" || { echo "falta $f en $t" >&2; exit 1; }
+          done
+          mkdir x && tar -xzf "$t" -C x
+          # nucleo version: el commit corto de ESTE HEAD y una fecha de verdad. «none» o
+          # 0001-01-01 querrían decir que goreleaser no leyó el estado de git.
+          v=$(x/nucleo version)
+          echo "$v"
+          if grep -qE 'commit none|0001-01-01' <<<"$v"; then
+            echo "goreleaser no leyó el estado de git: $v" >&2; exit 1
+          fi
+          grep -q "commit ${GITHUB_SHA::7} " <<<"$v" || { echo "no es el commit ${GITHUB_SHA::7}" >&2; exit 1; }
+          grep -qE ' · [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z · ' <<<"$v" || { echo "sin fecha del commit" >&2; exit 1; }
+          # Los ganchos de prueba no están: las seis variables abortan con 1, y el texto
+          # que solo imprime un binario con testhooks no aparece.
+          for g in SEED CLOCK PASSPHRASE DIE_AT PAUSE_AT CARDS; do
+            c=0; env "NUCLEO_TEST_$g=x" x/nucleo status >/dev/null 2>&1 || c=$?
+            echo "NUCLEO_TEST_$g → $c"
+            [ "$c" = 1 ]
+          done
+          bin=$(strings x/nucleo)
+          if grep -q 'HONRA los ganchos de prueba' <<<"$bin"; then
+            echo "el binario lleva los ganchos de prueba" >&2; exit 1
+          fi
+          echo "✔ el snapshot lleva lo que un release tiene que llevar"
