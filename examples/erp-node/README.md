@@ -175,7 +175,7 @@ mi factura** y qué hacer ahora.
   el mismo commit que rompa el contrato `--json`, el formato del recibo o un código de
   salida. Eso es el objetivo, no un efecto colateral. Está razonado en
   [ADR-026](../../docs/adr/ADR-026-ejemplo-de-integracion.md).
-- **Usa el verificador publicado en npm**, `@nucleoledger/verify@0.5.0-alpha.0`, fijado
+- **Usa el verificador publicado en npm**, `@nucleoledger/verify@0.6.0-alpha.0`, fijado
   por versión exacta y por hash en `package-lock.json`: lo mismo que instalarías en tu
   proyecto. `npm run setup` instala con `npm ci`, que se niega si `package.json` y el
   lockfile no coinciden: el job `ejemplo` del CI prueba exactamente esa versión. Tiene procedencia —lo construyó `publish-npm.yml` de este repositorio— y lo

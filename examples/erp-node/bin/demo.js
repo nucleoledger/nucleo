@@ -372,7 +372,7 @@ if (process.platform !== "linux" || !existsSync("/usr/bin/script")) {
 }
 
 // Una sola política: la misma, ya con erasureKey, sigue verificando el recibo del cliente
-// con el @nucleoledger/verify de npm (0.5.0-alpha.0 la acepta).
+// con el @nucleoledger/verify de npm (0.6.0-alpha.0 la acepta).
 const conClave = await verifyReceipt(reciboDelCliente?.texto ?? "", parsePolicyText(readFileSync(cfg.FICHERO_POLITICA, "utf8")));
 comprueba(conClave.valid === true, `con la política con erasureKey, el recibo no verificó: ${conClave.reasons.join(" | ")}`);
 dice("  y con esa misma política, ya con erasureKey, el recibo del cliente del paso 4 sigue verificando");
