@@ -446,6 +446,9 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
   - [x] El estado de ADR-035 dice «implementada en `main` (Sprint 38), sin publicar» (Sprint
         38b, con instrucción del dev)
   - [ ] Después: el `Sealer` de PHP envuelve `void` (decisión 7 del dev, segunda entrega)
+- [x] **H1 de la revisión del 2026-11-25** (`docs/revision-externa-modelo-2026-11-25.md`): dos
+      `nucleo void --block N` concurrentes sellaban dos anulaciones. Cerrado en `ce38c80` (Sprint
+      40): R6 dentro del reintento de sellado; G62 con sus dos tests de carrera
 - [x] **Sprint 38b: base64 canónico en los tres verificadores** (hallazgo de `FuzzParseProof`,
       ci #104). Una sola regla —alfabeto, longitud %4, relleno, bits a cero, ningún espacio en
       blanco, re-codificación igual—: `checkpoint.DecodeBase64Canonical` (y `CheckSigLines`
