@@ -1,7 +1,7 @@
 # ADR-035-anulacion-de-facturas
 
-**Estado:** ACEPTADA el 2026-11-23 (Sprint 37), con los vectores; implementada en `main`
-(Sprint 38), sin publicar. Propuesta el 2026-11-22 (Sprint 36); las decisiones del dev, en
+**Estado:** ACEPTADA el 2026-11-23 (Sprint 37), con los vectores; implementada en el Sprint
+38 y publicada en v0.6.0-alpha. Propuesta el 2026-11-22 (Sprint 36); las decisiones del dev, en
 «Aceptación», al final · **Fecha:** 2026-11-22 · **Fuentes:**
 - la investigación de la norma, [`docs/investigacion/sri-anulacion-2026-11.md`](../investigacion/sri-anulacion-2026-11.md)
   (NAC-DGERCGC25-00000014 y -00000017, Ficha técnica offline v2.34);

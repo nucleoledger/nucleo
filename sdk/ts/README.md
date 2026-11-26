@@ -14,6 +14,31 @@ part of the platform. Nothing else is needed.
 npm install @nucleoledger/verify
 ```
 
+## Upgrading from 0.5.0-alpha.0 to 0.6.0-alpha.0
+
+**Receipts and policies are read exactly as before**: the same verdict on every receipt and
+every policy. Two things change, both in the byte helpers, and only matter if you call them
+yourself:
+
+- **`fromBase64` is strict.** It throws `base64 no canónico` unless its input is exactly the
+  canonical standard base64 of what it decodes: alphabet `A–Z a–z 0–9 + /`, length a multiple
+  of 4, padding present and only at the end, padding bits zero, and **no whitespace** —no CR,
+  LF, space, tab or form feed—. In 0.5 it was `atob` and accepted all of that. The verifier
+  never depended on the lax behaviour: every base64 field of a receipt was already re-encoded
+  and compared (PROTOCOL 0.9-draft §3.1 now spells the rule out).
+- **`base64Canonical(s)`** is new and exported: the same rule, returning `null` instead of
+  throwing. It is what the verifier applies to every base64 field of a receipt.
+
+```js
+import { base64Canonical } from "@nucleoledger/verify";
+base64Canonical("Zm9vYmFy");    // Uint8Array, "foobar"
+base64Canonical("Zm9v\nYmFy");  // null: whitespace inside
+base64Canonical("Zh==");        // null: padding bits not zero
+```
+
+A receipt of a void event (`nucleo.void.v1`, the issuer's `nucleo void`) is the receipt of an
+ordinary block: 0.5.0-alpha.0 verifies it too, and so does this version.
+
 ## Upgrading from 0.4.0-alpha.0 to 0.5.0-alpha.0
 
 **Required if your issuer runs the Núcleo 0.5 binary.** From 0.5, `nucleo sync` always
