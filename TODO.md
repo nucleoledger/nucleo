@@ -435,11 +435,21 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       cambió en main y se revirtió
 
 ## Mantenimiento
-- [ ] **Acciones con Node 24 en `release.yml`**: el run 44233203322 avisa de que
-      `goreleaser/goreleaser-action@v6` y `actions/attest-build-provenance` (con su
-      `actions/attest`) apuntan a Node 20, que GitHub fuerza ya a Node 24. Subirlas a versiones
-      que declaren Node 24, fijadas por hash como las demás. Toca `.github/`: con instrucción del
-      dev, y con una prueba en seco del release antes del próximo tag
+- [x] **Acciones con Node 24 en `release.yml`, y la cadena de suministro de los workflows**
+      (Sprint 43): las 34 `uses:` fijadas por SHA; goreleaser-action v7.3.0, cosign-installer
+      v4.1.4 y attest-build-provenance v4.2.2; goreleaser exacto (`v2.20.3`, antes `~> v2`);
+      `persist-credentials: false` y `timeout-minutes`; el job `workflows` (actionlint y
+      zizmor); `release-snapshot.yml` con `scripts/workflows-coinciden.sh`; `dependabot.yml`
+      semanal con 7 días de cooldown; G67. cosign-installer v4 y attest v4 los prueba el
+      próximo release (necesitan el OIDC de un tag)
+- [ ] **cosign 3 en el release**: decisión aparte, no actualización. Con 3.1.3, `sign-blob`
+      con `--output-signature` y `--output-certificate` sin `--bundle` falla, y la primera firma
+      de `.goreleaser.yaml` es esa; pasar a cosign 3 es publicar solo el bundle y dejar de
+      publicar `.sig`/`.pem`, que es lo que verifica quien sigue la receta anterior de
+      RELEASING. El comentario de `release.yml` lo explica
+- [ ] **Node y PHP exactos en el CI**: `sdk/ts/.nvmrc` dice `22` y el job `diferencial` pide
+      PHP `'8.3'`: flotan dentro de su línea. Fijarlos a una versión exacta es decidir quién la
+      sube (Dependabot no mira `.nvmrc`)
 
 ## Después de la 0.5 (en este orden; la congelación de la 0.8-draft terminó al publicar v0.5.0-alpha, y el próximo cambio de protocolo entra solo por ADR-035)
 - [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una

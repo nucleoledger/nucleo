@@ -147,6 +147,80 @@ goreleaser release --snapshot --clean --skip=sign
 ls dist/
 ```
 
+Desde el Sprint 43 la hace también el CI, en `.github/workflows/release-snapshot.yml` (ver
+[Las actions, fijadas](#las-actions-fijadas)), con la misma goreleaser que el release. En local
+hace falta un git que lea los tags firmados con SSH: con git 2.34.1,
+`git tag --format=%(contents:body)` revienta sobre ellos («Out of memory, malloc failed»),
+goreleaser lo ignora en modo snapshot, y el binario sale con `commit none · 0001-01-01`.
+
+### Las actions, fijadas
+
+**Toda `uses:` de los workflows va por el SHA del commit**, con la versión al lado como
+comentario (`actions/checkout@3d3c42e5… # v7.0.1`). Una etiqueta —`@v7`— la puede mover quien
+mantiene la action, y el siguiente run ejecutaría otro código sin que aquí cambiara nada; un SHA
+no se mueve. Lo exige el job `workflows` de `ci.yml`: zizmor con la política `hash-pin` para
+toda action (`.github/zizmor.yml`), y actionlint para la validez de los workflows y shellcheck
+en cada `run:`. Lo de fuera de las actions, también exacto: goreleaser `v2.20.3`, cosign
+`v2.5.2`, golangci-lint `v2.14.0`, shellcheck `v0.11.0`, actionlint y zizmor, cada binario
+comprobado con su sha256 antes de ejecutarlo; Go, por la directiva `toolchain` de `go.mod`.
+**Flotan todavía, dentro de su línea**: Node (`sdk/ts/.nvmrc` dice `22`) y PHP (`'8.3'` en el
+job `diferencial`); está en `TODO.md`.
+
+El inventario del Sprint 43 (2026-11-26). «Runtime» es lo que declara el `action.yml` de esa
+versión; en las compuestas, también lo que anidan:
+
+| action | antes | runtime | ahora | runtime |
+|---|---|---|---|---|
+| `actions/checkout` | `@v7` | node24 | `@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1` (el commit de `v7`) | node24 |
+| `actions/setup-go` | `@v7` | node24 | `@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0` (ídem) | node24 |
+| `actions/setup-node` | `@v7` | node24 | `@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0` (ídem) | node24 |
+| `actions/upload-artifact` | `@v7` | node24 | `@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2` (ídem) | node24 |
+| `actions/cache` | `@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0` | node24 | sin cambios | node24 |
+| `shivammathur/setup-php` | `@v2` | node24 | `@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0` (el commit de `v2`) | node24 |
+| `golangci/golangci-lint-action` | `@v9` | node24 | `@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0` (el commit de `v9`) | node24 |
+| `sigstore/cosign-installer` | `@v3` | composite | `@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4` | composite |
+| `goreleaser/goreleaser-action` | `@v6` | **node20** | `@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0` | node24 |
+| `actions/attest-build-provenance` | `@v2` | composite, sobre `actions/attest` v2.4.0 (**node20**) | `@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2` | composite, sobre `actions/attest` v4.2.1 (node24) |
+
+En las siete primeras el SHA es el commit al que apuntaba su etiqueta mayor el día del cambio:
+corre exactamente el mismo código que antes. Las tres de `release.yml` suben de versión con los
+mismos inputs: cosign-installer v4 sigue instalando cosign v2.x (`cosign-release: 'v2.5.2'`, sin
+cambios) y lo verifica con su cosign de arranque v3.1.5 contra la clave de release de sigstore
+—reproducido en local: «Verified OK», y el binario instalado tiene el sha256 de siempre,
+`bcfeae05…`—; `create-storage-record`, nuevo en attest v4, solo actúa con
+`push-to-registry: true`. **Esas dos solo se ejecutan con un tag**: las prueba el próximo release.
+
+**Actualizar una action** (o revisar la PR de Dependabot, que hace lo mismo):
+
+```bash
+R=goreleaser/goreleaser-action; V=v7.3.0
+gh api repos/$R/git/ref/tags/$V --jq '.object.type + " " + .object.sha'
+# si dice «tag» (anotado), sigue hasta el commit:
+gh api repos/$R/git/tags/<ese sha> --jq '.object.type + " " + .object.sha'   # → commit <SHA>
+gh api "repos/$R/contents/action.yml?ref=<SHA>" --jq .content | base64 -d | grep -A2 '^runs:'
+```
+
+El SHA que va en el workflow es el del **commit**, no el del objeto tag, y el comentario dice su
+versión. Antes de subir: las notas de versión, por si cambian inputs, y el runtime. zizmor, en
+línea, comprueba además que el SHA pertenezca de verdad al repositorio de la action
+(`impostor-commit`).
+
+**El release en seco, en el CI.** `release-snapshot.yml` corre en cada push a `main` que toque
+`.goreleaser.yaml`, `release.yml`, `release-snapshot.yml`, `go.mod` o `go.sum`, cada lunes y a
+mano: la misma imagen, la misma goreleaser-action@SHA y la misma goreleaser que `release.yml`
+—`scripts/workflows-coinciden.sh`, en la compuerta y en el job `workflows`, falla si difieren o
+si alguna flota—, con `release --snapshot --clean --skip=sign`. Exige seis archivos y
+`checksums.txt`; `NOTICE`, `AUTHORS`, `LICENSE` y el binario en linux/amd64; `nucleo version`
+con el commit corto del HEAD y una fecha real; y las seis `NUCLEO_TEST_*` abortando con 1. No
+prueba la firma ni la procedencia.
+
+**Dependabot** (`.github/dependabot.yml`): una PR por semana y ecosistema —Actions, módulos de
+Go, npm de `sdk/ts`, `examples/erp-node` y `tools/mermaid`—, para versiones con al menos siete
+días publicadas. Son la excepción de [CONTRIBUTING](../CONTRIBUTING.md).
+
+**cosign 3, todavía no**: es una decisión, no una actualización (el comentario de `release.yml`
+dice por qué), y está en `TODO.md`.
+
 ### El lint local es el del CI
 
 `./scripts/lint.sh` lee del job `lint` de `.github/workflows/ci.yml` la versión de
@@ -176,7 +250,9 @@ compuerta o la prueba en seco, y cada una se instala comprobando de dónde viene
 |---|---|---|---|
 | cosign | v2.5.2 | sha256 `bcfeae05557a9f313ee4392d2f335d0ff69ebbfd232019e3736fb04999fe1734`, el de `cosign_checksums.txt` | `release.yml` (`cosign-release`) |
 | shellcheck | v0.11.0 | sha256 del `.linux.x86_64.tar.xz` `8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198`, el digest que publica GitHub | `ci.yml`, job `scripts` |
-| goreleaser | v2.18.3 | sha256 del tarball contra `checksums.txt`, cuya firma cosign se verifica | `release.yml` (`~> v2`) |
+| goreleaser | v2.20.3 | sha256 del tarball (`a36d5d7d…`) contra `checksums.txt`, cuya firma cosign se verifica con la identidad del workflow de goreleaser en su tag | `release.yml` y `release-snapshot.yml` (`version: 'v2.20.3'`, exacta desde el Sprint 43; antes `~> v2`) |
+| actionlint | 1.7.12 | sha256 contra su `checksums.txt` | `ci.yml`, job `workflows` |
+| zizmor | v1.33.1 | sha256 `3e6a301c…`, el digest que expone GitHub para el asset (no publica fichero de checksums) | `ci.yml`, job `workflows` |
 | OpenSSL | 3.5.9 | sha256 `603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a` **y** firma PGP de la clave `B146 647E 45A7 B339 47AB 226B 2A2C 87D1 6169 2D40` | `scripts/instala-openssl.sh` |
 
 OpenSSL 3.5.9 es la implementación independiente de ML-DSA-44 con la que se generan y se

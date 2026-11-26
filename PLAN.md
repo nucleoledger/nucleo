@@ -58,9 +58,11 @@ un directorio limpio, recompilado byte a byte desde el tag con go1.27.2 (sha256
 descargado (`void` y `reconcile` incluidos); sus notas, aplicadas, y **publicada** como
 pre-release el 2026-11-26 (06:12:26 UTC, `publishedAt`).
 
-Lo siguiente es el **Sprint 43, mantenimiento de la cadena de suministro**: las acciones de
-`release.yml` con Node 24, fijadas por hash (`TODO.md`, «Mantenimiento»), con su prueba en seco;
-y, cuando el dev lo decida, el `Sealer` de PHP envuelve `void`.
+**La cadena de suministro de los workflows** (Sprint 43): todas las actions fijadas por SHA y
+las de `release.yml` en node24 o composite; goreleaser exacto; el job `workflows` con actionlint
+y zizmor; el release en seco en el CI (`release-snapshot.yml`); Dependabot semanal con cooldown
+(G67). Pendientes como decisión aparte: cosign 3 y Node/PHP exactos (`TODO.md`). Cuando el dev
+lo decida, el `Sealer` de PHP envuelve `void`.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: seis rondas
 adversariales (la revisión del 2026-09-10, las tres auditorías del 2026-09-12 y las revisiones
