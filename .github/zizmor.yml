@@ -1,0 +1,19 @@
+# Configuración de zizmor (el job `workflows` de ci.yml). Cada excepción, con su motivo:
+# una regla que se apaga sin decir por qué es una regla que nadie volverá a encender.
+rules:
+  adhoc-packages:
+    ignore:
+      # publish-npm.yml instala npm 11 globalmente (`npm install -g npm@11.21.3`): trusted
+      # publishing exige npm ≥ 11.5.1 y Node 22 trae la 10.9.x. Es la herramienta que
+      # instala las dependencias, no una de ellas, así que no puede venir del lockfile.
+      # Lo que sí se exige: versión EXACTA (antes era ^11.5.1), la que publicó
+      # 0.6.0-alpha.0 en el run 45753924882.
+      - publish-npm.yml
+
+  # Toda action, por SHA de commit, también las de actions/* y las de GitHub (la política
+  # por omisión de zizmor les deja pasar una etiqueta). Una etiqueta la mueve su autor; un
+  # SHA no. El comentario `# vX.Y.Z` al lado es para quien lee, y Dependabot lo mantiene.
+  unpinned-uses:
+    config:
+      policies:
+        "*": hash-pin

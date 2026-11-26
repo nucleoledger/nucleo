@@ -45,14 +45,18 @@ jobs:
           # La misma versión que usa el CI y quien desarrolla: sdk/ts/.nvmrc.
           node-version-file: sdk/ts/.nvmrc
           registry-url: 'https://registry.npmjs.org'
-          cache: npm
-          cache-dependency-path: sdk/ts/package-lock.json
+          # Sin caché: lo que se publica no se instala desde una caché que pudo escribir
+          # otra ejecución (zizmor, cache-poisoning). npm ci baja lo del lockfile.
+          package-manager-cache: false
 
       # El npm que trae Node 22 es el 10.9.x, y trusted publishing exige 11.5.1
       # o posterior. Sin esta línea el publish falla por versión, no por
       # configuración, y el mensaje no lo deja claro.
+      # Versión EXACTA: la que publicó 0.6.0-alpha.0 (run 45753924882). Antes era ^11.5.1,
+      # que instalaba la última 11.x de ese día. Va fuera del lockfile por fuerza —es la
+      # herramienta que instala, no una dependencia—, y zizmor.yml lo acepta por eso.
       - name: npm con soporte de trusted publishing
-        run: npm install -g npm@^11.5.1
+        run: npm install -g npm@11.21.3
 
       - name: Versión de las herramientas
         run: node -v && npm -v

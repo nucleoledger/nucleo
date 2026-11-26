@@ -11,6 +11,14 @@ on: [push, pull_request]
 permissions:
   contents: read
 
+# shellcheck, en una versión fijada: la usan el job `scripts` (sobre scripts/*.sh) y el job
+# `workflows` (actionlint la pasa por cada run:). scripts/compuerta.sh lee estas dos líneas.
+env:
+  SHELLCHECK_VERSION: v0.11.0
+  # El digest que publica el release de GitHub para el asset .linux.x86_64.tar.xz
+  # (shellcheck no publica un fichero de checksums).
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+
 jobs:
   test:
     strategy:
@@ -234,11 +242,6 @@ jobs:
   scripts:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      SHELLCHECK_VERSION: v0.11.0
-      # El digest que publica el release de GitHub para el asset .linux.x86_64.tar.xz
-      # (shellcheck no publica un fichero de checksums).
-      SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -452,7 +455,8 @@ jobs:
   # vara externa y hay que enterarse aquí.
   mldsa-vectores:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # Sin caché compila OpenSSL: unos minutos más que con ella.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -463,9 +467,11 @@ jobs:
           version=$(awk -F= '$1 == "VERSION" {print $2}' scripts/instala-openssl.sh)
           sha256=$(awk -F= '$1 == "SHA256" {print $2}' scripts/instala-openssl.sh)
           [ -n "$version" ] && [ -n "$sha256" ]
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
-          echo "prefijo=$HOME/.local/opt/openssl-$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$version"
+            echo "sha256=$sha256"
+            echo "prefijo=$HOME/.local/opt/openssl-$version"
+          } >> "$GITHUB_OUTPUT"
       # Acción nueva en este workflow: fijada por commit, no por tag.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: cache
@@ -476,15 +482,70 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: ./scripts/instala-openssl.sh
       - name: El OpenSSL que usan los oráculos
+        # Por el entorno y no interpolado en el script: lo que se interpola en un run:
+        # se ejecuta como código (zizmor, template-injection).
+        env:
+          PREFIJO: ${{ steps.openssl.outputs.prefijo }}
         run: |
-          "${{ steps.openssl.outputs.prefijo }}/bin/openssl" version
-          "${{ steps.openssl.outputs.prefijo }}/bin/openssl" list -signature-algorithms | grep ML-DSA-44
+          "$PREFIJO/bin/openssl" version
+          "$PREFIJO/bin/openssl" list -signature-algorithms | grep ML-DSA-44
       - name: mldsa/ coincide con OpenSSL
         run: python3 testdata/vectors/mldsa/generar.py --check
       - name: OpenSSL da el veredicto del NIST en el subconjunto del ACVP
         run: python3 testdata/vectors/mldsa/acvp.py --check
       - name: Los recibos golden coinciden con el oráculo, los ML-DSA incluidos
         run: python3 testdata/vectors/receipt/generar.py --check
+
+  # Los propios workflows (Sprint 43). actionlint comprueba que cada workflow sea válido y
+  # pasa shellcheck —la versión fijada de arriba— por cada run:; zizmor busca los fallos de
+  # seguridad de Actions: una action sin fijar por SHA, una expresión interpolada en un
+  # run: (inyección), una caché en un workflow que publica, credenciales persistidas.
+  # Los dos en versión EXACTA y con el binario comprobado antes de ejecutarlo; los dos
+  # fallan ante cualquier hallazgo. Lo que se acepta va en .github/zizmor.yml, con su
+  workflows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ZIZMOR_VERSION: v1.33.1
+      # zizmor no publica fichero de checksums: es el digest que GitHub calcula y
+      # expone para el asset (gh api repos/zizmorcore/zizmor/releases/tags/v1.33.1).
+      ZIZMOR_SHA256: 3e6a301c7a820a2501915f5a9de8c0486da82bdec7965f068477538a98743d43
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck, actionlint y zizmor, con el checksum comprobado
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          f="shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSLO "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/$f"
+          echo "${SHELLCHECK_SHA256}  $f" | sha256sum -c -
+          tar -xJf "$f"
+          a="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          curl -fsSLO "$base/$a"
+          curl -fsSLO "$base/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+          grep "  $a\$" "actionlint_${ACTIONLINT_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "$a" actionlint
+          z="zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSLO "https://github.com/zizmorcore/zizmor/releases/download/${ZIZMOR_VERSION}/$z"
+          echo "${ZIZMOR_SHA256}  $z" | sha256sum -c -
+          tar -xzf "$z" zizmor
+          ./actionlint -version | head -1
+          ./zizmor --version
+      - name: actionlint
+        run: |
+          "$RUNNER_TEMP/actionlint" -color -shellcheck "$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}/shellcheck"
+      - name: zizmor
+        # En línea, con el token de solo lectura del job: así corren también las auditorías
+        # que consultan GitHub (un SHA que no es de su repositorio, acciones con avisos de
+        # seguridad publicados).
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$RUNNER_TEMP/zizmor" --config .github/zizmor.yml .github/workflows/
 
   # Lint: solo linters que señalan problemas reales, nunca reglas de estilo.
   # La configuración y el porqué de cada exclusión están en .golangci.yml.

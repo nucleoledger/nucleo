@@ -47,6 +47,9 @@ jobs:
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
+          # Sin caché: lo que se publica no se compila con módulos que dejó en la caché
+          # otra ejecución (zizmor, cache-poisoning). Cuesta un go mod download.
+          cache: false
 
       # El instalador, en v4 (composite): instala cosign v2.x igual que la v3, y verifica
       # el binario v2.5.2 con su cosign de arranque v3.1.5 contra la clave de release de
