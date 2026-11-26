@@ -35,16 +35,21 @@ jobs:
       attestations: write
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # goreleaser necesita el historial completo y los tags para calcular
           # la versión y el commit.
           fetch-depth: 0
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
 
+      # El instalador, en v4 (composite): instala cosign v2.x igual que la v3, y verifica
+      # el binario v2.5.2 con su cosign de arranque v3.1.5 contra la clave de release de
+      # sigstore (reproducido en local el 2026-11-26: «Verified OK», y el sha256 del cosign
+      # instalado es el de siempre, bcfeae05…).
+      #
       # cosign FIJADO en 2.5.2, que es el que firmó v0.1.0-alpha y v0.2.0-alpha. Antes
       # venía por omisión del instalador; ahora se dice, y hay un motivo concreto para
       # no subir a cosign 3 todavía: en 3.1.3, `sign-blob` con --output-signature y
@@ -53,7 +58,7 @@ jobs:
       # Con 2.5.2 salen las dos firmas —.sig/.pem y el bundle—, y el bundle que escribe
       # lo verifica cosign 3 (comprobado el 2026-09-26). Pasar a cosign 3 es pasar a
       # publicar solo el bundle: una decisión, no una actualización.
-      - uses: sigstore/cosign-installer@v3
+      - uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
         with:
           cosign-release: 'v2.5.2'
 
@@ -72,9 +77,14 @@ jobs:
           go test ./... -race
           ./scripts/demo-criterio-exito.sh
 
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: '~> v2'
+          # Versión EXACTA, y la misma en release-snapshot.yml (lo vigila
+          # scripts/workflows-coinciden.sh). Antes era '~> v2': cada release se compilaba
+          # con la última goreleaser v2 que existiera ese día, y una versión con fallos —o
+          # comprometida— habría entrado sola. v2.20.3 es la que construyó v0.6.0-alpha
+          # (run 45763694062).
+          version: 'v2.20.3'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,6 +101,10 @@ jobs:
       # dice "estos bytes se firmaron desde este workflow"; la attestation
       # describe CÓMO se construyeron, en el formato SLSA que otras herramientas
       # ya saben leer.
-      - uses: actions/attest-build-provenance@v2
+      #
+      # v4: un envoltorio de actions/attest (node24), que GitHub sigue admitiendo para los
+      # usos existentes. create-storage-record, nuevo en v4, solo actúa con
+      # push-to-registry: true (imágenes), así que no pide artifact-metadata aquí.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'dist/*.tar.gz,dist/*.zip,dist/checksums.txt'

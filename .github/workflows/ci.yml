@@ -28,7 +28,7 @@ jobs:
         os: [ubuntu-24.04, macos-26, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # setup-go v7 (runtime node24). Estuvo en v5 porque v6 cambió la selección
       # de toolchain, que interactúa con el `go 1.27.1` de go.mod, y eso solo se
       # comprueba ejecutando el CI: se subió junto con fail-fast: false, y el run
@@ -38,7 +38,7 @@ jobs:
       # 'stable', y un Go nuevo publicado un martes rompió el lint sin que nadie
       # cambiara nada aquí (run 38002811302). El job lint comprueba que el Go que
       # instala setup-go es exactamente el de go.mod.
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - name: Format
@@ -71,8 +71,8 @@ jobs:
       run:
         working-directory: sdk/ts
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # La versión la fija sdk/ts/.nvmrc, para que CI y la máquina de quien
           # desarrolla usen exactamente la misma. Es 22 porque en 18 el Ed25519
@@ -108,11 +108,11 @@ jobs:
   ejemplo:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: sdk/ts/.nvmrc
       - name: El binario que el ejemplo invoca
@@ -202,8 +202,8 @@ jobs:
   testigo-mutuo:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - name: Ensayo del testigo mutuo
@@ -227,7 +227,7 @@ jobs:
       # (shellcheck no publica un fichero de checksums).
       SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: scripts/*.sh con el bit de ejecución en el índice
         run: |
           mal=$(git ls-files -s -- 'scripts/*.sh' | awk '$1 != "100755" {print $4}')
@@ -245,7 +245,7 @@ jobs:
           sc="$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}/shellcheck"
           "$sc" --version
           "$sc" scripts/*.sh
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       # La red, aquí y a la vista (H9): el script compila con GOPROXY=off y solo
@@ -267,8 +267,8 @@ jobs:
   kit-testigo:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - name: El binario donde lo espera la unidad
@@ -288,8 +288,8 @@ jobs:
       run:
         working-directory: tools/mermaid
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: sdk/ts/.nvmrc
           cache: npm
@@ -302,8 +302,8 @@ jobs:
   fuzz:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - name: Fuzz de los formatos de cable
@@ -330,7 +330,7 @@ jobs:
       # el log diría que algo falló y nadie podría reproducirlo.
       - name: Guardar el caso que falló, si lo hay
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: corpus-del-fallo
           path: internal/**/testdata/fuzz/**
@@ -350,11 +350,11 @@ jobs:
   diferencial:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: sdk/ts/.nvmrc
           cache: npm
@@ -374,7 +374,7 @@ jobs:
       # parchear la imagen a mano deja el job a merced de lo que traiga el runner ese mes.
       # setup-php instala la versión y las extensiones que se le piden, siempre las
       # mismas. Es una acción de terceros y se fija por eso en su tag mayor.
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.3'
           extensions: sodium
@@ -426,7 +426,7 @@ jobs:
   mldsa-vectores:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: La versión y el sha256 de OpenSSL, del script que lo instala
         id: openssl
         run: |
@@ -461,8 +461,8 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       # La versión de golangci-lint tiene que poder leer el Go de `stable`. Con Go
@@ -479,7 +479,7 @@ jobs:
           tiene=$(go env GOVERSION)
           echo "go.mod: $quiere · instalado: $tiene"
           [ -n "$quiere" ] && [ "$quiere" = "$tiene" ]
-      - uses: golangci/golangci-lint-action@v9
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.14.0
       # Segunda pasada con el tag, para que el código de los ganchos de prueba
