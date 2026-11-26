@@ -413,6 +413,19 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       2026-11-19 (02:18:30 UTC), con las notas de main (Sprint 35b)
 - [x] L23 y G8 de GARANTIAS sin «hasta que se publique» / «sin publicar» (Sprint 35)
 
+## Cierre de v0.6.0-alpha (lo hace el dev)
+- [x] Preparación (Sprint 41): el SDK 0.6.0-alpha.0 verificado y reconstruido byte a byte, el
+      ejemplo en él, los dos ensayos y el orden en verde, CHANGELOG `[0.6.0-alpha]`, README y
+      PROTOCOL sin «unreleased», ADR-035 «publicada en v0.6.0-alpha», notas con su PENDIENTE
+- [ ] Etiquetar `v0.6.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
+- [ ] Verificar el release desde un directorio limpio (las dos recetas de cosign, sha256, la
+      procedencia SLSA, `nucleo version`), recompilar el binario linux/amd64 desde el tag, un
+      recibo del binario descargado con el SDK 0.6 de npm y con `verify-receipt`, y un `void`
+      y un `reconcile` con ese binario; completar la línea PENDIENTE de
+      `docs/releases/v0.6.0-alpha.md` y la tabla de RELEASING
+- [ ] Aplicar las notas (`gh release edit v0.6.0-alpha --notes-file
+      docs/releases/v0.6.0-alpha.md`) y publicar el borrador como pre-release
+
 ## Mantenimiento
 - [ ] **Acciones con Node 24 en `release.yml`**: el run 44233203322 avisa de que
       `goreleaser/goreleaser-action@v6` y `actions/attest-build-provenance` (con su
