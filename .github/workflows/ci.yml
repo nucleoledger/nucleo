@@ -27,8 +27,11 @@ jobs:
         # estas etiquetas a mano cuando una imagen se retire, y el aviso llega con meses.
         os: [ubuntu-24.04, macos-26, windows-2025]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # setup-go v7 (runtime node24). Estuvo en v5 porque v6 cambió la selección
       # de toolchain, que interactúa con el `go 1.27.1` de go.mod, y eso solo se
       # comprueba ejecutando el CI: se subió junto con fail-fast: false, y el run
@@ -67,11 +70,14 @@ jobs:
   # implementaciones diverjan sin que nadie se entere.
   sdk-ts:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: sdk/ts
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # La versión la fija sdk/ts/.nvmrc, para que CI y la máquina de quien
@@ -107,8 +113,11 @@ jobs:
   # el README no puede quedarse obsoleto en silencio.
   ejemplo:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
@@ -201,8 +210,11 @@ jobs:
   # testigo de la otra. Lo que esto no garantiza: docs/OPERACION.md §1.
   testigo-mutuo:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
@@ -221,6 +233,7 @@ jobs:
   #   openssl, como dice PROTOCOL §5.1. Sin red: el testigo escucha en 127.0.0.1.
   scripts:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       SHELLCHECK_VERSION: v0.11.0
       # El digest que publica el release de GitHub para el asset .linux.x86_64.tar.xz
@@ -228,6 +241,8 @@ jobs:
       SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: scripts/*.sh con el bit de ejecución en el índice
         run: |
           mal=$(git ls-files -s -- 'scripts/*.sh' | awk '$1 != "100755" {print $4}')
@@ -266,8 +281,11 @@ jobs:
   # en /usr/local/bin para validar la unidad tal cual, sin tocar su ExecStart.
   kit-testigo:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
@@ -284,11 +302,14 @@ jobs:
   # lockfile, y antes de validar el mapa demuestra que rechaza un bloque roto.
   mermaid:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: tools/mermaid
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: sdk/ts/.nvmrc
@@ -301,8 +322,11 @@ jobs:
 
   fuzz:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
@@ -349,8 +373,11 @@ jobs:
   # test de Go.
   diferencial:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
@@ -425,8 +452,11 @@ jobs:
   # vara externa y hay que enterarse aquí.
   mldsa-vectores:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: La versión y el sha256 de OpenSSL, del script que lo instala
         id: openssl
         run: |
@@ -460,8 +490,11 @@ jobs:
   # La configuración y el porqué de cada exclusión están en .golangci.yml.
   lint:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
