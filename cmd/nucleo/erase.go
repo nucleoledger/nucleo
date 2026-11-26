@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/nucleoledger/nucleo/internal/erasure"
@@ -98,33 +99,36 @@ func cmdErase(e *env, args []string) error {
 		return err
 	}
 
+	// Ya está suprimido: no se sella otro evento. Volver a pedirlo es un reintento, y es
+	// lo que se aconseja cuando el WAL no se pudo vaciar: por eso se vuelve a intentar.
+	yaSuprimido := func(previo *ledger.Block) error {
+		walVacio, err := s.PurgeWAL()
+		if err != nil {
+			return err
+		}
+		e.out(map[string]any{
+			"erased_payload_hash": h,
+			"blocks":              afectados,
+			"already_erased":      true,
+			"index":               previo.Header.Index,
+			"hash":                previo.Hash,
+			"wal_purged":          walVacio,
+		}, func() {
+			e.printf("✔ el contenido del bloque %d ya estaba suprimido (evento en el bloque %d)\n",
+				*block, previo.Header.Index)
+			e.printf("  No se ha escrito ningún bloque.\n")
+		})
+		avisaWAL(e, walVacio)
+		return nil
+	}
+
 	if !hayBlob && !hayCompromisos {
 		previo, err := eventoDeSupresion(s, auth, h, b.Header.Index)
 		if err != nil {
 			return err
 		}
 		if previo != nil {
-			// Ya está suprimido: no se sella otro evento. Volver a pedirlo es un reintento,
-			// y es lo que se aconseja cuando el WAL no se pudo vaciar: por eso se vuelve a
-			// intentar aquí.
-			walVacio, err := s.PurgeWAL()
-			if err != nil {
-				return err
-			}
-			e.out(map[string]any{
-				"erased_payload_hash": h,
-				"blocks":              afectados,
-				"already_erased":      true,
-				"index":               previo.Header.Index,
-				"hash":                previo.Hash,
-				"wal_purged":          walVacio,
-			}, func() {
-				e.printf("✔ el contenido del bloque %d ya estaba suprimido (evento en el bloque %d)\n",
-					*block, previo.Header.Index)
-				e.printf("  No se ha escrito ningún bloque.\n")
-			})
-			avisaWAL(e, walVacio)
-			return nil
+			return yaSuprimido(previo)
 		}
 		// Nada guardado y ninguna supresión autorizada. Si hay un evento sin autorización
 		// válida, el contenido ya no está y lo que falta es la autorización: se sella un
@@ -201,15 +205,57 @@ func cmdErase(e *env, args []string) error {
 		}
 	}
 
+	// Entre las comprobaciones de arriba y aquí pasan Argon2id y la confirmación tecleada:
+	// otro proceso puede haber sellado entretanto (ver la segunda comprobación, en intento).
+	hookPauseAt("erase:desbloqueado")
+
 	payload, err := erasure.Payload(h)
 	if err != nil {
 		return err
 	}
-	var ev *ledger.Block
+	var ev, previo *ledger.Block
 	intento := func() error {
 		prev, err := s.LastBlock()
 		if err != nil {
 			return err
+		}
+		// Lo decidido antes de desbloquear, otra vez, DESPUÉS de leer el último bloque y
+		// sobre lo que el store tiene ahora (Sprint 40, el patrón de H1 de la revisión del
+		// 2026-11-25). Es atómico con el sellado por el invariante de AppendRecord: dentro
+		// de su transacción (BEGIN IMMEDIATE) rechaza un bloque cuyo prev ya no es el
+		// último persistido, y sellarConReintentos vuelve a ejecutar intento; lo sellado
+		// después de LastBlock hace fallar este AppendRecord, y lo sellado antes ya lo ve
+		// esta lectura. Tres cosas pueden haber cambiado:
+		//
+		//   - una copia nueva del contenido (seal lo permite, ADR-020 §A): la autorización
+		//     llega hasta through y el blob es compartido, así que borrarlo suprimiría una
+		//     copia que nadie autorizó. Es lo que la comprobación de arriba rechaza en
+		//     secuencia, y aquí se rechaza igual, sin escribir;
+		//   - una supresión autorizada que ya llega a through: already_erased, sin sellar
+		//     un evento redundante;
+		//   - una supresión NO autorizada nueva: este evento la regularizaría sin haberlo
+		//     dicho antes (ADR-033, decisión 4). Se rechaza, sin escribir.
+		ahora, err := s.BlocksWithPayload(h)
+		if err != nil {
+			return err
+		}
+		if ultima := ahora[len(ahora)-1]; ultima != through {
+			return usageErr("mientras se desbloqueaba el vault, otro proceso volvió a sellar este contenido\n"+
+				"  (bloque %d), y la autorización llega hasta el bloque %d: no cubre la copia nueva.\n"+
+				"  No se ha borrado nada. Pide una autorización nueva:\n\n    %s",
+				ultima, through, ordenAutorizar(pf.file.v, h, ultima))
+		}
+		if previo, err = eventoDeSupresion(s, auth, h, through); err != nil || previo != nil {
+			return err
+		}
+		reg, err := supresionesNoAutorizadas(s, auth, h, afectados[0])
+		if err != nil {
+			return err
+		}
+		if !slices.Equal(reg, regulariza) {
+			return usageErr("mientras se desbloqueaba el vault apareció un evento de supresión no autorizado de\n" +
+				"  este contenido, y el evento que se iba a sellar lo regularizaría sin haberlo avisado.\n" +
+				"  No se ha borrado nada. Vuelve a ejecutar la orden: dirá qué regulariza antes de sellar.")
 		}
 		// El evento va a nombre del mismo tenant que el registro, y sin copia del
 		// contenido: no hace falta, se reconstruye a partir del hash (ADR-031 §C). Su
@@ -244,6 +290,10 @@ func cmdErase(e *env, args []string) error {
 	}
 	if err := sellarConReintentos(intento); err != nil {
 		return err
+	}
+	if previo != nil {
+		// Otro proceso lo suprimió mientras este desbloqueaba.
+		return yaSuprimido(previo)
 	}
 
 	// Lo borrado ya tiene ceros en el fichero principal (secure_delete); falta que no
