@@ -1,0 +1,54 @@
+# Dependabot: actualizaciones de VERSIÓN, una vez por semana, una PR por ecosistema
+# (Sprint 43). Las alertas de seguridad van aparte y no esperan: el cooldown no se les
+# aplica (docs.github.com, «Dependabot options reference»).
+#
+# El cooldown de 7 días: una versión recién publicada no entra hasta que lleva una semana
+# fuera. Es el margen en el que suele descubrirse una versión rota o comprometida.
+#
+# Estas PR son la excepción ya escrita en CONTRIBUTING.md: las revisa y las fusiona el
+# dev, con el CI en verde. En github-actions, Dependabot sube el SHA y el `# vX.Y.Z` a la
+# vez; release.yml y release-snapshot.yml tienen que seguir iguales en la
+# goreleaser-action (scripts/workflows-coinciden.sh lo vigila).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      gomod:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/sdk/ts"
+      - "/examples/erp-node"
+      - "/tools/mermaid"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        applies-to: version-updates
+        patterns:
+          - "*"

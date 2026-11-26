@@ -12,7 +12,12 @@ A pull request opened now will be closed without review, whatever its size — a
 included. That is not a judgement on the patch: it is the only way to keep the rule
 simple enough to hold. The one exception is the automatic dependency updates opened by
 Dependabot: they change version numbers and lockfiles, not third-party code written for
-this repository, and [`AUTHORS`](AUTHORS) already records them.
+this repository, and [`AUTHORS`](AUTHORS) already records them. Since
+[`.github/dependabot.yml`](.github/dependabot.yml) there are two kinds: security alerts,
+as before, and weekly version updates —one grouped pull request per ecosystem (GitHub
+Actions, Go modules, npm), for releases at least seven days old—. Both fall under the same
+exception, and both are merged only with CI green; for Actions, the update moves the pinned
+commit SHA and its `# vX.Y.Z` comment together.
 
 **Open an issue instead.** Describe what you hit or what you would change. If it is a
 bug, that is already the most valuable contribution there is: a reproducible case
