@@ -92,12 +92,17 @@ func cmdVoid(e *env, args []string) error {
 	if err != nil {
 		return err
 	}
-	previas, err := bloquesConPayload(s, eh)
-	if err != nil {
-		return err
+	anulacionPrevia := func() (*ledger.Block, error) {
+		previas, err := bloquesConPayload(s, eh)
+		if err != nil {
+			return nil, err
+		}
+		if previa := void.Evaluate(append([]*ledger.Block{b}, previas...)).VoidOf(idx); previa != nil {
+			return previa.Event, nil
+		}
+		return nil, nil
 	}
-	if previa := void.Evaluate(append([]*ledger.Block{b}, previas...)).VoidOf(idx); previa != nil {
-		ev := previa.Event
+	yaAnulado := func(ev *ledger.Block) {
 		e.out(map[string]any{
 			"voided_index":        idx,
 			"voided_payload_hash": b.Header.PayloadHash,
@@ -108,6 +113,13 @@ func cmdVoid(e *env, args []string) error {
 			e.printf("✔ el bloque %d ya estaba anulado (evento en el bloque %d)\n", idx, ev.Header.Index)
 			e.printf("  No se ha escrito ningún bloque.\n")
 		})
+	}
+	// Esta primera comprobación ahorra la passphrase al caso común; NO es la que decide
+	// (ver la de dentro de intento, H1 de la revisión del 2026-11-25).
+	if previa, err := anulacionPrevia(); err != nil {
+		return err
+	} else if previa != nil {
+		yaAnulado(previa)
 		return nil
 	}
 
@@ -123,14 +135,29 @@ func cmdVoid(e *env, args []string) error {
 		return err
 	}
 
+	// Entre la primera comprobación y aquí pasa el tiempo de Argon2id: otra orden `void`
+	// sobre el mismo bloque puede haber sellado ya su evento (H1).
+	hookPauseAt("void:comprobado")
+
 	contenido, err := void.Payload(idx, b.Header.PayloadHash)
 	if err != nil {
 		return err
 	}
-	var ev *ledger.Block
+	var ev, previa *ledger.Block
 	intento := func() error {
 		prev, err := s.LastBlock()
 		if err != nil {
+			return err
+		}
+		// R6 otra vez, DESPUÉS de leer el último bloque y sobre lo que el store tiene ahora.
+		// Esta es la comprobación que decide, y es atómica con el sellado por un invariante
+		// de AppendRecord: dentro de su transacción (BEGIN IMMEDIATE) rechaza un bloque cuyo
+		// prev ya no es el último persistido, y sellarConReintentos vuelve a ejecutar intento.
+		// Así que si otra orden sella una anulación de este bloque después de LastBlock, el
+		// AppendRecord de esta falla y el reintento la ve aquí; y si la selló antes, ya la ve
+		// esta lectura. El orden importa: comprobar ANTES de LastBlock dejaría una ventana
+		// —una anulación sellada entre las dos lecturas entraría en prev sin pasar por R6—.
+		if previa, err = anulacionPrevia(); err != nil || previa != nil {
 			return err
 		}
 		// A nombre del tenant de la emisión (R5), sin copia del contenido: se reconstruye
@@ -150,6 +177,11 @@ func cmdVoid(e *env, args []string) error {
 	}
 	if err := sellarConReintentos(intento); err != nil {
 		return err
+	}
+	if previa != nil {
+		// Otra orden la selló mientras esta desbloqueaba: no se escribe nada.
+		yaAnulado(previa)
+		return nil
 	}
 
 	salida := map[string]any{
