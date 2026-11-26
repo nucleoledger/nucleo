@@ -43,8 +43,24 @@ ensayada con el binario publicado. Notas en `docs/releases/v0.5.0-alpha.md`. Tag
 limpio y recompilado byte a byte desde el tag con go1.27.2 (sha256
 `37a7c5b6556a148587bfc149024880dcba140dd5e6cc70b9fa805b8527b441e2`), y el primero cuyo
 `nucleo version` dice la versión, el commit y la fecha; sus notas, aplicadas, y **publicada**
-como pre-release el 2026-11-19 (02:18:30 UTC). Lo siguiente es **ADR-035**, los eventos
-`issued`/`voided` (`TODO.md`, «Después de la 0.5»).
+como pre-release el 2026-11-19 (02:18:30 UTC).
+
+**`v0.6.0-alpha` publicada** (Sprints 36 a 42; tag sobre `281d6c2`, CHANGELOG del 25 de
+noviembre de 2026): la anulación de una factura emitida sin tocarla, `nucleo void` y `voided` en
+`reconcile` (ADR-035, PROTOCOL 0.9-draft §5.2); el base64 canónico en los tres verificadores
+(G66); las carreras de `void` (H1 de la revisión del 2026-11-25) y de `erase`, cerradas.
+`@nucleoledger/verify@0.6.0-alpha.0` **ya publicado** desde el tag `vsdk-0.6.0-alpha.0` (commit
+`e28156d`), reconstruido byte a byte; el ejemplo Node, con él. La actualización desde
+v0.5.0-alpha, ensayada con el binario publicado, con un `void` de una factura de la 0.5. Notas en
+`docs/releases/v0.6.0-alpha.md`. Tag `v0.6.0-alpha` firmado con SSH; el release, verificado desde
+un directorio limpio, recompilado byte a byte desde el tag con go1.27.2 (sha256
+`6da0f62fced4b9a010c0c18476e127b3802a1ec86d037e858e955fb7e3f71655`) y probado con el binario
+descargado (`void` y `reconcile` incluidos); sus notas, aplicadas, y **publicada** como
+pre-release el 2026-11-26 (06:12:26 UTC, `publishedAt`).
+
+Lo siguiente es el **Sprint 43, mantenimiento de la cadena de suministro**: las acciones de
+`release.yml` con Node 24, fijadas por hash (`TODO.md`, «Mantenimiento»), con su prueba en seco;
+y, cuando el dev lo decida, el `Sealer` de PHP envuelve `void`.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: seis rondas
 adversariales (la revisión del 2026-09-10, las tres auditorías del 2026-09-12 y las revisiones
@@ -124,11 +140,11 @@ El backlog atómico está en `TODO.md`. En resumen:
   §5.2 normativo y pendiente de implementación, L24 aceptado y los vectores en
   `testdata/vectors/void/`. `voided` es siempre array; `nucleo void --block N` es el camino
   principal.
-- **ADR-035 implementada** (Sprint 38), en `main` y sin publicar: `nucleo void`, `voided` y las
-  reglas R1–R6 en `reconcile`, el recibo de una anulación verificando sin cambios en los tres
-  SDK y en v0.4.0-alpha, el tercero sin Núcleo y el ensayo contra el binario de v0.5.0-alpha.
-  Siguiente, cuando el dev lo decida: el `Sealer` de PHP envuelve `void` y la versión que lo
-  publique (CHANGELOG `[Unreleased]`).
+- **ADR-035 implementada** (Sprint 38) y **publicada en v0.6.0-alpha** (2026-11-26): `nucleo
+  void`, `voided` y las reglas R1–R6 en `reconcile`, el recibo de una anulación verificando sin
+  cambios en los tres SDK y en v0.4.0-alpha, el tercero sin Núcleo y el ensayo contra el
+  binario de v0.5.0-alpha. Pendiente, cuando el dev lo decida: el `Sealer` de PHP envuelve
+  `void`.
 - **Base64 canónico en los tres verificadores** (Sprint 38b), por un hallazgo del fuzzer en
   `proof.Parse`: una sola regla en Go, TS y PHP, veinte vectores y el diferencial; PROTOCOL
   §3.1 lo aclara sin cambiar el formato. Ningún veredicto de un recibo completo cambia.

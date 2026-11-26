@@ -1,16 +1,19 @@
 # TODO.md — Backlog atómico
 
-Estado: **`v0.6.0-alpha` preparada, sin etiquetar** (Sprint 41): CHANGELOG, notas en
-`docs/releases/v0.6.0-alpha.md` (con la línea PENDIENTE de la verificación), la actualización
-desde v0.5.0-alpha ensayada (con un `void` de una factura sellada por la 0.5) y el ensayo de
-compatibilidad de la anulación en verde; el tag, el release y su verificación los hace el dev.
-`@nucleoledger/verify@0.6.0-alpha.0` **publicado** en npm con procedencia el 2026-11-25 (tag
-`vsdk-0.6.0-alpha.0`, commit `e28156d`; `latest` y `alpha`; reconstruido byte a byte, la tabla
-de RELEASING), y el ejemplo lo fija.
-El último release publicado es **`v0.5.0-alpha`** (tag firmado con SSH, commit `cdc36c4`),
+Estado: **`v0.6.0-alpha`** **publicada** como pre-release el 2026-11-26 (06:12:26 UTC)
+(tag firmado con SSH, commit `281d6c2`; Sprints 36 a 42): el release lo creó el CI (run
+45763694062), y ese día se verificó desde un directorio limpio —cosign con las dos recetas y
+con la identidad de v0.5.0-alpha rechazada, sha256, procedencia SLSA, el commit en el
+certificado— y se recompiló byte a byte desde el tag (sha256 `6da0f62f…`, la tabla de
+RELEASING); con el binario descargado, `seal`, `sync`, `receipt`, `void` y `reconcile`, y sus
+recibos verificados con el SDK 0.6 de npm, el de PHP del tag y `verify-receipt`. Las notas, con
+esa evidencia, en `docs/releases/v0.6.0-alpha.md`. `@nucleoledger/verify@0.6.0-alpha.0`
+**publicado** en npm con procedencia el 2026-11-26 (04:15 UTC; tag `vsdk-0.6.0-alpha.0`, commit
+`e28156d`; `latest` y `alpha`; reconstruido byte a byte), y el ejemplo lo fija.
+El release anterior es **`v0.5.0-alpha`** (tag firmado con SSH, commit `cdc36c4`),
 **publicado** como pre-release el 2026-11-19 (02:18:30 UTC), verificado desde un directorio
-limpio —cosign con las dos recetas, sha256, procedencia SLSA— y recompilado byte a byte desde el
-tag (sha256 `37a7c5b6…`). El anterior, `v0.4.0-alpha`.
+limpio y recompilado byte a byte desde el tag (sha256 `37a7c5b6…`). El anterior,
+`v0.4.0-alpha`.
 Lo detallado de cada versión vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
@@ -417,14 +420,19 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
 - [x] Preparación (Sprint 41): el SDK 0.6.0-alpha.0 verificado y reconstruido byte a byte, el
       ejemplo en él, los dos ensayos y el orden en verde, CHANGELOG `[0.6.0-alpha]`, README y
       PROTOCOL sin «unreleased», ADR-035 «publicada en v0.6.0-alpha», notas con su PENDIENTE
-- [ ] Etiquetar `v0.6.0-alpha` (firmado con SSH) y hacer push; el release lo crea el CI
-- [ ] Verificar el release desde un directorio limpio (las dos recetas de cosign, sha256, la
+- [x] Etiquetar `v0.6.0-alpha` (firmado con SSH, sobre `281d6c2`) y hacer push; el release lo
+      creó el CI (run 45763694062, en verde)
+- [x] Verificar el release desde un directorio limpio (las dos recetas de cosign, sha256, la
       procedencia SLSA, `nucleo version`), recompilar el binario linux/amd64 desde el tag, un
       recibo del binario descargado con el SDK 0.6 de npm y con `verify-receipt`, y un `void`
       y un `reconcile` con ese binario; completar la línea PENDIENTE de
-      `docs/releases/v0.6.0-alpha.md` y la tabla de RELEASING
-- [ ] Aplicar las notas (`gh release edit v0.6.0-alpha --notes-file
-      docs/releases/v0.6.0-alpha.md`) y publicar el borrador como pre-release
+      `docs/releases/v0.6.0-alpha.md` y la tabla de RELEASING (Sprint 42, 2026-11-26; la
+      evidencia la generó Claude Code, por encargo del dev)
+- [x] Aplicar las notas (`gh release edit v0.6.0-alpha --notes-file
+      docs/releases/v0.6.0-alpha.md`) y publicar el borrador — publicado como pre-release el
+      2026-11-26 (06:12:26 UTC)
+- [x] La fecha del CHANGELOG se queda en la del commit etiquetado (2026-11-25): `1a44ead` la
+      cambió en main y se revirtió
 
 ## Mantenimiento
 - [ ] **Acciones con Node 24 en `release.yml`**: el run 44233203322 avisa de que
