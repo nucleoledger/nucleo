@@ -31,6 +31,7 @@ var NucleoVerify = (() => {
     NO_PROVABLE_TIME: () => NO_PROVABLE_TIME,
     PolicyError: () => PolicyError,
     SEPARATOR: () => SEPARATOR,
+    base64Canonical: () => base64Canonical,
     ed25519Available: () => ed25519Available,
     equal: () => equal,
     fromBase64: () => fromBase64,

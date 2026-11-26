@@ -14,4 +14,4 @@ export { parseProof } from "./proof.js";
 export type { TlogProof } from "./proof.js";
 export { verifyInclusion, leafHash, nodeHash } from "./merkle.js";
 export { sha256, verifyEd25519, ed25519Available } from "./crypto.js";
-export { fromHex, toHex, fromBase64, toBase64, utf8, equal } from "./bytes.js";
+export { fromHex, toHex, fromBase64, base64Canonical, toBase64, utf8, equal } from "./bytes.js";

@@ -37,6 +37,10 @@ codes, and any golden test vector in `testdata/vectors/`.
 - `docs/OPERACION.md` §6, «Anular una factura»: the ERP flow.
 - `scripts/tercero-anulacion.sh`: a third party checks a void with the two receipts, `printf` and
   `sha256sum`, without Núcleo and without network (PROTOCOL §5.2); in the gate and in CI.
+- **SDK `@nucleoledger/verify` 0.6.0-alpha.0: `base64Canonical(s)`**, exported: decodes standard
+  base64 only if `s` is exactly the canonical encoding of what it decodes (alphabet, length a
+  multiple of 4, padding, zero padding bits, no whitespace) and returns `null` otherwise. It is
+  the rule the verifier applies to every base64 field of a receipt (G66).
 
 ### Breaking
 
@@ -49,9 +53,31 @@ codes, and any golden test vector in `testdata/vectors/`.
 - `reconcile --json` gains the `voided` field and three finding states; the SDKs tolerate new
   fields, as the contract requires. Receipts, policies and every other wire format are
   unchanged.
+- **SDK `@nucleoledger/verify` 0.6.0-alpha.0: `fromBase64` is strict**, for whoever calls it
+  directly: it throws «base64 no canónico» on input that is not canonical base64 —whitespace
+  inside, missing padding, non-zero padding bits— instead of accepting what `atob` accepts. The
+  verifier itself never depended on the lax behaviour. Use `base64Canonical` to get `null`
+  instead of an exception.
 
 ### Fixed
 
+- **Two concurrent `nucleo void --block N` could seal two voids of the same record** (H1 of the
+  adversarial review of 2026-11-25, [`docs/revision-externa-modelo-2026-11-25.md`](docs/revision-externa-modelo-2026-11-25.md)).
+  R6 was checked before unlocking the vault (Argon2id) and not again when sealing, so two
+  commands that both passed the check left a second void forever in the chain, and `reconcile`
+  would report it as `"anulación repetida"`, exit 2. R6 is now checked again inside the sealing
+  retry, after reading the last block; `AppendRecord` rejects a stale `prev` inside its
+  transaction, which makes the check and the insert atomic. Fifty real two-process races: one
+  event each, the other command answers `already_voided: true` (without the fix, two events in
+  all fifty). v0.5.0-alpha has no `void`, so no released ledger is affected.
+- **The same pattern in `erase`** (Sprint 40 audit): if another process sealed between `erase`'s
+  checks and its seal, `erase` could (a) delete the shared encrypted copy of content that had
+  just been sealed again, under an authorization that does not cover the new block —what it
+  refuses when run in sequence—, (b) seal a second erasure event for the same content, or (c)
+  regularize an unauthorized erasure event it had not announced (ADR-033, decision 4). The three
+  are checked again inside the sealing retry: (a) and (c) refuse without writing, (b) answers
+  `already_erased: true`. This affects v0.5.0-alpha and earlier only with two processes running
+  `erase` or `seal` on the same content at the same time.
 - **Canonical base64, one rule in the three verifiers** (fuzzer finding, CI run #104). Go's
   `base64.StdEncoding.Strict()` skips `\r` and `\n` (documented) and `atob` skips all ASCII
   whitespace; `FuzzParseProof` found that Go's tlog-proof parser, on its own, accepted a proof
@@ -74,8 +100,6 @@ codes, and any golden test vector in `testdata/vectors/`.
   `atob`'s «The string to be decoded is not correctly encoded.» for a `\n`, and Go said x/mod's
   `malformed note` where TypeScript and PHP say «la nota contiene caracteres de control» or
   «base64 no canónico».
-- `fromBase64` in `@nucleoledger/verify` is now strict: it throws «base64 no canónico» on input
-  that is not canonical base64, instead of accepting what `atob` accepts.
 - Vectors: `testdata/vectors/receipt/invalido-b64-*` (20, computed outside the code by
   `generar.py`): a `\r`, a `\n`, a space or a tab in the middle of a proof node, the block
   signature, the issuer signature and the log's signature line of the note, and those four
