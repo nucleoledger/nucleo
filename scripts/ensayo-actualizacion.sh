@@ -16,14 +16,19 @@
 # política sin la clave, con código 0 en los dos casos; con la firma ML-DSA del recibo
 # alterada (un bit) y la clave fijada, código 2. El SDK del HEAD lo acepta con la clave
 # fijada y dice "present-unverified" (ADR-034, opción B); el SDK viejo de npm rechaza esa
-# política, porque no conoce el miembro.
+# política si no conoce el miembro (anterior a 0.5) y la acepta si lo conoce: lo decide la
+# política que imprimió la versión vieja, que lo trae desde v0.5.0-alpha.
+#
+# Y la anulación (ADR-035, Sprint 40): el HEAD anula con `void --block 1` una factura sellada
+# por la versión vieja; reconcile la da en voided, con código 0, y un tercero comprueba la
+# anulación con los dos recibos (scripts/tercero-anulacion.sh comprueba).
 #
 # Es el paso del ritual de RELEASING «repetir el ensayo contra el HEAD final antes de
 # etiquetar». No entra en scripts/compuerta.sh porque necesita red: descarga el release
 # de GitHub y el SDK de npm.
 #
-#   ./scripts/ensayo-actualizacion.sh                 # desde v0.4.0-alpha, con el SDK 0.4.0-alpha.0
-#   NUCLEO_ENSAYO_SDK=0.3.0-alpha.0 ./scripts/ensayo-actualizacion.sh v0.3.1-alpha
+#   ./scripts/ensayo-actualizacion.sh                 # desde v0.5.0-alpha, con el SDK 0.5.0-alpha.0
+#   NUCLEO_ENSAYO_SDK=0.4.0-alpha.0 ./scripts/ensayo-actualizacion.sh v0.4.0-alpha
 #                                                     # desde otra versión, con el SDK de npm
 #                                                     # que la acompañaba
 #
@@ -49,8 +54,8 @@
 # ejecuta nada de lo descargado.
 set -euo pipefail
 
-VERSION="${1:-v0.4.0-alpha}"
-SDK_VIEJO="${NUCLEO_ENSAYO_SDK:-0.4.0-alpha.0}"
+VERSION="${1:-v0.5.0-alpha}"
+SDK_VIEJO="${NUCLEO_ENSAYO_SDK:-0.5.0-alpha.0}"
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO=https://github.com/nucleoledger/nucleo
 
@@ -303,6 +308,9 @@ T = sys.argv[1]
 k = json.load(open(T + "/clave.json"))
 p = json.load(open(T + "/politica-vieja.json"))
 p["erasureKey"] = k["erasure_key"]
+# politica.json es la que NO fija la clave ML-DSA: desde v0.5.0-alpha, sync la imprime en
+# la política (G53), y aquí se quita a propósito; la que la fija sale del sync del HEAD.
+p.pop("logMLDSAKey", None)
 json.dump(p, open(T + "/politica.json", "w"))
 # Dos tarjetas de supresión y la línea vacía con que se termina de teclearlas.
 open(T + "/tarjetas", "w").write("\n".join(k["shares"][:2]) + "\n\n")
@@ -406,8 +414,40 @@ case "$MOTIVO" in
 esac
 
 # ---------------------------------------------------------------------------------
+titulo "6c. Anular con el HEAD una factura sellada por $VERSION (ADR-035)"
+levanta "$NUEVO"
+exige "void --block 1 (la factura que selló $VERSION)" 0 "$NUEVO" --dir "$E" --json void --block 1 \
+	--policy-file "$T/politica.json" "${P[@]}"
+VOID="$(campo "['index']" <"$T/ult.out" 2>/dev/null || echo "")"
+if [ "$(campo "['already_voided']" <"$T/ult.out" 2>/dev/null || echo "")" = False ] && [ -n "$VOID" ]; then
+	ok "  y sella el evento en el bloque $VOID"
+else
+	mal "  void no selló un evento nuevo: $(cat "$T/ult.out")"
+fi
+exige "sync tras anular" 0 "$NUEVO" --dir "$E" sync --witness "$URL" --policy-file "$T/politica.json" "${P[@]}"
+exige "reconcile: la factura 1 en voided, el bloque 0 suprimido, código 0" 0 \
+	"$NUEVO" --dir "$E" --json reconcile --source "$T/vivo.jsonl" --policy-file "$T/politica.json"
+if python3 -c '
+import json, sys
+r = json.load(open(sys.argv[1]))
+v = [(x["index"], x["voided_by"]) for x in r["voided"]]
+sys.exit(0 if v == [(1, int(sys.argv[2]))] and r["findings"] == [] and r["ok"] else 1)
+' "$T/ult.out" "$VOID"; then
+	ok "  voided = [{index: 1, voided_by: $VOID}], sin hallazgos"
+else
+	mal "  reconcile no enseña la anulación como debe: $(cat "$T/ult.out")"
+fi
+exige "recibo de la factura 1" 0 "$NUEVO" --dir "$E" receipt --block 1 \
+	--recipient "María Pérez" --out "$T/recibo-factura.txt" --policy-file "$T/politica.json" "${P[@]}"
+exige "recibo de la anulación (bloque $VOID)" 0 "$NUEVO" --dir "$E" receipt --block "$VOID" \
+	--recipient "Auditoría" --out "$T/recibo-anulacion.txt" --policy-file "$T/politica.json" "${P[@]}"
+para
+"$RAIZ/scripts/tercero-anulacion.sh" comprueba "$T/recibo-factura.txt" "$T/recibo-anulacion.txt" ||
+	mal "la comprobación de la anulación por un tercero falló (scripts/tercero-anulacion.sh)"
+
+# ---------------------------------------------------------------------------------
 titulo "7. Los recibos, con los SDK publicados y con el del HEAD"
-for r in recibo-viejo recibo-nuevo recibo-tras recibo-evento; do
+for r in recibo-viejo recibo-nuevo recibo-tras recibo-evento recibo-factura recibo-anulacion; do
 	exige "$r con @nucleoledger/verify@$SDK_VIEJO (npm) y la política de $VERSION" 0 \
 		node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/$r.txt" "$T/politica-vieja.json"
 	exige "$r con $SDK_HEAD_VER (HEAD) y la política nueva" 0 \
@@ -424,8 +464,16 @@ if grep -q "logMLDSA: present-unverified" "$T/ult.out"; then
 else
 	mal "  el SDK del HEAD no dice present-unverified: $(cat "$T/ult.out")"
 fi
-exige "@nucleoledger/verify@$SDK_VIEJO rechaza la política con logMLDSAKey (miembro desconocido, ADR-034)" 3 \
-	node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/recibo-viejo.txt" "$T/politica-mldsa.json"
+# El SDK viejo y la política con logMLDSAKey: lo rechaza si no conoce el miembro (anterior a
+# 0.5, ADR-034) y lo acepta si lo conoce. Lo dice la política que imprimió $VERSION, que lo
+# trae desde v0.5.0-alpha (G53): no se adivina por el número de versión.
+if [ -n "$(campo ".get('logMLDSAKey', '')" <"$T/politica-vieja.json")" ]; then
+	exige "@nucleoledger/verify@$SDK_VIEJO acepta la política con logMLDSAKey (la conoce, como $VERSION)" 0 \
+		node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/recibo-viejo.txt" "$T/politica-mldsa.json"
+else
+	exige "@nucleoledger/verify@$SDK_VIEJO rechaza la política con logMLDSAKey (miembro desconocido, ADR-034)" 3 \
+		node "$T/verifica.mjs" "$SDK_PUBLICADO" "$T/recibo-viejo.txt" "$T/politica-mldsa.json"
+fi
 
 # ---------------------------------------------------------------------------------
 titulo "8. Un tercero comprueba la supresión con sha256sum y openssl (PROTOCOL §5.1)"

@@ -99,14 +99,17 @@ sobre él cubre a todos, y verificarla son dos comandos en vez de doce.
       primero el SDK (tag `vsdk-*`) y después el binario.
 - [ ] **Repetir el ensayo de actualización contra el HEAD final**, justo antes de
       etiquetar: `./scripts/ensayo-actualizacion.sh vX.Y.Z-anterior` (por omisión,
-      `v0.4.0-alpha` con el SDK `0.4.0-alpha.0`; `NUCLEO_ENSAYO_SDK` elige la versión del SDK de npm que
-      acompañaba a esa). Necesita `cosign` (la versión de `release.yml`): sin él sale
+      `v0.5.0-alpha` con el SDK `0.5.0-alpha.0`; `NUCLEO_ENSAYO_SDK` elige la versión del SDK de npm que
+      acompañaba a esa: `NUCLEO_ENSAYO_SDK=0.4.0-alpha.0 ./scripts/ensayo-actualizacion.sh v0.4.0-alpha`). Necesita `cosign` (la versión de `release.yml`): sin él sale
       con 2 antes de descargar nada. Baja primero `checksums.txt` y su firma, la verifica
       con cosign, y **solo entonces** baja el binario publicado y comprueba su sha256
       contra ese manifiesto ya autenticado, antes de ejecutarlo (el orden lo fija
       `scripts/test-ensayo-orden.sh`, sin red). Crea con él un despliegue de verdad y lo
       lleva al HEAD: apertura con la misma política, sellado, `sync` contra la misma
-      memoria del testigo, una supresión autorizada y los recibos verificados con el SDK
+      memoria del testigo, una supresión autorizada, la firma ML-DSA-44 del recibo viejo
+      (`"verified"` con `logMLDSAKey`), la anulación con `void --block 1` de una factura
+      sellada por la versión vieja (`reconcile` la da en `voided`, código 0, y
+      `tercero-anulacion.sh comprueba` sus dos recibos) y los recibos verificados con el SDK
       publicado de esa versión, con el del HEAD y con la versión del HEAD instalada desde
       npm (si no está publicada, el ensayo falla: el SDK va antes). No está
       en `scripts/compuerta.sh` porque necesita red. Sale con 2 si no puede comprobar, o
