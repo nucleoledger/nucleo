@@ -11,7 +11,7 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
-## [0.6.0-alpha] — 2026-11-25
+## [0.6.0-alpha] — 2026-11-26
 
 ### What this version is
 
