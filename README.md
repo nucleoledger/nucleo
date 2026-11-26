@@ -71,14 +71,14 @@ What this does **not** cover is listed, with numbers, in [GARANTIAS](docs/GARANT
 
 ## Status
 
-**v0.5.0-alpha.** Alpha software: **no professional security audit has been performed,
+**v0.6.0-alpha.** Alpha software: **no professional security audit has been performed,
 and nobody runs it in production.** Every review listed below was an adversarial review by
-AI models — fourteen rounds, counted under [Security & audits](#security--audits) — not by a
+AI models — fifteen rounds, counted under [Security & audits](#security--audits) — not by a
 security firm.
 
 What this alpha has behind it, each item checked rather than claimed:
 
-- **Fourteen adversarial rounds; three of them executed exploits** (the audits of 0.2-draft),
+- **Fifteen adversarial rounds; three of them executed exploits** (the audits of 0.2-draft),
   **and every one of those exploits is kept as a regression test** — the last to get one, the
   receipt of a block signed by a foreign key under the real checkpoint
   ([ADR-017](docs/adr/ADR-017-politica-raiz-de-confianza.md)), is a shared vector that Go,
@@ -99,12 +99,13 @@ What this alpha has behind it, each item checked rather than claimed:
 - **Artifacts you can check**: releases signed keyless with cosign, with a SLSA
   provenance attestation; `@nucleoledger/verify` published from CI with npm provenance
   (`npm audit signatures`); and the published linux/amd64 binary of every release up to
-  `v0.4.0-alpha` rebuilt from its tag **byte for byte**
+  `v0.5.0-alpha` rebuilt from its tag **byte for byte**
   ([how, and the table](docs/RELEASING.md#compilar-desde-el-código)).
 
 What is still missing: that audit, any production use, a witness operated by someone other
 than the issuer, an adversarial round on the 0.5 work —the erasure-key rotation, regularization
-and the ML-DSA-44 check; the fourteen rounds end with v0.4.0-alpha—, and the other half of the success
+and the ML-DSA-44 check; the fifteenth round, on 2026-11-25, covered the 0.6 work, the void
+event and canonical base64—, and the other half of the success
 criterion below — a developer from outside the project, timed. The mechanical path, from
 a clean clone to a verified receipt, measures about half a minute; the comprehension part
 cannot be clocked by whoever wrote the example.
@@ -422,7 +423,7 @@ The record of the pre-publication rounds is in
 [ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md); the post-publication audits are in
 ADR-016, ADR-017 and ADR-018 and in the CHANGELOG.
 
-**Then six reviews from outside the project, and an operations rehearsal.** A model with no
+**Then seven reviews from outside the project, and an operations rehearsal.** A model with no
 access to the repository's history read the public tree and found, among others, a genuine
 receipt that two of the three verifiers rejected whenever the clock did not land on a whole
 second ([ADR-019](docs/adr/ADR-019-resolucion-temporal.md)), and receipt vectors generated
@@ -440,15 +441,19 @@ work: one checked [`docs/GARANTIAS.md`](docs/GARANTIAS.md) and
 wrote the receipt before verifying it ([report](docs/revision-externa-modelo-20261010.md));
 two reviewed everything changed since v0.3.1-alpha, the erasure authority first
 ([report](docs/revision-externa-modelo-20261011.md),
-[report](docs/revision-externa-modelo-20261014.md)). Each report says where every finding was
-closed, with its commit and its test. A seventh, on 2026-10-17, read only the documentation
+[report](docs/revision-externa-modelo-20261014.md)). A seventh reviewed the v0.6.0-alpha work —the
+void event of [ADR-035](docs/adr/ADR-035-anulacion-de-facturas.md) and canonical base64— and
+found that two concurrent `nucleo void` could seal two voids of the same record; the fix
+checks again inside the sealing retry, and the same pattern was fixed in `erase`
+([report](docs/revision-externa-modelo-2026-11-25.md)). Each report says where every finding was
+closed, with its commit and its test. One more, on 2026-10-17, read only the documentation
 changed before the v0.4.0-alpha tag and found nothing blocking
 ([report](docs/revision-externa-modelo-20261017.md)); it is not counted as a round.
 
-**How the fourteen rounds are counted:** four before the first release
+**How the fifteen rounds are counted:** four before the first release
 ([ADR-013](docs/adr/ADR-013-auditoria-pre-publica.md), its table); the review after
 `v0.1.0-alpha` that led to ADR-014 and ADR-015; the three audits of 0.2-draft (ADR-016,
-ADR-017, ADR-018); and the six reviews of the code with a report in `docs/revision-externa-*`.
+ADR-017, ADR-018); and the seven reviews of the code with a report in `docs/revision-externa-*`.
 
 The operations rehearsal and the
 integration example are in the [status](#status) above and in the CHANGELOG.

@@ -11,6 +11,58 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+## [0.6.0-alpha] — 2026-11-25
+
+### What this version is
+
+**An issued invoice can be voided** —the SRI marked it «ANULADO»— **without touching it**
+([ADR-035](docs/adr/ADR-035-anulacion-de-facturas.md)). `nucleo void --block N` seals a
+`nucleo.void.v1` event that points at the invoice by index and `payload_hash`; the invoice block
+stays in the chain and its receipt keeps verifying, and `reconcile` lists it under `voided` in
+every run and **keeps reconciling it**: a void excuses nothing, so a voided invoice the ERP
+deleted is still missing. It is the issuer's declaration, not the SRI's state
+([L24](docs/GARANTIAS.md#2-límites-lo-que-núcleo-no-garantiza)). And **base64 has one canonical
+rule in the three verifiers** (G66), after a fuzzer finding that turned out to reach no complete
+receipt. Sprints 36 to 41. [PROTOCOL](docs/PROTOCOL.md) moves to **0.9-draft**: the void event
+and its rules R1–R6 (§5.2), and a reconciliation rule for every reader —a block under `nucleo.`
+the reader does not implement is an integrity finding, never ignored—; §3.1 spells out canonical
+base64. No block, leaf, checkpoint, receipt or policy changes a byte.
+
+**One external review round covered this work**, on 2026-11-25
+([report](docs/revision-externa-modelo-2026-11-25.md)): it found that two concurrent
+`nucleo void` could seal two voids of the same record (H1, fixed below, together with the same
+pattern in `erase`), and no way to make `reconcile` accept a void that breaks R1–R6. The 0.5
+work —erasure-key rotation, regularization, the ML-DSA-44 check— has still had no round.
+
+### Upgrading from 0.5.0-alpha
+
+**Nothing to migrate: not the ledger, the vault, the witness memory or the policy.** Rehearsed
+with the published v0.5.0-alpha binary (sha256 `37a7c5b6…`, its `checksums.txt` verified with
+cosign before downloading it) and the final code of this version, with
+[`scripts/ensayo-actualizacion.sh`](scripts/ensayo-actualizacion.sh), which now starts from
+v0.5.0-alpha by default: a ledger, a witness memory and a policy made with v0.5.0-alpha open
+with this version —`status` gives `verified`, `verify --full` passes, sealing and `sync` against
+the same witness memory continue—, an erasure of a block sealed by v0.5.0-alpha is authorized
+and reconciled, the receipt it issued gives `logMLDSA: "verified"` with `nucleo verify-receipt`
+and `logMLDSAKey` pinned, and **an invoice it sealed is voided with `nucleo void --block 1`**:
+`reconcile` lists it under `voided`, exit 0, and a third party checks the void with the two
+receipts ([`scripts/tercero-anulacion.sh`](scripts/tercero-anulacion.sh)). Six receipts —the old
+one, a new one, after the erasure, the erasure event, the invoice and its void— verify with
+`@nucleoledger/verify@0.5.0-alpha.0` and with 0.6.0-alpha.0, the HEAD's build and the package
+from the registry.
+
+What you may notice:
+
+- **Do not reconcile a ledger with a void using v0.5.0-alpha or earlier** (see Breaking): it
+  fails closed, but under the wrong name.
+- **`reconcile --json` gains `voided`** —always an array— and three finding states; the PHP
+  SDK and the example's contract ignore unknown fields, as `docs/CLI-JSON.md` requires.
+- **`void` and `erase` refuse a decision that went stale while unlocking the vault**: with
+  another process sealing the same content at the same time, `erase` may now answer with a usage
+  error (exit 1) and erase nothing, and `void` and `erase` may answer `already_voided` /
+  `already_erased` instead of sealing a second event (see Fixed).
+- **The SDK's `fromBase64` is strict** if you call it directly (see Breaking).
+
 ### Added
 
 - **`nucleo void --block N | --payload F`: voiding an issued record** —an invoice the SRI marked
@@ -37,10 +89,16 @@ codes, and any golden test vector in `testdata/vectors/`.
 - `docs/OPERACION.md` §6, «Anular una factura»: the ERP flow.
 - `scripts/tercero-anulacion.sh`: a third party checks a void with the two receipts, `printf` and
   `sha256sum`, without Núcleo and without network (PROTOCOL §5.2); in the gate and in CI.
-- **SDK `@nucleoledger/verify` 0.6.0-alpha.0: `base64Canonical(s)`**, exported: decodes standard
-  base64 only if `s` is exactly the canonical encoding of what it decodes (alphabet, length a
-  multiple of 4, padding, zero padding bits, no whitespace) and returns `null` otherwise. It is
-  the rule the verifier applies to every base64 field of a receipt (G66).
+- **SDK `@nucleoledger/verify` 0.6.0-alpha.0, already published** (tag `vsdk-0.6.0-alpha.0`,
+  commit `e28156d`, with npm provenance; `latest` and `alpha`; rebuilt byte for byte from the
+  tag, sha1 `a5061161…`): **`base64Canonical(s)`**, exported, decodes standard base64 only if
+  `s` is exactly the canonical encoding of what it decodes (alphabet, length a multiple of 4,
+  padding, zero padding bits, no whitespace) and returns `null` otherwise. It is the rule the
+  verifier applies to every base64 field of a receipt (G66). The example
+  ([`examples/erp-node`](examples/erp-node)) pins it.
+- `scripts/ensayo-actualizacion.sh` starts from v0.5.0-alpha and voids an invoice the old
+  binary sealed; `scripts/ensayo-anulacion-compat.sh` rehearses a ledger with a void in front of
+  the published v0.5.0-alpha (both in the RELEASING ritual: they need the network).
 
 ### Breaking
 
@@ -1499,7 +1557,8 @@ First tagged version. The success criterion of the project
 - Witness cosignatures are Ed25519, not ML-DSA-44, which `tlog-witness` states as
   a SHOULD.
 
-[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.5.0-alpha...HEAD
+[Unreleased]: https://github.com/nucleoledger/nucleo/compare/v0.6.0-alpha...HEAD
+[0.6.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.5.0-alpha...v0.6.0-alpha
 [0.5.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.4.0-alpha...v0.5.0-alpha
 [0.4.0-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.3.1-alpha...v0.4.0-alpha
 [0.3.1-alpha]: https://github.com/nucleoledger/nucleo/compare/v0.3.0-alpha...v0.3.1-alpha

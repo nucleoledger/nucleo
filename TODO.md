@@ -1,16 +1,16 @@
 # TODO.md — Backlog atómico
 
-Estado: **`v0.5.0-alpha`** **publicado** como pre-release el 2026-11-19 (02:18:30 UTC)
-(tag firmado con SSH, commit `cdc36c4`; Sprints 35 y 35b): el release lo creó el CI el
-2026-11-17 (run 44233203322), y ese día se verificó desde un
-directorio limpio —cosign con las dos recetas, sha256, procedencia SLSA— y se recompiló byte
-a byte desde el tag (sha256 `37a7c5b6…`, la tabla de RELEASING); las notas, con esa
-evidencia, en `docs/releases/v0.5.0-alpha.md`. `@nucleoledger/verify@0.5.0-alpha.0`
-**publicado** en npm con procedencia el 2026-11-17 (tag `vsdk-0.5.0-alpha.0`, commit
-`a4ca446`; `latest` y `alpha`; reconstruido byte a byte).
-El release anterior es **`v0.4.0-alpha`** (tag firmado con SSH, commit `978156f`),
-**publicado** como pre-release el 2026-10-17 (19:16:30 UTC), verificado ese día desde un
-directorio limpio y recompilado byte a byte desde el tag. El anterior, `v0.3.1-alpha`.
+Estado: **`v0.6.0-alpha` preparada, sin etiquetar** (Sprint 41): CHANGELOG, notas en
+`docs/releases/v0.6.0-alpha.md` (con la línea PENDIENTE de la verificación), la actualización
+desde v0.5.0-alpha ensayada (con un `void` de una factura sellada por la 0.5) y el ensayo de
+compatibilidad de la anulación en verde; el tag, el release y su verificación los hace el dev.
+`@nucleoledger/verify@0.6.0-alpha.0` **publicado** en npm con procedencia el 2026-11-25 (tag
+`vsdk-0.6.0-alpha.0`, commit `e28156d`; `latest` y `alpha`; reconstruido byte a byte, la tabla
+de RELEASING), y el ejemplo lo fija.
+El último release publicado es **`v0.5.0-alpha`** (tag firmado con SSH, commit `cdc36c4`),
+**publicado** como pre-release el 2026-11-19 (02:18:30 UTC), verificado desde un directorio
+limpio —cosign con las dos recetas, sha256, procedencia SLSA— y recompilado byte a byte desde el
+tag (sha256 `37a7c5b6…`). El anterior, `v0.4.0-alpha`.
 Lo detallado de cada versión vive en `CHANGELOG.md`.
 
 El histórico de tareas cumplidas se resume por sprint: el detalle vive en los
