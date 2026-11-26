@@ -1,0 +1,40 @@
+# Revisión adversarial de Núcleo — 2026-11-25
+
+**Base:** `main` en `bc43585`; árbol limpio al empezar. **Alcance:** ADR-035, PROTOCOL 0.9-draft §5.2, `internal/void`, `internal/reconcile`, `cmd/nucleo/void.go`, `testdata/vectors/void/` y base64 canónico de Go/TypeScript/PHP (G66). No se cambió código ni vectores.
+
+## Resultado
+
+Un hallazgo de concurrencia en la **emisión** de anulaciones. No encontré una vía para que `reconcile` dé por válida una anulación que incumpla R1–R6, para que una anulación disculpe un faltante o una discrepancia, ni para que Go o TypeScript acepten los base64 no canónicos ensayados. **La equivalencia con PHP quedó sin comprobar en ejecución:** no hay `php` ni `NUCLEO_PHP` en este entorno. El hallazgo de carrera se deriva de una intercalación verificable en el código; no se obtuvo una ejecución concurrente instrumentada que la reprodujera, distinción importante para su grado de certeza.
+
+### H1 — Dos `nucleo void --block N` concurrentes pueden sellar dos anulaciones — ALTA (intercalación demostrable, ejecución concurrente pendiente)
+
+**Regla/garantía:** ADR-035 §5 (R6) y §8; **G62**, «`nucleo void` sella una sola anulación» y, si ya existe, devuelve `already_voided: true` sin sellar. No rompe la aplicación de R6 por `reconcile` (**G61**): este denunciará la segunda como `anulación repetida` y saldrá con 2. La severidad se debe a que dos órdenes legítimas y concurrentes pueden dejar permanentemente ese hallazgo de integridad en una cadena append-only.
+
+**Reproducción mínima, intercalación:** con un ledger cuyo bloque `0` es un registro aún no anulado, lanzar dos procesos `nucleo --dir DIR --json void --block 0 --passphrase-file PASS`. Intercalar así:
+
+1. Ambos alcanzan `cmd/nucleo/void.go:90-112` y obtienen `previas=[]` mediante `BlocksWithPayload` **antes** de que ninguno añada su evento; ambos concluyen que R6 no impide sellar.
+2. A sella el evento en el bloque `1` con `AppendRecord` y confirma la transacción.
+3. B entra en `intento` (`void.go:131-151`). Si leyó el último bloque antes que A, `AppendRecord` rechaza el enlace y `sellarConReintentos` vuelve a ejecutar `intento`; si lo leyó después, no necesita reintentar. En ambos caminos B puede construir y sellar el bloque `2`: **no se vuelve a consultar `previas` dentro de `intento` ni se impone una unicidad por destino en la transacción** (`internal/store/record.go:60-105`).
+4. Ambos resultados pueden decir `already_voided: false`. Una reconciliación posterior conserva `voided: [{index:0,voided_by:1,…}]` pero añade `{status:"anulación repetida",index:2,rule:"R6",first_void:1}` y código 2.
+
+La condición necesaria es que ambos procesos superen el chequeo previo antes del primer `AppendRecord`; no afirmo una frecuencia observada. `cmd/nucleo/void_test.go:71-133` ensaya una segunda orden **secuencial**, no esta carrera. La transacción protege el encadenamiento, pero no hace atómico el chequeo de R6 con la inserción.
+
+## Intentos sin ruptura encontrada
+
+| Objetivo | Ataque/contraste efectuado y resultado | Garantía |
+|---|---|---|
+| Anulación aceptada sin R1–R6 | Contrasté `void.Evaluate` (`reglas.go:62-110`) con los 23 escenarios firmados de `reconcile.json`: CID defectuoso → R1; referencia propia o futura → R2; índice/`payload_hash` que no corresponden → R3; destino `nucleo.*` → R4; otro tenant → R5; segunda anulación válida → R6. La prueba `TestLasReglasCoincidenConLosEscenarios` y `TestAnulacionVector` pasó. `Evaluate` no autentica la cadena por sí mismo; la CLI abre el store verificando integridad (`internal/store/store.go:96-103`) y `reconcile` ejecuta además verificación completa por defecto. No apareció una aceptación de un evento inválido. | G60, G61 |
+| «Perdonar» faltante o discrepancia | Ensayé los escenarios `valida-factura-borrada` y `valida-factura-cambiada`: `voided` contiene la emisión, `findings` conserva respectivamente `faltante` y `discrepancia`, con salida 2. En `reconcile.go:379-411`, solo una **supresión autorizada**, no una anulación, evita `faltante`; el cotejo de hashes de `:340-374` tampoco consulta `voided`. | G61, L24 |
+| Des-anular y anular `nucleo.*` | Los escenarios `r4-des-anular` y `r4-anula-una-supresion` resultan en R4; `void.go:79-83` impide que la CLI anule cualquier tipo reservado, incluso uno desconocido. `Evaluate` usa `erasure.Reserved`, no una lista cerrada de tipos. Ningún evento posterior elimina una anulación válida de `primera`. | G61, G62; ADR-035 §5 |
+| `payload_cid` ambiguo | Probé los siete CID inválidos y los tres válidos de `cid.json`, mediante `TestElCidCoincideConLosVectores` y los escenarios R1: `03`, `-1`, `9007199254740992`, sufijos con espacio, prefijo/versiones distintos y ausencia de índice se rechazan; `0` y `9007199254740991` se aceptan **como sintaxis** y solo podrán nombrar un bloque anterior existente si pasan R2–R3. `decimalCanonico` y `ParseUint` no recortan espacios ni redondean enteros. | G60, G61 |
+| Dos anulaciones y carrera | La segunda anulación **secuencial** devuelve `already_voided: true` sin escribir; los vectores `r6-repetida` y `r6-tras-una-invalida` confirman que `reconcile` denuncia solo la segunda válida y no deja que una inválida bloquee una válida posterior. La carrera de la CLI sí queda en H1. | G61, G62 |
+| `nucleo.*` desconocido | `reconcile.go:333-337,570-574` añade `evento de Núcleo desconocido` a `findings`; `:383-390` impide clasificarlo como `faltante`. El escenario del vector para un tipo reservado desconocido pasó. | G61 |
+| Recibo con base64 no canónico | `TestDecodeBase64CanonicalRechaza`, `TestCheckSigLines` y los 20 vectores `invalido-b64-*` pasaron en Go; en TS pasaron `bytes.test.ts` y `receipt.test.ts` (145 tests). Los intentos incluyen `\r`, `\n`, espacio, tabulador, `\f`, bits de relleno a uno, `=` desplazado, ausencia de relleno y alfabeto URL. Los tres decodificadores inspeccionados exigen alfabeto/longitud y recodificación idéntica; Go añade `Strict()` y controla las líneas de firma antes de `note.Open`. No encontré una aceptación en los dos verificadores ejecutados. El decodificador PHP fue **inspeccionado, no ejecutado**. | G66 |
+| Divergencia Go/TS/PHP | Generé el catálogo con `TestDiferencialGeneraCatalogo` y ejecuté `node scripts/diferencial.mjs /tmp/opencode/revision-catalogo.json` desde `sdk/ts`: **4.880 mutaciones, 0 divergencias de dictamen Go↔TS**; 4 aceptaciones extra de TS corresponden a la excepción ML-DSA documentada en ADR-034 (no a base64). El arnés informó explícitamente «PHP: NO SE COMPROBÓ». Por tanto **no hay veredicto experimental sobre Go↔PHP o TS↔PHP**, ni se descarta una divergencia allí. | G63, G66; límite ADR-034 |
+
+## Ejecución y límites
+
+- `go test ./internal/void ./internal/reconcile ./internal/checkpoint ./internal/receipt ./cmd/nucleo -tags=testhooks -run 'Test(ElPayloadCoincideConLosVectores|ElCidCoincideConLosVectores|LasReglasCoincidenConLosEscenarios|AnulacionVector|VoidedSiempreEsArray|VoidSellaUnaVezYReconcileLaEnsena|VoidPorPayload|VoidRechaza|DecodeBase64CanonicalRFC4648|DecodeBase64CanonicalRechaza|CheckSigLines|VectoresBase64ConElMotivo)$' -count=1`: pasó.
+- `npm test -- --run test/bytes.test.ts test/receipt.test.ts` desde `sdk/ts`: 145 tests pasaron. El diferencial de dos verificadores pasó con el catálogo anterior.
+- `./scripts/compuerta.sh`: gofmt, vet, lint, ambas suites Go con `-race`, SDK TS, vectores, demo y comprobación de anulación por tercero pasaron. **Rojo únicamente en tres pasos que necesitan PHP**: disponibilidad de PHP con ext-sodium, suite PHP y diferencial de tres verificadores. `php sdk/php/test/run.php` no pudo arrancar (`php: command not found`). El primer intento de compuerta expiró durante lint a los 120 s; el segundo llegó al final (838 s).
+- No ejecuté un ataque con dos procesos sincronizados en la ventana de H1; la reproducción anterior especifica el orden necesario y el resultado deducido de las rutas de código. Tampoco ejecuté la compatibilidad con releases antiguos que requiere red (G65). El informe no afirma cobertura exhaustiva de entradas o intercalaciones.
