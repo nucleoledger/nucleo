@@ -1,5 +1,12 @@
 name: ci
-on: [push, pull_request]
+# push solo a main y a los tags; las demás ramas, por su pull_request. Con `on: [push,
+# pull_request]` cada push de Dependabot a su rama lanzaba dos runs idénticos (#116 y #117).
+# `v*` ya incluye `vsdk-*`; va escrito para que se lea qué tags lo disparan.
+on:
+  push:
+    branches: [main]
+    tags: ['v*', 'vsdk-*']
+  pull_request:
 
 # Lo mínimo, para todos los jobs: leer el código. El CI no publica, no comenta, no
 # etiqueta ni escribe nada en el repositorio, así que ningún job amplía esto. Sin la
@@ -255,9 +262,11 @@ jobs:
             exit 1
           fi
       - name: shellcheck ${{ env.SHELLCHECK_VERSION }}, con el checksum comprobado
+        # --retry: un 504 de GitHub tiró el run #116 sin ningún hallazgo. Reintentar no
+        # relaja nada: lo descargado pasa igual por su sha256.
         run: |
           f="shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
-          curl -fsSLo "$RUNNER_TEMP/$f" "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/$f"
+          curl --retry 5 --retry-delay 5 --retry-all-errors -fsSLo "$RUNNER_TEMP/$f" "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/$f"
           echo "${SHELLCHECK_SHA256}  $RUNNER_TEMP/$f" | sha256sum -c -
           tar -xJf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP"
           sc="$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}/shellcheck"
@@ -518,21 +527,23 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck, actionlint y zizmor, con el checksum comprobado
+        # --retry, como en el job `scripts`: un 504 no es un hallazgo; el sha256 se
+        # comprueba igual.
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
           f="shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
-          curl -fsSLO "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/$f"
+          curl --retry 5 --retry-delay 5 --retry-all-errors -fsSLO "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/$f"
           echo "${SHELLCHECK_SHA256}  $f" | sha256sum -c -
           tar -xJf "$f"
           a="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
-          curl -fsSLO "$base/$a"
-          curl -fsSLO "$base/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+          curl --retry 5 --retry-delay 5 --retry-all-errors -fsSLO "$base/$a"
+          curl --retry 5 --retry-delay 5 --retry-all-errors -fsSLO "$base/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
           grep "  $a\$" "actionlint_${ACTIONLINT_VERSION}_checksums.txt" | sha256sum -c -
           tar -xzf "$a" actionlint
           z="zizmor-x86_64-unknown-linux-gnu.tar.gz"
-          curl -fsSLO "https://github.com/zizmorcore/zizmor/releases/download/${ZIZMOR_VERSION}/$z"
+          curl --retry 5 --retry-delay 5 --retry-all-errors -fsSLO "https://github.com/zizmorcore/zizmor/releases/download/${ZIZMOR_VERSION}/$z"
           echo "${ZIZMOR_SHA256}  $z" | sha256sum -c -
           tar -xzf "$z" zizmor
           ./actionlint -version | head -1

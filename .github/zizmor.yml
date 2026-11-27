@@ -10,6 +10,17 @@ rules:
       # 0.6.0-alpha.0 en el run 45753924882.
       - publish-npm.yml
 
+  cache-poisoning:
+    ignore:
+      # ci.yml corre también en los tags (`push: tags: ['v*', 'vsdk-*']`, Sprint 44), y
+      # zizmor trata todo workflow que corre en un tag como uno que publica: sus 13
+      # setup-go/setup-node/cache con caché le parecen una vía para envenenar un release.
+      # ci.yml no publica nada —solo lee el código, `permissions: contents: read`—; lo
+      # que se publica sale de release.yml y publish-npm.yml, que van sin caché y SÍ los
+      # vigila esta regla. Antes del Sprint 44 ci.yml también corría en los tags (`on:
+      # push` sin filtro), pero zizmor no lo veía: el riesgo es el mismo de antes.
+      - ci.yml
+
   # Toda action, por SHA de commit, también las de actions/* y las de GitHub (la política
   # por omisión de zizmor les deja pasar una etiqueta). Una etiqueta la mueve su autor; un
   # SHA no. El comentario `# vX.Y.Z` al lado es para quien lee, y Dependabot lo mantiene.
