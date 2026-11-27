@@ -8,7 +8,7 @@
     "valida": "node valida.mjs --autoprueba && node valida.mjs ../../docs/ARQUITECTURA.md ../../README.md"
   },
   "devDependencies": {
-    "jsdom": "25.0.1",
-    "mermaid": "11.17.2"
+    "jsdom": "31.0.1",
+    "mermaid": "12.3.0"
   }
 }
