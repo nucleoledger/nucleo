@@ -118,11 +118,14 @@ Node ≥ 22.12, which is what `.nvmrc` pins.
 `package.json` carries one `overrides` entry — `vite: ^7` — and it is there for a
 reason worth writing down, since a manifest cannot hold comments: vitest pulls
 vite in, and vite **8** declares a peer on `esbuild ^0.27 || ^0.28`, which
-conflicts with the `esbuild 0.25.0` this package pins to build the browser bundle.
-Vite 7 declares no esbuild peer at all, so constraining it there keeps the
-bundler where it is. Bumping esbuild is a separate decision with its own
+conflicted with the `esbuild 0.25.0` this package pinned to build the browser
+bundle. Vite 7 declares no esbuild peer at all, so constraining it there kept the
+bundler where it was. Bumping esbuild is a separate decision with its own
 verification — it changes bytes that ship in `web/verify/nucleo-verify.js` — and
 not something a security patch on the test runner gets to do as a side effect.
+That decision was taken on its own: esbuild is now `0.28.2`, with the bundle diff
+explained in its commit, so vite 8's peer would be satisfied. The override stays
+until moving the test runner to vite 8 is decided, also on its own.
 
 ## Usage
 

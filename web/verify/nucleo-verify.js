@@ -214,6 +214,7 @@ time ${timestamp.toString()}
     constructor(s) {
       this.s = s;
     }
+    s;
     i = 0;
     finDeTexto() {
       if (this.i !== this.s.length) throw new Error("sobra texto");
@@ -606,6 +607,7 @@ time ${timestamp.toString()}
     constructor(s) {
       this.s = s;
     }
+    s;
     i = 0;
     /** ruta son los nombres de los miembros que se están leyendo, desde el documento. */
     ruta = [];
