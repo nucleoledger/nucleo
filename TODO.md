@@ -450,6 +450,15 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
 - [ ] **Node y PHP exactos en el CI**: `sdk/ts/.nvmrc` dice `22` y el job `diferencial` pide
       PHP `'8.3'`: flotan dentro de su línea. Fijarlos a una versión exacta es decidir quién la
       sube (Dependabot no mira `.nvmrc`)
+- [x] **Dependencias al día y CI robusto** (Sprint 44): curl con `--retry` en las descargas
+      del CI (el run #116 cayó por un 504); `ci.yml` en push solo a `main` y a los tags, más
+      `pull_request` (Dependabot lanzaba dos runs por push); la PR #4 de Go en main con el
+      ensayo v0.5.0-alpha → HEAD en verde (sqlite 1.62); en lugar de la PR #5: jsdom 31.0.1
+      y mermaid 12.3.0, vitest 5.1.1, esbuild 0.28.2 con el bundle regenerado (dos `s;`,
+      equivalentes) y TypeScript 7.0.2 (`dist/` idéntico byte a byte al de 5.7.3)
+- [ ] **El override `vite: ^7` de `sdk/ts`**: existía porque vite 8 pide esbuild ≥ 0.27 y el
+      bundle iba con 0.25.0. Con esbuild 0.28.2 ya no hace falta por eso; pasar el runner de
+      tests a vite 8 es una decisión aparte (`sdk/ts/README.md`)
 
 ## Después de la 0.5 (en este orden; la congelación de la 0.8-draft terminó al publicar v0.5.0-alpha, y el próximo cambio de protocolo entra solo por ADR-035)
 - [ ] **ADR-035: eventos `issued`/`voided`** —la anulación del SRI, primero—: anular una
@@ -489,7 +498,8 @@ es el detalle; aquí, un sprint por paso, cada uno con la compuerta en verde.
       §3.1 lo aclara. Ningún recibo completo era maleable en v0.5.0-alpha: comprobado con los
       verificadores de antes del arreglo y con el de Go de v0.4.0-alpha
 - [ ] **Huella SHA-256 de la política (JCS)** en `sync` y en `verify-receipt`, para cotejarla
-      con la del contrato: operativiza L21 sin tocar el protocolo
+      con la del contrato: operativiza L21 sin tocar el protocolo. **Lo siguiente** (tras el
+      Sprint 44), con su ADR-036 antes que código
 - [ ] **El Sealer PHP rechaza rutas relativas del binario**
 
 ## Después del release de v0.4.0-alpha

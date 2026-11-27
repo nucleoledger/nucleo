@@ -46,6 +46,7 @@ nucleo/
 │                           # test-ensayo-orden.sh (H8: el orden de las descargas del ensayo, sin red)
 │                           # instala-openssl.sh (OpenSSL 3.5.9 para los vectores ML-DSA, con sha256 y PGP)
 │                           # autores.sh (las identidades de git log = las cuatro de AUTHORS; compuerta, no CI)
+│                           # workflows-coinciden.sh (release.yml y release-snapshot.yml: la misma goreleaser-action@SHA y la misma goreleaser exacta; compuerta y CI)
 ├── tools/mermaid/          # validador de los Mermaid de ARQUITECTURA (dev, con su lockfile)
 ├── docs/
 │   ├── PROTOCOL.md         # LA LEY. Todo cambio de formato exige ADR + bump aquí

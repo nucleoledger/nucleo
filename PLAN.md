@@ -61,7 +61,13 @@ pre-release el 2026-11-26 (06:12:26 UTC, `publishedAt`).
 **La cadena de suministro de los workflows** (Sprint 43): todas las actions fijadas por SHA y
 las de `release.yml` en node24 o composite; goreleaser exacto; el job `workflows` con actionlint
 y zizmor; el release en seco en el CI (`release-snapshot.yml`); Dependabot semanal con cooldown
-(G67). Pendientes como decisión aparte: cosign 3 y Node/PHP exactos (`TODO.md`). Cuando el dev
+(G67). Pendientes como decisión aparte: cosign 3 y Node/PHP exactos (`TODO.md`).
+
+**Dependencias al día y CI robusto** (Sprint 44): reintentos en las descargas del CI y `ci.yml`
+sin runs duplicados; la PR #4 de Go fusionada, con el ensayo de actualización desde
+v0.5.0-alpha en verde; las de npm de la PR #5 aplicadas a mano, cada una verificada —el bundle
+de `web/verify` con dos líneas equivalentes, y el `dist/` del SDK idéntico byte a byte con
+TypeScript 7—. Lo siguiente es **ADR-036, la huella de la política** (`TODO.md`). Cuando el dev
 lo decida, el `Sealer` de PHP envuelve `void`.
 
 El detalle de lo hecho entre `v0.1.0-alpha` y aquí —Sprints 7 a 14: seis rondas
