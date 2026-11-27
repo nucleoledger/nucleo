@@ -11,6 +11,15 @@ codes, and any golden test vector in `testdata/vectors/`.
 
 ## [Unreleased]
 
+### Changed
+
+- **The next SDK `@nucleoledger/verify` is compiled with TypeScript 7** (7.0.2, the native
+  compiler; 0.6.0-alpha.0 was compiled with 5.7.3). Nothing in the package changes because of
+  it: `tsc -p tsconfig.json` with 5.7.3 and with 7.0.2 gives a byte-identical `dist/`, all 22
+  files, JavaScript and `.d.ts`. The browser bundle (`web/verify/nucleo-verify.js`) is now built
+  with esbuild 0.28.2, which declares the `s` field of the two internal readers the way `tsc`
+  already did; same behaviour.
+
 ## [0.6.0-alpha] — 2026-11-25
 
 ### What this version is
